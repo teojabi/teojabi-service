@@ -28,4 +28,6 @@
 - **프론트엔드**: Porkbun 웹 호스팅
   - Next.js의 정적 내보내기(Static Export - `output: 'export'`) 기능을 활용해 배포하거나, Porkbun에서 Node.js를 지원할 경우 서버 사이드 렌더링(SSR) 유지
 - **백엔드**: (논의 중)
-- **데이터베이스**: (논의 중)
+- **데이터베이스**: Supabase (PostgreSQL 호스팅)
+  - 백엔드(NestJS)에서 ORM(TypeORM, Prisma 등)을 통해 Supabase의 DB Connection 풀을 활용해 연결
+  - 필요 시 Supabase에서 제공하는 다양한 BaaS 기능(Auth, Storage) 활용을 고려
