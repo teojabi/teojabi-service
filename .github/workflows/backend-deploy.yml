@@ -1,4 +1,4 @@
-name: Backend CI Test
+name: Deploy Backend to Railway
 
 on:
   push:
@@ -34,4 +34,10 @@ jobs:
       - name: Run Tests
         run: npm run test
         
-      # 백엔드 호스팅 서비스가 확정되면 이 아래 단계에 배포 스크립트를 추가합니다.
+      - name: Install Railway CLI
+        run: npm i -g @railway/cli
+
+      - name: Deploy to Railway
+        run: railway up
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
