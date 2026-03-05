@@ -1,65 +1,80 @@
-import Image from "next/image";
+import Link from 'next/link';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Map, Image as ImageIcon, Search } from 'lucide-react';
 
 export default function Home() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <div className="flex flex-col min-h-screen">
+      {/* Hero Section */}
+      <section className="w-full py-12 md:py-24 lg:py-32 xl:py-48 bg-muted/40 items-center flex justify-center">
+        <div className="container px-4 md:px-6">
+          <div className="flex flex-col items-center space-y-4 text-center">
+            <div className="space-y-2">
+              <h1 className="text-3xl font-bold tracking-tighter sm:text-4xl md:text-5xl lg:text-6xl/none">
+                터잡이 - 스마트한 부동산 탐색
+              </h1>
+              <p className="mx-auto max-w-[700px] text-muted-foreground md:text-xl">
+                지도에서 매물을 검색하고 공시지가, 실거래가, 토지이용계획 등 공공데이터를 한눈에 확인하세요.
+              </p>
+            </div>
+            <div className="space-x-4">
+              <Link href="/search">
+                <Button size="lg" className="h-11 px-8">지도에서 찾기</Button>
+              </Link>
+              <Link href="/gallery">
+                <Button variant="outline" size="lg" className="h-11 px-8">갤러리 보기</Button>
+              </Link>
+            </div>
+          </div>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+      </section>
+
+      {/* Features Section */}
+      <section className="w-full py-12 md:py-24 lg:py-32 items-center flex justify-center">
+        <div className="container px-4 md:px-6">
+          <div className="grid gap-6 lg:grid-cols-3 lg:gap-12">
+            <Card>
+              <CardHeader className="pb-4 flex flex-row space-y-0 items-center gap-4">
+                <Map className="h-8 w-8 text-primary" />
+                <div className="space-y-1">
+                  <CardTitle>지도 기반 검색</CardTitle>
+                  <CardDescription>원하는 지역의 매물을 지도에서 직관적으로 찾아보세요.</CardDescription>
+                </div>
+              </CardHeader>
+              <CardContent>
+                지역, 가격, 면적 등 다양한 조건으로 필터링하여 당신에게 딱 맞는 부동산을 쉽고 빠르게 발견할 수 있습니다.
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-4 flex flex-row space-y-0 items-center gap-4">
+                <Search className="h-8 w-8 text-primary" />
+                <div className="space-y-1">
+                  <CardTitle>공공데이터 연동</CardTitle>
+                  <CardDescription>신뢰할 수 있는 정보를 제공합니다.</CardDescription>
+                </div>
+              </CardHeader>
+              <CardContent>
+                국토교통부 실거래가, 공시지가, 토지이음 데이터를 실시간으로 조회하여 안전하고 정확한 거래를 지원합니다.
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-4 flex flex-row space-y-0 items-center gap-4">
+                <ImageIcon className="h-8 w-8 text-primary" />
+                <div className="space-y-1">
+                  <CardTitle>시각적 매물 확인</CardTitle>
+                  <CardDescription>갤러리로 매물을 한눈에 살펴보세요.</CardDescription>
+                </div>
+              </CardHeader>
+              <CardContent>
+                사진 중심의 직관적인 UI를 제공하여 현장에 가지 않아도 매물의 상태를 생생하게 파악할 수 있도록 돕습니다.
+              </CardContent>
+            </Card>
+          </div>
         </div>
-      </main>
+      </section>
     </div>
   );
 }
