@@ -33,9 +33,20 @@ teojabi-service/
 │   └── package.json      # (또는 build.gradle, requirements.txt 등 백엔드 언어에 맞게)
 ├── database/             # Tier 3: 데이터베이스 관리
 │   ├── init/             # DB 초기 세팅 스크립트 (DDL, 테이블 생성 스크립트 등)
-│   └── docker-compose.yml # 로컬 개발용 DB 환경 구축 (선택 사항)
+│   └── supabase/         # Supabase Local CLI 설정 폴더 (로컬 개발용 DB 환경 구축)
 └── .gitignore            # Git 관리에서 제외할 파일 목록
 ```
 
-## 4. 향후 확장을 위한 고려사항
-각 폴더 내부에 들어갈 세부적인 프레임워크(예: React, Spring Boot, Node.js + MySQL 등)가 결정되면, 해당 구조 내에서 프레임워크가 권장하는 폴더 패턴을 하위 레벨로 적용하게 됩니다.
+## 4. 확정된 기술 스택 및 아키텍처 상세
+본 프로젝트는 다음의 기술 스택을 기반으로 구현됩니다.
+
+- **프론트엔드 (Tier 1)**: Next.js 14 (App Router), TypeScript, Tailwind CSS, Shadcn/UI
+  - 완전 정적 호스팅 지원 (`output: 'export'`)
+  - 주요 기능: 네이버 지도 API 연동, 부동산 갤러리 게시판, 단순 JWT 보관 및 전송
+- **백엔드 (Tier 2)**: NestJS, TypeScript, REST API
+  - 인증: Passport.js를 통한 통합 소셜 로그인 및 JWT 발급 전담
+  - 데이터 중계: 공공데이터(실거래가, 공시지가, 토지이음 API) 실시간 Proxy 처리 및 비즈니스 로직
+  - 문서화: Swagger를 통한 API 명세서 자동 단일화 제공
+- **데이터베이스 (Tier 3)**: PostgreSQL (Supabase 호스팅)
+  - ORM: Prisma
+  - 지리 정보 처리(GIS): PostGIS 익스텐션 활성화 및 마커/범위 검색 최적화 적용

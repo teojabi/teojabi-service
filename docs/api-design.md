@@ -24,13 +24,16 @@
 ---
 
 ## 1. Authentication & User API (Auth)
-인증은 Front에서 NextAuth가 대부분 관장하지만, 권한 제어 및 백엔드 연동을 위한 API입니다.
+NextAuth.js를 제외하고, 백엔드(NestJS + Passport.js)에서 소셜 로그인을 전담하여 JWT를 발급하는 구조입니다.
 
 | Method | Endpoint | Description | Role / Auth |
 |---|---|---|---|
 | `GET` | `/api/v1/users/me` | 현재 내 프로필 및 권한 조회 | USER |
 | `PATCH` | `/api/v1/users/me` | 내 프로필 정보(이름, 아바타 등) 업데이트 | USER |
-| `POST` | `/api/v1/auth/sync` | (필요시) NextAuth 세션으로 백엔드 JWT 재발급 | ANY |
+| `GET` | `/api/v1/auth/naver` | 네이버 로그인 화면으로 리다이렉트 (Passport OAuth 시작) | NONE |
+| `GET` | `/api/v1/auth/naver/callback` | 네이버 콜백 처리 및 클라이언트로 JWT 쿠키/응답 전달 | NONE |
+| `GET` | `/api/v1/auth/kakao` | 카카오 로그인 화면으로 리다이렉트 | NONE |
+| `GET` | `/api/v1/auth/kakao/callback` | 카카오 콜백 처리 및 클라이언트로 JWT 쿠키/응답 전달 | NONE |
 
 ---
 

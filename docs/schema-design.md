@@ -21,7 +21,7 @@ generator client {
 ## 2. 모델 구조 정의
 
 ### User (사용자 및 권한)
-소셜 로그인(NextAuth) 연동과 자체 회원 관리를 위한 모델입니다.
+소셜 로그인(NestJS Passport) 연동과 자체 회원 관리를 위한 모델입니다.
 ```prisma
 model User {
   id            String    @id @default(uuid())
@@ -65,9 +65,7 @@ model Property {
   // 실 구현 시 원시 SQL 쿼리($queryRaw)를 통해 위경도 삽입 및 거리 검색 수행
   location      Unsupported("geometry(Point, 4326)")? 
 
-  // 공공데이터 연동 캐싱 필드 (선택적)
-  officialPrice Decimal?  @db.Decimal(15,2)    // 공시지가
-  actualPrice   Decimal?  @db.Decimal(15,2)    // 실거래가 (참조용)
+  // 공공데이터 연동 (실거래가, 공시지가 등은 백엔드 Proxy API를 통해 실시간 조회하므로 DB에 저장하지 않음)
 
   // Relations
   ownerId       String?                        // 매물 담당자 또는 등록자 (ADMIN)
@@ -110,5 +108,5 @@ enum ResStatus {
 
 ## 3. 요약 및 시사점
 *   **PostGIS 활용**: `Property` 모델에 `Unsupported("geometry")` 필드와 `Gist` 인덱스를 추가하여 지도 검색 및 마커 표시 속도를 최적화합니다.
-*   **소셜 로그인**: `User` 테이블에 NextAuth 연동을 위한 기본적인 Provider 필드들이 구현되었습니다.
+*   **소셜 로그인**: `User` 테이블에 NestJS 서버사이드 연동을 위한 기본적인 Provider 필드들이 구현되었습니다.
 *   **지번 주소 키**: `Property`의 `address` 필드를 `@unique`로 잡아 지번을 기준으로 매물이 고유하게 식별되도록 설계했습니다.
