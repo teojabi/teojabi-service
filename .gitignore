@@ -1,0 +1,31 @@
+# Node modules
+node_modules/
+
+# Frontend API key config (실제 키 값 포함 - Git 제외)
+frontend/js/config.js
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Build outputs
+dist/
+build/
+.next/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
