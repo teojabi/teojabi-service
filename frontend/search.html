@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>터잡이 지도 검색</title>
+    <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="/css/components.css">
+
+    <!-- 네이버 지도 API (로컬호스트 허용 Client ID 임시 적용 - 실 서비스 시 환경변수 혹은 운영/개발 키 분리 필요) -->
+    <!-- 참고: ncpClientId 값에 'abcde12345' 등의 데모/더미 키를 넣으면 Unauthorized 오류가 납니다. 지도 테스트를 위해 데모 키 적용 혹은 주석 해제 상태로만 활성화합니다. -->
+    <script type="text/javascript"
+        src="https://openapi.map.naver.com/openapi/v3/maps.js?ncpClientId=83bfuniegk&submodules=geocoder"></script>
+    <style>
+        .map-wrapper {
+            position: relative;
+            width: 100%;
+            height: calc(100vh - var(--header-height));
+            overflow: hidden;
+            display: flex;
+        }
+
+        #naver-map {
+            flex-grow: 1;
+            height: 100%;
+            background-color: #e2e8f0;
+            /* 지도 로드 전 배경색 */
+        }
+
+        /* 좌우 레이어드 팝업 공통 스타일 */
+        .side-panel {
+            position: absolute;
+            top: 10px;
+            bottom: 10px;
+            width: 350px;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-lg);
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            transition: transform 0.3s ease-in-out;
+            border: 1px solid var(--border-color);
+        }
+
+        .side-panel-header {
+            padding: 1rem;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .side-panel-title {
+            font-size: 1.1rem;
+            font-weight: 700;
+        }
+
+        .side-panel-body {
+            padding: 1rem;
+            overflow-y: auto;
+            flex-grow: 1;
+        }
+
+        /* 좌측 팝업 (일반 공공 데이터) */
+        .left-panel {
+            left: 10px;
+            transform: translateX(-120%);
+        }
+
+        .left-panel.active {
+            transform: translateX(0);
+        }
+
+        /* 우측 팝업 (관리자 등록 매물 정보) */
+        .right-panel {
+            right: 10px;
+            transform: translateX(120%);
+        }
+
+        .right-panel.active {
+            transform: translateX(0);
+        }
+
+        /* 컨트롤 리셋 버튼 위치보정 등 */
+        .search-control {
+            position: absolute;
+            top: 15px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 50;
+            background: white;
+            padding: 0.5rem 1rem;
+            border-radius: var(--radius-full);
+            box-shadow: var(--shadow-md);
+            display: flex;
+            gap: 10px;
+            border: 1px solid var(--border-color);
+        }
+
+        .search-control input {
+            border: none;
+            outline: none;
+            font-size: 0.95rem;
+            width: 250px;
+        }
+
+        .map-layer-control {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            z-index: 50;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="header-container"></div>
+
+    <main class="map-wrapper">
+        <!-- 지도 상단 검색/위치이동 컨트롤 -->
+        <div class="search-control">
+            <i class="ri-search-line" style="color: var(--text-muted); align-self: center;"></i>
+            <input type="text" id="map-search-input" placeholder="원하는 지역이나 지번 검색">
+            <button id="btn-search"
+                style="border:none;background:none;cursor:pointer;color:var(--primary-color);font-weight:600;">검색</button>
+        </div>
+
+        <!-- 지도 레이어 컨트롤 -->
+        <div class="map-layer-control">
+            <button id="btn-cadastral" class="btn btn-outline"
+                style="background: white; border-radius: var(--radius-full); box-shadow: var(--shadow-md); padding: 0.4rem 0.8rem; font-size: 0.85rem; font-weight: 600;"><i
+                    class="ri-map-2-line"></i> 지적도 켜기</button>
+        </div>
+
+        <!-- 왼쪽 패널: 일반 부동산 & 공공데이터 -->
+        <aside class="side-panel left-panel" id="panel-general">
+            <div class="side-panel-header">
+                <h3 class="side-panel-title"><i class="ri-map-pin-line"></i> 일반 공공 정보</h3>
+                <button class="btn-close" id="btn-close-left">&times;</button>
+            </div>
+            <div class="side-panel-body" id="content-general">
+                <p style="color: var(--text-muted);text-align:center;margin-top:2rem;">
+                    지도의 특정 위치나 건물 영역을 클릭하면<br>국토부 오픈데이터가 여기에 표시됩니다.
+                </p>
+                <!-- JS에서 동적 Data Injection -->
+            </div>
+        </aside>
+
+        <!-- 네이버 지도 렌더링 영역 -->
+        <div id="naver-map"></div>
+
+        <!-- 오른쪽 패널: 관리자 등록 매물 상세 및 공공데이터 결합 -->
+        <aside class="side-panel right-panel" id="panel-premium">
+            <div class="side-panel-header">
+                <h3 class="side-panel-title" style="color: var(--primary-color);"><i class="ri-vip-diamond-line"></i>
+                    터잡이 컨설팅 매물</h3>
+                <button class="btn-close" id="btn-close-right">&times;</button>
+            </div>
+            <div class="side-panel-body" id="content-premium">
+                <p style="color: var(--text-muted);text-align:center;margin-top:2rem;">
+                    지도 위의 커스텀 마커를 클릭하면<br>프리미엄 컨설팅 상세 내역이 표시됩니다.
+                </p>
+                <!-- JS에서 슬라이드 쇼 및 상세 정보 Injection -->
+            </div>
+            <div style="padding: 1rem; border-top: 1px solid var(--border-color);">
+                <button id="btn-reserve" class="btn btn-primary" style="width: 100%;"><i
+                        class="ri-calendar-check-line"></i> 이 매물 상담 예약하기</button>
+            </div>
+        </aside>
+    </main>
+
+    <div id="login-modal-container"></div>
+
+    <script type="module" src="/js/app.js"></script>
+    <script type="module" src="/js/pages/search.js"></script>
+</body>
+
+</html>

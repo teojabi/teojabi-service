@@ -9,22 +9,22 @@
 - **트리거**: `main` 브랜치의 `frontend/**` 경로에 변경사항이 푸시될 때 실행
 - **프로세스**: 
   1. 저장소 체크아웃
-  2. Node.js 환경 세팅
-  3. 의존성 설치 (`npm ci`)
-  4. Next.js 빌드 (`npm run build`) -> 정적 파일 생성 (`output: 'export'`)
-  5. GitHub Actions에서 FTP-Deploy-Action 등을 사용하여 Porkbun 서버로 빌드 결과물 자동 업로드
+  2. GitHub Actions에서 FTP-Deploy-Action 등을 사용하여 `frontend/` 하위의 정적(HTML, CSS, JS) 파일 전체를 Porkbun 서버로 자동 업로드
 
 ### 2. 백엔드 워크플로우 (`.github/workflows/backend-deploy.yml`)
 - **트리거**: `main` 브랜치의 `backend/**` 경로에 변경사항이 푸시될 때 실행
-- **프로세스**: GitHub Actions에서 Railway CLI(또는 Railway GitHub 통합 앱)를 활용해 자동으로 Docker 빌드 후 Railway 서버로 배포
+- **프로세스**: 
+  1. 네이버 클라우드 플랫폼(NCP) 서버로 SSH 접속 (GitHub Secrets 활용)
+  2. 서버 타겟 디렉토리에서 `git pull origin main` 수행
+  3. 의존성 설치 (`npm install`) 및 빌드 (`npm run build`)
+  4. PM2 등의 프로세스 매니저를 통해 서버 재시작 (`pm2 restart teojabi-backend`)
 
 ## 인프라 호스팅 구성 및 기술 스택 상세
 
 - **프론트엔드 (Tier 1)**: Porkbun 호스팅 (정적 웹 호스팅)
-  - 프레임워크: Next.js 14 App Router, TypeScript (정적 내보내기 `output: 'export'` 필수)
-  - UI 구성: Tailwind CSS, Shadcn/UI
-  - 인증: 백엔드(NestJS)에서 발급한 JWT 쿠키/토큰 보관 및 Authorization 헤더 전송
-- **백엔드 (Tier 2)**: Railway 호스팅
+  - 프레임워크: 순수 HTML, CSS, Vanilla JS (No Framework)
+  - 인증: 백엔드(NestJS)에서 발급한 JWT 쿠키/토큰 보관 및 API 요청 시 Authorization 헤더 전송
+- **백엔드 (Tier 2)**: 네이버 클라우드 플랫폼 (NCP) 서버
   - 프레임워크: NestJS, REST API 구조
   - 문서화: Swagger를 필수적으로 적용하여 모든 API 명세화
 - **데이터베이스 (Tier 3)**: Supabase (PostgreSQL 호스팅)

@@ -65,17 +65,35 @@ model Property {
   // 실 구현 시 원시 SQL 쿼리($queryRaw)를 통해 위경도 삽입 및 거리 검색 수행
   location      Unsupported("geometry(Point, 4326)")? 
 
-  // 공공데이터 연동 (실거래가, 공시지가 등은 백엔드 Proxy API를 통해 실시간 조회하므로 DB에 저장하지 않음)
-
   // Relations
   ownerId       String?                        // 매물 담당자 또는 등록자 (ADMIN)
   owner         User?     @relation(fields: [ownerId], references: [id])
   reservations  Reservation[]
+  
+  // PublicData와 주소(address)를 활용해 개념적(또는 명시적)인 1:1 확장을 이룰 수 있음
+  // publicData  PublicData? @relation(fields: [address], references: [address])
 
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
   @@index([location], type: Gist)              // 공간 쿼리용 GIST 인덱스
+}
+```
+
+### PublicData (공공 API 캐싱 데이터)
+특정 매물 등록 여부와 무관하게, API를 통해 한 번이라도 조회된 주소의 공공데이터(실거래가, 공시지가, 토지이음 규제 등)를 영구/주기적으로 적재하여 프록시 부하를 방지합니다.
+```prisma
+model PublicData {
+  id            String    @id @default(uuid())
+  address       String    @unique              // 지번/도로명 주소 (검색 키)
+  
+  officialPrice Decimal?  @db.Decimal(15,2)    // 가장 최근 공시지가
+  actualPrice   Decimal?  @db.Decimal(15,2)    // 가장 최근 실거래가
+  landUsePlan   String?   @db.Text             // 토지이음 규제/용도 요약 데이터
+  
+  syncedAt      DateTime  @default(now())      // 외부 API를 통해 동기화된 마지막 시점
+
+  // (Optional) Property 테이블과 관계를 맺고 싶다면 위 Property의 주석 처리된 관계 방식 참고
 }
 ```
 

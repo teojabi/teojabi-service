@@ -23,4 +23,15 @@ export class UsersService {
     async createUser(data: any) {
         return this.prisma.user.create({ data });
     }
+
+    async createSocialUser(provider: string, providerId: string, email: string, name: string) {
+        return this.prisma.user.create({
+            data: {
+                provider,
+                providerId,
+                email,
+                name,
+            },
+        });
+    }
 }

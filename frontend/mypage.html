@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>터잡이 - 마이페이지</title>
+    <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="/css/components.css">
+    <style>
+        .profile-header {
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-hover) 100%);
+            color: white;
+            padding: 4rem 20px;
+            text-align: center;
+        }
+
+        .avatar {
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            background: white;
+            color: var(--primary-color);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            overflow: hidden;
+            border: 4px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .avatar img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .dashboard-container {
+            max-width: 1000px;
+            margin: -3rem auto 3rem;
+            background: var(--bg-main);
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-md);
+            border: 1px solid var(--border-color);
+        }
+
+        .tabs {
+            display: flex;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .tab {
+            flex: 1;
+            padding: 1.5rem;
+            text-align: center;
+            font-weight: 600;
+            color: var(--text-muted);
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .tab:hover {
+            background: var(--bg-muted);
+        }
+
+        .tab.active {
+            color: var(--primary-color);
+            border-bottom: 3px solid var(--primary-color);
+            background: transparent;
+        }
+
+        .tab-content {
+            display: none;
+            padding: 3rem 2rem;
+            min-height: 400px;
+        }
+
+        .tab-content.active {
+            display: block;
+            animation: fadeInUp 0.3s ease-out forwards;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="header-container"></div>
+
+    <section class="profile-header">
+        <div class="avatar" id="profile-avatar"><i class="ri-user-line"></i></div>
+        <h2 id="profile-name" style="font-size: 2rem;">로딩 중...</h2>
+        <p id="profile-email" style="font-size: 1.1rem; opacity: 0.8;">-</p>
+        <button class="btn btn-outline" style="border-color: rgba(255,255,255,0.4); color: white; margin-top: 1.5rem;"
+            onclick="window.logout()">로그아웃</button>
+    </section>
+
+    <main class="container">
+        <div class="dashboard-container">
+            <div class="tabs">
+                <div class="tab active" data-target="reservations">내 상담 예약</div>
+                <div class="tab" data-target="likes">관심 매물</div>
+            </div>
+
+            <!-- 예약 내역 탭 -->
+            <div class="tab-content active" id="tab-reservations">
+                <h3 style="margin-bottom: 1.5rem;">나의 상담 예약 내역</h3>
+                <div
+                    style="text-align: center; padding: 4rem; color: var(--text-muted); border: 1px dashed var(--border-color); border-radius: var(--radius-md);">
+                    <i class="ri-calendar-close-line" style="font-size: 3rem; margin-bottom: 1rem; display:block;"></i>
+                    예약된 상담 내역이 없습니다.
+                </div>
+            </div>
+
+            <!-- 관심 매물 탭 -->
+            <div class="tab-content" id="tab-likes">
+                <h3 style="margin-bottom: 1.5rem;">찜한 매물</h3>
+                <div
+                    style="text-align: center; padding: 4rem; color: var(--text-muted); border: 1px dashed var(--border-color); border-radius: var(--radius-md);">
+                    <i class="ri-heart-3-line" style="font-size: 3rem; margin-bottom: 1rem; display:block;"></i>
+                    관심 매물로 등록한 항목이 없습니다.
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <div id="footer-container"></div>
+    <div id="login-modal-container"></div>
+
+    <script type="module" src="/js/app.js"></script>
+    <script type="module" src="/js/pages/mypage.js"></script>
+</body>
+
+</html>

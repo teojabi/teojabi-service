@@ -5,23 +5,24 @@ generator client {
 
 datasource db {
   provider   = "postgresql"
-  extensions = [postgis(version: "3.3.2", schema: "public")]
+  url        = env("DATABASE_URL")
+  extensions = [postgis(schema: "public")]
 }
 
 model User {
-  id            String    @id @default(uuid())
-  email         String?   @unique
-  name          String?
-  image         String?   @db.Text
-  role          Role      @default(USER)
-  provider      String?
-  providerId    String?
+  id         String  @id @default(uuid())
+  email      String? @unique
+  name       String?
+  image      String? @db.Text
+  role       Role    @default(USER)
+  provider   String?
+  providerId String?
 
-  properties    Property[]
-  reservations  Reservation[]
+  properties   Property[]
+  reservations Reservation[]
 
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([provider, providerId])
 }
@@ -33,38 +34,38 @@ enum Role {
 }
 
 model Property {
-  id            String    @id @default(uuid())
-  title         String
-  description   String    @db.Text
-  address       String    @unique
-  images        String[]
-  price         Decimal?  @db.Decimal(15,2)
+  id          String   @id @default(uuid())
+  title       String
+  description String   @db.Text
+  address     String   @unique
+  images      String[]
+  price       Decimal? @db.Decimal(15, 2)
 
-  location      Unsupported("geometry(Point, 4326)")? 
+  location Unsupported("geometry(Point, 4326)")?
 
-  ownerId       String?
-  owner         User?     @relation(fields: [ownerId], references: [id])
-  reservations  Reservation[]
+  ownerId      String?
+  owner        User?         @relation(fields: [ownerId], references: [id])
+  reservations Reservation[]
 
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([location], type: Gist)
 }
 
 model Reservation {
-  id            String    @id @default(uuid())
-  date          DateTime
-  status        ResStatus @default(PENDING)
-  message       String?   @db.Text
+  id      String    @id @default(uuid())
+  date    DateTime
+  status  ResStatus @default(PENDING)
+  message String?   @db.Text
 
-  userId        String
-  user          User      @relation(fields: [userId], references: [id])
-  propertyId    String
-  property      Property  @relation(fields: [propertyId], references: [id])
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  propertyId String
+  property   Property @relation(fields: [propertyId], references: [id])
 
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 enum ResStatus {
@@ -72,4 +73,15 @@ enum ResStatus {
   CONFIRMED
   CANCELLED
   COMPLETED
+}
+
+model PublicData {
+  id      String @id @default(uuid())
+  address String @unique // 지번/도로명 주소 (검색 키)
+
+  officialPrice Decimal? @db.Decimal(15, 2) // 가장 최근 공시지가
+  actualPrice   Decimal? @db.Decimal(15, 2) // 가장 최근 실거래가
+  landUsePlan   String?  @db.Text // 토지이음 규제/용도 요약 데이터
+
+  syncedAt DateTime @default(now()) // 외부 API를 통해 동기화된 마지막 시점
 }

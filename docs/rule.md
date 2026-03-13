@@ -10,7 +10,7 @@
 - **명명 규칙 (Naming)**:
   - 디렉토리 및 파일명: 소문자 케밥 케이스(`kebab-case`) 사용 권장. (예: `user-profile.js`)
   - 변수, 함수명: 카멜 케이스(`camelCase`).
-  - 클래스 및 컴포넌트명: 파스칼 케이스(`PascalCase`).
+  - 클래스 및 생성자 함수명: 파스칼 케이스(`PascalCase`). (Vanilla JS 모듈화)
   - 상수(Constant): 대문자 스네이크 케이스(`UPPER_SNAKE_CASE`).
 
 ## 2. 브랜치 전략 (Git Branching)

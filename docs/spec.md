@@ -23,10 +23,11 @@ teojabi-service/
 │   ├── RESEARCH.md       # 요구사항 및 리서치 (현재 논의중)
 │   ├── rule.md           # 프로젝트 규칙 및 협업 컨벤션
 │   └── spec.md           # 아키텍처 및 시스템 스펙 명세 (본 문서)
-├── frontend/             # Tier 1: 프론트엔드 프로젝트
-│   ├── src/              # 프론트엔드 소스코드 (컴포넌트, 페이지 등)
-│   ├── public/           # 정적 파일 (이미지, 폰트 등)
-│   └── package.json      # 모듈 의존성 정의
+├── frontend/             # Tier 1: 정적 프론트엔드 프로젝트
+│   ├── css/              # 스타일시트 분리
+│   ├── js/               # Vanilla JS 로직 및 컴포넌트 스크립트
+│   ├── assets/           # 정적 에셋 (이미지, 폰트 등)
+│   └── *.html            # HTML 페이지 진입점 (`index.html`, `search.html`, `gallery.html`, `properties.html`, `admin.html` 등)
 ├── backend/              # Tier 2: 백엔드 프로젝트
 │   ├── src/              # 백엔드 소스코드 (컨트롤러, 서비스, 모델 등)
 │   ├── tests/            # 단위/통합 테스트 코드
@@ -40,13 +41,15 @@ teojabi-service/
 ## 4. 확정된 기술 스택 및 아키텍처 상세
 본 프로젝트는 다음의 기술 스택을 기반으로 구현됩니다.
 
-- **프론트엔드 (Tier 1)**: Next.js 14 (App Router), TypeScript, Tailwind CSS, Shadcn/UI
-  - 완전 정적 호스팅 지원 (`output: 'export'`)
-  - 주요 기능: 네이버 지도 API 연동, 부동산 갤러리 게시판, 단순 JWT 보관 및 전송
-- **백엔드 (Tier 2)**: NestJS, TypeScript, REST API
-  - 인증: Passport.js를 통한 통합 소셜 로그인 및 JWT 발급 전담
-  - 데이터 중계: 공공데이터(실거래가, 공시지가, 토지이음 API) 실시간 Proxy 처리 및 비즈니스 로직
-  - 문서화: Swagger를 통한 API 명세서 자동 단일화 제공
+- **프론트엔드 (Tier 1)**: 순수 HTML, CSS, Vanilla JS
+  - 빌드 과정 없는 완전 정적 호스팅 포맷 완성
+  - 주요 기능: 네이버 지도 API 직접 연동, 부동산 갤러리 렌더링 컴포넌트화 구축
+  - 통신/인증: JWT 인증 확인과 `credentials: true` 속성을 활용한 CORS 기반 통신 처리
+- **백엔드 (Tier 2)**: NestJS, TypeScript, REST API (NCP 서버 배포)
+  - 인증(보안): Passport.js 기반 통합 소셜 로그인 제공 및 XSS 방지를 위한 **HttpOnly/Secure/SameSite** 쿠키 직접 발급
+  - 데이터 중계(성능): 주기율 스케줄러(CRON)를 가동하여 공공포털 데이터를 내부 DB에 능동 적재·캐싱 (API 실시간 부하 해결)
+  - CORS 통제: `main.ts` 레벨에서 프론트엔드 도메인 자격 증명(CORS 화이트리스트) 명시
+  - 문서화: Swagger를 통한 API 명세서 자동 연동 제공
 - **데이터베이스 (Tier 3)**: PostgreSQL (Supabase 호스팅)
   - ORM: Prisma
   - 지리 정보 처리(GIS): PostGIS 익스텐션 활성화 및 마커/범위 검색 최적화 적용

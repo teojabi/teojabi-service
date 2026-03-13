@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>터잡이 - 매물 상세 보기</title>
+    <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="/css/components.css">
+    <style>
+        .property-header {
+            background-color: var(--bg-main);
+            border-bottom: 1px solid var(--border-color);
+            padding: 3rem 0;
+            text-align: center;
+        }
+
+        .property-title {
+            font-size: 2.2rem;
+            font-weight: 800;
+            margin-bottom: 0.5rem;
+        }
+
+        .property-address {
+            color: var(--text-muted);
+            font-size: 1.1rem;
+        }
+
+        .property-hero-image {
+            width: 100%;
+            height: 450px;
+            background-color: #cbd5e1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 3rem;
+            margin-top: 2rem;
+            margin-bottom: 3rem;
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+        }
+
+        .property-hero-image img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .grid-layout {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 2rem;
+            margin-bottom: 5rem;
+        }
+
+        @media (max-width: 768px) {
+            .grid-layout {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .section-box {
+            background: var(--bg-main);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-lg);
+            padding: 2.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .section-title {
+            font-size: 1.4rem;
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: var(--primary-color);
+            border-bottom: 2px solid var(--bg-muted);
+            padding-bottom: 0.5rem;
+        }
+
+        .floating-action-card {
+            background: white;
+            border: 1px solid var(--primary-color);
+            border-radius: var(--radius-lg);
+            padding: 2rem;
+            position: sticky;
+            top: calc(var(--header-height) + 2rem);
+            box-shadow: var(--shadow-md);
+        }
+
+        .price-badge {
+            background: #fef2f2;
+            color: var(--danger-color);
+            padding: 1rem;
+            border-radius: var(--radius-md);
+            text-align: center;
+            margin-bottom: 1.5rem;
+            font-weight: 700;
+            font-size: 1.5rem;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="header-container"></div>
+
+    <header class="property-header">
+        <div class="container">
+            <h1 class="property-title" id="prop-title">로딩 중...</h1>
+            <p class="property-address" id="prop-address"><i class="ri-map-pin-line"></i> 정보를 불러오고 있습니다.</p>
+        </div>
+    </header>
+
+    <main class="container">
+        <div class="property-hero-image" id="prop-hero">
+            <i class="ri-image-line"></i>
+        </div>
+
+        <div class="grid-layout">
+            <div class="main-content">
+                <section class="section-box">
+                    <h2 class="section-title"><i class="ri-file-search-line"></i> 컨설팅 상세 분석 리포트</h2>
+                    <div id="prop-description" style="line-height: 1.8; color: var(--text-main);">
+                        (내용이 로드됩니다)
+                    </div>
+                </section>
+
+                <section class="section-box" style="background: var(--bg-muted);">
+                    <h2 class="section-title"><i class="ri-database-2-line"></i> 교차 검증 공공데이터 (Public Data)</h2>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                        <div
+                            style="background: white; padding: 1.5rem; border-radius: var(--radius-md); border: 1px solid var(--border-color);">
+                            <p style="font-weight: 700; margin-bottom: 0.5rem;"><i class="ri-line-chart-line"></i>
+                                공시지가/실거래가</p>
+                            <p id="prop-price-data" style="font-size: 0.95rem; color: var(--text-muted);">데이터를 불러오는
+                                중입니다.</p>
+                        </div>
+                        <div
+                            style="background: white; padding: 1.5rem; border-radius: var(--radius-md); border: 1px solid var(--border-color);">
+                            <p style="font-weight: 700; margin-bottom: 0.5rem;"><i class="ri-earth-line"></i> 토지이용/규제 플랜
+                            </p>
+                            <p id="prop-land-data" style="font-size: 0.95rem; color: var(--text-muted);">데이터를 불러오는 중입니다.
+                            </p>
+                        </div>
+                    </div>
+                </section>
+            </div>
+
+            <aside class="sidebar-content">
+                <div class="floating-action-card">
+                    <div class="price-badge" id="prop-price">
+                        0 원
+                    </div>
+                    <ul style="margin-bottom: 2rem; color: var(--text-muted); font-size: 0.95rem;">
+                        <li style="margin-bottom: 0.8rem;"><i class="ri-check-line"
+                                style="color: var(--success-color);"></i> 터잡이 전속 컨설턴트 1:1 배정</li>
+                        <li style="margin-bottom: 0.8rem;"><i class="ri-check-line"
+                                style="color: var(--success-color);"></i> 보안 NDA 체결 및 세부지번 공개</li>
+                        <li style="margin-bottom: 0.8rem;"><i class="ri-check-line"
+                                style="color: var(--success-color);"></i> 취득 및 용도변경 전략 제공</li>
+                    </ul>
+                    <button class="btn btn-primary btn-lg" style="width: 100%; margin-bottom: 1rem;"
+                        id="btn-reserve-action"><i class="ri-calendar-event-line"></i> 프리미엄 상담 신청</button>
+                    <button class="btn btn-outline" style="width: 100%;"><i class="ri-heart-3-line"></i> 관심 매물로
+                        저장</button>
+                </div>
+            </aside>
+        </div>
+    </main>
+
+    <div id="footer-container"></div>
+    <div id="login-modal-container"></div>
+
+    <script type="module" src="/js/app.js"></script>
+    <script type="module" src="/js/pages/properties.js"></script>
+</body>
+
+</html>

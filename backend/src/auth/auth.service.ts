@@ -9,19 +9,17 @@ export class AuthService {
         private jwtService: JwtService,
     ) { }
 
-    async validateUser(provider: string, providerId: string): Promise<any> {
-        const user = await this.usersService.findByProvider(provider, providerId);
+    async validateSocialUser(provider: string, providerId: string, email: string, name: string): Promise<any> {
+        let user = await this.usersService.findByProvider(provider, providerId);
         if (!user) {
-            // Create user if not exists (simplified signup for social login)
-            return await this.usersService.createUser({ provider, providerId });
+            // Create user if not exists
+            user = await this.usersService.createSocialUser(provider, providerId, email, name);
         }
         return user;
     }
 
-    async login(user: any) {
+    async generateJwtCookiePayload(user: any) {
         const payload = { email: user.email, sub: user.id, role: user.role };
-        return {
-            access_token: this.jwtService.sign(payload),
-        };
+        return this.jwtService.sign(payload);
     }
 }
