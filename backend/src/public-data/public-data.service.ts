@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
+import { ConfigService } from '@nestjs/config';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
 import { firstValueFrom } from 'rxjs';
@@ -11,6 +12,7 @@ export class PublicDataService {
     constructor(
         private readonly httpService: HttpService,
         private readonly prisma: PrismaService,
+        private readonly configService: ConfigService,
     ) { }
 
     // 매일 자정(02:00)에 데이터 갱신 실행 (예시)
@@ -75,5 +77,38 @@ export class PublicDataService {
         }
 
         return data;
+    }
+
+    // 키워드(POI) 검색: 네이버 로컬 검색 API를 통해 위경도 좌표 반환
+    async searchByKeyword(query: string): Promise<{ x: number; y: number; title: string; address: string } | null> {
+        const clientId = this.configService.get<string>('NAVER_CLIENT_ID');
+        const clientSecret = this.configService.get<string>('NAVER_CLIENT_SECRET');
+
+        try {
+            const response = await firstValueFrom(
+                this.httpService.get('https://openapi.naver.com/v1/search/local.json', {
+                    params: { query, display: 1, start: 1, sort: 'random' },
+                    headers: {
+                        'X-Naver-Client-Id': clientId,
+                        'X-Naver-Client-Secret': clientSecret,
+                    },
+                }),
+            );
+
+            const items = response.data?.items;
+            if (!items || items.length === 0) return null;
+
+            const item = items[0];
+            // 네이버 로컬 검색 API는 mapx/mapy에 경도/위도를 문자열로 반환 (정수 형태, 10^7 배)
+            const x = parseFloat(item.mapx) / 1e7;  // 경도 (longitude)
+            const y = parseFloat(item.mapy) / 1e7;  // 위도 (latitude)
+            // HTML 태그 제거
+            const title = item.title.replace(/<[^>]*>/g, '');
+
+            return { x, y, title, address: item.roadAddress || item.address };
+        } catch (error) {
+            this.logger.error(`Naver Local Search API error for query "${query}":`, error?.response?.data || error.message);
+            return null;
+        }
     }
 }

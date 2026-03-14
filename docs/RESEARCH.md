@@ -299,3 +299,117 @@ supabase start
 - [ ] NestJS에 `@supabase/supabase-js` 패키지 설치 및 `SupabaseService` 모듈 생성
 - [ ] 게시글 CRUD 및 이미지 업로드 API 구현
 - [ ] (선택) Supabase CLI로 로컬 개발 환경 구성 및 migration 파일 관리
+
+---
+
+## 네이버 지도 & 검색 API 설정 가이드
+
+### 사용 중인 API 목록
+
+| API | 플랫폼 | 용도 | 키 종류 |
+|-----|--------|------|---------|
+| Maps JS API | NCP (네이버 클라우드) | 지도 렌더링, 지적도, 마커 | `ncpClientId` (Client ID만 사용) |
+| Geocoding (submodule) | NCP (네이버 클라우드) | 도로명/지번 주소 → 위경도 변환 | `ncpClientId` (동일, Maps JS에 포함) |
+| 지역 검색 API | 네이버 개발자센터 | 키워드(장소명/학교 등) → 위경도 변환 (백엔드 프록시) | `Client ID` + `Client Secret` |
+
+---
+
+### 1. NCP 네이버 지도 API (Maps JS + Geocoding)
+
+> 지도 렌더링과 주소 검색에 사용. 프론트엔드에서 직접 로드.
+
+**발급 위치**: [NCP 콘솔](https://console.ncloud.com/) → `AI·NAVER API` → `Maps`
+
+**필요한 상품 신청:**
+- ✅ Maps - **Maps JS API** (지도 렌더링)
+- ✅ Maps - **Geocoding** (주소 → 좌표 변환)
+
+**허용 도메인 등록** (보안 핵심):
+
+| 환경 | 등록값 |
+|------|--------|
+| 로컬 개발 | `http://localhost:3000` |
+| 운영 배포 | `https://teojabi.com` (프론트엔드 실제 도메인) |
+
+**프론트엔드 키 관리:**
+- `frontend/js/config.js` 파일에 `NAVER_MAP_CLIENT_ID` 설정 (`.gitignore` 처리됨)
+- 팀원은 `frontend/js/config.example.js`를 복사해 `config.js`로 이름 바꿔 사용
+- CI/CD(GitHub Actions)에서는 `secrets.NAVER_MAP_CLIENT_ID`로 빌드 시 자동 생성
+
+```javascript
+// frontend/js/config.js (Git 제외)
+const CONFIG = {
+    NAVER_MAP_CLIENT_ID: 'YOUR_NCP_CLIENT_ID',
+};
+```
+
+**사용 방법 (search.html):**
+```html
+<script src="/js/config.js"></script>
+<script>
+    const script = document.createElement('script');
+    // callback=initNaverMap: SDK + geocoder가 완전히 로드된 후 호출됨 (타이밍 보장)
+    script.src = `https://openapi.map.naver.com/openapi/v3/maps.js?ncpClientId=${CONFIG.NAVER_MAP_CLIENT_ID}&submodules=geocoder&callback=initNaverMap`;
+    document.head.appendChild(script);
+</script>
+```
+
+> ⚠️ `&callback=initNaverMap` 파라미터가 없으면 geocoder 서브모듈 로딩 전에 JS가 실행되어 **"Geocode API 모듈이 로드되지 않았습니다"** 오류가 발생합니다.
+
+---
+
+### 2. 네이버 지역 검색 API (키워드 검색용)
+
+> 학교명, 지역명, 상호명 등 키워드로 위경도를 찾을 때 사용. **백엔드 서버를 통해 프록시 호출**.
+
+**발급 위치**: [네이버 개발자센터](https://developers.naver.com/) → `내 애플리케이션` → 앱 선택 → `API 설정`
+
+**신청 방법:**
+1. API 설정 탭에서 **"검색"** 항목 체크
+2. 비로그인 오픈 API 서비스 환경에서 **"WEB 설정"** 선택
+3. **웹 서비스 URL** 입력:
+   - 로컬: `http://localhost:3001` (NestJS 백엔드 포트)
+   - 운영: `https://api.teojabi.com` (백엔드 서버 도메인)
+
+> 💡 여기서 입력하는 URL은 API를 **호출하는 서버(백엔드)의 주소**입니다. 브라우저 주소가 아닙니다.
+
+**백엔드 환경변수 (`backend/.env`):**
+```
+# 소셜 로그인과 동일한 앱 키 사용 가능 (검색 API가 활성화된 경우)
+NAVER_CLIENT_ID=YOUR_NAVER_CLIENT_ID
+NAVER_CLIENT_SECRET=YOUR_NAVER_CLIENT_SECRET
+```
+
+**검색 흐름 (2단계 폴백):**
+
+```
+사용자 입력
+    │
+    ▼
+1단계: naver.maps.Service.geocode (주소 검색)
+    │ 결과 없음
+    ▼
+2단계: GET /api/v1/public-data/search?query=키워드
+       (NestJS 백엔드 → 네이버 지역 검색 API 프록시)
+    │
+    ▼
+지도 중심 이동
+```
+
+**백엔드 프록시 엔드포인트:**
+```
+GET http://localhost:3001/api/v1/public-data/search?query=서당초등학교
+→ { success: true, data: { x: 127.1049, y: 37.3596, title: "서당초등학교", address: "..." } }
+```
+
+---
+
+### 요약: 체크리스트
+
+- [ ] NCP 콘솔에서 Maps JS API + Geocoding 상품 신청
+- [ ] NCP 허용 도메인에 `http://localhost:3000` 및 운영 도메인 등록
+- [ ] `frontend/js/config.js` 생성 (`NAVER_MAP_CLIENT_ID` 입력)
+- [ ] search.html에서 `&callback=initNaverMap` 파라미터 포함하여 SDK 로드
+- [ ] 네이버 개발자센터에서 **검색 API** 신청 + WEB 환경 `http://localhost:3001` 등록
+- [ ] `backend/.env`에 `NAVER_CLIENT_ID`, `NAVER_CLIENT_SECRET` 설정
+- [ ] GitHub Secrets에 `NAVER_MAP_CLIENT_ID`, `NAVER_CLIENT_ID`, `NAVER_CLIENT_SECRET` 등록
