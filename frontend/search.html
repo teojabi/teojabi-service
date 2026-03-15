@@ -12,17 +12,7 @@
     <!-- config.js에서 NAVER_MAP_CLIENT_ID를 읽어 지도 스크립트를 동적으로 로드합니다. -->
     <!-- config.js는 .gitignore 처리되어 있으며, 팀원은 config.example.js를 복사하여 사용합니다. -->
     <script src="/js/config.js"></script>
-    <!-- search.js를 먼저 로드해 initNaverMap 콜백 함수를 정의한 뒤, SDK를 로드합니다. -->
     <script type="module" src="/js/pages/search.js"></script>
-    <script>
-        (function () {
-            const script = document.createElement('script');
-            script.type = 'text/javascript';
-            // callback=initNaverMap: SDK + geocoder 서브모듈이 완전히 로드된 후 initNaverMap()을 호출
-            script.src = `https://openapi.map.naver.com/openapi/v3/maps.js?ncpClientId=${CONFIG.NAVER_MAP_CLIENT_ID}&submodules=geocoder&callback=initNaverMap`;
-            document.head.appendChild(script);
-        })();
-    </script>
     <style>
         .map-wrapper {
             position: relative;

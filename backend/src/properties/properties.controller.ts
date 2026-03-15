@@ -1,4 +1,5 @@
-import { Controller, Get, Post, Body, Param, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Query, UseInterceptors, UploadedFile, ParseFilePipeBuilder, HttpStatus } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { PropertiesService } from './properties.service';
 
 @Controller('api/v1/properties')
@@ -25,8 +26,21 @@ export class PropertiesController {
     }
 
     @Post()
-    async createProperty(@Body() body: any) {
+    @UseInterceptors(FileInterceptor('image'))
+    async createProperty(
+        @UploadedFile(
+            new ParseFilePipeBuilder()
+                .addFileTypeValidator({ fileType: /(jpg|jpeg|png|webp)$/ })
+                .addMaxSizeValidator({ maxSize: 5 * 1024 * 1024 }) // 5MB
+                .build({
+                    errorHttpStatusCode: HttpStatus.UNPROCESSABLE_ENTITY,
+                    fileIsRequired: false,
+                }),
+        )
+        file: Express.Multer.File,
+        @Body() body: any,
+    ) {
         // body requires: title, description, address, price, lat, lng, ownerId(optional)
-        return this.propertiesService.createProperty(body);
+        return this.propertiesService.createProperty(body, file);
     }
 }

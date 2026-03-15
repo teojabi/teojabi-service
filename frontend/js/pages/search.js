@@ -93,6 +93,16 @@ window.initNaverMap = function () {
     const map = new naver.maps.Map('naver-map', mapOptions);
     console.log("Naver Map initialized successfully.");
 
+    // Flex 컨테이너 내에서 DOM 렌더링 타이밍 이슈로 크기가 0이 되는 현상 방지
+    window.addEventListener('resize', () => {
+        const mapDiv = document.getElementById('naver-map');
+        if (mapDiv) {
+            map.setSize(new naver.maps.Size(mapDiv.clientWidth, mapDiv.clientHeight));
+        }
+    });
+    // 초기 로딩 시 강제 리사이즈 트리거
+    setTimeout(() => window.dispatchEvent(new Event('resize')), 100);
+
     // --- 지도 클릭 이벤트 (역지오코딩으로 실제 주소 조회 후 좌측 패널 표시) ---
     naver.maps.Event.addListener(map, 'click', function (e) {
         const latlng = e.coord;
@@ -205,3 +215,10 @@ window.initNaverMap = function () {
         if (e.key === 'Enter') executeSearch();
     });
 };
+
+// 동적으로 네이버 지도 스크립트 삽입 (콜백 함수가 정의된 후 실행 보장)
+const mapScript = document.createElement('script');
+mapScript.type = 'text/javascript';
+// JS 변수인 CONFIG (config.js에서 로드됨)를 사용하여 하드코딩 방지 및 환경 분리
+mapScript.src = `https://openapi.map.naver.com/openapi/v3/maps.js?ncpClientId=${typeof CONFIG !== 'undefined' ? CONFIG.NAVER_MAP_CLIENT_ID : 'f8td9fq8kq'}&submodules=geocoder&callback=initNaverMap`;
+document.head.appendChild(mapScript);

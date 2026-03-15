@@ -9,6 +9,7 @@ import { PropertiesModule } from './properties/properties.module';
 import { ReservationsModule } from './reservations/reservations.module';
 import { PublicDataModule } from './public-data/public-data.module';
 import { ScheduleModule } from '@nestjs/schedule';
+import { SupabaseModule } from './supabase/supabase.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { ScheduleModule } from '@nestjs/schedule';
     ReservationsModule,
     PublicDataModule,
     ScheduleModule.forRoot(),
+    SupabaseModule,
   ],
   controllers: [AppController],
   providers: [AppService],
