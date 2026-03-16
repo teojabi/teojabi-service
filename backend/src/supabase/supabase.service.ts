@@ -61,10 +61,15 @@ export class SupabaseService {
     try {
       // Extract the object path from the public URL
       // Example URL: https://[projectId].supabase.co/storage/v1/object/public/post-images/images/123_abc.jpg
-      const urlParts = publicUrl.split('/post-images/');
-      if (urlParts.length === 2) {
-        const filePath = urlParts[1];
-        await this.client.storage.from('post-images').remove([filePath]);
+      const bucketName = 'post-images';
+      const searchStr = `/${bucketName}/`;
+      const index = publicUrl.indexOf(searchStr);
+      
+      if (index !== -1) {
+        const filePath = publicUrl.substring(index + searchStr.length);
+        await this.client.storage.from(bucketName).remove([filePath]);
+      } else {
+        console.warn('Could not extract file path from public URL:', publicUrl);
       }
     } catch (e) {
       console.error('Failed to cleanup orphan image on Supabase:', e);
