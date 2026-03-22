@@ -25,6 +25,37 @@ export class SupabaseService {
    * @returns Public URL string of the uploaded image
    */
   async uploadImage(file: Express.Multer.File): Promise<string> {
+    const bucketName =
+      this.configService.get<string>('SUPABASE_BUCKET') || 'post-images';
+
+    // 버킷 존재 여부 확인 및 자동 생성 시도 (Optional, but good for robust setup)
+    const { data: buckets } = await this.client.storage.listBuckets();
+    const bucketExists = buckets?.some((b) => b.name === bucketName);
+
+    if (!bucketExists) {
+      console.log(`Bucket '${bucketName}' not found. Attempting to create...`);
+      const { error: createError } = await this.client.storage.createBucket(
+        bucketName,
+        {
+          public: true,
+          fileSizeLimit: 5242880, // 5MB
+          allowedMimeTypes: [
+            'image/png',
+            'image/jpeg',
+            'image/jpg',
+            'image/webp',
+          ],
+        },
+      );
+      if (createError) {
+        console.error(`Failed to create bucket '${bucketName}':`, createError);
+        throw new InternalServerErrorException(
+          `버킷 '${bucketName}'을 찾을 수 없으며 자동 생성에도 실패했습니다.`,
+        );
+      }
+      console.log(`Bucket '${bucketName}' created successfully.`);
+    }
+
     // Generate a unique filename using timestamp
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
     // Replace spaces and special characters from original name for safe url encoding
@@ -32,7 +63,7 @@ export class SupabaseService {
     const filePath = `images/${uniqueSuffix}_${safeOriginalName}`;
 
     const { data, error } = await this.client.storage
-      .from('post-images')
+      .from(bucketName)
       .upload(filePath, file.buffer, {
         contentType: file.mimetype,
         upsert: false,
@@ -47,7 +78,7 @@ export class SupabaseService {
 
     // Retrieve public URL
     const { data: urlData } = this.client.storage
-      .from('post-images')
+      .from(bucketName)
       .getPublicUrl(data.path);
 
     return urlData.publicUrl;
@@ -61,10 +92,11 @@ export class SupabaseService {
     try {
       // Extract the object path from the public URL
       // Example URL: https://[projectId].supabase.co/storage/v1/object/public/post-images/images/123_abc.jpg
-      const bucketName = 'post-images';
+      const bucketName =
+        this.configService.get<string>('SUPABASE_BUCKET') || 'post-images';
       const searchStr = `/${bucketName}/`;
       const index = publicUrl.indexOf(searchStr);
-      
+
       if (index !== -1) {
         const filePath = publicUrl.substring(index + searchStr.length);
         await this.client.storage.from(bucketName).remove([filePath]);

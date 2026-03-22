@@ -5,7 +5,17 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>터잡이 - 일반 관리자 페이지</title>
+    <!-- 파비콘 설정 -->
+    <link rel="icon" href="/favicon.ico" type="image/x-icon">
+    <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon">
+    <link rel="apple-touch-icon" href="/img/logo.png">
     <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
+    <!-- 영문폰트 Montserrat -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&display=swap" rel="stylesheet">
+    <!-- 한글폰트 SUITE -->
+    <link href="https://cdn.jsdelivr.net/gh/sun-typeface/SUITE@2/fonts/static/woff2/SUITE.css" rel="stylesheet">
     <link rel="stylesheet" href="/css/style.css">
     <link rel="stylesheet" href="/css/components.css">
     <style>
@@ -149,10 +159,21 @@
                 </form>
             </div>
 
-            <!-- 다른 탭 내용은 생략 (JS에서 Toggle 처리) -->
+            <!-- 등록 매물 관리 탭 -->
             <div id="prop-manage" class="panel hidden">
-                <h2>등록 매물 관리</h2>
-                <p>내가 등록한 매물 리스트업</p>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+                    <h2><i class="ri-list-settings-line"></i> 등록 매물 관리</h2>
+                    <button class="btn btn-outline" id="btn-refresh-properties">
+                        <i class="ri-refresh-line"></i> 새로고침
+                    </button>
+                </div>
+                
+                <div id="property-list-container">
+                    <div style="text-align: center; padding: 3rem; color: var(--text-muted);">
+                        <i class="ri-loader-4-line ri-spin" style="font-size: 2rem; margin-bottom: 1rem; display: block;"></i>
+                        매물 목록을 불러오는 중입니다...
+                    </div>
+                </div>
             </div>
             <div id="reserv-manage" class="panel hidden">
                 <h2>전체 예약 관리</h2>
@@ -162,6 +183,23 @@
         </main>
     </div>
 
+    <script src="/js/config.js"></script>
+    <script>
+        (function () {
+            const clientId = (typeof CONFIG !== 'undefined' && CONFIG.NAVER_MAP_CLIENT_ID)
+                ? CONFIG.NAVER_MAP_CLIENT_ID
+                : '';
+            if (!clientId) {
+                console.error('[터잡이] NAVER_MAP_CLIENT_ID가 config.js에 설정되지 않았습니다.');
+                return;
+            }
+            const script = document.createElement('script');
+            // geocoder: 주소 검색에 필요함
+            script.src = `https://openapi.map.naver.com/openapi/v3/maps.js?ncpClientId=${clientId}&submodules=geocoder`;
+            script.async = true;
+            document.head.appendChild(script);
+        })();
+    </script>
     <script type="module" src="/js/app.js"></script>
     <script type="module" src="/js/pages/admin.js"></script>
 </body>

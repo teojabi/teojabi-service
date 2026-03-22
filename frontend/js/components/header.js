@@ -7,7 +7,7 @@ export function renderHeader(containerId) {
         <header class="app-header">
             <div class="header-inner">
                 <a href="/" class="header-logo">
-                    <i class="ri-home-office-fill"></i> 터잡이
+                    <img src="/img/logo.png" alt="터잡이 로고" class="header-logo-img">
                 </a>
                 <nav class="header-nav">
                     <a href="/search.html" class="nav-link">지도 검색</a>

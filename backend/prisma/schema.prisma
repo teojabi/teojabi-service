@@ -6,6 +6,7 @@ generator client {
 datasource db {
   provider   = "postgresql"
   url        = env("DATABASE_URL")
+  directUrl  = env("DIRECT_URL")
   extensions = [postgis(schema: "public")]
 }
 
@@ -25,11 +26,13 @@ model User {
   updatedAt DateTime @updatedAt
 
   @@unique([provider, providerId])
+  @@map("user")
 }
 
 enum Role {
   USER
-  PREMIUM
+  PREMIUM_BASIC
+  PREMIUM_PLUS
   ADMIN
 }
 
@@ -38,7 +41,8 @@ model Property {
   title       String
   description String   @db.Text
   address     String   @unique
-  images      String[]
+  beforeImage String?  @map("before_image")
+  afterImage  String?  @map("after_image")
   price       Decimal? @db.Decimal(15, 2)
 
   location Unsupported("geometry(Point, 4326)")?
@@ -51,6 +55,7 @@ model Property {
   updatedAt DateTime @updatedAt
 
   @@index([location], type: Gist)
+  @@map("property")
 }
 
 model Reservation {
@@ -66,6 +71,8 @@ model Reservation {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@map("reservations")
 }
 
 enum ResStatus {
@@ -75,13 +82,64 @@ enum ResStatus {
   COMPLETED
 }
 
-model PublicData {
-  id      String @id @default(uuid())
-  address String @unique // 지번/도로명 주소 (검색 키)
+model BuildingInfo {
+  id            Int       @id @default(autoincrement())
+  pnu           String    @unique @db.Char(19) // 필지고유번호
+  bldNm         String?   @map("bld_nm") // 건물 명칭
+  platArea      Decimal?  @map("plat_area") @db.Decimal(15, 2) // 대지면적(m2)
+  archArea      Decimal?  @map("arch_area") @db.Decimal(15, 2) // 건축면적(m2)
+  bcRat         Decimal?  @map("bc_rat") @db.Decimal(5, 2) // 건폐율(%)
+  vlRat         Decimal?  @map("vl_rat") @db.Decimal(7, 2) // 용적률(%)
+  totArea       Decimal?  @map("tot_area") @db.Decimal(15, 2) // 연면적(m2)
+  grndFlrCnt    Int?      @map("grnd_flr_cnt") // 지상 층수
+  ugndFlrCnt    Int?      @map("ugnd_flr_cnt") // 지하 층수
+  strctCdNm     String?   @map("strct_cd_nm") // 구조 명칭
+  mainPurpsCdNm String?   @map("main_purps_cd_nm") // 주용도 명칭
+  useAprDay     DateTime? @map("use_apr_day") @db.Date // 사용승인일
+  createdAt     DateTime  @default(now()) @map("created_at")
 
-  officialPrice Decimal? @db.Decimal(15, 2) // 가장 최근 공시지가
-  actualPrice   Decimal? @db.Decimal(15, 2) // 가장 최근 실거래가
-  landUsePlan   String?  @db.Text // 토지이음 규제/용도 요약 데이터
+  landInfo      LandInfo?
+  floorStatuses FloorStatus[]
+  stores        StoreInfo[]
 
-  syncedAt DateTime @default(now()) // 외부 API를 통해 동기화된 마지막 시점
+  @@map("building_info")
+}
+
+model LandInfo {
+  pnu          String       @id @db.Char(19)
+  jimokNm      String?      @map("jimok_nm") // 지목
+  ladArea      Decimal?     @map("lad_area") @db.Decimal(15, 2) // 토지 면적(m2)
+  prposAreaNm  String?      @map("prpos_area_nm") // 용도지역
+  pblntfPclnd  BigInt?      @map("pblntf_pclnd") // 공시지가(원/m2)
+  lastUpdated  DateTime?    @map("last_updated") @db.Date // 공시지가 기준일자
+  buildingInfo BuildingInfo @relation(fields: [pnu], references: [pnu], onDelete: Cascade)
+
+  @@map("land_info")
+}
+
+model FloorStatus {
+  id           Int          @id @default(autoincrement())
+  pnu          String       @db.Char(19)
+  flrNo        Int?         @map("flr_no") // 층 번호
+  flrNoNm      String?      @map("flr_no_nm") // 층 번호 명칭
+  flrArea      Decimal?     @map("flr_area") @db.Decimal(15, 2) // 해당 층 면적(m2)
+  flrMainPurps String?      @map("flr_main_purps") // 해당 층 주용도
+  strctCdNm    String?      @map("strct_cd_nm") // 해당 층 구조
+  buildingInfo BuildingInfo @relation(fields: [pnu], references: [pnu], onDelete: Cascade)
+
+  @@map("floor_status")
+}
+
+model StoreInfo {
+  storeId      String       @id @map("store_id") // 상가업소번호
+  pnu          String       @db.Char(19)
+  storeNm      String       @map("store_nm") // 상호명
+  cateLargeNm  String?      @map("cate_large_nm") // 업종 대분류
+  cateMidNm    String?      @map("cate_mid_nm") // 업종 중분류
+  flrNo        String?      @map("flr_no") // 입점 층
+  hoNo         String?      @map("ho_no") // 입점 호수
+  createdAt    DateTime     @default(now()) @map("created_at")
+  buildingInfo BuildingInfo @relation(fields: [pnu], references: [pnu], onDelete: Cascade)
+
+  @@map("store_info")
 }

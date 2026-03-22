@@ -16,13 +16,13 @@ export function renderLoginModal(containerId) {
                         소셜 계정으로 터잡이에 1초만에 가입 및 로그인하세요.
                     </p>
                     
-                    <button class="auth-provider-btn btn-kakao" onclick="location.href='http://localhost:3001/api/v1/auth/kakao'">
+                    <button class="auth-provider-btn btn-kakao" onclick="location.href='${CONFIG.API_BASE_URL}/api/v1/auth/kakao'">
                         <i class="ri-kakao-talk-fill"></i> 카카오 로그인
                     </button>
-                    <button class="auth-provider-btn btn-naver" onclick="location.href='http://localhost:3001/api/v1/auth/naver'">
+                    <button class="auth-provider-btn btn-naver" onclick="location.href='${CONFIG.API_BASE_URL}/api/v1/auth/naver'">
                         <i class="ri-search-line"></i> 네이버 로그인
                     </button>
-                    <button class="auth-provider-btn btn-google" onclick="location.href='http://localhost:3001/api/v1/auth/google'">
+                    <button class="auth-provider-btn btn-google" onclick="location.href='${CONFIG.API_BASE_URL}/api/v1/auth/google'">
                         <i class="ri-google-fill"></i> 구글 로그인
                     </button>
                 </div>

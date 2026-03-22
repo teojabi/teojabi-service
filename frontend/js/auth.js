@@ -11,7 +11,7 @@ export async function checkAuthStatus() {
     try {
         // credentials: 'include' 를 통해 브라우저가 자동으로 HttpOnly 쿠키(JWT)를 포함하여 요청
         // TODO: NCP 서버 주소 나오면 환경변수나 상수 적용 (현재는 상대 경로 또는 localhost 포트로 대체)
-        const response = await fetch('http://localhost:3001/api/v1/users/me', {
+        const response = await fetch(`${CONFIG.API_BASE_URL}/api/v1/users/me`, {
             method: 'GET',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'include',
@@ -61,12 +61,12 @@ function updateAuthUI(isLoggedIn, user) {
 
 // 소셜 로그인 리다이렉트 (a 태그 클릭을 js단에서 통제해도 되고 HTML 그대로 둬도 됨)
 export function loginWithProvider(provider) {
-    window.location.href = `http://localhost:3001/api/v1/auth/${provider}`;
+    window.location.href = `${CONFIG.API_BASE_URL}/api/v1/auth/${provider}`;
 }
 
 export async function logout() {
     try {
-        await fetch('http://localhost:3001/api/v1/auth/logout', {
+        await fetch(`${CONFIG.API_BASE_URL}/api/v1/auth/logout`, {
             method: 'POST',
             credentials: 'include'
         });

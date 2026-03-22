@@ -5,7 +5,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     try {
         // 실제 연동 시 FETCH
-        const res = await fetch('http://localhost:3001/api/v1/properties', { credentials: 'include' });
+        const res = await fetch(`${CONFIG.API_BASE_URL}/api/v1/properties`, { credentials: 'include' });
         const data = await res.json();
 
         // 데이터가 없으면 안내 메시지 출력을 위해 renderGallery가 처리

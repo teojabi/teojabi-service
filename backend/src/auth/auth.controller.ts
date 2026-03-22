@@ -5,93 +5,126 @@ import { AuthService } from './auth.service';
 
 @Controller('api/v1/auth')
 export class AuthController {
-    constructor(private readonly authService: AuthService) { }
+  constructor(private readonly authService: AuthService) {}
 
-    @Get('mock-login')
-    async mockLogin(@Res() res: Response) {
-        // 테스트 환경용 임시 ADMIN 로그인 (실제 배포 시 제거 필요)
-        let testUser = await this.authService.validateSocialUser('mock', 'admin', 'admin@teojabi.com', '터잡이관리자');
+  @Get('mock-login')
+  async mockLogin(@Res() res: Response) {
+    // 테스트 환경용 임시 ADMIN 로그인 (실제 배포 시 제거 필요)
+    const testUser = await this.authService.validateSocialUser(
+      'mock',
+      'admin',
+      'admin@teojabi.com',
+      '터잡이관리자',
+    );
 
-        // 강제로 ADMIN 권한 부여 (로컬 테스트용)
-        testUser.role = 'ADMIN';
+    // 강제로 ADMIN 권한 부여 (로컬 테스트용)
+    testUser.role = 'ADMIN';
 
-        const token = await this.authService.generateJwtCookiePayload(testUser);
-        res.cookie('access_token', token, {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: 'lax',
-            maxAge: 1000 * 60 * 60 * 24, // 1 day
-        });
-        return res.redirect(process.env.FRONTEND_URL || 'http://localhost:3000');
-    }
+    const token = await this.authService.generateJwtCookiePayload(testUser);
+    res.cookie('access_token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 1000 * 60 * 60 * 24, // 1 day
+    });
 
-    @Get('kakao')
-    @UseGuards(AuthGuard('kakao'))
-    async kakaoAuth() {
-        // Redirects to Kakao
-    }
+    // 역할에 따른 리다이렉트 분기
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    const redirectUrl =
+      testUser.role === 'ADMIN'
+        ? `${frontendUrl}/admin.html`
+        : `${frontendUrl}/mypage.html`;
+    return res.redirect(redirectUrl);
+  }
 
-    @Get('kakao/callback')
-    @UseGuards(AuthGuard('kakao'))
-    async kakaoAuthCallback(@Req() req: Request, @Res() res: Response) {
-        const token = await this.authService.generateJwtCookiePayload(req.user);
-        res.cookie('access_token', token, {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: 'lax',
-            maxAge: 1000 * 60 * 60 * 24, // 1 day
-        });
-        // 프론트엔드 메인 홈페이지로 리다이렉트
-        return res.redirect(process.env.FRONTEND_URL || 'http://localhost:3000');
-    }
+  @Get('kakao')
+  @UseGuards(AuthGuard('kakao'))
+  async kakaoAuth() {
+    // Redirects to Kakao
+  }
 
-    @Get('naver')
-    @UseGuards(AuthGuard('naver'))
-    async naverAuth() {
-        // Redirects to Naver
-    }
+  @Get('kakao/callback')
+  @UseGuards(AuthGuard('kakao'))
+  async kakaoAuthCallback(@Req() req: Request, @Res() res: Response) {
+    const user = req.user as any;
+    const token = await this.authService.generateJwtCookiePayload(user);
+    res.cookie('access_token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 1000 * 60 * 60 * 24, // 1 day
+    });
 
-    @Get('naver/callback')
-    @UseGuards(AuthGuard('naver'))
-    async naverAuthCallback(@Req() req: Request, @Res() res: Response) {
-        const token = await this.authService.generateJwtCookiePayload(req.user);
-        res.cookie('access_token', token, {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: 'lax',
-            maxAge: 1000 * 60 * 60 * 24, // 1 day
-        });
-        // 프론트엔드 메인 홈페이지로 리다이렉트
-        return res.redirect(process.env.FRONTEND_URL || 'http://localhost:3000');
-    }
+    // 역할에 따른 리다이렉트 분기
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    const redirectUrl =
+      user.role === 'ADMIN'
+        ? `${frontendUrl}/admin.html`
+        : `${frontendUrl}/mypage.html`;
+    return res.redirect(redirectUrl);
+  }
 
-    @Get('google')
-    @UseGuards(AuthGuard('google'))
-    async googleAuth() {
-        // Redirects to Google
-    }
+  @Get('naver')
+  @UseGuards(AuthGuard('naver'))
+  async naverAuth() {
+    // Redirects to Naver
+  }
 
-    @Get('google/callback')
-    @UseGuards(AuthGuard('google'))
-    async googleAuthCallback(@Req() req: Request, @Res() res: Response) {
-        const token = await this.authService.generateJwtCookiePayload(req.user);
-        res.cookie('access_token', token, {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: 'lax',
-            maxAge: 1000 * 60 * 60 * 24, // 1 day
-        });
-        // 프론트엔드 메인 홈페이지로 리다이렉트
-        return res.redirect(process.env.FRONTEND_URL || 'http://localhost:3000');
-    }
+  @Get('naver/callback')
+  @UseGuards(AuthGuard('naver'))
+  async naverAuthCallback(@Req() req: Request, @Res() res: Response) {
+    const user = req.user as any;
+    const token = await this.authService.generateJwtCookiePayload(user);
+    res.cookie('access_token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 1000 * 60 * 60 * 24, // 1 day
+    });
 
-    @Post('logout')
-    async logout(@Res() res: Response) {
-        res.clearCookie('access_token', {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: 'lax',
-        });
-        return res.json({ success: true, message: 'Logged out successfully' });
-    }
+    // 역할에 따른 리다이렉트 분기
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    const redirectUrl =
+      user.role === 'ADMIN'
+        ? `${frontendUrl}/admin.html`
+        : `${frontendUrl}/mypage.html`;
+    return res.redirect(redirectUrl);
+  }
+
+  @Get('google')
+  @UseGuards(AuthGuard('google'))
+  async googleAuth() {
+    // Redirects to Google
+  }
+
+  @Get('google/callback')
+  @UseGuards(AuthGuard('google'))
+  async googleAuthCallback(@Req() req: Request, @Res() res: Response) {
+    const user = req.user as any;
+    const token = await this.authService.generateJwtCookiePayload(user);
+    res.cookie('access_token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 1000 * 60 * 60 * 24, // 1 day
+    });
+
+    // 역할에 따른 리다이렉트 분기
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    const redirectUrl =
+      user.role === 'ADMIN'
+        ? `${frontendUrl}/admin.html`
+        : `${frontendUrl}/mypage.html`;
+    return res.redirect(redirectUrl);
+  }
+
+  @Post('logout')
+  async logout(@Res() res: Response) {
+    res.clearCookie('access_token', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+    });
+    return res.json({ success: true, message: 'Logged out successfully' });
+  }
 }

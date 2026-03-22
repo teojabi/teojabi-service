@@ -43,9 +43,10 @@ model User {
 }
 
 enum Role {
-  USER       // 일반 사용자 (무료: 기본 열람 및 관심매물 담기)
-  PREMIUM    // 유료/프리미엄 사용자 (상세 정보 조회 권한, 컨설팅 우선권 등 차등 혜택 적용 예정)
-  ADMIN      // 관리자 (매물 등록/수정/삭제 등 최고 권한)
+  USER            // 일반 사용자 (무료: 기본 열람 및 관심매물 담기)
+  PREMIUM_BASIC   // 기본 프리미엄 사용자
+  PREMIUM_PLUS    // 상위 프리미엄 사용자 (상세 정보 조회 권한, 컨설팅 우선권 등 차등 혜택 적용 예정)
+  ADMIN           // 관리자 (매물 등록/수정/삭제 등 최고 권한)
 }
 ```
 
@@ -57,12 +58,11 @@ model Property {
   title         String                         // 매물/컨설팅 제목
   description   String    @db.Text             // 매물 상세 설명
   address       String    @unique              // 지번 주소 (PK 역할 수행)
-  images        String[]                       // 이미지 갤러리용 URL 배열
+  beforeImage   String?   @map("before_image") // 전 이미지
+  afterImage    String?   @map("after_image")  // 후 이미지
   price         Decimal?  @db.Decimal(15,2)    // 가격 정보
   
   // GIS 기반 위치 정보 (PostGIS Point 타입)
-  // Prisma 스키마에서 직접 표현이 어려운 특수 타입은 Unsupported 예약어 사용
-  // 실 구현 시 원시 SQL 쿼리($queryRaw)를 통해 위경도 삽입 및 거리 검색 수행
   location      Unsupported("geometry(Point, 4326)")? 
 
   // Relations
@@ -70,30 +70,96 @@ model Property {
   owner         User?     @relation(fields: [ownerId], references: [id])
   reservations  Reservation[]
   
-  // PublicData와 주소(address)를 활용해 개념적(또는 명시적)인 1:1 확장을 이룰 수 있음
-  // publicData  PublicData? @relation(fields: [address], references: [address])
-
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
   @@index([location], type: Gist)              // 공간 쿼리용 GIST 인덱스
+  @@map("properties")
 }
 ```
 
-### PublicData (공공 API 캐싱 데이터)
-특정 매물 등록 여부와 무관하게, API를 통해 한 번이라도 조회된 주소의 공공데이터(실거래가, 공시지가, 토지이음 규제 등)를 영구/주기적으로 적재하여 프록시 부하를 방지합니다.
-```prisma
-model PublicData {
-  id            String    @id @default(uuid())
-  address       String    @unique              // 지번/도로명 주소 (검색 키)
-  
-  officialPrice Decimal?  @db.Decimal(15,2)    // 가장 최근 공시지가
-  actualPrice   Decimal?  @db.Decimal(15,2)    // 가장 최근 실거래가
-  landUsePlan   String?   @db.Text             // 토지이음 규제/용도 요약 데이터
-  
-  syncedAt      DateTime  @default(now())      // 외부 API를 통해 동기화된 마지막 시점
 
-  // (Optional) Property 테이블과 관계를 맺고 싶다면 위 Property의 주석 처리된 관계 방식 참고
+### 공공데이터 상세 수집 모델 (Public Data Collection)
+수집된 공공데이터(건축물대장, 토지대장 등)를 체계적으로 관리하기 위한 모델 그룹입니다.
+
+#### BuildingInfo (건축물 기본 정보)
+```prisma
+model BuildingInfo {
+  id               Int      @id @default(autoincrement())
+  pnu              String   @unique @db.Char(19)      // 필지고유번호
+  bldNm            String?  @map("bld_nm")            // 건물 명칭
+  platArea         Decimal? @db.Decimal(15, 2) @map("plat_area")  // 대지면적(m2)
+  archArea         Decimal? @db.Decimal(15, 2) @map("arch_area")  // 건축면적(m2)
+  bcRat            Decimal? @db.Decimal(5, 2) @map("bc_rat")      // 건폐율(%)
+  vlRat            Decimal? @db.Decimal(7, 2) @map("vl_rat")      // 용적률(%)
+  totArea          Decimal? @db.Decimal(15, 2) @map("tot_area")   // 연면적(m2)
+  grndFlrCnt       Int?     @map("grnd_flr_cnt")      // 지상 층수
+  ugndFlrCnt       Int?     @map("ugnd_flr_cnt")      // 지하 층수
+  strctCdNm        String?  @map("strct_cd_nm")       // 구조 명칭
+  mainPurpsCdNm    String?  @map("main_purps_cd_nm")  // 주용도 명칭
+  useAprDay        DateTime? @db.Date @map("use_apr_day") // 사용승인일
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  // Relations
+  landInfo         LandInfo?
+  floorStatuses    FloorStatus[]
+  stores           StoreInfo[]
+
+  @@map("building_info")
+}
+```
+/
+#### LandInfo (토지 및 공시지가 정보)
+```prisma
+model LandInfo {
+  pnu            String   @id @db.Char(19)
+  jimokNm        String?  @map("jimok_nm")         // 지목
+  ladArea        Decimal? @db.Decimal(15, 2) @map("lad_area") // 토지 면적(m2)
+  prposAreaNm    String?  @map("prpos_area_nm")    // 용도지역
+  pblntfPclnd    BigInt?  @map("pblntf_pclnd")     // 공시지가(원/m2)
+  lastUpdated    DateTime? @db.Date @map("last_updated") // 공시지가 기준일자
+
+  // Relations
+  buildingInfo   BuildingInfo @relation(fields: [pnu], references: [pnu], onDelete: Cascade)
+
+  @@map("land_info")
+}
+```
+
+#### FloorStatus (건물 층별 현황)
+```prisma
+model FloorStatus {
+  id             Int      @id @default(autoincrement())
+  pnu            String   @db.Char(19)
+  flrNo          Int?     @map("flr_no")           // 층 번호
+  flrNoNm        String?  @map("flr_no_nm")        // 층 번호 명칭
+  flrArea        Decimal? @db.Decimal(15, 2) @map("flr_area") // 해당 층 면적(m2)
+  flrMainPurps   String?  @map("flr_main_purps")   // 해당 층 주용도
+  strctCdNm      String?  @map("strct_cd_nm")      // 해당 층 구조
+
+  // Relations
+  buildingInfo   BuildingInfo @relation(fields: [pnu], references: [pnu], onDelete: Cascade)
+
+  @@map("floor_status")
+}
+```
+
+#### StoreInfo (상가 및 업소 정보)
+```prisma
+model StoreInfo {
+  storeId        String   @id @map("store_id")     // 상가업소번호
+  pnu            String   @db.Char(19)
+  storeNm        String   @map("store_nm")         // 상호명
+  cateLargeNm    String?  @map("cate_large_nm")    // 업종 대분류
+  cateMidNm      String?  @map("cate_mid_nm")      // 업종 중분류
+  flrNo          String?  @map("flr_no")           // 입점 층
+  hoNo           String?  @map("ho_no")            // 입점 호수
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  // Relations
+  buildingInfo   BuildingInfo @relation(fields: [pnu], references: [pnu], onDelete: Cascade)
+
+  @@map("store_info")
 }
 ```
 

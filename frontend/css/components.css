@@ -71,10 +71,13 @@
 }
 
 .header-logo {
-    font-size: 1.5rem;
-    font-weight: 800;
-    color: var(--primary-color);
-    letter-spacing: -0.05em;
+    display: flex;
+    align-items: center;
+}
+
+.header-logo-img {
+    height: 40px;
+    width: auto;
 }
 
 .header-nav {
@@ -116,15 +119,6 @@
     color: var(--text-muted);
 }
 
-/* Footer */
-.app-footer {
-    padding: 3rem 0;
-    background-color: var(--bg-muted);
-    border-top: 1px solid var(--border-color);
-    text-align: center;
-    color: var(--text-muted);
-    font-size: 0.9rem;
-}
 
 /* Modal Backbone */
 .modal-overlay {
@@ -236,4 +230,14 @@
 
 .btn-google:hover {
     background-color: var(--bg-muted);
+}
+/* POI 카테고리 뱃지 */
+.poi-category {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    background: var(--bg-muted);
+    padding: 2px 6px;
+    border-radius: 4px;
+    margin-left: 6px;
+    font-weight: 500;
 }

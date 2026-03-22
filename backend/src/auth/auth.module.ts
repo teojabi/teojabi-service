@@ -18,13 +18,20 @@ import { UsersModule } from '../users/users.module';
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: async (configService: ConfigService) => ({
-        secret: configService.get<string>('JWT_SECRET') || 'dev-secret-key-1234!',
+        secret:
+          configService.get<string>('JWT_SECRET') || 'dev-secret-key-1234!',
         signOptions: { expiresIn: '1d' },
       }),
     }),
   ],
-  providers: [AuthService, JwtStrategy, KakaoStrategy, NaverStrategy, GoogleStrategy],
+  providers: [
+    AuthService,
+    JwtStrategy,
+    KakaoStrategy,
+    NaverStrategy,
+    GoogleStrategy,
+  ],
   controllers: [AuthController],
   exports: [AuthService],
 })
-export class AuthModule { }
+export class AuthModule {}

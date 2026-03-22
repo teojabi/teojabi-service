@@ -3,51 +3,51 @@ import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class ReservationsService {
-    constructor(private readonly prisma: PrismaService) { }
+  constructor(private readonly prisma: PrismaService) {}
 
-    async create(userId: string, data: any) {
-        if (!data.propertyId || !data.date) {
-            throw new Error('Property ID and date are required');
-        }
-        
-        const reservationDate = new Date(data.date);
-        if (isNaN(reservationDate.getTime())) {
-            throw new Error('Invalid date');
-        }
-
-        // Check if property exists
-        const property = await this.prisma.property.findUnique({
-            where: { id: data.propertyId }
-        });
-
-        if (!property) {
-            throw new Error('Property not found');
-        }
-
-        return this.prisma.reservation.create({
-            data: {
-                userId,
-                propertyId: data.propertyId,
-                date: reservationDate,
-                message: data.message,
-            },
-        });
+  async create(userId: string, data: any) {
+    if (!data.propertyId || !data.date) {
+      throw new Error('Property ID and date are required');
     }
 
-    async findAllForUser(userId: string) {
-        return this.prisma.reservation.findMany({
-            where: { userId },
-            include: {
-                property: true,
-            },
-            orderBy: { date: 'desc' },
-        });
+    const reservationDate = new Date(data.date);
+    if (isNaN(reservationDate.getTime())) {
+      throw new Error('Invalid date');
     }
 
-    async updateStatus(id: string, status: any) {
-        return this.prisma.reservation.update({
-            where: { id },
-            data: { status },
-        });
+    // Check if property exists
+    const property = await this.prisma.property.findUnique({
+      where: { id: data.propertyId },
+    });
+
+    if (!property) {
+      throw new Error('Property not found');
     }
+
+    return this.prisma.reservation.create({
+      data: {
+        userId,
+        propertyId: data.propertyId,
+        date: reservationDate,
+        message: data.message,
+      },
+    });
+  }
+
+  async findAllForUser(userId: string) {
+    return this.prisma.reservation.findMany({
+      where: { userId },
+      include: {
+        property: true,
+      },
+      orderBy: { date: 'desc' },
+    });
+  }
+
+  async updateStatus(id: string, status: any) {
+    return this.prisma.reservation.update({
+      where: { id },
+      data: { status },
+    });
+  }
 }

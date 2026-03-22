@@ -1,502 +1,597 @@
-// js/pages/search.js
 // 네이버 지도 검색 화면 메인 로직
 
 // ────────────────────────────────────────
 // 전역 상태
 // ────────────────────────────────────────
 let map = null;
-let isCadastralOn = false;
 let cadastralLayer = null;
-let propertyMarkers = [];
-let currentPanelType = null; // 'land' | 'property'
-let debounceTimer = null;
-let searchResults = [];           // geocode 자동완성 결과 캐시
-let activeAutocompleteIdx = -1;   // 키보드 탐색용
-
-const API_BASE = 'http://localhost:3001/api/v1';
-const BACKEND_PROXY_SEARCH = `${API_BASE}/search/local`; // 추후 백엔드 구현 시 활성화
+let searchMarker = null;
+let clickMarker = null;
 
 // ────────────────────────────────────────
 // 진입점: 네이버 지도 SDK 로드 콜백
 // ────────────────────────────────────────
-function initMap() {
-    const mapOptions = {
+window.initMap = function() {
+    // SDK 및 서브모듈(geocoder, cadastral, transcoord)이 전역에 완전히 등록되지 않았을 수 있으므로 체크
+    if (typeof naver === 'undefined' || 
+        typeof naver.maps === 'undefined' || 
+        typeof naver.maps.Service === 'undefined' || 
+        typeof naver.maps.Service.Status === 'undefined' ||
+        typeof naver.maps.CadastralLayer === 'undefined') {
+        setTimeout(window.initMap, 100);
+        return;
+    }
+    
+    // 1. 지도 초기화
+    map = new naver.maps.Map('map-container', {
         center: new naver.maps.LatLng(37.5665, 126.9780), // 서울 시청
         zoom: 15,
-        zoomControl: true,
-        zoomControlOptions: {
-            style: naver.maps.ZoomControlStyle.SMALL,
-            position: naver.maps.Position.RIGHT_CENTER,
-        },
-        mapTypeControl: true,
-        mapTypeControlOptions: {
-            style: naver.maps.MapTypeControlStyle.BUTTON,
-            position: naver.maps.Position.TOP_RIGHT,
-        },
-    };
+        minZoom: 7,
+        maxZoom: 21,
+        logoControl: true,
+        mapTypeControl: false,
+        zoomControl: false,
+        scaleControl: true
+    });
 
-    map = new naver.maps.Map('map-container', mapOptions);
-
-    // 지적도 레이어 준비 (숨김 상태)
-    cadastralLayer = new naver.maps.CadastralLayer();
-
-    bindMapEvents();
-    bindMapClick();
-    initSearchBar();
-
-    // 초기 뷰에서 매물 마커 한 번 로드
-    fetchPropertiesInBounds();
-}
-
-// ────────────────────────────────────────
-// 지도 이벤트 바인딩
-// ────────────────────────────────────────
-function bindMapEvents() {
-    naver.maps.Event.addListener(map, 'dragend', fetchPropertiesInBounds);
-    naver.maps.Event.addListener(map, 'zoom_changed', fetchPropertiesInBounds);
-}
-
-// ────────────────────────────────────────
-// 백엔드 매물 마커 로드
-// ────────────────────────────────────────
-async function fetchPropertiesInBounds() {
-    const bounds = map.getBounds();
-    const ne = bounds.getNE();
-    const sw = bounds.getSW();
-
-    try {
-        const res = await fetch(
-            `${API_BASE}/properties/map?ne=${ne.lat()},${ne.lng()}&sw=${sw.lat()},${sw.lng()}`,
-            { credentials: 'include' }
-        );
-        if (!res.ok) return;
-        const data = await res.json();
-        renderPropertyMarkers(data);
-    } catch (err) {
-        // 백엔드 미연결 시 무시 (지도는 정상 동작)
-        console.debug('[search] fetchPropertiesInBounds skipped:', err.message);
+    // 2. 지적도 레이어 준비
+    if (naver.maps.CadastralLayer) {
+        cadastralLayer = new naver.maps.CadastralLayer();
     }
+
+    // 3. 이벤트 바인딩
+    bindEvents();
 }
 
 // ────────────────────────────────────────
-// 커스텀 마커 렌더링
+// 이벤트 바인딩
 // ────────────────────────────────────────
-function renderPropertyMarkers(properties) {
-    // 기존 마커 전부 제거
-    propertyMarkers.forEach(m => m.setMap(null));
-    propertyMarkers = [];
+function bindEvents() {
+    // 검색 입력창
+    const searchInput = document.getElementById('search-input');
+    const searchSubmitBtn = document.getElementById('btn-search-submit');
+    const searchClearBtn = document.getElementById('btn-search-clear');
+    const autocompleteContainer = document.getElementById('search-autocomplete');
 
-    if (!Array.isArray(properties)) return;
+    // 검색 실행 (엔터)
+    searchInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            searchByQuery(searchInput.value);
+            autocompleteContainer.classList.remove('open');
+        }
+    });
 
-    properties.forEach(prop => {
-        if (!prop.lat || !prop.lng) return;
+    // 검색 버튼 클릭
+    searchSubmitBtn.addEventListener('click', () => {
+        searchByQuery(searchInput.value);
+        autocompleteContainer.classList.remove('open');
+    });
 
-        const priceLabel = formatPrice(prop.price);
-        const markerContent = `
-            <div class="custom-marker">
-                <div class="custom-marker-bubble">${priceLabel}</div>
-                <div class="custom-marker-tail"></div>
-            </div>`;
+    // 입력창 텍스트 변경 시 클리어 버튼 제어 및 자동완성
+    searchInput.addEventListener('input', () => {
+        const query = searchInput.value.trim();
+        if (query.length > 0) {
+            searchClearBtn.classList.add('visible');
+            if (query.length >= 2) {
+                runAutocomplete(query);
+            } else {
+                autocompleteContainer.classList.remove('open');
+            }
+        } else {
+            searchClearBtn.classList.remove('visible');
+            autocompleteContainer.classList.remove('open');
+        }
+    });
 
-        const marker = new naver.maps.Marker({
-            position: new naver.maps.LatLng(prop.lat, prop.lng),
-            map,
-            icon: {
-                content: markerContent,
-                anchor: new naver.maps.Point(0, 0),
-            },
+    // 입력창 포커스 시 값이 있으면 자동완성 다시 표시 시도
+    searchInput.addEventListener('focus', () => {
+        if (searchInput.value.trim().length >= 2 && autocompleteContainer.innerHTML !== '') {
+            autocompleteContainer.classList.add('open');
+        }
+    });
+
+    // 외부 클릭 시 자동완성 닫기
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('.search-bar-wrapper')) {
+            autocompleteContainer.classList.remove('open');
+        }
+    });
+
+    // 클리어 버튼 클릭
+    searchClearBtn.addEventListener('click', () => {
+        searchInput.value = '';
+        searchClearBtn.classList.remove('visible');
+        autocompleteContainer.classList.remove('open');
+        searchInput.focus();
+    });
+
+    // 지도 클릭 → 위치 정보 패널 열기
+    naver.maps.Event.addListener(map, 'click', function(e) {
+        handleMapClick(e.coord);
+    });
+
+    // 패널 닫기 버튼
+    document.getElementById('btn-panel-close').addEventListener('click', closePanel);
+
+    // 탭 전환
+    document.querySelectorAll('.panel-tab').forEach(function(tab) {
+        tab.addEventListener('click', function() {
+            const target = this.getAttribute('data-tab');
+            document.querySelectorAll('.panel-tab').forEach(function(t) { t.classList.remove('active'); });
+            this.classList.add('active');
+            ['building', 'land', 'floor', 'store'].forEach(function(name) {
+                document.getElementById('panel-tab-' + name).style.display = target === name ? 'block' : 'none';
+            });
         });
+    });
 
-        naver.maps.Event.addListener(marker, 'click', () => {
-            openPropertyPanel(prop);
-        });
+    // 지도 컨트롤: 지적도
+    document.getElementById('btn-ctrl-cadastral').addEventListener('click', function() {
+        if (!cadastralLayer) return;
+        const isVisible = cadastralLayer.getMap();
+        if (isVisible) {
+            cadastralLayer.setMap(null);
+            this.classList.remove('active');
+        } else {
+            cadastralLayer.setMap(map);
+            this.classList.add('active');
+        }
+    });
 
-        propertyMarkers.push(marker);
+    // 지도 컨트롤: 현위치
+    document.getElementById('btn-ctrl-current').addEventListener('click', function() {
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+                (pos) => {
+                    const latlng = new naver.maps.LatLng(pos.coords.latitude, pos.coords.longitude);
+                    map.morph(latlng, 17); // 부드럽게 이동 및 줌
+                },
+                (err) => {
+                    alert('현재 위치를 가져올 수 없습니다. 권한을 확인해 주세요.');
+                }
+            );
+        } else {
+            alert('이 브라우저는 위치 정보 기능을 지원하지 않습니다.');
+        }
     });
 }
 
 // ────────────────────────────────────────
-// 지도 클릭 → 일반 위치(땅) 정보 조회
+// 검색 기능 (Geocoder + POI 통합)
 // ────────────────────────────────────────
-function bindMapClick() {
-    naver.maps.Event.addListener(map, 'click', (e) => {
-        const latlng = e.coord;
-        reversGeocodeAndOpenPanel(latlng);
+let autocompleteTimer = null;
+
+async function runAutocomplete(query) {
+    if (autocompleteTimer) clearTimeout(autocompleteTimer);
+    
+    // 타이핑 중 잦은 API 호출 방지 (Debounce 200ms)
+    autocompleteTimer = setTimeout(async () => {
+        let allResults = [];
+
+        // 1. 주소 검색 (Geocoder)
+        const geocodePromise = new Promise((resolve) => {
+            if (!naver.maps.Service || !naver.maps.Service.geocode) return resolve([]);
+            naver.maps.Service.geocode({ query }, (status, response) => {
+                if (status !== naver.maps.Service.Status.OK) return resolve([]);
+                const items = response.v2.addresses.map(item => ({
+                    type: 'ADDRESS',
+                    title: item.roadAddress || item.jibunAddress,
+                    subTitle: item.roadAddress ? item.jibunAddress : '',
+                    x: item.x,
+                    y: item.y,
+                    raw: item
+                }));
+                resolve(items);
+            });
+        });
+
+        // 2. POI 검색 (Backend Proxy)
+        const poiPromise = fetch(`${CONFIG.API_BASE_URL}/api/v1/public-data/search?query=${encodeURIComponent(query)}`)
+            .then(res => res.json())
+            .then(json => {
+                let data = json.data;
+                if (json.success && data && !Array.isArray(data)) {
+                    data = [data];
+                }
+
+                if (json.success && Array.isArray(data)) {
+                    return data.map(item => ({
+                        type: 'POI',
+                        title: item.title,
+                        subTitle: item.address,
+                        category: item.category,
+                        mapx: item.mapx, 
+                        mapy: item.mapy,
+                        raw: item
+                    }));
+                }
+                return [];
+            })
+            .catch(() => []);
+
+        // 두 검색 결과를 합침
+        const [addresses, pois] = await Promise.all([geocodePromise, poiPromise]);
+        allResults = [...addresses, ...pois];
+
+        renderAutocomplete(allResults);
+    }, 200);
+}
+
+function renderAutocomplete(items) {
+    const container = document.getElementById('search-autocomplete');
+    const searchInput = document.getElementById('search-input');
+    
+    if (!items || items.length === 0) {
+        container.innerHTML = '';
+        container.classList.remove('open');
+        return;
+    }
+
+    let html = '';
+    items.forEach((item, index) => {
+        const icon = item.type === 'ADDRESS' ? 'ri-map-pin-line' : 'ri-building-4-line';
+        const label = item.type === 'POI' && item.category ? `<span class="poi-category">${item.category}</span>` : '';
+        
+        html += `
+            <div class="autocomplete-item" data-index="${index}">
+                <i class="${icon}"></i>
+                <div class="autocomplete-item-text">
+                    <div class="autocomplete-item-main">${item.title} ${label}</div>
+                    ${item.subTitle ? `<div class="autocomplete-item-sub">${item.subTitle}</div>` : ''}
+                </div>
+            </div>
+        `;
+    });
+
+    container.innerHTML = html;
+    container.classList.add('open');
+
+    // 항목 클릭 이벤트
+    container.querySelectorAll('.autocomplete-item').forEach(el => {
+        el.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const idx = el.getAttribute('data-index');
+            const selectedItem = items[idx];
+            
+            selectSearchResult(selectedItem);
+            
+            container.classList.remove('open');
+            searchInput.value = selectedItem.title;
+            document.getElementById('btn-search-clear').classList.add('visible');
+        });
     });
 }
 
-function reversGeocodeAndOpenPanel(latlng) {
-    setLandPanelLoading();
+async function searchByQuery(query) {
+    if (!query || query.trim().length < 2) {
+        alert('검색어를 2자 이상 입력해 주세요.');
+        return;
+    }
+
+    // 1. 주소 검색 시도
+    const geocodePromise = new Promise((resolve) => {
+        if (!naver.maps.Service || !naver.maps.Service.geocode) return resolve(null);
+        naver.maps.Service.geocode({ query }, (status, response) => {
+            if (status === naver.maps.Service.Status.OK && response.v2.addresses.length > 0) {
+                const item = response.v2.addresses[0];
+                return resolve({
+                    type: 'ADDRESS',
+                    title: item.roadAddress || item.jibunAddress,
+                    x: item.x,
+                    y: item.y,
+                    raw: item
+                });
+            }
+            resolve(null);
+        });
+    });
+
+    const addressResult = await geocodePromise;
+    if (addressResult) {
+        selectSearchResult(addressResult);
+        return;
+    }
+
+    // 2. 주소 결과 없으면 POI 검색 시도
+    try {
+        const res = await fetch(`${CONFIG.API_BASE_URL}/api/v1/public-data/search?query=${encodeURIComponent(query)}`);
+        const json = await res.json();
+        
+        let data = json.data;
+        if (json.success && data && !Array.isArray(data)) {
+            data = [data];
+        }
+
+        if (json.success && Array.isArray(data) && data.length > 0) {
+            const item = data[0];
+            selectSearchResult({
+                type: 'POI',
+                title: item.title,
+                subTitle: item.address,
+                category: item.category,
+                mapx: item.mapx,
+                mapy: item.mapy,
+                raw: item
+            });
+            return;
+        }
+        
+        // 데이터가 비어있는 경우 (정상 검색 성공이나 결과 없음)
+        if (json.success && Array.isArray(data) && data.length === 0) {
+            alert('검색 결과가 없습니다.');
+            return;
+        }
+
+        // 백엔드에서 명시적으로 오류 응답을 보낸 경우 (success: false)
+        if (json.success === false) {
+            alert(json.message || '검색 과정에서 오류가 발생했습니다.');
+            return;
+        }
+    } catch (err) {
+        console.error('[search] POI search failed:', err);
+    }
+
+    // 예외적인 폴백 (여기까지 오면 결과가 없는 것으로 간주)
+    alert('검색 결과가 없습니다.');
+}
+
+// ────────────────────────────────────────
+// 검색 결과 선택 및 지도 이동
+// ────────────────────────────────────────
+function selectSearchResult(item) {
+    let latlng = null;
+
+    if (item.type === 'ADDRESS') {
+        const y = parseFloat(item.y);
+        const x = parseFloat(item.x);
+        if (!isNaN(y) && !isNaN(x)) {
+            latlng = new naver.maps.LatLng(y, x);
+        }
+    } else if (item.type === 'POI') {
+        // 네이버 로컬 검색 API의 mapx/mapy는 WGS84 좌표에 1e7을 곱한 정수값
+        // 예: mapx=1269780000 → 경도 126.9780, mapy=375665000 → 위도 37.5665
+        const mapx = Number(item.mapx);
+        const mapy = Number(item.mapy);
+
+        if (!isNaN(mapx) && !isNaN(mapy) && mapx > 0 && mapy > 0) {
+            const lng = mapx / 1e7;
+            const lat = mapy / 1e7;
+            if (lat > 30 && lat < 45 && lng > 120 && lng < 135) {
+                latlng = new naver.maps.LatLng(lat, lng);
+            }
+        }
+    }
+
+    if (!latlng) {
+        console.error('[search] Failed to get valid coordinates for:', JSON.stringify(item));
+        alert('선택한 장소의 위치 정보를 확인할 수 없습니다.');
+        return;
+    }
+
+    if (map && latlng) {
+        try {
+            // 네이버 지도 API 예제(tutorial-5-map-moves.example.html) 참고: morph가 가장 부드럽고 안정적임
+            map.morph(latlng, 17);
+        } catch (e) {
+            map.setCenter(latlng);
+            map.setZoom(17);
+        }
+    }
+
+    // 마커 표시
+    if (searchMarker) searchMarker.setMap(null);
+    searchMarker = new naver.maps.Marker({
+        position: latlng,
+        map: map,
+        animation: naver.maps.Animation.DROP
+    });
+
+    console.log('[search] Navigation completed for:', item.title);
+}
+
+// ────────────────────────────────────────
+// 지도 클릭 핸들러
+// ────────────────────────────────────────
+function handleMapClick(coord) {
+    // 클릭 마커 표시
+    if (clickMarker) clickMarker.setMap(null);
+    clickMarker = new naver.maps.Marker({
+        position: coord,
+        map: map,
+        icon: {
+            content: '<div class="click-marker"><i class="ri-map-pin-fill"></i></div>',
+            anchor: new naver.maps.Point(12, 28)
+        }
+    });
+
+    // 패널 열고 로딩 상태로 초기화
+    openPanel();
+    setPanelLoading(true);
+
+    // 역지오코딩으로 주소 조회
     naver.maps.Service.reverseGeocode(
-        {
-            coords: latlng,
-            orders: [
-                naver.maps.Service.OrderType.ADDR,
-                naver.maps.Service.OrderType.ROAD_ADDR,
-            ].join(','),
-        },
-        (status, response) => {
+        { coords: coord, orders: [naver.maps.Service.OrderType.ADDR, naver.maps.Service.OrderType.ROAD_ADDR] },
+        function(status, response) {
             if (status !== naver.maps.Service.Status.OK) {
-                openLandPanel({ address: '주소를 불러올 수 없습니다.', roadAddress: '', latlng });
+                setPanelLoading(false);
+                showPanelError('주소 정보를 가져올 수 없습니다.');
                 return;
             }
-            const result = response.v2?.address || {};
-            openLandPanel({
-                address: result.jibunAddress || '지번 주소 없음',
-                roadAddress: result.roadAddress || '',
-                latlng,
+
+            const results = response.v2.results;
+            let jibunAddress = '';
+            let roadAddress = '';
+            let pnu = '';
+
+            results.forEach(function(r) {
+                if (r.name === 'addr') {
+                    const region = r.region;
+                    const land = r.land;
+                    jibunAddress = [
+                        region.area1.name,
+                        region.area2.name,
+                        region.area3.name,
+                        region.area4.name,
+                        land ? (land.number1 + (land.number2 ? '-' + land.number2 : '')) : ''
+                    ].filter(Boolean).join(' ');
+
+                    // PNU 생성: 법정동코드(10) + 구분(1) + 본번(4) + 부번(4)
+                    const codeId = r.code && r.code.id ? r.code.id : '';
+                    const landType = land && land.type ? land.type : '1';
+                    const num1 = land && land.number1 ? String(land.number1).padStart(4, '0') : '0000';
+                    const num2 = land && land.number2 ? String(land.number2).padStart(4, '0') : '0000';
+                    pnu = codeId + landType + num1 + num2;
+                } else if (r.name === 'roadaddr') {
+                    const region = r.region;
+                    const land = r.land;
+                    roadAddress = [
+                        region.area1.name,
+                        region.area2.name,
+                        land ? land.name : '',
+                        land ? land.number1 : ''
+                    ].filter(Boolean).join(' ');
+                }
             });
+
+            // 주소 섹션 표시
+            document.getElementById('panel-jibun-address').textContent = jibunAddress || '주소 미확인';
+            document.getElementById('panel-road-address').textContent = roadAddress ? '도로명: ' + roadAddress : '도로명 정보 없음';
+            document.getElementById('panel-header-address').textContent = jibunAddress || '위치 정보';
+            document.getElementById('panel-address-section').style.display = 'block';
+            document.getElementById('panel-tabs').style.display = 'flex';
+
+            // PNU가 없으면 DB 조회 불가
+            if (!pnu || pnu.length !== 19) {
+                setPanelLoading(false);
+                showPanelError('필지 정보를 확인할 수 없습니다.');
+                return;
+            }
+
+            // 백엔드 위치 정보 API 호출 (PNU 기반)
+            fetch(`${CONFIG.API_BASE_URL}/api/v1/public-data/location-info?pnu=${encodeURIComponent(pnu)}`)
+                .then(function(res) { return res.json(); })
+                .then(function(json) {
+                    setPanelLoading(false);
+                    if (json.success && json.data) {
+                        renderLocationInfo(json.data);
+                    } else {
+                        showPanelError('해당 필지의 건물·토지 정보가 없습니다.');
+                    }
+                })
+                .catch(function(err) {
+                    console.error('[panel] location-info API error:', err);
+                    setPanelLoading(false);
+                    showPanelError('정보를 불러오는 중 오류가 발생했습니다.');
+                });
         }
     );
 }
 
 // ────────────────────────────────────────
-// 패널 열기/닫기
+// 패널 제어 함수
 // ────────────────────────────────────────
-function openLandPanel(data) {
-    currentPanelType = 'land';
-    const panel = document.getElementById('map-panel');
-    const titleEl = panel.querySelector('.panel-title');
-    const bodyEl = panel.querySelector('.panel-body');
-    const ctaEl = document.getElementById('panel-cta');
-
-    titleEl.innerHTML = `<i class="ri-map-pin-2-line"></i> 토지 정보`;
-    ctaEl.classList.add('hidden');
-
-    bodyEl.innerHTML = `
-        <div class="panel-address-section">
-            <div class="panel-address-tag"><i class="ri-map-pin-fill"></i> 지번 주소</div>
-            <div class="panel-address-main">${data.address}</div>
-            ${data.roadAddress ? `<div class="panel-address-sub">도로명: ${data.roadAddress}</div>` : ''}
-            <div class="panel-address-sub" style="margin-top:6px;color:var(--text-muted);font-size:0.78rem;">
-                위도 ${data.latlng.lat().toFixed(6)} / 경도 ${data.latlng.lng().toFixed(6)}
-            </div>
-        </div>
-
-        <div class="panel-section">
-            <div class="panel-section-title">공공데이터 (준비 중)</div>
-            <div class="panel-info-grid">
-                <div class="panel-info-card">
-                    <div class="panel-info-card-label">공시지가</div>
-                    <div class="panel-info-card-value">-</div>
-                </div>
-                <div class="panel-info-card">
-                    <div class="panel-info-card-label">실거래가</div>
-                    <div class="panel-info-card-value">-</div>
-                </div>
-                <div class="panel-info-card">
-                    <div class="panel-info-card-label">토지이용규제</div>
-                    <div class="panel-info-card-value">-</div>
-                </div>
-                <div class="panel-info-card">
-                    <div class="panel-info-card-label">지목</div>
-                    <div class="panel-info-card-value">-</div>
-                </div>
-            </div>
-        </div>
-
-        <p style="font-size:0.8rem;color:var(--text-muted);text-align:center;margin-top:16px;">
-            공공데이터 API 연동 후 자동으로 표시됩니다.
-        </p>
-    `;
-
-    panel.classList.add('open');
-}
-
-function openPropertyPanel(prop) {
-    currentPanelType = 'property';
-    const panel = document.getElementById('map-panel');
-    const titleEl = panel.querySelector('.panel-title');
-    const bodyEl = panel.querySelector('.panel-body');
-    const ctaEl = document.getElementById('panel-cta');
-
-    titleEl.innerHTML = `<i class="ri-building-2-line"></i> 매물 정보`;
-    ctaEl.classList.remove('hidden');
-
-    const imageHtml = prop.imageUrl
-        ? `<div class="panel-property-images"><img src="${prop.imageUrl}" alt="매물 이미지"></div>`
-        : `<div class="panel-property-images" style="display:flex;align-items:center;justify-content:center;background:var(--bg-muted);">
-                <i class="ri-image-line" style="font-size:2.5rem;color:var(--border-color);"></i>
-           </div>`;
-
-    bodyEl.innerHTML = `
-        ${imageHtml}
-
-        <div class="panel-property-price">${formatPrice(prop.price)}</div>
-        <div class="panel-property-price-label">${prop.priceType || '매매가'}</div>
-
-        <div class="panel-tag-row">
-            ${prop.landType ? `<span class="panel-tag primary">${prop.landType}</span>` : ''}
-            ${prop.area ? `<span class="panel-tag">${prop.area}㎡</span>` : ''}
-            ${prop.zoning ? `<span class="panel-tag">${prop.zoning}</span>` : ''}
-        </div>
-
-        <div class="panel-address-section" style="margin-bottom:16px;">
-            <div class="panel-address-tag"><i class="ri-map-pin-fill"></i> 위치</div>
-            <div class="panel-address-main">${prop.address || '주소 정보 없음'}</div>
-        </div>
-
-        ${prop.description ? `<div class="panel-description">${prop.description}</div>` : ''}
-
-        <div class="panel-section">
-            <div class="panel-section-title">공공데이터</div>
-            <div class="panel-info-grid">
-                <div class="panel-info-card">
-                    <div class="panel-info-card-label">공시지가</div>
-                    <div class="panel-info-card-value">${prop.officialPrice || '-'}</div>
-                </div>
-                <div class="panel-info-card">
-                    <div class="panel-info-card-label">실거래가</div>
-                    <div class="panel-info-card-value">${prop.dealPrice || '-'}</div>
-                </div>
-            </div>
-        </div>
-    `;
-
-    panel.classList.add('open');
-}
-
-function setLandPanelLoading() {
-    const panel = document.getElementById('map-panel');
-    const titleEl = panel.querySelector('.panel-title');
-    const bodyEl = panel.querySelector('.panel-body');
-    const ctaEl = document.getElementById('panel-cta');
-
-    titleEl.innerHTML = `<i class="ri-map-pin-2-line"></i> 토지 정보`;
-    ctaEl.classList.add('hidden');
-    bodyEl.innerHTML = `
-        <div class="panel-loading">
-            <i class="ri-loader-4-line"></i>
-            <span>주소를 불러오는 중...</span>
-        </div>`;
-
-    panel.classList.add('open');
+function openPanel() {
+    document.getElementById('map-panel').classList.add('open');
+    document.body.classList.add('panel-open');
 }
 
 function closePanel() {
-    const panel = document.getElementById('map-panel');
-    panel.classList.remove('open');
-    currentPanelType = null;
+    document.getElementById('map-panel').classList.remove('open');
+    document.body.classList.remove('panel-open');
+    if (clickMarker) {
+        clickMarker.setMap(null);
+        clickMarker = null;
+    }
+}
+
+function setPanelLoading(isLoading) {
+    document.getElementById('panel-loading').style.display = isLoading ? 'flex' : 'none';
+    if (isLoading) {
+        document.getElementById('panel-address-section').style.display = 'none';
+        document.getElementById('panel-tabs').style.display = 'none';
+        document.getElementById('panel-tab-building').style.display = 'none';
+        document.getElementById('panel-tab-land').style.display = 'none';
+        document.getElementById('panel-tab-floor').style.display = 'none';
+        document.getElementById('panel-tab-store').style.display = 'none';
+    }
+}
+
+function showPanelError(message) {
+    const loading = document.getElementById('panel-loading');
+    loading.style.display = 'flex';
+    loading.innerHTML = `<p style="color:var(--danger-color);"><i class="ri-error-warning-line"></i> ${message}</p>`;
 }
 
 // ────────────────────────────────────────
-// 지적도 레이어 토글
+// 위치 정보 렌더링
 // ────────────────────────────────────────
-function toggleCadastral() {
-    const btn = document.getElementById('btn-cadastral');
-    isCadastralOn = !isCadastralOn;
+function renderLocationInfo(data) {
+    const b = data.building || {};
+    const l = data.land || null;
+    const floors = data.floorStatuses || [];
+    const stores = data.stores || [];
 
-    if (isCadastralOn) {
-        cadastralLayer.setMap(map);
-        btn.classList.add('active');
-        btn.querySelector('span').textContent = '지적도 ON';
+    // 건물 기본정보
+    document.getElementById('b-name').textContent            = b.name || '-';
+    document.getElementById('b-main-purpose').textContent    = b.mainPurpose || '-';
+    document.getElementById('b-structure').textContent       = b.structure || '-';
+    document.getElementById('b-approval-date').textContent   = b.approvalDate ? new Date(b.approvalDate).toLocaleDateString('ko-KR') : '-';
+
+    // 건물 면적/규모
+    document.getElementById('b-plat-area').textContent       = b.platArea ? Number(b.platArea).toLocaleString() + ' ㎡' : '-';
+    document.getElementById('b-arch-area').textContent       = b.archArea ? Number(b.archArea).toLocaleString() + ' ㎡' : '-';
+    document.getElementById('b-total-floor-area').textContent = b.totalFloorArea ? Number(b.totalFloorArea).toLocaleString() + ' ㎡' : '-';
+    document.getElementById('b-coverage-ratio').textContent  = b.buildingCoverageRatio ? Number(b.buildingCoverageRatio).toFixed(2) + ' %' : '-';
+    document.getElementById('b-floor-area-ratio').textContent = b.floorAreaRatio ? Number(b.floorAreaRatio).toFixed(2) + ' %' : '-';
+    document.getElementById('b-ground-floors').textContent   = b.groundFloors != null ? b.groundFloors + '층' : '-';
+    document.getElementById('b-underground-floors').textContent = b.undergroundFloors != null ? b.undergroundFloors + '층' : '-';
+
+    // 토지 정보
+    if (l) {
+        document.getElementById('l-land-category').textContent  = l.landCategory || '-';
+        document.getElementById('l-land-area').textContent      = l.landArea ? Number(l.landArea).toLocaleString() + ' ㎡' : '-';
+        document.getElementById('l-zone-type').textContent      = l.zoneType || '-';
+        document.getElementById('l-price-date').textContent     = l.priceDate ? new Date(l.priceDate).toLocaleDateString('ko-KR') : '-';
+        document.getElementById('l-official-price').textContent = l.officialLandPrice ? Number(l.officialLandPrice).toLocaleString() + ' 원/㎡' : '-';
     } else {
-        cadastralLayer.setMap(null);
-        btn.classList.remove('active');
-        btn.querySelector('span').textContent = '지적도';
-    }
-}
-
-// ────────────────────────────────────────
-// 검색바 (주소 검색 + 자동완성)
-// ────────────────────────────────────────
-function initSearchBar() {
-    const input = document.getElementById('search-input');
-    const clearBtn = document.getElementById('btn-search-clear');
-    const submitBtn = document.getElementById('btn-search-submit');
-    const dropdown = document.getElementById('search-autocomplete');
-
-    // 입력 이벤트 → debounce 자동완성
-    input.addEventListener('input', () => {
-        const q = input.value.trim();
-        clearBtn.classList.toggle('visible', q.length > 0);
-
-        if (debounceTimer) clearTimeout(debounceTimer);
-
-        if (q.length < 2) {
-            closeAutocomplete();
-            return;
-        }
-
-        debounceTimer = setTimeout(() => {
-            runGeocodeAutocomplete(q);
-        }, 300);
-    });
-
-    // 키보드 탐색 (↑↓ Enter Esc)
-    input.addEventListener('keydown', (e) => {
-        const items = dropdown.querySelectorAll('.autocomplete-item');
-        if (e.key === 'ArrowDown') {
-            e.preventDefault();
-            activeAutocompleteIdx = Math.min(activeAutocompleteIdx + 1, items.length - 1);
-            highlightAutocompleteItem(items);
-        } else if (e.key === 'ArrowUp') {
-            e.preventDefault();
-            activeAutocompleteIdx = Math.max(activeAutocompleteIdx - 1, -1);
-            highlightAutocompleteItem(items);
-        } else if (e.key === 'Enter') {
-            if (activeAutocompleteIdx >= 0 && searchResults[activeAutocompleteIdx]) {
-                selectSearchResult(searchResults[activeAutocompleteIdx]);
-            } else {
-                searchByQuery(input.value.trim());
-            }
-        } else if (e.key === 'Escape') {
-            closeAutocomplete();
-        }
-    });
-
-    // 클리어 버튼
-    clearBtn.addEventListener('click', () => {
-        input.value = '';
-        clearBtn.classList.remove('visible');
-        closeAutocomplete();
-        input.focus();
-    });
-
-    // 검색 버튼
-    submitBtn.addEventListener('click', () => {
-        searchByQuery(input.value.trim());
-    });
-
-    // 드롭다운 외부 클릭 시 닫기
-    document.addEventListener('click', (e) => {
-        if (!e.target.closest('.search-bar-wrapper')) {
-            closeAutocomplete();
-        }
-    });
-}
-
-// Geocode API로 주소 자동완성 후보 가져오기
-function runGeocodeAutocomplete(query) {
-    naver.maps.Service.geocode({ query }, (status, response) => {
-        if (status !== naver.maps.Service.Status.OK) {
-            closeAutocomplete();
-            return;
-        }
-        const items = response.v2?.addresses || [];
-        searchResults = items;
-        renderAutocomplete(items);
-    });
-}
-
-function renderAutocomplete(items) {
-    const dropdown = document.getElementById('search-autocomplete');
-    activeAutocompleteIdx = -1;
-
-    if (!items.length) {
-        closeAutocomplete();
-        return;
-    }
-
-    dropdown.innerHTML = items.slice(0, 6).map((item, idx) => `
-        <div class="autocomplete-item" data-idx="${idx}">
-            <i class="ri-map-pin-2-line"></i>
-            <div>
-                <div class="autocomplete-item-text">${item.roadAddress || item.jibunAddress}</div>
-                ${item.roadAddress && item.jibunAddress
-                    ? `<div class="autocomplete-item-sub">${item.jibunAddress}</div>`
-                    : ''}
-            </div>
-        </div>
-    `).join('');
-
-    dropdown.querySelectorAll('.autocomplete-item').forEach((el) => {
-        el.addEventListener('click', () => {
-            const idx = parseInt(el.dataset.idx);
-            selectSearchResult(searchResults[idx]);
+        ['l-land-category', 'l-land-area', 'l-zone-type', 'l-price-date', 'l-official-price'].forEach(function(id) {
+            document.getElementById(id).textContent = '-';
         });
-    });
-
-    dropdown.classList.add('open');
-}
-
-function highlightAutocompleteItem(items) {
-    items.forEach((el, i) => {
-        el.classList.toggle('active', i === activeAutocompleteIdx);
-    });
-}
-
-function closeAutocomplete() {
-    const dropdown = document.getElementById('search-autocomplete');
-    dropdown.classList.remove('open');
-    activeAutocompleteIdx = -1;
-}
-
-function selectSearchResult(item) {
-    const input = document.getElementById('search-input');
-    input.value = item.roadAddress || item.jibunAddress;
-    closeAutocomplete();
-
-    const lat = parseFloat(item.y);
-    const lng = parseFloat(item.x);
-    if (!isNaN(lat) && !isNaN(lng)) {
-        const latlng = new naver.maps.LatLng(lat, lng);
-        map.panTo(latlng);
-        map.setZoom(17);
-        // 검색 결과 위치에 임시 마커
-        showSearchResultMarker(latlng, item.roadAddress || item.jibunAddress);
     }
-}
 
-// 직접 검색어 입력 후 엔터/버튼
-function searchByQuery(query) {
-    if (!query) return;
-    closeAutocomplete();
-
-    naver.maps.Service.geocode({ query }, (status, response) => {
-        if (status !== naver.maps.Service.Status.OK || !response.v2?.addresses?.length) {
-            alert(`"${query}"에 대한 검색 결과를 찾을 수 없습니다.`);
-            return;
-        }
-        selectSearchResult(response.v2.addresses[0]);
-    });
-}
-
-// 검색 결과 임시 마커 (3초 후 자동 제거)
-let searchResultMarker = null;
-function showSearchResultMarker(latlng, label) {
-    if (searchResultMarker) searchResultMarker.setMap(null);
-
-    searchResultMarker = new naver.maps.Marker({
-        position: latlng,
-        map,
-        icon: {
-            content: `
-                <div class="custom-marker">
-                    <div class="custom-marker-bubble" style="background:#10b981;">${label}</div>
-                    <div class="custom-marker-tail" style="border-top-color:#10b981;"></div>
-                </div>`,
-            anchor: new naver.maps.Point(0, 0),
-        },
-    });
-
-    setTimeout(() => {
-        if (searchResultMarker) {
-            searchResultMarker.setMap(null);
-            searchResultMarker = null;
-        }
-    }, 4000);
-}
-
-// ────────────────────────────────────────
-// 유틸
-// ────────────────────────────────────────
-function formatPrice(price) {
-    if (!price && price !== 0) return '가격 문의';
-    if (price >= 100000000) {
-        const eok = Math.floor(price / 100000000);
-        const man = Math.floor((price % 100000000) / 10000);
-        return man > 0 ? `${eok}억 ${man.toLocaleString()}만` : `${eok}억`;
+    // 층별현황 렌더링
+    var floorListEl = document.getElementById('floor-list');
+    if (floors.length > 0) {
+        floorListEl.innerHTML = floors.map(function(f) {
+            return '<div class="panel-floor-item">' +
+                '<span class="panel-floor-no">' + (f.flrNoNm || (f.flrNo != null ? f.flrNo + '층' : '-')) + '</span>' +
+                '<span class="panel-floor-purps">' + (f.flrMainPurps || '-') + '</span>' +
+                '<span class="panel-floor-area">' + (f.flrArea ? Number(f.flrArea).toLocaleString() + ' ㎡' : '-') + '</span>' +
+                '</div>';
+        }).join('');
+    } else {
+        floorListEl.innerHTML = '<p class="panel-empty-msg">층별 정보가 없습니다.</p>';
     }
-    if (price >= 10000) {
-        return `${Math.floor(price / 10000).toLocaleString()}만`;
-    }
-    return price.toLocaleString() + '원';
-}
 
-// ────────────────────────────────────────
-// 전역 노출 (HTML onclick 및 SDK 콜백용)
-// ────────────────────────────────────────
-window.initMap = initMap;
-window.closePanel = closePanel;
-window.toggleCadastral = toggleCadastral;
+    // 상가 렌더링
+    var storeListEl = document.getElementById('store-list');
+    if (stores.length > 0) {
+        storeListEl.innerHTML = stores.map(function(s) {
+            return '<div class="panel-store-item">' +
+                '<span class="panel-store-nm">' + (s.storeNm || '-') + '</span>' +
+                '<span class="panel-store-cate">' + [s.cateLargeNm, s.cateMidNm].filter(Boolean).join(' > ') + '</span>' +
+                '<span class="panel-store-loc">' + (s.flrNo ? s.flrNo + '층' : '') + (s.hoNo ? ' ' + s.hoNo + '호' : '') + '</span>' +
+                '</div>';
+        }).join('');
+    } else {
+        storeListEl.innerHTML = '<p class="panel-empty-msg">상가 정보가 없습니다.</p>';
+    }
+
+    // 건물 탭을 기본으로 활성화
+    document.querySelectorAll('.panel-tab').forEach(function(t) { t.classList.remove('active'); });
+    document.querySelector('.panel-tab[data-tab="building"]').classList.add('active');
+    document.getElementById('panel-tab-building').style.display = 'block';
+    document.getElementById('panel-tab-land').style.display = 'none';
+    document.getElementById('panel-tab-floor').style.display = 'none';
+    document.getElementById('panel-tab-store').style.display = 'none';
+}

@@ -12,7 +12,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     try {
         // 백엔드 API 호출
-        const res = await fetch(`http://localhost:3001/api/v1/properties/${id}`, { credentials: 'include' });
+        const res = await fetch(`${CONFIG.API_BASE_URL}/api/v1/properties/${id}`, { credentials: 'include' });
         let propData = await res.json();
 
         // 만약 데이터 조회가 안되었다면 (잘못된 ID 등)
@@ -66,7 +66,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (!reqMsg) reqMsg = "상담 요청합니다. (자동 기입)";
 
             try {
-                const res = await fetch('http://localhost:3001/api/v1/reservations', {
+                const res = await fetch(`${CONFIG.API_BASE_URL}/api/v1/reservations`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     credentials: 'include',

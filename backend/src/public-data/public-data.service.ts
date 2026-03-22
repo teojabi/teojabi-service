@@ -1,114 +1,146 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';
-import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
 import { firstValueFrom } from 'rxjs';
 
 @Injectable()
 export class PublicDataService {
-    private readonly logger = new Logger(PublicDataService.name);
+  private readonly logger = new Logger(PublicDataService.name);
 
-    constructor(
-        private readonly httpService: HttpService,
-        private readonly prisma: PrismaService,
-        private readonly configService: ConfigService,
-    ) { }
+  constructor(
+    private readonly httpService: HttpService,
+    private readonly prisma: PrismaService,
+    private readonly configService: ConfigService,
+  ) {}
 
-    // 매일 자정(02:00)에 데이터 갱신 실행 (예시)
-    @Cron(CronExpression.EVERY_DAY_AT_2AM)
-    async handleCron() {
-        this.logger.debug('Running nightly job to sync Public Data');
+  // 특정 주소의 데이터를 외부 API에서 조회 (캐시 없이 직접 반환)
+  async syncAddress(address: string) {
+    this.logger.debug(`Fetching external data for ${address}`);
 
-        // DB에 저장된 모든 PublicData 엔티티를 조회하여 갱신
-        const trackedData = await this.prisma.publicData.findMany();
+    // TODO: 실제 공공데이터 API 연동 시 주석 해제 후 구현
+    // const apiUrl = `https://api.vworld.kr/req/data?service=data&request=GetFeature&data=LT_C_UQ111&key=YOUR_KEY&domain=http://localhost:3000&attrFilter=ldCode:like:${address}`;
+    // const response = await firstValueFrom(this.httpService.get(apiUrl));
+    // const apiData = response.data;
 
-        for (const data of trackedData) {
-            try {
-                await this.syncAddress(data.address);
-            } catch (error) {
-                this.logger.error(`Failed to sync data for address: ${data.address}`, error);
-            }
-        }
+    // 임시 모의 데이터 (이제 DB에 저장하지 않고 직접 반환)
+    const mockOfficialPrice = Math.floor(Math.random() * 5000) + 1000;
+    const mockActualPrice = mockOfficialPrice * 1.5;
+    const mockLandUsePlan = '제2종 일반주거지역';
+
+    return {
+      address,
+      officialPrice: mockOfficialPrice,
+      actualPrice: mockActualPrice,
+      landUsePlan: mockLandUsePlan,
+      syncedAt: new Date(),
+    };
+  }
+
+  // 프론트엔드/API에서 데이터 단건 조회 요청 (캐시 없이 즉시 조회 후 반환)
+  async getPublicData(address: string) {
+    return this.syncAddress(address);
+  }
+
+  // PNU 기반 건물·토지·층별현황·상가 정보 DB 조회
+  async getLocationInfo(pnu: string): Promise<any> {
+    this.logger.debug(`getLocationInfo called: pnu=${pnu}`);
+
+    const building = await this.prisma.buildingInfo.findUnique({
+      where: { pnu },
+      include: {
+        landInfo: true,
+        floorStatuses: { orderBy: { flrNo: 'asc' } },
+        stores: { orderBy: { storeNm: 'asc' } },
+      },
+    });
+
+    if (!building) {
+      return null;
     }
 
-    // 특정 주소의 데이터를 외부 API에서 조회 후 DB 갱신 (또는 생성)
-    async syncAddress(address: string) {
-        this.logger.debug(`Syncing data for ${address}`);
+    return {
+      building: {
+        pnu: building.pnu,
+        name: building.bldNm,
+        mainPurpose: building.mainPurpsCdNm,
+        platArea: building.platArea,
+        archArea: building.archArea,
+        totalFloorArea: building.totArea,
+        buildingCoverageRatio: building.bcRat,
+        floorAreaRatio: building.vlRat,
+        groundFloors: building.grndFlrCnt,
+        undergroundFloors: building.ugndFlrCnt,
+        structure: building.strctCdNm,
+        approvalDate: building.useAprDay,
+      },
+      land: building.landInfo
+        ? {
+            landCategory: building.landInfo.jimokNm,
+            landArea: building.landInfo.ladArea,
+            zoneType: building.landInfo.prposAreaNm,
+            officialLandPrice: building.landInfo.pblntfPclnd?.toString(),
+            priceDate: building.landInfo.lastUpdated,
+          }
+        : null,
+      floorStatuses: building.floorStatuses.map((f) => ({
+        flrNo: f.flrNo,
+        flrNoNm: f.flrNoNm,
+        flrArea: f.flrArea,
+        flrMainPurps: f.flrMainPurps,
+        strctCdNm: f.strctCdNm,
+      })),
+      stores: building.stores.map((s) => ({
+        storeId: s.storeId,
+        storeNm: s.storeNm,
+        cateLargeNm: s.cateLargeNm,
+        cateMidNm: s.cateMidNm,
+        flrNo: s.flrNo,
+        hoNo: s.hoNo,
+      })),
+    };
+  }
 
-        // TODO: 실제 공공데이터 API 연동 시 주석 해제 후 구현
-        // const apiUrl = `https://api.vworld.kr/req/data?service=data&request=GetFeature&data=LT_C_UQ111&key=YOUR_KEY&domain=http://localhost:3000&attrFilter=ldCode:like:${address}`;
-        // const response = await firstValueFrom(this.httpService.get(apiUrl));
-        // const apiData = response.data;
+  // 키워드(POI) 검색: 네이버 로컬 검색 API를 통해 정보 반환
+  async searchByKeyword(query: string): Promise<any[]> {
+    const clientId = this.configService.get<string>('NAVER_CLIENT_ID');
+    const clientSecret = this.configService.get<string>('NAVER_CLIENT_SECRET');
 
-        // 임시 모의 데이터
-        const mockOfficialPrice = Math.floor(Math.random() * 5000) + 1000;
-        const mockActualPrice = mockOfficialPrice * 1.5;
-        const mockLandUsePlan = "제2종 일반주거지역";
+    try {
+      const response = await firstValueFrom(
+        this.httpService.get('https://openapi.naver.com/v1/search/local.json', {
+          params: { query, display: 5, start: 1, sort: 'random' },
+          headers: {
+            'X-Naver-Client-Id': clientId,
+            'X-Naver-Client-Secret': clientSecret,
+          },
+        }),
+      );
 
-        const result = await this.prisma.publicData.upsert({
-            where: { address },
-            update: {
-                officialPrice: mockOfficialPrice,
-                actualPrice: mockActualPrice,
-                landUsePlan: mockLandUsePlan,
-                syncedAt: new Date(),
-            },
-            create: {
-                address,
-                officialPrice: mockOfficialPrice,
-                actualPrice: mockActualPrice,
-                landUsePlan: mockLandUsePlan,
-                syncedAt: new Date(),
-            },
-        });
+      this.logger.debug(
+        `Naver Local Search API response status: ${response.status}`,
+      );
+      const items = response.data?.items;
+      this.logger.debug(
+        `Found ${items?.length || 0} items for query: ${query}`,
+      );
 
-        return result;
+      if (!items || items.length === 0) return [];
+
+      return items.map((item: any) => ({
+        title: item.title.replace(/<[^>]*>/g, ''),
+        address: item.roadAddress || item.address,
+        category: item.category,
+        mapx: Number(item.mapx),
+        mapy: Number(item.mapy),
+        raw: item, // 프론트엔드에서 추가 좌표 필드(x, y 등)를 참조할 수 있도록 원본 데이터 포함
+      }));
+    } catch (error) {
+      this.logger.error(
+        `Naver Local Search API error for query "${query}":`,
+        error?.response?.data || error.message,
+      );
+      return [];
     }
-
-    // 프론트엔드/API에서 데이터 단건 조회 요청 (없으면 즉시 동기화 후 반환)
-    async getPublicData(address: string) {
-        let data = await this.prisma.publicData.findUnique({ where: { address } });
-
-        // 캐싱된 데이터가 30일이 넘었거나 없으면 On-Demand 갱신
-        const THIRTY_DAYS = 30 * 24 * 60 * 60 * 1000;
-        if (!data || (Date.now() - new Date(data.syncedAt).getTime() > THIRTY_DAYS)) {
-            data = await this.syncAddress(address);
-        }
-
-        return data;
-    }
-
-    // 키워드(POI) 검색: 네이버 로컬 검색 API를 통해 위경도 좌표 반환
-    async searchByKeyword(query: string): Promise<{ x: number; y: number; title: string; address: string } | null> {
-        const clientId = this.configService.get<string>('NAVER_CLIENT_ID');
-        const clientSecret = this.configService.get<string>('NAVER_CLIENT_SECRET');
-
-        try {
-            const response = await firstValueFrom(
-                this.httpService.get('https://openapi.naver.com/v1/search/local.json', {
-                    params: { query, display: 1, start: 1, sort: 'random' },
-                    headers: {
-                        'X-Naver-Client-Id': clientId,
-                        'X-Naver-Client-Secret': clientSecret,
-                    },
-                }),
-            );
-
-            const items = response.data?.items;
-            if (!items || items.length === 0) return null;
-
-            const item = items[0];
-            // 네이버 로컬 검색 API는 mapx/mapy에 경도/위도를 문자열로 반환 (정수 형태, 10^7 배)
-            const x = parseFloat(item.mapx) / 1e7;  // 경도 (longitude)
-            const y = parseFloat(item.mapy) / 1e7;  // 위도 (latitude)
-            // HTML 태그 제거
-            const title = item.title.replace(/<[^>]*>/g, '');
-
-            return { x, y, title, address: item.roadAddress || item.address };
-        } catch (error) {
-            this.logger.error(`Naver Local Search API error for query "${query}":`, error?.response?.data || error.message);
-            return null;
-        }
-    }
+  }
 }
