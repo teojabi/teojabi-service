@@ -1,82 +1,38 @@
--- 05-optimized-import.sql (Deprecated. Use 06-full-import-optimized.sql for integrated high-speed migration)
-CREATE UNLOGGED TABLE staging_building_info (
-    PLAT_PLC TEXT, SGG_CD_NM TEXT, STDG_CD_NM TEXT, PLOT_SE_CD_NM TEXT, MN_LOTNO TEXT, SUB_LOTNO TEXT, SPAREA_NM TEXT, BLCK_NO TEXT, LT_NO TEXT,
-    NA_ROAD_CD_NM TEXT, NA_STDG_CD_NM TEXT, NA_GUGSE_CD_NM TEXT, NA_MN_LOTNO TEXT, NA_SUB_LOTNO TEXT, BDRG_SN TEXT, LDGR_SE_CD_NM TEXT,
-    LDGR_KIND_CD_NM TEXT, DNG_NM TEXT, MANX_SE_CD_NM TEXT, SIAR TEXT, BDAR TEXT, BDCVRT TEXT, GFA TEXT, FART_CMPTTN_GFA TEXT, FART TEXT,
-    STRCT_CD_NM TEXT, ETC_STRCT_INFO TEXT, MN_USG_CD_NM TEXT, ETC_USG_CN TEXT, ROOF_CD_NM TEXT, ETC_ROOF_NM TEXT, HH_CNT TEXT, FML_CNT TEXT,
-    HO_CNT TEXT, GRND_NOFL TEXT, UDGD_NOFL TEXT, HG TEXT, PSNGR_ELVTR_CNT TEXT, EUSE_ELVTR_CNT TEXT, ANX_BDST_CNT TEXT, ANX_BDST_AREA TEXT,
-    TOL_DNG_GFA TEXT, INDR_MCNCL_CNTOM TEXT, INDR_MCNCL_AREA TEXT, OTDR_MCNCL_CNTOM TEXT, OTDR_MCNCL_AREA TEXT, INDR_SFPRPL_CNTOM TEXT,
-    INDR_SFPRPL_AREA TEXT, OTDR_SFPRPL_CNTOM TEXT, OTDR_SFPRPL_AREA TEXT, PRMSN_YMD TEXT, BGNCST_YMD TEXT, USE_APRV_YMD TEXT,
-    ENRG_EFCY_GRD_VL TEXT, ENRG_RTRDT TEXT, EPI_SCR TEXT, ECFRD_BDST_GRD_VL TEXT, ECFRD_BDST_CERT_SCR TEXT, INTG_BDST_GRD_VL TEXT,
-    INTG_BDST_CERT_SCR TEXT, RSER_DESIGN_APLCN_YN TEXT, RSER_ABLT_CN TEXT
-);
+-- database/init/05-optimized-import.sql
+-- 고속 벌크 임포트를 위한 스테이징(임시) 테이블 생성 스크립트
+-- CSV 파일에서 psql \copy 를 통해 가장 빠르게 데이터를 적재하기 위해 사용됩니다.
+-- (가이드 문서의 Step 1 에 해당)
 
-DROP TABLE IF EXISTS staging_building_floor;
-CREATE UNLOGGED TABLE staging_building_floor (
-    PLAT_PLC TEXT, SGG_CD_NM TEXT, STDG_CD_NM TEXT, PLOT_SE_CD_NM TEXT, MN_LOTNO TEXT, SUB_LOTNO TEXT, SPAREA_NM TEXT, BLCK_NO TEXT, LT_NO TEXT,
-    NA_ROAD_CD_NM TEXT, NA_STDG_CD_NM TEXT, NA_GUGSE_CD_NM TEXT, NA_MN_LOTNO TEXT, NA_SUB_LOTNO TEXT, FLR_CB_OLN_SN TEXT, BDRG_SN TEXT,
-    FLR_SE_CD_NM TEXT, FLR_NO TEXT, FLR_NO_NM TEXT, STRCT_CD_NM TEXT, ETC_STRCT_INFO TEXT, MN_USG_CD_NM TEXT, ETC_USG_CN TEXT, AREA TEXT,
-    MANX_SE_CD_NM TEXT, AREA_EXCL_YN TEXT
-);
-
--- 2. 고속 벌크 로드 (\copy 명령용 템플릿)
--- 이 부분은 psql 클라이언트에서 실행되어야 하므로 SQL 파일에는 주석으로만 남깁니다.
--- \copy staging_building_info FROM 'database/staging_building_info.csv' WITH (FORMAT CSV, HEADER, ENCODING 'UTF8', NULL '');
--- \copy staging_building_floor FROM 'database/staging_building_floor.csv' WITH (FORMAT CSV, HEADER, ENCODING 'UTF8', NULL '');
-
--- 3. 데이터 변환 및 운영 테이블 이관 로직 (함수로 정의하거나 직접 실행)
--- 성능을 위해 외래키 제약 조건을 일시적으로 비활성화하는 것을 권장하지만, 
--- 여기서는 데이터 무결성을 위해 ON CONFLICT를 활용한 고속 삽입을 수행합니다.
-
--- building_info 이관
-INSERT INTO building_info (
-    PLAT_PLC, SGG_CD_NM, STDG_CD_NM, PLOT_SE_CD_NM, MN_LOTNO, SUB_LOTNO, SPAREA_NM, BLCK_NO, LT_NO,
-    NA_ROAD_CD_NM, NA_STDG_CD_NM, NA_GUGSE_CD_NM, NA_MN_LOTNO, NA_SUB_LOTNO, BDRG_SN, LDGR_SE_CD_NM,
-    LDGR_KIND_CD_NM, DNG_NM, MANX_SE_CD_NM, SIAR, BDAR, BDCVRT, GFA, FART_CMPTTN_GFA, FART,
-    STRCT_CD_NM, ETC_STRCT_INFO, MN_USG_CD_NM, ETC_USG_CN, ROOF_CD_NM, ETC_ROOF_NM, HH_CNT, FML_CNT,
-    HO_CNT, GRND_NOFL, UDGD_NOFL, HG, PSNGR_ELVTR_CNT, EUSE_ELVTR_CNT, ANX_BDST_CNT, ANX_BDST_AREA,
-    TOL_DNG_GFA, INDR_MCNCL_CNTOM, INDR_MCNCL_AREA, OTDR_MCNCL_CNTOM, OTDR_MCNCL_AREA, INDR_SFPRPL_CNTOM,
-    INDR_SFPRPL_AREA, OTDR_SFPRPL_CNTOM, OTDR_SFPRPL_AREA, PRMSN_YMD, BGNCST_YMD, USE_APRV_YMD,
-    ENRG_EFCY_GRD_VL, ENRG_RTRDT, EPI_SCR, ECFRD_BDST_GRD_VL, ECFRD_BDST_CERT_SCR, INTG_BDST_GRD_VL,
-    INTG_BDST_CERT_SCR, RSER_DESIGN_APLCN_YN, RSER_ABLT_CN
-)
-SELECT 
-    PLAT_PLC, SGG_CD_NM, STDG_CD_NM, PLOT_SE_CD_NM, MN_LOTNO, SUB_LOTNO, SPAREA_NM, BLCK_NO, LT_NO,
-    NA_ROAD_CD_NM, NA_STDG_CD_NM, NA_GUGSE_CD_NM, NULLIF(NA_MN_LOTNO, '')::INTEGER, NULLIF(NA_SUB_LOTNO, '')::INTEGER, BDRG_SN, LDGR_SE_CD_NM,
-    LDGR_KIND_CD_NM, DNG_NM, MANX_SE_CD_NM, NULLIF(SIAR, '')::NUMERIC, NULLIF(BDAR, '')::NUMERIC, NULLIF(BDCVRT, '')::NUMERIC, NULLIF(GFA, '')::NUMERIC, NULLIF(FART_CMPTTN_GFA, '')::NUMERIC, NULLIF(FART, '')::NUMERIC,
-    STRCT_CD_NM, ETC_STRCT_INFO, MN_USG_CD_NM, ETC_USG_CN, ROOF_CD_NM, ETC_ROOF_NM, NULLIF(HH_CNT, '')::INTEGER, NULLIF(FML_CNT, '')::INTEGER,
-    NULLIF(HO_CNT, '')::INTEGER, NULLIF(GRND_NOFL, '')::INTEGER, NULLIF(UDGD_NOFL, '')::INTEGER, NULLIF(HG, '')::NUMERIC, NULLIF(PSNGR_ELVTR_CNT, '')::INTEGER, NULLIF(EUSE_ELVTR_CNT, '')::INTEGER, NULLIF(ANX_BDST_CNT, '')::INTEGER, NULLIF(ANX_BDST_AREA, '')::NUMERIC,
-    NULLIF(TOL_DNG_GFA, '')::NUMERIC, NULLIF(INDR_MCNCL_CNTOM, '')::INTEGER, NULLIF(INDR_MCNCL_AREA, '')::NUMERIC, NULLIF(OTDR_MCNCL_CNTOM, '')::INTEGER, NULLIF(OTDR_MCNCL_AREA, '')::NUMERIC, NULLIF(INDR_SFPRPL_CNTOM, '')::INTEGER,
-    NULLIF(INDR_SFPRPL_AREA, '')::NUMERIC, NULLIF(OTDR_SFPRPL_CNTOM, '')::INTEGER, NULLIF(OTDR_SFPRPL_AREA, '')::NUMERIC, 
-    CASE WHEN PRMSN_YMD ~ '^\d{8}$' THEN TO_DATE(PRMSN_YMD, 'YYYYMMDD') ELSE NULL END,
-    CASE WHEN BGNCST_YMD ~ '^\d{8}$' THEN TO_DATE(BGNCST_YMD, 'YYYYMMDD') ELSE NULL END,
-    CASE WHEN USE_APRV_YMD ~ '^\d{8}$' THEN TO_DATE(USE_APRV_YMD, 'YYYYMMDD') ELSE NULL END,
-    ENRG_EFCY_GRD_VL, NULLIF(ENRG_RTRDT, '')::NUMERIC, NULLIF(EPI_SCR, '')::NUMERIC, ECFRD_BDST_GRD_VL, NULLIF(ECFRD_BDST_CERT_SCR, '')::INTEGER, INTG_BDST_GRD_VL,
-    NULLIF(INTG_BDST_CERT_SCR, '')::INTEGER, LEFT(RSER_DESIGN_APLCN_YN, 1), RSER_ABLT_CN
-FROM staging_building_info
-ON CONFLICT (PLAT_PLC) DO UPDATE SET
-    SGG_CD_NM = EXCLUDED.SGG_CD_NM, STDG_CD_NM = EXCLUDED.STDG_CD_NM, GFA = EXCLUDED.GFA, USE_APRV_YMD = EXCLUDED.USE_APRV_YMD;
-
--- building_floor 이관
-INSERT INTO building_floor (
-    FLR_CB_OLN_SN, PLAT_PLC, SGG_CD_NM, STDG_CD_NM, PLOT_SE_CD_NM, MN_LOTNO, SUB_LOTNO, SPAREA_NM, BLCK_NO, LT_NO,
-    NA_ROAD_CD_NM, NA_STDG_CD_NM, NA_GUGSE_CD_NM, NA_MN_LOTNO, NA_SUB_LOTNO, BDRG_SN,
-    FLR_SE_CD_NM, FLR_NO, FLR_NO_NM, STRCT_CD_NM, ETC_STRCT_INFO, MN_USG_CD_NM, ETC_USG_CN, AREA,
-    MANX_SE_CD_NM, AREA_EXCL_YN
-)
-SELECT 
-    FLR_CB_OLN_SN, PLAT_PLC, SGG_CD_NM, STDG_CD_NM, PLOT_SE_CD_NM, MN_LOTNO, SUB_LOTNO, SPAREA_NM, BLCK_NO, LT_NO,
-    NA_ROAD_CD_NM, NA_STDG_CD_NM, NA_GUGSE_CD_NM, NULLIF(NA_MN_LOTNO, '')::INTEGER, NULLIF(NA_SUB_LOTNO, '')::INTEGER, BDRG_SN,
-    FLR_SE_CD_NM, NULLIF(FLR_NO, '')::INTEGER, FLR_NO_NM, STRCT_CD_NM, ETC_STRCT_INFO, MN_USG_CD_NM, ETC_USG_CN, NULLIF(AREA, '')::NUMERIC,
-    MANX_SE_CD_NM, LEFT(AREA_EXCL_YN, 1)
-FROM staging_building_floor
-ON CONFLICT (FLR_CB_OLN_SN) DO UPDATE SET
-    AREA = EXCLUDED.AREA, FLR_NO = EXCLUDED.FLR_NO;
-
--- 4. 스테이징 테이블 삭제
+-- 1. 건축물대장 표제부 스테이징 테이블 (CSV의 한글 헤더와 동일)
 DROP TABLE IF EXISTS staging_building_info;
-DROP TABLE IF EXISTS staging_building_floor;
+CREATE UNLOGGED TABLE staging_building_info (
+    "대지위치" TEXT, "시군구코드명" TEXT, "법정동코드명" TEXT, "대지구분코드명" TEXT, "주지번" TEXT, "부지번" TEXT, "특수지명" TEXT, "블록번호" TEXT, "로트번호" TEXT,
+    "새주소도로코드명" TEXT, "새주소법정동코드명" TEXT, "새주소지상지하구분코드명" TEXT, "새주소주지번" TEXT, "새주소부지번" TEXT, "건축물대장일련번호" TEXT, "대장구분코드명" TEXT,
+    "대장종류코드명" TEXT, "동명" TEXT, "주부속구분코드명" TEXT, "대지면적" TEXT, "건축면적" TEXT, "건폐율" TEXT, "연면적" TEXT, "용적률산정연면적" TEXT, "용적률" TEXT,
+    "구조코드명" TEXT, "기타구조정보" TEXT, "주용도코드명" TEXT, "기타용도내용" TEXT, "지붕코드명" TEXT, "기타지붕명" TEXT, "세대수" TEXT, "가구수" TEXT,
+    "호수" TEXT, "지상층수" TEXT, "지하층수" TEXT, "높이" TEXT, "승용승강기수" TEXT, "비상용승강기수" TEXT, "부속건축물수" TEXT, "부속건축물면적" TEXT,
+    "총동연면적" TEXT, "옥내기계식대수" TEXT, "옥내기계식면적" TEXT, "옥외기계식대수" TEXT, "옥외기계식면적" TEXT, "옥내자주식대수" TEXT, "옥내자주식면적" TEXT,
+    "옥외자주식대수" TEXT, "옥외자주식면적" TEXT, "허가일자" TEXT, "착공일자" TEXT, "사용승인일자" TEXT, "에너지효율등급값" TEXT, "에너지절감률" TEXT, "EPI점수" TEXT,
+    "친환경건축물등급값" TEXT, "친환경건축물인증점수" TEXT, "지능형건축물등급값" TEXT, "지능형건축물인증점수" TEXT, "내진설계적용여부" TEXT, "내진능력내용" TEXT
+);
 
--- 5. 통계 정보 업데이트
-ANALYZE building_info;
-ANALYZE building_floor;
+-- 2. 건축물대장 층별현황 스테이징 테이블
+DROP TABLE IF EXISTS staging_floor_status;
+CREATE UNLOGGED TABLE staging_floor_status (
+    "대지위치" TEXT, "시군구코드명" TEXT, "법정동코드명" TEXT, "대지구분코드명" TEXT, "주지번" TEXT, "부지번" TEXT, "특수지명" TEXT, "블록번호" TEXT, "로트번호" TEXT,
+    "새주소도로코드명" TEXT, "새주소법정동코드명" TEXT, "새주소지상지하구분코드명" TEXT, "새주소주지번" TEXT, "새주소부지번" TEXT, "층별개요일련번호" TEXT, "건축물대장일련번호" TEXT,
+    "층구분코드명" TEXT, "층번호" TEXT, "층번호명" TEXT, "구조코드명" TEXT, "기타구조정보" TEXT, "주용도코드명" TEXT, "기타용도내용" TEXT, "면적" TEXT,
+    "주부속구분코드명" TEXT, "면적제외여부" TEXT
+);
+
+-- 3. 상가업소정보 스테이징 테이블
+DROP TABLE IF EXISTS staging_store_info;
+CREATE UNLOGGED TABLE staging_store_info (
+    "상가업소번호" TEXT, "상호명" TEXT, "지점명" TEXT, "상권업종대분류코드" TEXT, "상권업종대분류명" TEXT, "상권업종중분류코드" TEXT, "상권업종중분류명" TEXT, 
+    "상권업종소분류코드" TEXT, "상권업종소분류명" TEXT, "표준산업분류코드" TEXT, "표준산업분류명" TEXT, "시도코드" TEXT, "시도명" TEXT, 
+    "시군구코드" TEXT, "시군구명" TEXT, "행정동코드" TEXT, "행정동명" TEXT, "법정동코드" TEXT, "법정동명" TEXT, 
+    "지번코드" TEXT, "대지구분코드" TEXT, "대지구분명" TEXT, "지번본번지" TEXT, "지번부번지" TEXT, "지번주소" TEXT, 
+    "도로명코드" TEXT, "도로명" TEXT, "건물본번지" TEXT, "건물부번지" TEXT, "건물관리번호" TEXT, "건물명" TEXT, 
+    "도로명주소" TEXT, "구우편번호" TEXT, "신우편번호" TEXT, "동정보" TEXT, "층정보" TEXT, "호정보" TEXT, 
+    "경도" TEXT, "위도" TEXT
+);

@@ -1,41 +1,33 @@
--- BuildingInfo 테이블 데이터 임포트
--- 파일 경로 및 인코딩 주의: PostgresSQL 서버에서 접근 가능한 절대 경로 또는 상대 경로를 사용해야 합니다.
--- CSV 파일이 큰 경우 COPY 명령어가 가장 효율적입니다.
+-- database/init/04-import-data.sql
+-- 기초 참조 데이터(법정동코드 등) 임포트 스크립트
+-- psql 클라이언트에서 실행: psql -h [host] -d [db] -f 04-import-data.sql
+-- 실제 CSV 로드는 psql의 \copy 명령어를 사용합니다.
 
-COPY BuildingInfo (
-    PLAT_PLC, SGG_CD_NM, STDG_CD_NM, PLOT_SE_CD_NM, MN_LOTNO, SUB_LOTNO, SPAREA_NM, BLCK_NO, LT_NO,
-    NA_ROAD_CD_NM, NA_STDG_CD_NM, NA_GUGSE_CD_NM, NA_MN_LOTNO, NA_SUB_LOTNO, BDRG_SN, LDGR_SE_CD_NM,
-    LDGR_KIND_CD_NM, DNG_NM, MANX_SE_CD_NM, SIAR, BDAR, BDCVRT, GFA, FART_CMPTTN_GFA, FART,
-    STRCT_CD_NM, ETC_STRCT_INFO, MN_USG_CD_NM, ETC_USG_CN, ROOF_CD_NM, ETC_ROOF_NM, HH_CNT, FML_CNT,
-    HO_CNT, GRND_NOFL, UDGD_NOFL, HG, PSNGR_ELVTR_CNT, EUSE_ELVTR_CNT, ANX_BDST_CNT, ANX_BDST_AREA,
-    TOL_DNG_GFA, INDR_MCNCL_CNTOM, INDR_MCNCL_AREA, OTDR_MCNCL_CNTOM, OTDR_MCNCL_AREA, INDR_SFPRPL_CNTOM,
-    INDR_SFPRPL_AREA, OTDR_SFPRPL_CNTOM, OTDR_SFPRPL_AREA, PRMSN_YMD, BGNCST_YMD, USE_APRV_YMD,
-    ENRG_EFCY_GRD_VL, ENRG_RTRDT, EPI_SCR, ECFRD_BDST_GRD_VL, ECFRD_BDST_CERT_SCR, INTG_BDST_GRD_VL,
-    INTG_BDST_CERT_SCR, RSER_DESIGN_APLCN_YN, RSER_ABLT_CN
-)
-FROM '/var/lib/postgresql/data/서울시 건축물대장 표제부 utf-8.csv'
-WITH (
-    FORMAT CSV,
-    HEADER,
-    ENCODING 'UTF8',
-    QUOTE '"',
-    DELIMITER ',',
-    NULL ''
+-- 1. 법정동코드 스테이징 테이블 (CSV 임시 적재용)
+DROP TABLE IF EXISTS staging_legal_dong_codes;
+CREATE UNLOGGED TABLE staging_legal_dong_codes (
+    "법정동코드" TEXT,
+    "법정동명" TEXT,
+    "폐지여부" TEXT
 );
 
--- BuildingFloor 테이블 데이터 임포트
-COPY BuildingFloor (
-    PLAT_PLC, SGG_CD_NM, STDG_CD_NM, PLOT_SE_CD_NM, MN_LOTNO, SUB_LOTNO, SPAREA_NM, BLCK_NO, LT_NO,
-    NA_ROAD_CD_NM, NA_STDG_CD_NM, NA_GUGSE_CD_NM, NA_MN_LOTNO, NA_SUB_LOTNO, FLR_CB_OLN_SN, BDRG_SN,
-    FLR_SE_CD_NM, FLR_NO, FLR_NO_NM, STRCT_CD_NM, ETC_STRCT_INFO, MN_USG_CD_NM, ETC_USG_CN, AREA,
-    MANX_SE_CD_NM, AREA_EXCL_YN
-)
-FROM '/var/lib/postgresql/data/서울시 건축물대장 층별개요.csv'
-WITH (
-    FORMAT CSV,
-    HEADER,
-    ENCODING 'UTF8',
-    QUOTE '"',
-    DELIMITER ',',
-    NULL ''
-);
+-- 2. 고속 벌크 로드 (psql 전용 명령어이므로 주석 처리됨. 실제로는 셸 백그라운드나 서버에서 실행)
+-- \copy staging_legal_dong_codes FROM 'database/법정동코드 조회자료.csv' WITH (FORMAT CSV, HEADER, ENCODING 'EUC-KR', QUOTE '"', NULL '');
+-- (인코딩이 UTF8인 경우 ENCODING 'UTF8' 로 변경)
+
+-- 3. 운영 테이블로 데이터 이관 (폐지된 동 코드를 제외하지 않고 모두 유지하거나 '존재'만 유지할지 결정)
+-- 변환 로직: "법정동코드" -> code, "법정동명" -> name, "폐지여부" -> is_active(존재 시 true)
+INSERT INTO legal_dong_codes (code, name, is_active)
+SELECT 
+    TRIM("법정동코드") AS code,
+    TRIM("법정동명") AS name,
+    CASE WHEN TRIM("폐지여부") = '존재' THEN true ELSE false END AS is_active
+FROM staging_legal_dong_codes
+WHERE "법정동코드" IS NOT NULL AND TRIM("법정동코드") <> ''
+ON CONFLICT (code) DO UPDATE SET
+    name = EXCLUDED.name,
+    is_active = EXCLUDED.is_active;
+
+-- 4. 스테이징 정리
+DROP TABLE IF EXISTS staging_legal_dong_codes;
+ANALYZE legal_dong_codes;
