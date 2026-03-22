@@ -1,9 +1,15 @@
--- database/init/05-optimized-import.sql
+-- database/init/03-create-staging-tables.sql
 -- 고속 벌크 임포트를 위한 스테이징(임시) 테이블 생성 스크립트
--- CSV 파일에서 psql \copy 를 통해 가장 빠르게 데이터를 적재하기 위해 사용됩니다.
--- (가이드 문서의 Step 1 에 해당)
 
--- 1. 건축물대장 표제부 스테이징 테이블 (CSV의 한글 헤더와 동일)
+-- 1. 법정동코드 스테이징 테이블 (CSV 임시 적재용)
+DROP TABLE IF EXISTS staging_legal_dong_codes;
+CREATE UNLOGGED TABLE staging_legal_dong_codes (
+    "법정동코드" TEXT,
+    "법정동명" TEXT,
+    "폐지여부" TEXT
+);
+
+-- 2. 건축물대장 표제부 스테이징 테이블 (CSV의 한글 헤더와 동일)
 DROP TABLE IF EXISTS staging_building_info;
 CREATE UNLOGGED TABLE staging_building_info (
     "대지위치" TEXT, "시군구코드명" TEXT, "법정동코드명" TEXT, "대지구분코드명" TEXT, "주지번" TEXT, "부지번" TEXT, "특수지명" TEXT, "블록번호" TEXT, "로트번호" TEXT,
@@ -16,7 +22,7 @@ CREATE UNLOGGED TABLE staging_building_info (
     "친환경건축물등급값" TEXT, "친환경건축물인증점수" TEXT, "지능형건축물등급값" TEXT, "지능형건축물인증점수" TEXT, "내진설계적용여부" TEXT, "내진능력내용" TEXT
 );
 
--- 2. 건축물대장 층별현황 스테이징 테이블
+-- 3. 건축물대장 층별현황 스테이징 테이블
 DROP TABLE IF EXISTS staging_floor_status;
 CREATE UNLOGGED TABLE staging_floor_status (
     "대지위치" TEXT, "시군구코드명" TEXT, "법정동코드명" TEXT, "대지구분코드명" TEXT, "주지번" TEXT, "부지번" TEXT, "특수지명" TEXT, "블록번호" TEXT, "로트번호" TEXT,
@@ -25,7 +31,7 @@ CREATE UNLOGGED TABLE staging_floor_status (
     "주부속구분코드명" TEXT, "면적제외여부" TEXT
 );
 
--- 3. 상가업소정보 스테이징 테이블
+-- 4. 상가업소정보 스테이징 테이블
 DROP TABLE IF EXISTS staging_store_info;
 CREATE UNLOGGED TABLE staging_store_info (
     "상가업소번호" TEXT, "상호명" TEXT, "지점명" TEXT, "상권업종대분류코드" TEXT, "상권업종대분류명" TEXT, "상권업종중분류코드" TEXT, "상권업종중분류명" TEXT, 

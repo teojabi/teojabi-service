@@ -46,8 +46,7 @@ SQL Editor에서 쿼리로 테이블을 생성합니다. (버전 관리 용이)
 1. 좌측 사이드바 → **"SQL Editor"** 이동
 2. 프로젝트의 `database/init/` 폴더에 있는 SQL 스크립트를 순서대로 실행:
    - `01-schema.sql` → 기본 테이블 생성
-   - `02-public-data.sql` → 공공데이터 테이블
-   - `03-building-data.sql` → 건축물대장 테이블
+   - `02-public-data.sql` → 공공데이터 및 건축물대장 테이블
 3. **"Run"** 버튼 → **"Table Editor"** 에서 생성 확인
 
 ---

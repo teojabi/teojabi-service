@@ -34,38 +34,30 @@ CSV 파일 → psql \copy → 스테이징 테이블(TEXT) → 운영 테이블(
 | 파일 | 용도 |
 |---|---|
 | `01-schema.sql` | 기본 스키마 생성 |
-| `02-public-data.sql` | 공공데이터 테이블 생성 |
-| `03-building-data.sql` | 건축물대장 테이블 생성 |
-| `04-import-data.sql` | 데이터 임포트 (기본) |
-| `05-optimized-import.sql` | 최적화된 스테이징 임포트 |
-| `06-full-import-optimized.sql` | 전체 최적화 임포트 |
+| `02-public-data.sql` | 공공데이터 및 건축물대장 테이블 생성 |
+| `03-create-staging-tables.sql` | 스테이징 임시 테이블 생성 |
+| `04-import-from-staging-tables.sql` | 스테이징 데이터 정제 및 이관 |
 
 ### 3.2 실행 단계
 
-**Step 1: 법정동코드 기초 데이터 적재 (04번)**
+**Step 1: 스테이징 테이블 생성 (03번)**
 ```bash
-# 스테이징 생성 및 이관 쿼리 실행
-psql -h [HOST] -U [USER] -d [DATABASE] -f database/init/04-import-data.sql
+psql -h [HOST] -U [USER] -d [DATABASE] -f database/init/03-create-staging-tables.sql
+```
 
-# CSV 고속 로드 (\copy)
+**Step 2: CSV 벌크 로드 (\copy)**
+```bash
+# 법정동코드 (예시)
 psql -h [HOST] -U [USER] -d [DATABASE] -c "\copy staging_legal_dong_codes FROM 'database/법정동코드 조회자료.csv' WITH (FORMAT CSV, HEADER, ENCODING 'EUC-KR', QUOTE '\"', NULL '')"
-```
 
-**Step 2: 스테이징 테이블 생성 (05번)**
-```bash
-psql -h [HOST] -U [USER] -d [DATABASE] -f database/init/05-optimized-import.sql
-```
-
-**Step 3: CSV 벌크 로드 (\copy)**
-```bash
 # 표제부 (예시)
 psql -h [HOST] -U [USER] -d [DATABASE] -c "\copy staging_building_info FROM 'staging_building_info.csv' WITH (FORMAT CSV, HEADER, ENCODING 'UTF8', NULL '')"
 ```
 
-**Step 4: 데이터 변환 및 이관 (06번)**
+**Step 3: 데이터 변환 및 이관 (04번)**
 스테이징 데이터를 정제 및 19자리 PNU로 조합하여 실제 운영 테이블로 `UPSERT` 합니다.
 ```bash
-psql -h [HOST] -U [USER] -d [DATABASE] -f database/init/06-full-import-optimized.sql
+psql -h [HOST] -U [USER] -d [DATABASE] -f database/init/04-import-from-staging-tables.sql
 ```
 
 ---

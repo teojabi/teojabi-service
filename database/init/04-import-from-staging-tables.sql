@@ -1,15 +1,28 @@
--- database/init/06-full-import-optimized.sql
+-- database/init/04-import-from-staging-tables.sql
 -- 고속 벌크 임포트 데이터 이관 및 후처리 스크립트
 -- 스테이징 테이블에 \copy 로 적재된 CSV 데이터를 실제 운영 테이블로 정제하여 이관합니다.
 
 -- 1. 대용량 작업용 타임아웃 방지
 SET statement_timeout = 0;
 
--- 2. 조인 성능 최적화를 위한 스테이징 인덱스 생성
+-- 2. 법정동코드 데이터 이관
+-- 변환 로직: "법정동코드" -> code, "법정동명" -> name, "폐지여부" -> is_active(존재 시 true)
+INSERT INTO legal_dong_codes (code, name, is_active)
+SELECT 
+    TRIM("법정동코드") AS code,
+    TRIM("법정동명") AS name,
+    CASE WHEN TRIM("폐지여부") = '존재' THEN true ELSE false END AS is_active
+FROM staging_legal_dong_codes
+WHERE "법정동코드" IS NOT NULL AND TRIM("법정동코드") <> ''
+ON CONFLICT (code) DO UPDATE SET
+    name = EXCLUDED.name,
+    is_active = EXCLUDED.is_active;
+
+-- 3. 조인 성능 최적화를 위한 스테이징 인덱스 생성
 CREATE INDEX IF NOT EXISTS idx_staging_building_info_plat ON staging_building_info("시군구코드명", "법정동코드명");
 CREATE INDEX IF NOT EXISTS idx_staging_floor_status_plat ON staging_floor_status("시군구코드명", "법정동코드명");
 
--- 3. building_info 이관
+-- 4. building_info 이관
 -- legal_dong_codes 매핑으로 19자리 PNU 생성. 
 -- "산"이면 2, 일반이면 1 + 주지번 4자리 + 부지번 4자리
 INSERT INTO building_info (
@@ -51,7 +64,7 @@ ON CONFLICT (pnu) DO UPDATE SET
     tot_area = COALESCE(EXCLUDED.tot_area, building_info.tot_area),
     use_apr_day = COALESCE(EXCLUDED.use_apr_day, building_info.use_apr_day);
 
--- 4. floor_status 이관
+-- 5. floor_status 이관
 -- 매주 CRON 실행 시 무한 중복 데이터 적재를 방지하기 위해, 업데이트 대상 건물의 기존 층 정보를 먼저 삭제합니다.
 DELETE FROM floor_status 
 WHERE pnu IN (
@@ -77,7 +90,7 @@ WHERE EXISTS (
     WHERE bi.pnu = (m.code || CASE WHEN f."대지구분코드명" = '산' THEN '2' ELSE '1' END || LPAD(TRIM(f."주지번"), 4, '0') || LPAD(TRIM(f."부지번"), 4, '0'))
 );
 
--- 5. store_info 이관
+-- 6. store_info 이관
 INSERT INTO store_info (
     store_id, pnu, store_nm, cate_large_nm, cate_mid_nm, flr_no, ho_no
 )
@@ -95,12 +108,14 @@ WHERE TRIM("상가업소번호") <> ''
 ON CONFLICT (store_id) DO UPDATE SET
     store_nm = EXCLUDED.store_nm, pnu = EXCLUDED.pnu;
 
--- 6. 스테이징 데이터 비우기 (디스크 공간 확보)
+-- 7. 스테이징 데이터 비우기 (디스크 공간 확보)
+TRUNCATE TABLE staging_legal_dong_codes;
 TRUNCATE TABLE staging_building_info;
 TRUNCATE TABLE staging_floor_status;
 TRUNCATE TABLE staging_store_info;
 
--- 7. 옵티마이저 통계 정보 업데이트 고도화
+-- 8. 옵티마이저 통계 정보 업데이트 고도화
+ANALYZE legal_dong_codes;
 ANALYZE building_info;
 ANALYZE floor_status;
 ANALYZE store_info;
