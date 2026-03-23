@@ -107,4 +107,15 @@ NestJS의 `@nestjs/schedule` 모듈을 통해 아래 로직으로 데이터를 �
 | `POST` | `/api/v1/reservations` | 특정 매물(`propertyId`)에 대한 상담 예약 신청 | USER |
 | `GET` | `/api/v1/reservations/me` | 내 상담 예약 내역 조회 (마이페이지용) | USER |
 | `PATCH` | `/api/v1/reservations/:id/status` | 예약 상태 변경 (확정, 취소 등) | ADMIN/USER |
-| `POST` | `/api/v1/properties/:id/like` | 관심 매물 추가/삭제 (Toggle) | USER |
+
+---
+
+## 6. Favorites API (`/api/v1/favorites`)
+
+사용자의 관심 매물(찜) 처리 기능입니다. 상담 예약 시스템과 분리된 독립된 모듈입니다.
+
+| Method | Endpoint | Description | Auth |
+|---|---|---|---|
+| `POST` | `/api/v1/favorites/:propertyId` | 관심 매물 추가/삭제 (Toggle) | USER |
+| `GET` | `/api/v1/favorites/me` | 내 관심 매물 목록 조회 (마이페이지용) | USER |
+| `GET` | `/api/v1/favorites/check/:propertyId` | 현재 로그인한 사용자가 해당 매물을 찜했는지 여부 확인 | USER |

@@ -84,9 +84,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         const listHtml = properties.map(prop => `
             <div class="property-card-admin" style="display: flex; gap: 20px; padding: 1.5rem; border: 1px solid var(--border-color); border-radius: var(--radius-md); margin-bottom: 1rem; align-items: center; background: #fff;">
                 <div style="width: 100px; height: 100px; background: var(--bg-muted); border-radius: var(--radius-sm); overflow: hidden; flex-shrink: 0;">
-                    ${prop.images && prop.images[0] 
-                        ? `<img src="${prop.images[0]}" style="width: 100%; height: 100%; object-fit: cover;">` 
-                        : `<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: var(--border-color);"><i class="ri-image-line" style="font-size: 2rem;"></i></div>`}
+                    ${prop.images && prop.images[0]
+                ? `<img src="${prop.images[0]}" style="width: 100%; height: 100%; object-fit: cover;">`
+                : `<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: var(--border-color);"><i class="ri-image-line" style="font-size: 2rem;"></i></div>`}
                 </div>
                 <div style="flex-grow: 1;">
                     <h3 style="margin-bottom: 0.5rem; font-size: 1.1rem;">${prop.title}</h3>
@@ -150,12 +150,31 @@ document.addEventListener('DOMContentLoaded', async () => {
             form.querySelector('input[name="title"]').value = prop.title;
             form.querySelector('input[name="address"]').value = prop.address;
             form.querySelector('textarea[name="description"]').value = prop.description;
-            form.querySelector('input[name="price"]').value = prop.price || '';
-            
+            const priceField = form.querySelector('input[name="price"]');
+            priceField.value = prop.price || '';
+            priceField.dispatchEvent(new Event('input')); // 한글 표기도 업데이트되게 이벤트 발생
+
+            // 기존에 저장된 위경도/PNU가 있으면 세팅
+            const latInput = form.querySelector('input[name="lat"]');
+            const lngInput = form.querySelector('input[name="lng"]');
+            const pnuInput = form.querySelector('input[name="pnu"]');
+            const geocodeResult = document.getElementById('geocode-result');
+            if (latInput) latInput.value = prop.lat || '';
+            if (lngInput) lngInput.value = prop.lng || '';
+            if (pnuInput) pnuInput.value = prop.pnu || '';
+            if (geocodeResult) {
+                if (prop.lat && prop.lng) {
+                    geocodeResult.textContent = `저장된 좌표 - 위도: ${prop.lat.toFixed(4)}, 경도: ${prop.lng.toFixed(4)}` + (prop.pnu ? ` (PNU: ${prop.pnu})` : '');
+                    geocodeResult.style.color = 'var(--text-muted)';
+                } else {
+                    geocodeResult.textContent = '';
+                }
+            }
+
             // 데이터 속성 저장 (수정 모드 식별용)
             form.dataset.editId = id;
             form.querySelector('button[type="submit"]').innerHTML = '<i class="ri-save-3-line"></i> 매물 정보 수정하기';
-            
+
             window.scrollTo({ top: 0, behavior: 'smooth' });
 
         } catch (err) {
@@ -165,14 +184,120 @@ document.addEventListener('DOMContentLoaded', async () => {
     };
 
     function formatPrice(price) {
+        if (window.formatPriceToKorean) return window.formatPriceToKorean(price);
         if (!price) return '가격 정보 없음';
         const num = Number(price);
-        if (num >= 10000) {
-            const uk = Math.floor(num / 10000);
-            const man = num % 10000;
-            return `${uk}억 ${man > 0 ? man.toLocaleString() : ''}원`.trim();
+        if (isNaN(num)) return price;
+        if (num === 0) return '0원';
+
+        if (num >= 100000000) { // 1억 이상
+            const uk = Math.floor(num / 100000000);
+            const man = Math.floor((num % 100000000) / 10000);
+            return `${uk.toLocaleString()}억${man > 0 ? ' ' + man.toLocaleString() + '만' : ''}원`;
+        } else if (num >= 10000) { // 1만 이상 1억 미만
+            const man = Math.floor(num / 10000);
+            const won = num % 10000;
+            return `${man.toLocaleString()}만${won > 0 ? ' ' + won.toLocaleString() : ''}원`;
+        } else { // 1만 미만
+            return `${num.toLocaleString()}원`;
         }
-        return `${num.toLocaleString()}만원`;
+    }
+
+    // 실시간 한글 금액 표시
+    const priceInput = document.querySelector('input[name="price"]');
+    const priceKrSpan = document.getElementById('price-kr');
+    if (priceInput && priceKrSpan) {
+        priceInput.addEventListener('input', (e) => {
+            const val = e.target.value;
+            if (!val) {
+                priceKrSpan.textContent = '';
+                return;
+            }
+            priceKrSpan.textContent = `(${formatPrice(val)})`;
+        });
+    }
+
+    // 주소 조회 및 Geocoding 로직 (네이버 JS SDK 자체 해결)
+    const btnGeocode = document.getElementById('btn-geocode-address');
+    const addressInput = document.getElementById('admin-address-input');
+    const latInput = document.getElementById('admin-lat');
+    const lngInput = document.getElementById('admin-lng');
+    const pnuInput = document.getElementById('admin-pnu');
+    const geocodeResult = document.getElementById('geocode-result');
+
+    if (btnGeocode && addressInput) {
+        btnGeocode.addEventListener('click', () => {
+            const addr = addressInput.value.trim();
+            if (!addr) {
+                alert("주소를 입력해주세요."); return;
+            }
+            if (typeof naver === 'undefined' || !naver.maps || !naver.maps.Service) {
+                alert("네이버 지도 API가 로드되지 않았습니다. 잠시 후 다시 시도해주세요."); return;
+            }
+
+            geocodeResult.textContent = "좌표를 검색하는 중입니다 (JS SDK)...";
+            geocodeResult.style.color = "var(--text-muted)";
+
+            console.log("addr:", addr);
+            console.log("naver:", naver);
+            console.log("naver.maps:", naver.maps);
+            console.log("naver.maps.Service:", naver.maps.Service);
+            console.log("naver.maps.Service.geocode:", naver.maps.Service.geocode);
+
+            naver.maps.Service.geocode({ query: addr }, function (status, response) {
+                if (status === naver.maps.Service.Status.ERROR) {
+                    geocodeResult.textContent = "주소 검색 오류가 발생했습니다. (Web Dynamic Map 허용 도메인 설정 문제)";
+                    geocodeResult.style.color = "var(--danger-color)";
+                    return;
+                }
+                if (!response.v2.meta || response.v2.meta.totalCount === 0) {
+                    geocodeResult.textContent = "검색된 주소가 없습니다. 일반적인 도로명/지번 주소를 입력해주세요.";
+                    geocodeResult.style.color = "var(--danger-color)";
+                    return;
+                }
+
+                const item = response.v2.addresses[0];
+                const lat = item.y;
+                const lng = item.x;
+                latInput.value = lat;
+                lngInput.value = lng;
+
+                // PNU 추출을 위한 역지오코딩
+                naver.maps.Service.reverseGeocode({
+                    coords: new naver.maps.LatLng(lat, lng),
+                    orders: [naver.maps.Service.OrderType.ADDR]
+                }, function (revStatus, revResponse) {
+                    if (revStatus !== naver.maps.Service.Status.OK) {
+                        geocodeResult.textContent = `좌표 변환 성공 (lat:${lat}, lng:${lng}) - 단, PNU 조회 실패`;
+                        geocodeResult.style.color = "var(--primary-color)";
+                        return;
+                    }
+
+                    let pnu = '';
+                    if (revResponse.v2 && revResponse.v2.results) {
+                        revResponse.v2.results.forEach(r => {
+                            if (r.name === 'addr' && r.land) {
+                                const land = r.land;
+                                const codeId = r.code?.id || '';
+                                const landType = land?.type || '1';
+                                const num1 = String(land?.number1 || '').padStart(4, '0');
+                                const num2 = String(land?.number2 || '').padStart(4, '0');
+                                pnu = codeId + landType + num1 + num2;
+                            }
+                        });
+                    }
+
+                    if (pnu && pnu.length === 19) {
+                        pnuInput.value = pnu;
+                        geocodeResult.textContent = `확인 완료 - 위도: ${parseFloat(lat).toFixed(4)}, 경도: ${parseFloat(lng).toFixed(4)} (PNU: ${pnu})`;
+                        geocodeResult.style.color = "var(--primary-color)";
+                    } else {
+                        geocodeResult.textContent = `좌표 변환 성공 (lat:${lat}, lng:${lng}) - PNU 생성 불가`;
+                        geocodeResult.style.color = "var(--primary-color)";
+                    }
+                });
+            });
+        });
     }
 
     // 매물 등록 폼 로직
@@ -192,74 +317,54 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const address = propertyForm.querySelector('input[name="address"]').value;
                 const description = propertyForm.querySelector('textarea[name="description"]').value;
                 const price = propertyForm.querySelector('input[name="price"]').value;
-                const fileInput = document.getElementById('image-upload');
+                const fileInputBefore = document.getElementById('image-upload-before');
+                const fileInputAfter = document.getElementById('image-upload-after');
 
-                let file = null;
-                if (fileInput.files && fileInput.files.length > 0) {
-                    file = fileInput.files[0];
-                    // 클라이언트 단 1차 유효성 검사 (5MB 제한)
-                    if (file.size > 5 * 1024 * 1024) {
-                        alert('이미지 파일 크기는 5MB를 초과할 수 없습니다.');
-                        return; // finally 구문으로 이동하여 버튼 복구
+                let beforeFile = null;
+                let afterFile = null;
+
+                if (fileInputBefore && fileInputBefore.files && fileInputBefore.files.length > 0) {
+                    beforeFile = fileInputBefore.files[0];
+                    if (beforeFile.size > 5 * 1024 * 1024) {
+                        alert('Before 이미지 파일 크기는 5MB를 초과할 수 없습니다.');
+                        return;
                     }
                 }
 
-                // 2. 주소를 좌표로 변환 (NCP Geocoding API 프록시 또는 직접 호출)
-                // 구현 편의상 search.js와 비슷하게 직접 쏘는 방향
-                let lat = 0;
-                let lng = 0;
-
-                const geocodeResult = await new Promise((resolve) => {
-                    const checkService = () => {
-                        if (typeof naver !== 'undefined' && naver.maps && naver.maps.Service && naver.maps.Service.geocode) {
-                            naver.maps.Service.geocode({ query: address }, function (status, response) {
-                                if (status === naver.maps.Service.Status.OK && response.v2.addresses.length > 0) {
-                                    const item = response.v2.addresses[0];
-                                    resolve({ lat: parseFloat(item.y), lng: parseFloat(item.x) });
-                                } else {
-                                    resolve(null);
-                                }
-                            });
-                        } else {
-                            // SDK 로딩 지연 대응 (최대 3초 대기)
-                            if (!window._retryCount) window._retryCount = 0;
-                            if (window._retryCount < 30) {
-                                window._retryCount++;
-                                setTimeout(checkService, 100);
-                            } else {
-                                console.warn('Naver Maps JS SDK (geocoder) is not loaded after 3s.');
-                                resolve(null);
-                            }
-                        }
-                    };
-                    checkService();
-                });
-
-                if (geocodeResult) {
-                    lat = geocodeResult.lat;
-                    lng = geocodeResult.lng;
-                } else {
-                    const confirmProceed = confirm('입력하신 주소의 좌표(위/경도)를 찾지 못했습니다.\n그래도 등록하시겠습니까? (지도에는 표시되지 않을 수 있습니다)');
-                    if (!confirmProceed) return;
+                if (fileInputAfter && fileInputAfter.files && fileInputAfter.files.length > 0) {
+                    afterFile = fileInputAfter.files[0];
+                    if (afterFile.size > 5 * 1024 * 1024) {
+                        alert('After 이미지 파일 크기는 5MB를 초과할 수 없습니다.');
+                        return;
+                    }
                 }
 
-                // 3. FormData 조립 (multipart/form-data)
+                // 2. FormData 조립 (multipart/form-data)
                 const formData = new FormData();
                 formData.append('title', title);
                 formData.append('address', address);
                 formData.append('description', description);
                 if (price) formData.append('price', price);
-                formData.append('lat', lat.toString());
-                formData.append('lng', lng.toString());
 
-                if (file) {
-                    formData.append('image', file); // 백엔드 FileInterceptor('image') 이름과 일치해야 함
+                const lat = propertyForm.querySelector('input[name="lat"]')?.value;
+                const lng = propertyForm.querySelector('input[name="lng"]')?.value;
+                const pnu = propertyForm.querySelector('input[name="pnu"]')?.value;
+
+                if (lat) formData.append('lat', lat);
+                if (lng) formData.append('lng', lng);
+                if (pnu) formData.append('pnu', pnu);
+
+                if (beforeFile) {
+                    formData.append('beforeImage', beforeFile);
+                }
+                if (afterFile) {
+                    formData.append('afterImage', afterFile);
                 }
 
                 // 4. API 전송 (수정 모드 여부에 따라 URL 및 Method 변경)
                 const editId = propertyForm.dataset.editId;
-                const apiUrl = editId 
-                    ? `${CONFIG.API_BASE_URL}/api/v1/properties/${editId}` 
+                const apiUrl = editId
+                    ? `${CONFIG.API_BASE_URL}/api/v1/properties/${editId}`
                     : `${CONFIG.API_BASE_URL}/api/v1/properties`;
                 const method = editId ? 'PATCH' : 'POST';
 

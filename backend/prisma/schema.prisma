@@ -21,6 +21,7 @@ model User {
 
   properties   Property[]
   reservations Reservation[]
+  favorites    Favorite[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -44,12 +45,14 @@ model Property {
   beforeImage String?  @map("before_image")
   afterImage  String?  @map("after_image")
   price       Decimal? @db.Decimal(15, 2)
+  pnu         String?  @db.Char(19)
 
   location Unsupported("geometry(Point, 4326)")?
 
   ownerId      String?
   owner        User?         @relation(fields: [ownerId], references: [id])
   reservations Reservation[]
+  favorites    Favorite[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -72,7 +75,7 @@ model Reservation {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@map("reservations")
+  @@map("reservation")
 }
 
 enum ResStatus {
@@ -80,6 +83,19 @@ enum ResStatus {
   CONFIRMED
   CANCELLED
   COMPLETED
+}
+
+model Favorite {
+  id         String   @id @default(uuid())
+  userId     String   @map("user_id")
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  propertyId String   @map("property_id")
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@unique([userId, propertyId])
+  @@map("favorite")
 }
 
 model BuildingInfo {

@@ -23,7 +23,7 @@ import { Roles } from '../auth/decorators/roles.decorator';
 
 @Controller('api/v1/properties')
 export class PropertiesController {
-  constructor(private readonly propertiesService: PropertiesService) {}
+  constructor(private readonly propertiesService: PropertiesService) { }
 
   @Get()
   async getProperties() {

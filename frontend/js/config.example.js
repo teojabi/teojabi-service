@@ -4,5 +4,6 @@
 // $ cp js/config.example.js js/config.js
 
 const CONFIG = {
+    API_BASE_URL: 'http://localhost:3001',
     NAVER_MAP_CLIENT_ID: 'YOUR_NCP_CLIENT_ID_HERE',
 };

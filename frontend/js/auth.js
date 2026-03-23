@@ -40,17 +40,20 @@ function updateAuthUI(isLoggedIn, user) {
     const userProfileDiv = document.getElementById('header-user-profile');
     const userNameSpan = document.getElementById('header-user-name');
     const adminBtn = document.getElementById('btn-header-admin');
+    const mypageBtn = document.getElementById('btn-header-mypage');
 
     if (isLoggedIn && user) {
         if (loginBtn) loginBtn.classList.add('hidden');
         if (userProfileDiv) userProfileDiv.classList.remove('hidden');
         if (userNameSpan) userNameSpan.textContent = user.name || '사용자';
 
-        // ADMIN 권한이면 관리자 메뉴 노출
-        if (user.role === 'ADMIN' && adminBtn) {
-            adminBtn.classList.remove('hidden');
-        } else if (adminBtn) {
-            adminBtn.classList.add('hidden');
+        // ADMIN 권한이면 관리자 메뉴 노출, 일반 사용자는 마이페이지 노출
+        if (user.role === 'ADMIN') {
+            if (adminBtn) adminBtn.classList.remove('hidden');
+            if (mypageBtn) mypageBtn.classList.add('hidden');
+        } else {
+            if (adminBtn) adminBtn.classList.add('hidden');
+            if (mypageBtn) mypageBtn.classList.remove('hidden');
         }
     } else {
         if (loginBtn) loginBtn.classList.remove('hidden');
@@ -70,7 +73,7 @@ export async function logout() {
             method: 'POST',
             credentials: 'include'
         });
-        window.location.reload();
+        window.location.href = '/';
     } catch (err) {
         console.error("Logout failed", err);
     }

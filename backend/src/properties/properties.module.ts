@@ -8,4 +8,4 @@ import { SupabaseModule } from '../supabase/supabase.module';
   providers: [PropertiesService],
   controllers: [PropertiesController],
 })
-export class PropertiesModule {}
+export class PropertiesModule { }

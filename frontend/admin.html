@@ -125,8 +125,15 @@
                     </div>
 
                     <div class="form-group">
-                        <label>지번/도로명 주소 (필수 식별 및 지도 핀)</label>
-                        <input type="text" class="form-control" name="address" placeholder="지번 주소를 정확히 입력해주세요" required>
+                        <label>지번 주소 (필수 식별 및 지도 핀)</label>
+                        <div style="display:flex; gap:10px;">
+                            <input type="text" id="admin-address-input" class="form-control" name="address" placeholder="지번 주소를 정확히 입력해주세요" required>
+                            <button type="button" class="btn btn-outline" id="btn-geocode-address" style="white-space:nowrap;">주소 확인</button>
+                        </div>
+                        <div id="geocode-result" style="margin-top:8px; font-size:0.9rem; color:var(--primary-color);"></div>
+                        <input type="hidden" name="lat" id="admin-lat">
+                        <input type="hidden" name="lng" id="admin-lng">
+                        <input type="hidden" name="pnu" id="admin-pnu">
                     </div>
 
                     <div class="form-group">
@@ -141,15 +148,23 @@
                             <input type="number" class="form-control" name="price" style="width: 200px;"
                                 placeholder="숫자로 입력">
                             <span style="color:var(--text-muted)">원</span>
+                            <span id="price-kr" style="color:var(--primary-color); font-weight:500;"></span>
                         </div>
                     </div>
 
                     <div class="form-group">
-                        <label>갤러리 이미지 업로드</label>
-                        <!-- 백엔드 Supabase Storage 업로드 API 대상 -->
-                        <input type="file" id="image-upload" multiple class="form-control" accept="image/*">
-                        <small style="color: var(--text-muted); display:block; margin-top:5px;">선택 후 등록/수정 시 다중 업로드되며
-                            CDN URL이 맵핑됩니다.</small>
+                        <label>갤러리 이미지 업로드 (Before & After)</label>
+                        <div style="display: flex; gap: 1rem;">
+                            <div style="flex: 1;">
+                                <label style="font-weight: normal; font-size: 0.9em; margin-bottom: 0.3rem;">Before 이미지</label>
+                                <input type="file" id="image-upload-before" class="form-control" accept="image/*">
+                            </div>
+                            <div style="flex: 1;">
+                                <label style="font-weight: normal; font-size: 0.9em; margin-bottom: 0.3rem;">After 이미지</label>
+                                <input type="file" id="image-upload-after" class="form-control" accept="image/*">
+                            </div>
+                        </div>
+                        <small style="color: var(--text-muted); display:block; margin-top:5px;">Before와 After 이미지를 각각 따로 등록해주세요.</small>
                     </div>
 
                     <div style="text-align: right; margin-top: 3rem;">
@@ -183,23 +198,23 @@
         </main>
     </div>
 
+    <!-- 숨겨진 지도 컨테이너: NCP 인증 세션 초기화를 위해 필요 -->
+    <div id="hidden-map-container" style="width:1px;height:1px;position:absolute;top:-9999px;"></div>
+
     <script src="/js/config.js"></script>
     <script>
-        (function () {
-            const clientId = (typeof CONFIG !== 'undefined' && CONFIG.NAVER_MAP_CLIENT_ID)
-                ? CONFIG.NAVER_MAP_CLIENT_ID
-                : '';
-            if (!clientId) {
-                console.error('[터잡이] NAVER_MAP_CLIENT_ID가 config.js에 설정되지 않았습니다.');
-                return;
+        window.initAdminMap = function () {
+            // NCP 인증 세션 수립을 위해 숨겨진 지도 객체를 초기화
+            if (typeof naver !== 'undefined' && naver.maps) {
+                new naver.maps.Map('hidden-map-container', {
+                    center: new naver.maps.LatLng(37.5665, 126.9780),
+                    zoom: 10
+                });
             }
-            const script = document.createElement('script');
-            // geocoder: 주소 검색에 필요함
-            script.src = `https://openapi.map.naver.com/openapi/v3/maps.js?ncpClientId=${clientId}&submodules=geocoder`;
-            script.async = true;
-            document.head.appendChild(script);
-        })();
+        };
     </script>
+    <script type="text/javascript" src="https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=f8td9fq8kq&callback=initAdminMap"></script>
+    <script type="text/javascript" src="https://oapi.map.naver.com/openapi/v3/maps-geocoder.js"></script>
     <script type="module" src="/js/app.js"></script>
     <script type="module" src="/js/pages/admin.js"></script>
 </body>

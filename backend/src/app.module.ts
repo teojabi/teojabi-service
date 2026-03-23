@@ -10,6 +10,7 @@ import { ReservationsModule } from './reservations/reservations.module';
 import { PublicDataModule } from './public-data/public-data.module';
 import { ScheduleModule } from '@nestjs/schedule';
 import { SupabaseModule } from './supabase/supabase.module';
+import { FavoritesModule } from './favorites/favorites.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { SupabaseModule } from './supabase/supabase.module';
     PublicDataModule,
     ScheduleModule.forRoot(),
     SupabaseModule,
+    FavoritesModule,
   ],
   controllers: [AppController],
   providers: [AppService],

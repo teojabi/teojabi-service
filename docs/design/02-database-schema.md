@@ -12,7 +12,7 @@ PostGIS 확장을 활용한 공간 데이터 처리와 소셜 로그인, 매물 
 | 구분 | 규칙 | 예시 |
 |---|---|---|
 | **Prisma 모델명** | PascalCase, 단수형 | `User`, `Property`, `Reservation` |
-| **DB 테이블명** | snake_case, **복수형** (`@@map()` 사용) | `users`, `properties`, `reservations` |
+| **DB 테이블명** | snake_case, **단수형** (`@@map()` 사용) | `user`, `property`, `reservation` |
 | **DB 컬럼명** | snake_case (`@map()` 사용) | `created_at`, `bld_nm`, `plat_area` |
 
 ---
@@ -54,12 +54,13 @@ model User {
   // Relations
   properties    Property[]
   reservations  Reservation[]
+  favorites     Favorite[]
 
   createdAt     DateTime  @default(now())  @map("created_at")
   updatedAt     DateTime  @updatedAt       @map("updated_at")
 
   @@unique([provider, providerId])
-  @@map("users")
+  @@map("user")
 }
 
 enum Role {
@@ -91,12 +92,13 @@ model Property {
   ownerId       String?   @map("owner_id")
   owner         User?     @relation(fields: [ownerId], references: [id])
   reservations  Reservation[]
+  favorites     Favorite[]
 
   createdAt     DateTime  @default(now())  @map("created_at")
   updatedAt     DateTime  @updatedAt       @map("updated_at")
 
   @@index([location], type: Gist)
-  @@map("properties")
+  @@map("property")
 }
 ```
 
@@ -120,7 +122,7 @@ model Reservation {
   createdAt     DateTime  @default(now())  @map("created_at")
   updatedAt     DateTime  @updatedAt       @map("updated_at")
 
-  @@map("reservations")
+  @@map("reservation")
 }
 
 enum ResStatus {
@@ -228,12 +230,13 @@ model StoreInfo {
 
 ```
 ┌─────────┐     1:N      ┌──────────────┐     1:N      ┌──────────────┐
-│  users  │──────────────▶│  properties  │──────────────▶│ reservations │
+│  user   │──────────────▶│  property    │──────────────▶│ reservation  │
 │         │◀──────────────│              │               │              │
-└─────────┘       N:1     └──────────────┘               └──────────────┘
-     │                                                         ▲
-     │                           1:N                           │
-     └─────────────────────────────────────────────────────────┘
+│         │   1:N ┌───────│              │──────────────▶│  favorite    │
+└─────────┘───────│       └──────────────┘     1:N       └──────────────┘
+     │            └─────────────────────────────────────────────▲
+     │                           1:N                            │
+     └──────────────────────────────────────────────────────────┘
 
 ┌────────────────┐    1:1     ┌───────────┐
 │ building_info  │────────────│ land_info │

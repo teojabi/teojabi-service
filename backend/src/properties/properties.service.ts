@@ -1,20 +1,22 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { SupabaseService } from '../supabase/supabase.service';
 
 @Injectable()
 export class PropertiesService {
+  private readonly logger = new Logger(PropertiesService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly supabaseService: SupabaseService,
-  ) {}
+  ) { }
 
   async findAll() {
     return this.prisma.$queryRaw<any[]>`
-            SELECT id, title, description, address, price, before_image, after_image,
+            SELECT id, title, description, address, pnu, price, before_image, after_image,
                    ST_X(location::geometry) as lng, ST_Y(location::geometry) as lat
             FROM property
-            ORDER BY created_at DESC
+            ORDER BY "createdAt" DESC
             LIMIT 50;
         `.then((rows) =>
       rows.map((row) => ({
@@ -27,7 +29,7 @@ export class PropertiesService {
   async findById(id: string) {
     if (!id) return null;
     const rows = await this.prisma.$queryRaw<any[]>`
-            SELECT id, title, description, address, price, before_image, after_image,
+            SELECT id, title, description, address, pnu, price, before_image, after_image,
                    ST_X(location::geometry) as lng, ST_Y(location::geometry) as lat
             FROM property
             WHERE id = ${id}
@@ -43,11 +45,11 @@ export class PropertiesService {
   async findByOwnerId(ownerId: string) {
     if (!ownerId) return [];
     return this.prisma.$queryRaw<any[]>`
-            SELECT id, title, description, address, price, before_image, after_image, created_at,
+            SELECT id, title, description, address, pnu, price, before_image, after_image, "createdAt",
                    ST_X(location::geometry) as lng, ST_Y(location::geometry) as lat
             FROM property
-            WHERE owner_id = ${ownerId}
-            ORDER BY created_at DESC;
+            WHERE "ownerId" = ${ownerId}
+            ORDER BY "createdAt" DESC;
         `.then((rows) =>
       rows.map((row) => ({
         ...row,
@@ -57,7 +59,7 @@ export class PropertiesService {
   }
 
   async createProperty(data: any, files?: { beforeImage?: Express.Multer.File[], afterImage?: Express.Multer.File[] }) {
-    const { title, description, address, price, lat, lng, ownerId } = data;
+    const { title, description, address, price, lat, lng, pnu, ownerId } = data;
 
     if (!title || !address) {
       throw new Error('Title and address are required');
@@ -77,12 +79,13 @@ export class PropertiesService {
 
       // 2. DB에 데이터 적재
       const refinedPrice = price ? Number(price) : null;
-      const refinedLat = lat ? Number(lat) : 0;
-      const refinedLng = lng ? Number(lng) : 0;
+      let refinedLat = lat ? Number(lat) : 0;
+      let refinedLng = lng ? Number(lng) : 0;
+      let pnuStr = pnu || null;
 
       const result = await this.prisma.$queryRaw<any[]>`
-                INSERT INTO property (id, title, description, address, price, before_image, after_image, location, owner_id, updated_at, created_at)
-                VALUES (gen_random_uuid(), ${title}, ${description}, ${address}, ${refinedPrice}, ${beforeImageUrl}, ${afterImageUrl}, ST_SetSRID(ST_MakePoint(${refinedLng}, ${refinedLat}), 4326), ${ownerId || null}, NOW(), NOW())
+                INSERT INTO property (id, title, description, address, pnu, price, before_image, after_image, location, "ownerId", "updatedAt", "createdAt")
+                VALUES (gen_random_uuid(), ${title}, ${description}, ${address}, ${pnuStr}, ${refinedPrice}, ${beforeImageUrl}, ${afterImageUrl}, ST_SetSRID(ST_MakePoint(${refinedLng}, ${refinedLat}), 4326), ${ownerId || null}, NOW(), NOW())
                 RETURNING id, title;
             `;
       return result[0];
@@ -95,7 +98,7 @@ export class PropertiesService {
   }
 
   async updateProperty(id: string, data: any, files?: { beforeImage?: Express.Multer.File[], afterImage?: Express.Multer.File[] }) {
-    const { title, description, address, price, lat, lng } = data;
+    const { title, description, address, price, lat, lng, pnu } = data;
 
     const existing = await this.findById(id);
     if (!existing) throw new Error('Property not found');
@@ -114,19 +117,21 @@ export class PropertiesService {
       }
 
       const refinedPrice = price !== undefined ? Number(price) : existing.price;
-      const refinedLat = lat !== undefined ? Number(lat) : existing.lat;
-      const refinedLng = lng !== undefined ? Number(lng) : existing.lng;
+      let refinedLat = lat !== undefined ? Number(lat) : existing.lat;
+      let refinedLng = lng !== undefined ? Number(lng) : existing.lng;
+      let newPnu = pnu !== undefined ? (pnu || null) : existing.pnu;
 
       await this.prisma.$executeRaw`
                 UPDATE property
                 SET title = ${title || existing.title},
                     description = ${description || existing.description},
                     address = ${address || existing.address},
+                    pnu = ${newPnu},
                     price = ${refinedPrice},
                     before_image = ${newBeforeImageUrl || existing.before_image},
                     after_image = ${newAfterImageUrl || existing.after_image},
                     location = ST_SetSRID(ST_MakePoint(${refinedLng}, ${refinedLat}), 4326),
-                    updated_at = NOW()
+                    "updatedAt" = NOW()
                 WHERE id = ${id};
             `;
 
@@ -153,7 +158,7 @@ export class PropertiesService {
     // radius in meters
     const degreeRadius = radius / 111320.0;
     return this.prisma.$queryRaw<any[]>`
-            SELECT id, title, description, address, price, before_image, after_image,
+            SELECT id, title, description, address, pnu, price, before_image, after_image,
                    ST_X(location::geometry) as lng, ST_Y(location::geometry) as lat,
                    ST_DistanceSphere(location, ST_MakePoint(${lng}, ${lat})) as distance
             FROM property
@@ -181,7 +186,7 @@ export class PropertiesService {
 
     // Using PostGIS to find points within bounding box
     return this.prisma.$queryRaw<any[]>`
-            SELECT id, title, description, address, price, before_image, after_image,
+            SELECT id, title, description, address, pnu, price, before_image, after_image,
                    ST_X(location::geometry) as lng, ST_Y(location::geometry) as lat
             FROM property
             WHERE location && ST_MakeEnvelope(${minLng}, ${minLat}, ${maxLng}, ${maxLat}, 4326)

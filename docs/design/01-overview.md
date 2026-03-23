@@ -61,6 +61,7 @@
 │  ├── users       (프로필 조회/수정)                       │
 │  ├── properties  (매물 CRUD + PostGIS 지도 쿼리)          │
 │  ├── reservations(상담 예약 관리)                          │
+│  ├── favorites   (관심 매물 관리)                          │
 │  ├── public-data (공공데이터 조회 + CRON 배치)             │
 │  └── supabase    (Storage 업로드 서비스)                   │
 └────────────────────┬────────────────────────────────────┘
@@ -68,9 +69,10 @@
 ┌────────────────────▼────────────────────────────────────┐
 │  Tier 3 — Database (Data Access Layer)                  │
 │  Supabase PostgreSQL + PostGIS 확장                      │
-│  ├── users            (사용자 · 권한)                     │
-│  ├── properties       (컨설팅 매물 · GIS 위치)            │
-│  ├── reservations     (상담 예약)                         │
+│  ├── user             (사용자 · 권한)                     │
+│  ├── property         (컨설팅 매물 · GIS 위치)            │
+│  ├── reservation      (상담 예약)                         │
+│  ├── favorite         (관심 매물 연결 테이블)               │
 │  ├── building_info    (건축물대장 표제부)                  │
 │  ├── land_info        (토지대장 · 공시지가)                │
 │  ├── floor_status     (층별 현황)                         │
@@ -98,6 +100,7 @@ teojabi-service/
 │   │   ├── users/          (유저 CRUD)
 │   │   ├── properties/     (매물 CRUD + GIS)
 │   │   ├── reservations/   (예약 CRUD)
+│   │   ├── favorites/      (관심 매물 CRUD)
 │   │   ├── public-data/    (공공데이터 + 배치 서비스)
 │   │   ├── supabase/       (Storage 서비스)
 │   │   └── prisma/         (Prisma 모듈)
@@ -168,14 +171,14 @@ teojabi-service/
 
 | 영역 | 규칙 | 예시 |
 |---|---|---|
-| **DB 테이블명** | 소문자 스네이크케이스, **복수형** | `users`, `properties`, `reservations` |
+| **DB 테이블명** | 소문자 스네이크케이스, **단수형** | `user`, `property`, `reservation` |
 | **DB 컬럼명** | 소문자 스네이크케이스 | `created_at`, `bld_nm`, `plat_area` |
-| **API 경로** | 소문자, **복수형** (DB 테이블과 동일) | `/api/v1/users`, `/api/v1/properties` |
+| **API 경로** | 소문자, **복수형** | `/api/v1/users`, `/api/v1/properties` |
 | **NestJS 모듈/폴더** | 소문자, **복수형** | `users/`, `properties/`, `reservations/` |
 | **Prisma 모델명** | PascalCase, **단수형** | `User`, `Property`, `Reservation` |
 
-> **핵심**: API 경로, DB 테이블, 백엔드 모듈 폴더 모두 **복수형**으로 통일합니다.
-> Prisma 모델은 단수형이지만 `@@map()` 어노테이션으로 DB 테이블은 복수형으로 매핑합니다.
+> **핵심**: API 경로와 백엔드 모듈 폴더는 **복수형**을 사용하지만, **DB 테이블 스키마는 단수형**으로 통일합니다.
+> Prisma 모델도 단수형이며, `@@map()` 어노테이션을 통해 DB 테이블과 동일하게 단수형 규칙을 강제합니다.
 
 ---
 

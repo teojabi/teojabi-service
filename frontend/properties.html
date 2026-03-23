@@ -19,96 +19,206 @@
     <link rel="stylesheet" href="/css/style.css">
     <link rel="stylesheet" href="/css/components.css">
     <style>
-        .property-header {
+        .page-header {
             background-color: var(--bg-main);
-            border-bottom: 1px solid var(--border-color);
             padding: 3rem 0;
-            text-align: center;
+            border-bottom: 1px solid var(--border-color);
         }
 
         .property-title {
             font-size: 2.2rem;
             font-weight: 800;
             margin-bottom: 0.5rem;
+            color: var(--text-main);
         }
 
         .property-address {
             color: var(--text-muted);
             font-size: 1.1rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .property-address i {
+            color: var(--primary-color);
+        }
+
+        /* 1:2 Layout Grid */
+        .detail-grid {
+            display: grid;
+            grid-template-columns: 1fr 2fr;
+            gap: 2.5rem;
+            margin: 3rem auto 6rem;
+            max-width: var(--max-width);
+            padding: 0 20px;
+        }
+
+        @media (max-width: 900px) {
+            .detail-grid { grid-template-columns: 1fr; }
+        }
+
+        .left-col {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .right-col {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
         }
 
         .property-hero-image {
             width: 100%;
-            height: 450px;
-            background-color: #cbd5e1;
+            aspect-ratio: 4 / 3;
+            background-color: var(--bg-muted);
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+            border: 1px solid var(--border-color);
             display: flex;
             align-items: center;
             justify-content: center;
-            color: white;
+            color: var(--text-muted);
             font-size: 3rem;
-            margin-top: 2rem;
-            margin-bottom: 3rem;
-            border-radius: var(--radius-lg);
-            overflow: hidden;
         }
-
         .property-hero-image img {
             width: 100%;
             height: 100%;
             object-fit: cover;
         }
 
-        .grid-layout {
-            display: grid;
-            grid-template-columns: 2fr 1fr;
-            gap: 2rem;
-            margin-bottom: 5rem;
+        .action-card {
+            background: var(--bg-main);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-lg);
+            padding: 2rem;
+            box-shadow: var(--shadow-sm);
+            position: sticky;
+            top: calc(var(--header-height) + 2rem);
         }
 
-        @media (max-width: 768px) {
-            .grid-layout {
-                grid-template-columns: 1fr;
-            }
+        .price-badge {
+            color: var(--primary-color);
+            font-weight: 800;
+            font-size: 2rem;
+            margin-bottom: 1.5rem;
+            line-height: 1.2;
+            text-align: center;
+        }
+
+        .action-list {
+            margin-bottom: 2rem;
+            color: var(--text-main);
+            font-size: 0.95rem;
+        }
+        .action-list li {
+            margin-bottom: 0.8rem;
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+        }
+        .action-list i {
+            color: var(--primary-color);
+            margin-top: 3px;
         }
 
         .section-box {
             background: var(--bg-main);
             border: 1px solid var(--border-color);
             border-radius: var(--radius-lg);
-            padding: 2.5rem;
-            margin-bottom: 2rem;
+            padding: 2rem;
+            box-shadow: var(--shadow-sm);
         }
 
         .section-title {
-            font-size: 1.4rem;
+            font-size: 1.3rem;
+            color: var(--text-main);
             margin-bottom: 1.5rem;
             display: flex;
             align-items: center;
             gap: 10px;
-            color: var(--primary-color);
-            border-bottom: 2px solid var(--bg-muted);
-            padding-bottom: 0.5rem;
-        }
-
-        .floating-action-card {
-            background: white;
-            border: 1px solid var(--primary-color);
-            border-radius: var(--radius-lg);
-            padding: 2rem;
-            position: sticky;
-            top: calc(var(--header-height) + 2rem);
-            box-shadow: var(--shadow-md);
-        }
-
-        .price-badge {
-            background: #fef2f2;
-            color: var(--danger-color);
-            padding: 1rem;
-            border-radius: var(--radius-md);
-            text-align: center;
-            margin-bottom: 1.5rem;
             font-weight: 700;
+            border-bottom: 2px solid var(--bg-muted);
+            padding-bottom: 0.8rem;
+        }
+        .section-title i {
+            color: var(--primary-color);
             font-size: 1.5rem;
+        }
+
+        /* Data Tables for Public Data */
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.95rem;
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            overflow: hidden;
+            margin-bottom: 1.5rem;
+        }
+        .data-table:last-child {
+            margin-bottom: 0;
+        }
+        .data-table th, .data-table td {
+            padding: 1rem 1.2rem;
+            border-bottom: 1px solid var(--border-color);
+            text-align: left;
+        }
+        .data-table th {
+            width: 30%;
+            background-color: var(--bg-muted);
+            color: var(--text-muted);
+            font-weight: 600;
+            border-right: 1px solid var(--border-color);
+        }
+        .data-table tr:last-child th,
+        .data-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        /* List items for floor/store */
+        .data-list-container {
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            overflow: hidden;
+        }
+        .data-list-item {
+            display: grid;
+            grid-template-columns: 1fr 2fr 1fr;
+            gap: 1rem;
+            padding: 1rem 1.2rem;
+            border-bottom: 1px solid var(--border-color);
+            font-size: 0.95rem;
+            align-items: center;
+        }
+        .data-list-item:nth-child(even) {
+            background-color: var(--bg-muted);
+        }
+        .data-list-item:last-child {
+            border-bottom: none;
+        }
+        
+        .loading-box {
+            padding: 3rem;
+            text-align: center;
+            color: var(--text-muted);
+            background: var(--bg-muted);
+            border-radius: var(--radius-lg);
+            border: 1px solid var(--border-color);
+        }
+        .loading-box i {
+            color: var(--primary-color);
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+            animation: spin 1s linear infinite;
+        }
+        .empty-box {
+            padding: 2.5rem;
+            text-align: center;
+            color: var(--text-muted);
+            background: var(--bg-muted);
         }
     </style>
 </head>
@@ -116,67 +226,93 @@
 <body>
     <div id="header-container"></div>
 
-    <header class="property-header">
+    <header class="page-header">
         <div class="container">
             <h1 class="property-title" id="prop-title">로딩 중...</h1>
             <p class="property-address" id="prop-address"><i class="ri-map-pin-line"></i> 정보를 불러오고 있습니다.</p>
         </div>
     </header>
 
-    <main class="container">
-        <div class="property-hero-image" id="prop-hero">
-            <i class="ri-image-line"></i>
+    <main class="detail-grid">
+        <!-- 1 Ratio: Left Column (Image & Actions) -->
+        <div class="left-col">
+            <div class="property-hero-image" id="prop-hero">
+                <i class="ri-image-line"></i>
+            </div>
+            
+            <div class="action-card">
+                <div class="price-badge" id="prop-price">
+                    0 원
+                </div>
+                <ul class="action-list">
+                    <li><i class="ri-check-line"></i> 터잡이 전속 컨설턴트 1:1 배정</li>
+                    <li><i class="ri-check-line"></i> 보안 NDA 체결 및 세부지번 공개</li>
+                    <li><i class="ri-check-line"></i> 취득 및 용도변경 전략 제공</li>
+                </ul>
+                <button class="btn btn-primary btn-lg" style="width: 100%; margin-bottom: 1rem;" id="btn-reserve-action">
+                    <i class="ri-calendar-event-line"></i> 프리미엄 상담 신청
+                </button>
+                <button class="btn btn-outline" style="width: 100%;" id="btn-favorite-action">
+                    <i class="ri-heart-3-line"></i> 관심 매물로 저장
+                </button>
+            </div>
         </div>
 
-        <div class="grid-layout">
-            <div class="main-content">
-                <section class="section-box">
-                    <h2 class="section-title"><i class="ri-file-search-line"></i> 컨설팅 상세 분석 리포트</h2>
-                    <div id="prop-description" style="line-height: 1.8; color: var(--text-main);">
-                        (내용이 로드됩니다)
-                    </div>
-                </section>
-
-                <section class="section-box" style="background: var(--bg-muted);">
-                    <h2 class="section-title"><i class="ri-database-2-line"></i> 교차 검증 공공데이터 (Public Data)</h2>
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-                        <div
-                            style="background: white; padding: 1.5rem; border-radius: var(--radius-md); border: 1px solid var(--border-color);">
-                            <p style="font-weight: 700; margin-bottom: 0.5rem;"><i class="ri-line-chart-line"></i>
-                                공시지가/실거래가</p>
-                            <p id="prop-price-data" style="font-size: 0.95rem; color: var(--text-muted);">데이터를 불러오는
-                                중입니다.</p>
-                        </div>
-                        <div
-                            style="background: white; padding: 1.5rem; border-radius: var(--radius-md); border: 1px solid var(--border-color);">
-                            <p style="font-weight: 700; margin-bottom: 0.5rem;"><i class="ri-earth-line"></i> 토지이용/규제 플랜
-                            </p>
-                            <p id="prop-land-data" style="font-size: 0.95rem; color: var(--text-muted);">데이터를 불러오는 중입니다.
-                            </p>
-                        </div>
-                    </div>
-                </section>
-            </div>
-
-            <aside class="sidebar-content">
-                <div class="floating-action-card">
-                    <div class="price-badge" id="prop-price">
-                        0 원
-                    </div>
-                    <ul style="margin-bottom: 2rem; color: var(--text-muted); font-size: 0.95rem;">
-                        <li style="margin-bottom: 0.8rem;"><i class="ri-check-line"
-                                style="color: var(--success-color);"></i> 터잡이 전속 컨설턴트 1:1 배정</li>
-                        <li style="margin-bottom: 0.8rem;"><i class="ri-check-line"
-                                style="color: var(--success-color);"></i> 보안 NDA 체결 및 세부지번 공개</li>
-                        <li style="margin-bottom: 0.8rem;"><i class="ri-check-line"
-                                style="color: var(--success-color);"></i> 취득 및 용도변경 전략 제공</li>
-                    </ul>
-                    <button class="btn btn-primary btn-lg" style="width: 100%; margin-bottom: 1rem;"
-                        id="btn-reserve-action"><i class="ri-calendar-event-line"></i> 프리미엄 상담 신청</button>
-                    <button class="btn btn-outline" style="width: 100%;"><i class="ri-heart-3-line"></i> 관심 매물로
-                        저장</button>
+        <!-- 2 Ratio: Right Column (Consulting Comments & Public Data) -->
+        <div class="right-col">
+            <section class="section-box">
+                <h2 class="section-title"><i class="ri-file-search-line"></i> 터잡이 컨설팅 분석 리포트</h2>
+                <div id="prop-description" style="line-height: 1.8; color: var(--text-main);">
+                    (내용이 로드됩니다)
                 </div>
-            </aside>
+            </section>
+
+            <section class="section-box">
+                <h2 class="section-title"><i class="ri-database-2-line"></i> 교차 검증 공공데이터</h2>
+                
+                <div id="public-data-loading" class="loading-box">
+                    <i class="ri-loader-4-line ri-spin" style="display: block;"></i>
+                    <p>네이버 지오코딩 및 국가공간정보포털 데이터를 불러오는 중입니다...</p>
+                </div>
+                
+                <div id="public-data-content" style="display: none;">
+                    <!-- 건물 및 토지 정보 테이블 묶음 -->
+                    <h3 style="font-size: 1.05rem; margin-bottom: 0.8rem; color: var(--text-main);"><i class="ri-building-4-line" style="color: var(--primary-color);"></i> 건축물 & 토지 (대장) 개요</h3>
+                    <table class="data-table">
+                        <tbody>
+                            <tr><th>건물명</th><td id="b-name">-</td></tr>
+                            <tr><th>주용도</th><td id="b-main-purpose">-</td></tr>
+                            <tr><th>구조</th><td id="b-structure">-</td></tr>
+                            <tr><th>대지 / 연면적</th><td id="b-areas">-</td></tr>
+                            <tr><th>건폐율 / 용적률</th><td id="b-ratios">-</td></tr>
+                            <tr><th>규모(층수)</th><td id="b-floors">-</td></tr>
+                            <tr><th>사용승인일</th><td id="b-approval-date">-</td></tr>
+                        </tbody>
+                    </table>
+
+                    <table class="data-table">
+                        <tbody>
+                            <tr><th>지목</th><td id="l-land-category">-</td></tr>
+                            <tr><th>토지면적</th><td id="l-land-area">-</td></tr>
+                            <tr><th>용도지역</th><td id="l-zone-type">-</td></tr>
+                            <tr><th>공시지가</th><td id="l-official-price" style="font-weight: 700; color: var(--primary-color);">-</td></tr>
+                            <tr><th>공시 기준일</th><td id="l-price-date">-</td></tr>
+                        </tbody>
+                    </table>
+
+                    <!-- 층별 현황 -->
+                    <h3 style="font-size: 1.05rem; margin: 2rem 0 0.8rem; color: var(--text-main);"><i class="ri-stack-line" style="color: var(--primary-color);"></i> 층별 현황 세부 분석</h3>
+                    <div id="floor-list" class="data-list-container">
+                        <div class="empty-box">층별 정보가 없습니다.</div>
+                    </div>
+
+                    <!-- 상가업소 정보 -->
+                    <h3 style="font-size: 1.05rem; margin: 2rem 0 0.8rem; color: var(--text-main);"><i class="ri-store-2-line" style="color: var(--primary-color);"></i> 입점 상가 및 업소 데이터</h3>
+                    <div id="store-list" class="data-list-container" style="max-height: 400px; overflow-y: auto;">
+                        <div class="empty-box">상가 정보가 없습니다.</div>
+                    </div>
+                </div>
+            </section>
         </div>
     </main>
 
