@@ -5,9 +5,7 @@
 -- 건축물대장의 시군구코드+법정동코드명(텍스트)을 실제 10자리 법정동코드(code)로 매핑하기 위해 사용됩니다.
 CREATE TABLE IF NOT EXISTS legal_dong_codes (
     code VARCHAR(10) PRIMARY KEY,      -- 10자리 법정동/행정동 코드
-    name VARCHAR(255) NOT NULL,        -- '서울특별시 종로구 청운동' 형태의 전체 명칭
-    is_active BOOLEAN DEFAULT true,    -- 폐지 여부 (존재 시 true)
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    name VARCHAR(255) NOT NULL        -- '서울특별시 종로구 청운동' 형태의 전체 명칭
 );
 
 -- 법정동명 검색을 위한 인덱스

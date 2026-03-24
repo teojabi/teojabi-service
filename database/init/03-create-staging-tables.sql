@@ -5,8 +5,7 @@
 DROP TABLE IF EXISTS staging_legal_dong_codes;
 CREATE UNLOGGED TABLE staging_legal_dong_codes (
     "법정동코드" TEXT,
-    "법정동명" TEXT,
-    "폐지여부" TEXT
+    "법정동명" TEXT
 );
 
 -- 2. 건축물대장 표제부 스테이징 테이블 (CSV의 한글 헤더와 동일)

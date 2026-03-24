@@ -47,7 +47,7 @@ export class PublicDataBatchService {
       const floorCsvPath = path.join(
         projectRoot,
         'database',
-        'staging_building_floor.csv',
+        'staging_floor_status.csv',
       );
       const storeCsvPath = path.join(
         projectRoot,
