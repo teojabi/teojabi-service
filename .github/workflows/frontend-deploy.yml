@@ -34,8 +34,10 @@ jobs:
           password: ${{ secrets.FTP_PASSWORD }}
           local-dir: ./frontend/
           server-dir: /
+          dangerous-clean-slate: true
           exclude: |
             **/.git*
             **/.git*/**
             **/config.example.js
             **/package-lock.json
+            **/node_modules/**
