@@ -18,7 +18,7 @@ jobs:
           username: ${{ secrets.NCP_SSH_USER }}
           key: ${{ secrets.NCP_SSH_KEY }}
           envs: DATABASE_URL,DIRECT_URL,PORT,FRONTEND_URL,JWT_SECRET,SUPABASE_URL,SUPABASE_ANON_KEY,SUPABASE_SERVICE_ROLE_KEY,SUPABASE_BUCKET,NAVER_CLIENT_ID,NAVER_CLIENT_SECRET,NAVER_CALLBACK_URL,KAKAO_CLIENT_ID,KAKAO_CLIENT_SECRET,KAKAO_CALLBACK_URL,GOOGLE_CLIENT_ID,GOOGLE_CLIENT_SECRET,GOOGLE_CALLBACK_URL
-          script: |
+          script: 
             cd ~/teojabi-service/backend
 
             # 운영서버용 .env 파일 생성
@@ -45,6 +45,7 @@ jobs:
 
             git pull origin main
             npm install
+            npx prisma generate
             npm run build
             pm2 restart teojabi-backend
         env:

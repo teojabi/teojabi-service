@@ -1,99 +1,76 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# 터잡이 백엔드 (Teojabi Backend)
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+터잡이 서비스의 백엔드 API 서버입니다.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://coveralls.io/github/nestjs/nest?branch=master" target="_blank"><img src="https://coveralls.io/repos/github/nestjs/nest/badge.svg?branch=master#9" alt="Coverage" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+## 기술 스택
 
-## Description
+- **Framework**: NestJS 10 (TypeScript)
+- **ORM**: Prisma
+- **Database**: PostgreSQL (Supabase)
+- **인증**: JWT + 소셜 로그인 (네이버, 카카오, 구글)
+- **파일 저장소**: Supabase Storage
+- **프로세스 관리**: PM2
+- **배포**: NCP 서버 (GitHub Actions CI/CD)
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+## 프로젝트 구조
 
-## Project setup
+src/ ├── auth/           # 인증 (JWT, 소셜 로그인, Guards, Strategies) ├── users/          # 사용자 관리 ├── properties/     # 매물 관리 ├── reservations/   # 예약 관리 ├── favorites/      # 즐겨찾기 ├── public-data/    # 공공데이터 연동 ├── prisma/         # Prisma 서비스 ├── supabase/       # Supabase 연동 (Storage 등) ├── app.module.ts └── main.ts
 
-```bash
-$ npm install
-```
+## 시작하기
 
-## Compile and run the project
+### 사전 요구사항
+
+- Node.js 20+
+- npm 10+
+- PostgreSQL (또는 Supabase 프로젝트)
+
+### 환경변수 설정
+
+`.env.example`을 복사하여 `.env` 파일을 생성하고 값을 채웁니다:
 
 ```bash
-# development
-$ npm run start
+cp .env.example .env
+주요 환경변수:
+| 변수 | 설명 | |---|---| | DATABASE_URL | DB 연결 문자열 (Supabase Connection Pooler) | | DIRECT_URL | DB 직접 연결 URL (Prisma migrate 전용) | | PORT | 서버 포트 (기본: 3001) | | FRONTEND_URL | 프론트엔드 URL (CORS) | | JWT_SECRET | JWT 시크릿 키 | | SUPABASE_URL | Supabase 프로젝트 URL | | SUPABASE_ANON_KEY | Supabase Anonymous Key | | SUPABASE_SERVICE_ROLE_KEY | Supabase Service Role Key | | SUPABASE_BUCKET | Supabase Storage 버킷명 |
+설치 및 실행
+# 의존성 설치
+npm install
 
-# watch mode
-$ npm run start:dev
+# Prisma 클라이언트 생성
+npx prisma generate
 
-# production mode
-$ npm run start:prod
-```
+# 개발 모드 실행 (watch mode)
+npm run start:dev
 
-## Run tests
+# 프로덕션 빌드
+npm run build
+
+# 프로덕션 실행
+npm run start:prod
+DB 마이그레이션
+# 마이그레이션 실행
+npx prisma migrate dev
+
+# DB 스키마 확인
+npx prisma studio
+API 문서
+서버 실행 후 Swagger UI에서 API 문서를 확인할 수 있습니다:
+http://localhost:3001/api
+배포
+배포 관련 상세 내용은 배포 가이드를 참고하세요.
+•
+main 브랜치의 backend/** 경로 변경 시 GitHub Actions를 통해 NCP 서버에 자동 배포됩니다.
+•
+PM2로 프로세스를 관리합니다.
+
+---
+
+### Git 동기화 명령어
+
+파일 교체 후 아래 명령어를 실행하세요:
 
 ```bash
-# unit tests
-$ npm run test
-
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
-```
-
-## Deployment
-
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
-
-```bash
-$ npm install -g mau
-$ mau deploy
-```
-
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
-
-## Resources
-
-Check out a few resources that may come in handy when working with NestJS:
-
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
-
-## Support
-
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+cd C:\Users\jinyoung\WebstormProjects\teojabi-service
+git add .
+git commit -m "docs: 백엔드 README.md를 프로젝트 맞춤 내용으로 변경"
+git push origin main

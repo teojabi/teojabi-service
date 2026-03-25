@@ -133,6 +133,7 @@ jobs:
             cd ~/teojabi-service/backend
             git pull origin main
             npm install
+            npx prisma generate
             npm run build
             pm2 restart teojabi-backend
 ```
@@ -240,6 +241,7 @@ ls teojabi-service/
 ```bash
 cd ~/teojabi-service/backend
 npm install
+npx prisma generate
 npm run build
 ```
 
@@ -277,6 +279,7 @@ NCP 서버에 SSH 접속 후 아래 명령어를 실행합니다:
 cd ~/teojabi-service/backend
 git pull origin main
 npm install
+npx prisma generate
 npm run build
 pm2 restart teojabi-backend
 ```
