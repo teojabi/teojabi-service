@@ -1,4 +1,4 @@
-name: Deploy Backend to Railway
+name: Deploy Backend to NCP
 
 on:
   push:
@@ -7,37 +7,62 @@ on:
       - 'backend/**'
 
 jobs:
-  build_and_test:
+  deploy:
     runs-on: ubuntu-latest
 
-    defaults:
-      run:
-        working-directory: ./backend
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Deploy to NCP via SSH
+        uses: appleboy/ssh-action@v1
         with:
-          node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: ./backend/package-lock.json
+          host: ${{ secrets.NCP_SSH_HOST }}
+          username: ${{ secrets.NCP_SSH_USER }}
+          key: ${{ secrets.NCP_SSH_KEY }}
+          envs: DATABASE_URL,DIRECT_URL,PORT,FRONTEND_URL,JWT_SECRET,SUPABASE_URL,SUPABASE_ANON_KEY,SUPABASE_SERVICE_ROLE_KEY,SUPABASE_BUCKET,NAVER_CLIENT_ID,NAVER_CLIENT_SECRET,NAVER_CALLBACK_URL,KAKAO_CLIENT_ID,KAKAO_CLIENT_SECRET,KAKAO_CALLBACK_URL,GOOGLE_CLIENT_ID,GOOGLE_CLIENT_SECRET,GOOGLE_CALLBACK_URL
+          script: |
+            cd ~/teojabi-service/backend
 
-      - name: Install dependencies
-        run: npm ci
+            # 운영서버용 .env 파일 생성
+            cat > .env << ENVEOF
+            DATABASE_URL="${DATABASE_URL}"
+            DIRECT_URL="${DIRECT_URL}"
+            PORT="${PORT}"
+            FRONTEND_URL="${FRONTEND_URL}"
+            JWT_SECRET="${JWT_SECRET}"
+            SUPABASE_URL="${SUPABASE_URL}"
+            SUPABASE_ANON_KEY="${SUPABASE_ANON_KEY}"
+            SUPABASE_SERVICE_ROLE_KEY="${SUPABASE_SERVICE_ROLE_KEY}"
+            SUPABASE_BUCKET="${SUPABASE_BUCKET}"
+            NAVER_CLIENT_ID="${NAVER_CLIENT_ID}"
+            NAVER_CLIENT_SECRET="${NAVER_CLIENT_SECRET}"
+            NAVER_CALLBACK_URL="${NAVER_CALLBACK_URL}"
+            KAKAO_CLIENT_ID="${KAKAO_CLIENT_ID}"
+            KAKAO_CLIENT_SECRET="${KAKAO_CLIENT_SECRET}"
+            KAKAO_CALLBACK_URL="${KAKAO_CALLBACK_URL}"
+            GOOGLE_CLIENT_ID="${GOOGLE_CLIENT_ID}"
+            GOOGLE_CLIENT_SECRET="${GOOGLE_CLIENT_SECRET}"
+            GOOGLE_CALLBACK_URL="${GOOGLE_CALLBACK_URL}"
+            ENVEOF
 
-      - name: Run Build
-        run: npm run build
-
-      - name: Run Tests
-        run: npm run test
-        
-      - name: Install Railway CLI
-        run: npm i -g @railway/cli
-
-      - name: Deploy to Railway
-        run: railway up
+            git pull origin main
+            npm install
+            npm run build
+            pm2 restart teojabi-backend
         env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DIRECT_URL: ${{ secrets.DIRECT_URL }}
+          PORT: ${{ secrets.PORT }}
+          FRONTEND_URL: ${{ secrets.FRONTEND_URL }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_BUCKET: ${{ secrets.SUPABASE_BUCKET }}
+          NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
+          NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
+          NAVER_CALLBACK_URL: ${{ secrets.NAVER_CALLBACK_URL }}
+          KAKAO_CLIENT_ID: ${{ secrets.KAKAO_CLIENT_ID }}
+          KAKAO_CLIENT_SECRET: ${{ secrets.KAKAO_CLIENT_SECRET }}
+          KAKAO_CALLBACK_URL: ${{ secrets.KAKAO_CALLBACK_URL }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          GOOGLE_CALLBACK_URL: ${{ secrets.GOOGLE_CALLBACK_URL }}
