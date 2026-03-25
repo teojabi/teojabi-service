@@ -119,3 +119,4 @@ http://localhost:3001/api
 - `main` 브랜치의 `backend/**` 경로 변경 시 GitHub Actions를 통해 NCP 서버에 자동 배포됩니다.
 - PM2로 프로세스를 관리합니다.
 - NCP 자동배포 어렵다.
+- 패스워드 방식 사용 시도
