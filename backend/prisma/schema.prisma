@@ -17,14 +17,14 @@ model User {
   image      String? @db.Text
   role       Role    @default(USER)
   provider   String?
-  providerId String?
+  providerId String? @map("provider_id")
 
   properties   Property[]
   reservations Reservation[]
   favorites    Favorite[]
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   @@unique([provider, providerId])
   @@map("user")
@@ -49,13 +49,13 @@ model Property {
 
   location Unsupported("geometry(Point, 4326)")?
 
-  ownerId      String?
-  owner        User?         @relation(fields: [ownerId], references: [id])
+  ownerId      String?       @map("owner_id")
+  owner        User?         @relation(fields: [ownerId], references: [id], onDelete: SetNull)
   reservations Reservation[]
   favorites    Favorite[]
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   @@index([location], type: Gist)
   @@map("property")
@@ -67,13 +67,13 @@ model Reservation {
   status  ResStatus @default(PENDING)
   message String?   @db.Text
 
-  userId     String
+  userId     String   @map("user_id")
   user       User     @relation(fields: [userId], references: [id])
-  propertyId String
+  propertyId String   @map("property_id")
   property   Property @relation(fields: [propertyId], references: [id])
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   @@map("reservation")
 }
@@ -92,70 +92,92 @@ model Favorite {
   propertyId String   @map("property_id")
   property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
 
-  createdAt  DateTime @default(now()) @map("created_at")
+  createdAt DateTime @default(now()) @map("created_at")
 
   @@unique([userId, propertyId])
   @@map("favorite")
 }
 
 model BuildingInfo {
-  id            Int       @id @default(autoincrement())
-  pnu           String    @unique @db.Char(19) // 필지고유번호
-  bldNm         String?   @map("bld_nm") // 건물 명칭
-  platArea      Decimal?  @map("plat_area") @db.Decimal(15, 2) // 대지면적(m2)
-  archArea      Decimal?  @map("arch_area") @db.Decimal(15, 2) // 건축면적(m2)
-  bcRat         Decimal?  @map("bc_rat") @db.Decimal(5, 2) // 건폐율(%)
-  vlRat         Decimal?  @map("vl_rat") @db.Decimal(7, 2) // 용적률(%)
-  totArea       Decimal?  @map("tot_area") @db.Decimal(15, 2) // 연면적(m2)
-  grndFlrCnt    Int?      @map("grnd_flr_cnt") // 지상 층수
-  ugndFlrCnt    Int?      @map("ugnd_flr_cnt") // 지하 층수
-  strctCdNm     String?   @map("strct_cd_nm") // 구조 명칭
-  mainPurpsCdNm String?   @map("main_purps_cd_nm") // 주용도 명칭
-  useAprDay     DateTime? @map("use_apr_day") @db.Date // 사용승인일
-  createdAt     DateTime  @default(now()) @map("created_at")
+  id             Int       @id @default(autoincrement())
+  pnu            String    @unique @db.Char(19) // 필지고유번호
+  bldNm          String?   @map("bld_nm") // 건물 명칭
+  platArea       Decimal?  @map("plat_area") @db.Decimal(15, 2) // 대지면적(m2)
+  archArea       Decimal?  @map("arch_area") @db.Decimal(15, 2) // 건축면적(m2)
+  bcRat          Decimal?  @map("bc_rat") @db.Decimal(5, 2) // 건폐율(%)
+  vlRat          Decimal?  @map("vl_rat") @db.Decimal(7, 2) // 용적률(%)
+  totArea        Decimal?  @map("tot_area") @db.Decimal(15, 2) // 연면적(m2)
+  grndFlrCnt     Int?      @map("grnd_flr_cnt") // 지상 층수
+  ugndFlrCnt     Int?      @map("ugnd_flr_cnt") // 지하 층수
+  buildingHeight Decimal?  @map("building_height") @db.Decimal(10, 2) // 건물 높이(m)
+  strctCdNm      String?   @map("strct_cd_nm") // 구조 명칭
+  mainPurpsCdNm  String?   @map("main_purps_cd_nm") // 주용도 명칭
+  useAprDay      String?   @map("use_apr_day")          // 사용승인일
+  createdAt      DateTime  @default(now()) @map("created_at")
 
-  landInfo      LandInfo?
   floorStatuses FloorStatus[]
   stores        StoreInfo[]
 
   @@map("building_info")
 }
 
-model LandInfo {
-  pnu          String       @id @db.Char(19)
-  jimokNm      String?      @map("jimok_nm") // 지목
-  ladArea      Decimal?     @map("lad_area") @db.Decimal(15, 2) // 토지 면적(m2)
-  prposAreaNm  String?      @map("prpos_area_nm") // 용도지역
-  pblntfPclnd  BigInt?      @map("pblntf_pclnd") // 공시지가(원/m2)
-  lastUpdated  DateTime?    @map("last_updated") @db.Date // 공시지가 기준일자
-  buildingInfo BuildingInfo @relation(fields: [pnu], references: [pnu], onDelete: Cascade)
+model LandUseInfo {
+  id        Int      @id @default(autoincrement())
+  pnu       String   @db.Char(19)
+  zoneClsCd String?  @map("zone_cls_cd")
+  zoneClsNm String?  @map("zone_cls_nm")
+  note      String?
+  createdAt DateTime @default(now()) @map("created_at")
 
-  @@map("land_info")
+  @@index([pnu])
+  @@map("land_use_info")
+}
+
+model OfficialLandPrice {
+  id          Int    @id @default(autoincrement())
+  pnu         String @db.VarChar(19)
+  refYear     Int    @map("ref_year")
+  pricePerSqm BigInt @map("price_per_sqm")
+
+  @@unique([pnu, refYear])
+  @@index([pnu])
+  @@map("official_land_price")
+}
+
+model ZoningRegulation {
+  id           Int     @id @default(autoincrement())
+  zoneName     String  @unique @map("zone_name")
+  bcrLimit     Decimal @map("bcr_limit") @db.Decimal(5, 1)
+  farLimit     Decimal @map("far_limit") @db.Decimal(6, 1)
+  farLimitNote String? @map("far_limit_note")
+
+  @@map("zoning_regulation")
 }
 
 model FloorStatus {
   id           Int          @id @default(autoincrement())
   pnu          String       @db.Char(19)
+  building     BuildingInfo @relation(fields: [pnu], references: [pnu])
   flrNo        Int?         @map("flr_no") // 층 번호
   flrNoNm      String?      @map("flr_no_nm") // 층 번호 명칭
+  flrSortNo    Int?         @map("flr_sort_no") // 정렬 번호 (옥탑3 > 지상2 > 지하1)
   flrArea      Decimal?     @map("flr_area") @db.Decimal(15, 2) // 해당 층 면적(m2)
   flrMainPurps String?      @map("flr_main_purps") // 해당 층 주용도
   strctCdNm    String?      @map("strct_cd_nm") // 해당 층 구조
-  buildingInfo BuildingInfo @relation(fields: [pnu], references: [pnu], onDelete: Cascade)
-
+  @@index([pnu])
   @@map("floor_status")
 }
 
 model StoreInfo {
   storeId      String       @id @map("store_id") // 상가업소번호
   pnu          String       @db.Char(19)
+  building     BuildingInfo @relation(fields: [pnu], references: [pnu])
   storeNm      String       @map("store_nm") // 상호명
   cateLargeNm  String?      @map("cate_large_nm") // 업종 대분류
   cateMidNm    String?      @map("cate_mid_nm") // 업종 중분류
   flrNo        String?      @map("flr_no") // 입점 층
   hoNo         String?      @map("ho_no") // 입점 호수
   createdAt    DateTime     @default(now()) @map("created_at")
-  buildingInfo BuildingInfo @relation(fields: [pnu], references: [pnu], onDelete: Cascade)
-
+  @@index([pnu])
   @@map("store_info")
 }

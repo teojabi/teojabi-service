@@ -30,6 +30,17 @@ CREATE TABLE IF NOT EXISTS "user" (
     UNIQUE(provider, provider_id)
 );
 
+COMMENT ON TABLE "user" IS '서비스 사용자 정보';
+COMMENT ON COLUMN "user".id IS '사용자 고유 식별자 (UUID)';
+COMMENT ON COLUMN "user".email IS '이메일 주소 (고유)';
+COMMENT ON COLUMN "user".name IS '사용자 이름';
+COMMENT ON COLUMN "user".image IS '프로필 이미지 URL';
+COMMENT ON COLUMN "user".role IS '사용자 권한 (USER, PREMIUM_BASIC, PREMIUM_PLUS, ADMIN)';
+COMMENT ON COLUMN "user".provider IS '소셜 로그인 제공자 (naver, kakao, google)';
+COMMENT ON COLUMN "user".provider_id IS '소셜 로그인 제공자의 사용자 고유 ID';
+COMMENT ON COLUMN "user".created_at IS '계정 생성일시';
+COMMENT ON COLUMN "user".updated_at IS '계정 정보 수정일시';
+
 -- 4. 매물/부동산(property) 테이블
 CREATE TABLE IF NOT EXISTS property (
     id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
@@ -44,6 +55,19 @@ CREATE TABLE IF NOT EXISTS property (
     created_at TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+COMMENT ON TABLE property IS '매물/부동산 정보';
+COMMENT ON COLUMN property.id IS '매물 고유 식별자 (UUID)';
+COMMENT ON COLUMN property.title IS '매물 제목';
+COMMENT ON COLUMN property.description IS '매물 상세 설명';
+COMMENT ON COLUMN property.address IS '매물 주소 (고유)';
+COMMENT ON COLUMN property.before_image IS '리모델링 전 이미지 URL';
+COMMENT ON COLUMN property.after_image IS '리모델링 후 이미지 URL';
+COMMENT ON COLUMN property.price IS '매물 가격';
+COMMENT ON COLUMN property.location IS '매물 위치 좌표 (PostGIS Point, SRID 4326)';
+COMMENT ON COLUMN property.owner_id IS '매물 등록자 (user.id FK)';
+COMMENT ON COLUMN property.created_at IS '매물 등록일시';
+COMMENT ON COLUMN property.updated_at IS '매물 정보 수정일시';
 
 -- property.location 컬럼 공간 인덱스 생성
 CREATE INDEX IF NOT EXISTS property_location_idx ON property USING GIST (location);
@@ -60,6 +84,16 @@ CREATE TABLE IF NOT EXISTS reservation (
     updated_at TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+COMMENT ON TABLE reservation IS '상담 예약 정보';
+COMMENT ON COLUMN reservation.id IS '예약 고유 식별자 (UUID)';
+COMMENT ON COLUMN reservation.date IS '상담 예약 일시';
+COMMENT ON COLUMN reservation.status IS '예약 상태 (PENDING, CONFIRMED, CANCELLED, COMPLETED)';
+COMMENT ON COLUMN reservation.message IS '예약 시 남긴 메시지';
+COMMENT ON COLUMN reservation.user_id IS '예약자 (user.id FK)';
+COMMENT ON COLUMN reservation.property_id IS '예약 대상 매물 (property.id FK)';
+COMMENT ON COLUMN reservation.created_at IS '예약 생성일시';
+COMMENT ON COLUMN reservation.updated_at IS '예약 정보 수정일시';
+
 -- 6. 관심 매물(favorite) 테이블
 CREATE TABLE IF NOT EXISTS favorite (
     id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
@@ -68,6 +102,12 @@ CREATE TABLE IF NOT EXISTS favorite (
     created_at TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(user_id, property_id)
 );
+
+COMMENT ON TABLE favorite IS '사용자 관심 매물 목록';
+COMMENT ON COLUMN favorite.id IS '관심 매물 고유 식별자 (UUID)';
+COMMENT ON COLUMN favorite.user_id IS '사용자 (user.id FK)';
+COMMENT ON COLUMN favorite.property_id IS '관심 매물 (property.id FK)';
+COMMENT ON COLUMN favorite.created_at IS '관심 매물 등록일시';
 
 -- 7. Updated_at 자동 갱신 트리거 함수
 CREATE OR REPLACE FUNCTION update_modified_column()

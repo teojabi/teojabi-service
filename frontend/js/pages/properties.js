@@ -90,7 +90,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             document.getElementById('b-name').textContent = b.name || '-';
             document.getElementById('b-main-purpose').textContent = b.mainPurpose || '-';
             document.getElementById('b-structure').textContent = b.structure || '-';
-            document.getElementById('b-approval-date').textContent = b.approvalDate ? new Date(b.approvalDate).toLocaleDateString('ko-KR') : '-';
+            document.getElementById('b-approval-date').textContent = b.approvalDate || '-';
             const plat = b.platArea ? Number(b.platArea).toLocaleString() + ' ㎡' : '-';
             const arch = b.archArea ? Number(b.archArea).toLocaleString() + ' ㎡' : '-';
             const tot = b.totalFloorArea ? Number(b.totalFloorArea).toLocaleString() + ' ㎡' : '-';
@@ -101,14 +101,42 @@ document.addEventListener('DOMContentLoaded', async () => {
             const gr = b.groundFloors != null ? b.groundFloors + '층' : '';
             const ug = b.undergroundFloors != null && b.undergroundFloors > 0 ? ` (B${b.undergroundFloors})` : '';
             document.getElementById('b-floors').textContent = (gr + ug) || '-';
+            const htEl = document.getElementById('b-height');
+            if (htEl) htEl.textContent = b.buildingHeight != null ? Number(b.buildingHeight).toLocaleString() + ' m' : '-';
 
             // 토지 정보
             if (l) {
-                document.getElementById('l-land-category').textContent = l.landCategory || '-';
-                document.getElementById('l-land-area').textContent = l.landArea ? Number(l.landArea).toLocaleString() + ' ㎡' : '-';
-                document.getElementById('l-zone-type').textContent = l.zoneType || '-';
-                document.getElementById('l-official-price').textContent = l.officialLandPrice ? Number(l.officialLandPrice).toLocaleString() + ' 원' : '-';
-                document.getElementById('l-price-date').textContent = l.priceDate ? new Date(l.priceDate).toLocaleDateString('ko-KR') : '-';
+                document.getElementById('l-land-category').textContent = l.jimok || '-';
+                document.getElementById('l-land-area').textContent = l.platArea ? Number(l.platArea).toLocaleString() + ' ㎡' : '-';
+
+                // 법정 건폐율/용적률
+                if (l.regulation) {
+                    document.getElementById('l-bcr-limit').textContent = Number(l.regulation.bcrLimit).toFixed(1) + ' %';
+                    document.getElementById('l-far-limit').textContent = Number(l.regulation.farLimit).toFixed(1) + ' %' + (l.regulation.farLimitNote ? ' (' + l.regulation.farLimitNote + ')' : '');
+                }
+
+                // 용도지역지구 목록
+                const zoneListEl = document.getElementById('l-zone-list');
+                if (l.zoneTypes && l.zoneTypes.length > 0) {
+                    zoneListEl.innerHTML = l.zoneTypes.map(z => {
+                        return `<div class="data-list-item">
+                            <span style="font-weight:600; color:var(--primary-color)">${z.name || '-'}</span>
+                            <span style="color:var(--text-muted); font-size: 0.85rem;">${z.code || ''}</span>
+                            <span style="text-align:right">${z.note || ''}</span>
+                        </div>`;
+                    }).join('');
+                }
+
+                // 연도별 공시지가
+                const priceListEl = document.getElementById('l-price-list');
+                if (l.officialPrices && l.officialPrices.length > 0) {
+                    priceListEl.innerHTML = l.officialPrices.map(p => {
+                        return `<div class="data-list-item">
+                            <span style="font-weight:600">${p.year}년</span>
+                            <span style="text-align:right; font-weight:700; color:var(--primary-color)">${Number(p.pricePerSqm).toLocaleString()} 원/㎡</span>
+                        </div>`;
+                    }).join('');
+                }
             }
 
             // 층별 현황

@@ -456,7 +456,6 @@ function handleMapClick(coord) {
             // 주소 섹션 표시
             document.getElementById('panel-jibun-address').textContent = jibunAddress || '주소 미확인';
             document.getElementById('panel-road-address').textContent = roadAddress ? '도로명: ' + roadAddress : '도로명 정보 없음';
-            document.getElementById('panel-header-address').textContent = jibunAddress || '위치 정보';
             document.getElementById('panel-address-section').style.display = 'block';
             document.getElementById('panel-tabs').style.display = 'flex';
 
@@ -535,7 +534,7 @@ function renderLocationInfo(data) {
     document.getElementById('b-name').textContent            = b.name || '-';
     document.getElementById('b-main-purpose').textContent    = b.mainPurpose || '-';
     document.getElementById('b-structure').textContent       = b.structure || '-';
-    document.getElementById('b-approval-date').textContent   = b.approvalDate ? new Date(b.approvalDate).toLocaleDateString('ko-KR') : '-';
+    document.getElementById('b-approval-date').textContent   = b.approvalDate || '-';
 
     // 건물 면적/규모
     document.getElementById('b-plat-area').textContent       = b.platArea ? Number(b.platArea).toLocaleString() + ' ㎡' : '-';
@@ -545,18 +544,95 @@ function renderLocationInfo(data) {
     document.getElementById('b-floor-area-ratio').textContent = b.floorAreaRatio ? Number(b.floorAreaRatio).toFixed(2) + ' %' : '-';
     document.getElementById('b-ground-floors').textContent   = b.groundFloors != null ? b.groundFloors + '층' : '-';
     document.getElementById('b-underground-floors').textContent = b.undergroundFloors != null ? b.undergroundFloors + '층' : '-';
+    document.getElementById('b-height').textContent            = b.buildingHeight != null ? Number(b.buildingHeight).toLocaleString() + ' m' : '-';
 
     // 토지 정보
     if (l) {
-        document.getElementById('l-land-category').textContent  = l.landCategory || '-';
-        document.getElementById('l-land-area').textContent      = l.landArea ? Number(l.landArea).toLocaleString() + ' ㎡' : '-';
-        document.getElementById('l-zone-type').textContent      = l.zoneType || '-';
-        document.getElementById('l-price-date').textContent     = l.priceDate ? new Date(l.priceDate).toLocaleDateString('ko-KR') : '-';
-        document.getElementById('l-official-price').textContent = l.officialLandPrice ? Number(l.officialLandPrice).toLocaleString() + ' 원/㎡' : '-';
+        document.getElementById('l-land-category').textContent = l.jimok || '-';
+        document.getElementById('l-land-area').textContent = l.platArea ? Number(l.platArea).toLocaleString() + ' ㎡' : '-';
+
+        // 법정 건폐율/용적률
+        if (l.regulation) {
+            document.getElementById('l-bcr-limit').textContent = Number(l.regulation.bcrLimit).toFixed(1) + ' %';
+            document.getElementById('l-far-limit').textContent = Number(l.regulation.farLimit).toFixed(1) + ' %' + (l.regulation.farLimitNote ? ' (' + l.regulation.farLimitNote + ')' : '');
+        } else {
+            document.getElementById('l-bcr-limit').textContent = '-';
+            document.getElementById('l-far-limit').textContent = '-';
+        }
+
+        // 용도지역지구 목록
+        var zoneListEl = document.getElementById('l-zone-list');
+        if (l.zoneTypes && l.zoneTypes.length > 0) {
+            zoneListEl.innerHTML = l.zoneTypes.map(function(z) {
+                return '<div class="panel-zone-item">' +
+                    '<span class="panel-zone-name">' + (z.name || '-') + '</span>' +
+                    (z.note ? '<span class="panel-zone-note">' + z.note + '</span>' : '') +
+                    '</div>';
+            }).join('');
+        } else {
+            zoneListEl.innerHTML = '<p class="panel-empty-msg">용도지역 정보가 없습니다.</p>';
+        }
+
+        // 연도별 공시지가
+        var priceListEl = document.getElementById('l-price-list');
+        var priceChartEl = document.getElementById('l-price-chart');
+        if (l.officialPrices && l.officialPrices.length > 0) {
+            // 연도 오름차순 정렬
+            var sorted = l.officialPrices.slice().sort(function(a, b) { return a.year - b.year; });
+            priceListEl.innerHTML = sorted.map(function(p) {
+                return '<div class="panel-price-row">' +
+                    '<span class="panel-price-year">' + p.year + '년</span>' +
+                    '<span class="panel-price-value">' + Number(p.pricePerSqm).toLocaleString() + ' 원/㎡</span>' +
+                    '</div>';
+            }).join('');
+
+            // 꺾은선 차트
+            priceChartEl.style.display = 'block';
+            if (window._priceChart) { window._priceChart.destroy(); }
+            window._priceChart = new Chart(priceChartEl, {
+                type: 'line',
+                data: {
+                    labels: sorted.map(function(p) { return p.year + ''; }),
+                    datasets: [{
+                        label: '공시지가 (원/㎡)',
+                        data: sorted.map(function(p) { return p.pricePerSqm; }),
+                        borderColor: '#4A7CFE',
+                        backgroundColor: 'rgba(74,124,254,0.1)',
+                        fill: true,
+                        tension: 0.3,
+                        pointRadius: 4,
+                        pointBackgroundColor: '#4A7CFE'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: function(ctx) { return Number(ctx.raw).toLocaleString() + ' 원/㎡'; }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: { grid: { display: false } },
+                        y: {
+                            ticks: { callback: function(v) { return (v / 10000).toLocaleString() + '만'; } },
+                            grid: { color: 'rgba(0,0,0,0.06)' }
+                        }
+                    }
+                }
+            });
+        } else {
+            priceListEl.innerHTML = '<p class="panel-empty-msg">공시지가 정보가 없습니다.</p>';
+            priceChartEl.style.display = 'none';
+        }
     } else {
-        ['l-land-category', 'l-land-area', 'l-zone-type', 'l-price-date', 'l-official-price'].forEach(function(id) {
-            document.getElementById(id).textContent = '-';
-        });
+        document.getElementById('l-land-category').textContent = '-';
+        document.getElementById('l-land-area').textContent = '-';
+        document.getElementById('l-bcr-limit').textContent = '-';
+        document.getElementById('l-far-limit').textContent = '-';
     }
 
     // 층별현황 렌더링

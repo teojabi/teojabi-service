@@ -41,3 +41,41 @@ CREATE UNLOGGED TABLE staging_store_info (
     "도로명주소" TEXT, "구우편번호" TEXT, "신우편번호" TEXT, "동정보" TEXT, "층정보" TEXT, "호정보" TEXT, 
     "경도" TEXT, "위도" TEXT
 );
+
+-- 5. 공시지가 스테이징 테이블
+DROP TABLE IF EXISTS staging_official_land_price;
+CREATE UNLOGGED TABLE staging_official_land_price (
+    "시도명" TEXT,
+    "시군구명" TEXT,
+    "법정동명" TEXT,
+    "토지코드" TEXT,
+    "공시지가(원/㎡)" TEXT,
+    "시군구코드" TEXT,
+    "법정동코드" TEXT,
+    "필지구분코드" TEXT,
+    "필지구분명" TEXT,
+    "본번" TEXT,
+    "부번" TEXT,
+    "기준년도" TEXT,
+    "기준년월" TEXT
+);
+
+-- 6. 토지이용계획정보 스테이징 테이블
+DROP TABLE IF EXISTS staging_land_use_plan;
+CREATE UNLOGGED TABLE staging_land_use_plan (
+    "고유번호" TEXT,
+    "법정동코드" TEXT,
+    "법정동명" TEXT,
+    "대장구분코드" TEXT,
+    "대장구분명" TEXT,
+    "지번" TEXT,
+    "도면번호" TEXT,
+    "저촉여부코드" TEXT,
+    "저촉여부" TEXT,
+    "용도지역지구코드" TEXT,
+    "용도지역지구명" TEXT,
+    "등록일자" TEXT,
+    "데이터기준일자" TEXT,
+    "원천시도시군구 코드" TEXT,
+    "비고내용" TEXT
+);

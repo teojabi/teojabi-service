@@ -8,14 +8,14 @@ SET statement_timeout = 0;
 -- 2. 법정동코드 데이터 이관
 -- 변환 로직: "법정동코드" -> code, "법정동명" -> name
 -- 법정동 코드는 데이터양이 적기 때문에 스테이징 없이 바로 저장 가능
-/*INSERT INTO legal_dong_codes (code, name)
+INSERT INTO legal_dong_codes (code, name)
 SELECT
     TRIM("법정동코드") AS code,
     TRIM("법정동명") AS name
 FROM staging_legal_dong_codes
 WHERE "법정동코드" IS NOT NULL AND TRIM("법정동코드") <> ''
 ON CONFLICT (code) DO UPDATE SET
-    name = EXCLUDED.name;*/
+    name = EXCLUDED.name;
 
 -- 3. 조인 성능 최적화를 위한 스테이징 인덱스 생성
 CREATE INDEX IF NOT EXISTS idx_staging_building_info_plat ON staging_building_info("시군구코드명", "법정동코드명");
@@ -25,7 +25,7 @@ CREATE INDEX IF NOT EXISTS idx_staging_floor_status_plat ON staging_floor_status
 -- legal_dong_codes 매핑으로 19자리 PNU 생성. 
 -- "산"이면 2, 일반이면 1 + 주지번 4자리 + 부지번 4자리
 INSERT INTO building_info (pnu, bld_nm, plat_area, arch_area, bc_rat, vl_rat, tot_area,
-                           grnd_flr_cnt, ugnd_flr_cnt, strct_cd_nm, main_purps_cd_nm, use_apr_day)
+                           grnd_flr_cnt, ugnd_flr_cnt, building_height, strct_cd_nm, main_purps_cd_nm, use_apr_day)
 SELECT DISTINCT ON (pnu) (m.code ||
                           CASE WHEN b."대지구분코드명" = '산' THEN '2' ELSE '1' END ||
                           LPAD(TRIM(b."주지번"::text), 4, '0') ||
@@ -46,17 +46,41 @@ SELECT DISTINCT ON (pnu) (m.code ||
                          NULLIF(TRIM(b."연면적"::text), '')::NUMERIC  AS tot_area,
                          NULLIF(TRIM(b."지상층수"), '')::INTEGER       AS grnd_flr_cnt,
                          NULLIF(TRIM(b."지하층수"), '')::INTEGER       AS ugnd_flr_cnt,
+                         NULLIF(TRIM(b."높이"), '')::NUMERIC           AS building_height,
                          b."구조코드명"                                 AS strct_cd_nm,
                          b."주용도코드명"                                AS main_purps_cd_nm,
                          CASE
+                             -- 1) 완전한 YYYYMMDD (8자리 숫자) → 그대로 보존
                              WHEN TRIM(b."사용승인일자") ~ '^\d{8}$'
-                                 THEN TO_DATE(TRIM(b."사용승인일자"), 'YYYYMMDD')
-                             ELSE NULL END                         AS use_apr_day
+                                 THEN TRIM(b."사용승인일자")
+
+                             -- 2) 완전한 YYYY-MM-DD → 그대로 보존
+                             WHEN TRIM(b."사용승인일자") ~ '^\d{4}-\d{2}-\d{2}$'
+                                 THEN TRIM(b."사용승인일자")
+
+                             -- 3) YYYY-MM 패턴 (일 부분이 없거나 공백/빈값)
+                             --    '1900-12-', '1900-12-  ', '1900-12' 등
+                             WHEN REGEXP_REPLACE(TRIM(b."사용승인일자"), '[\s-]+$', '') ~ '^\d{4}-\d{2}$'
+                                 THEN REGEXP_REPLACE(TRIM(b."사용승인일자"), '[\s-]+$', '')
+
+                             -- 4) YYYY만 있는 패턴 (월/일이 없거나 공백/빈값)
+                             --    '1900-  -  ', '1900--', '1900-', '1900' 등
+                             WHEN REGEXP_REPLACE(TRIM(b."사용승인일자"), '[\s-]+$', '') ~ '^\d{4}$'
+                                 THEN REGEXP_REPLACE(TRIM(b."사용승인일자"), '[\s-]+$', '')
+
+                             -- 5) 그 외 비어있지 않은 값 → 원본 그대로 (예외 케이스 보존)
+                             WHEN NULLIF(TRIM(b."사용승인일자"), '') IS NOT NULL
+                                 THEN TRIM(b."사용승인일자")
+
+                             -- 6) 빈 문자열, NULL → NULL
+                             ELSE NULL
+                             END AS use_apr_day
 FROM staging_building_info b
          JOIN legal_dong_codes m ON (TRIM(b."시군구코드명") || ' ' || TRIM(b."법정동코드명")) = m.name
 ON CONFLICT (pnu) DO UPDATE SET bld_nm      = COALESCE(building_info.bld_nm, EXCLUDED.bld_nm),
                                 tot_area    = COALESCE(EXCLUDED.tot_area, building_info.tot_area),
-                                use_apr_day = COALESCE(EXCLUDED.use_apr_day, building_info.use_apr_day);;
+                                building_height = COALESCE(EXCLUDED.building_height, building_info.building_height),
+                                use_apr_day = COALESCE(EXCLUDED.use_apr_day, building_info.use_apr_day);
 
 -- 5. floor_status 이관
 -- 먼저 대상 PNU를 임시로 계산해두고, 그 대상만 삭제/삽입합니다.
@@ -73,7 +97,7 @@ JOIN legal_dong_codes m
 DELETE FROM floor_status
 WHERE pnu IN (SELECT pnu FROM tmp_floor_target_pnu);
 
-INSERT INTO floor_status (pnu, flr_no, flr_no_nm, flr_area, flr_main_purps, strct_cd_nm)
+INSERT INTO floor_status (pnu, flr_no, flr_no_nm, flr_sort_no, flr_area, flr_main_purps, strct_cd_nm)
 SELECT
     (m.code ||
      CASE WHEN f."대지구분코드명" = '산' THEN '2' ELSE '1' END ||
@@ -81,6 +105,12 @@ SELECT
      LPAD(TRIM(f."부지번"), 4, '0')) AS pnu,
     NULLIF(TRIM(f."층번호"), '')::INTEGER,
     f."층번호명",
+    CASE
+        WHEN TRIM(f."층구분코드명") = '옥탑' THEN 3000 + COALESCE(NULLIF(TRIM(f."층번호"), '')::INTEGER, 0)
+        WHEN TRIM(f."층구분코드명") = '지상' THEN 2000 + COALESCE(NULLIF(TRIM(f."층번호"), '')::INTEGER, 0)
+        WHEN TRIM(f."층구분코드명") = '지하' THEN 1000 - COALESCE(NULLIF(TRIM(f."층번호"), '')::INTEGER, 0)
+        ELSE 0
+    END AS flr_sort_no,
     NULLIF(TRIM(f."면적"), '')::NUMERIC,
     f."주용도코드명",
     f."구조코드명"
@@ -113,14 +143,61 @@ WHERE TRIM("상가업소번호") <> ''
 ON CONFLICT (store_id) DO UPDATE SET
     store_nm = EXCLUDED.store_nm, pnu = EXCLUDED.pnu;
 
--- 7. 스테이징 데이터 비우기 (디스크 공간 확보)
+-- 7. official_land_price 이관 (공시지가)
+-- 1월 1일 기준 데이터만 필터링, 기존 데이터 덮어쓰지 않음
+INSERT INTO official_land_price (pnu, ref_year, price_per_sqm)
+SELECT
+    TRIM(s."토지코드"),
+    CAST(TRIM(s."기준년도") AS INTEGER),
+    CAST(TRIM(s."공시지가(원/㎡)") AS BIGINT)
+FROM staging_official_land_price s
+WHERE TRIM(s."기준년월") LIKE '%-01-01'
+  AND TRIM(s."토지코드") <> ''
+  AND TRIM(s."공시지가(원/㎡)") <> ''
+ON CONFLICT (pnu, ref_year) DO NOTHING;
+
+-- 8. land_use_info 이관 (토지이용계획정보)
+-- 법정동코드 + 대장구분 + 지번으로 PNU를 조합하여 이관
+-- 성능 최적화: 스테이징 인덱스 생성 + 임시 테이블로 PNU 사전 계산 후 벌크 삽입
+CREATE INDEX IF NOT EXISTS idx_staging_land_use_plan_dong ON staging_land_use_plan("법정동코드");
+
+CREATE TEMP TABLE tmp_land_use AS
+SELECT DISTINCT
+    (TRIM(s."법정동코드") ||
+     CASE WHEN TRIM(s."대장구분명") = '산' THEN '2' ELSE '1' END ||
+     LPAD(SPLIT_PART(TRIM(s."지번"), '-', 1), 4, '0') ||
+     LPAD(COALESCE(NULLIF(SPLIT_PART(TRIM(s."지번"), '-', 2), ''), '0'), 4, '0')) AS pnu,
+    TRIM(s."용도지역지구코드")              AS zone_cls_cd,
+    TRIM(s."용도지역지구명")              AS zone_cls_nm,
+    NULLIF(TRIM(s."비고내용"), '')             AS note
+FROM staging_land_use_plan s
+WHERE TRIM(s."법정동코드") <> ''
+  AND TRIM(s."지번") <> '';
+
+CREATE INDEX IF NOT EXISTS idx_tmp_land_use_pnu ON tmp_land_use(pnu, zone_cls_cd);
+
+INSERT INTO land_use_info (pnu, zone_cls_cd, zone_cls_nm, note)
+SELECT t.pnu, t.zone_cls_cd, t.zone_cls_nm, t.note
+FROM tmp_land_use t
+WHERE NOT EXISTS (
+    SELECT 1 FROM land_use_info li
+    WHERE li.pnu = t.pnu AND li.zone_cls_cd = t.zone_cls_cd
+);
+
+DROP TABLE tmp_land_use;
+
+-- 8. 스테이징 데이터 비우기 (디스크 공간 확보)
 -- TRUNCATE TABLE staging_legal_dong_codes;  -- 법정동코드는 스테이징 할 필요가 없음
 TRUNCATE TABLE staging_building_info;
 TRUNCATE TABLE staging_floor_status;
 TRUNCATE TABLE staging_store_info;
+TRUNCATE TABLE staging_official_land_price;
+TRUNCATE TABLE staging_land_use_plan;
 
--- 8. 옵티마이저 통계 정보 업데이트 고도화
+-- 9. 옵티마이저 통계 정보 업데이트 고도화
 ANALYZE legal_dong_codes;
 ANALYZE building_info;
 ANALYZE floor_status;
 ANALYZE store_info;
+ANALYZE official_land_price;
+ANALYZE land_use_info;

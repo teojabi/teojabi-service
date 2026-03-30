@@ -49,8 +49,7 @@ export class PublicDataService {
     const building = await this.prisma.buildingInfo.findUnique({
       where: { pnu },
       include: {
-        landInfo: true,
-        floorStatuses: { orderBy: { flrNo: 'asc' } },
+        floorStatuses: { orderBy: [{ flrSortNo: 'desc' }, { flrNo: 'asc' }] },
         stores: { orderBy: { storeNm: 'asc' } },
       },
     });
@@ -58,6 +57,43 @@ export class PublicDataService {
     if (!building) {
       return null;
     }
+
+    // 용도지역 목록 (복수)
+    const landUseList = await this.prisma.landUseInfo.findMany({
+      where: { pnu },
+    });
+
+    // 연도별 공시지가 (복수, 최신순)
+    const priceList = await this.prisma.officialLandPrice.findMany({
+      where: { pnu },
+      orderBy: { refYear: 'desc' },
+    });
+
+    // 용도지역지구명으로 법정 건폐율/용적률 매칭
+    const zoneNames = landUseList
+      .map((l) => l.zoneClsNm)
+      .filter((n): n is string => !!n);
+    const matchedRegulations =
+      zoneNames.length > 0
+        ? await this.prisma.zoningRegulation.findMany({
+            where: { zoneName: { in: zoneNames } },
+          })
+        : [];
+
+    // 매칭 결과가 정확히 1건일 때만 사용, 그 외는 null
+    const regulation =
+      matchedRegulations.length === 1
+        ? {
+            zoneName: matchedRegulations[0].zoneName,
+            bcrLimit: matchedRegulations[0].bcrLimit,
+            farLimit: matchedRegulations[0].farLimit,
+            farLimitNote: matchedRegulations[0].farLimitNote,
+          }
+        : null;
+
+    // PNU에서 대장구분 추출 (11번째 자리: 1=일반, 2=산)
+    const landTypeCode = pnu.charAt(10);
+    const jimok = landTypeCode === '2' ? '산' : '일반';
 
     return {
       building: {
@@ -71,21 +107,28 @@ export class PublicDataService {
         floorAreaRatio: building.vlRat,
         groundFloors: building.grndFlrCnt,
         undergroundFloors: building.ugndFlrCnt,
+        buildingHeight: building.buildingHeight,
         structure: building.strctCdNm,
         approvalDate: building.useAprDay,
       },
-      land: building.landInfo
-        ? {
-            landCategory: building.landInfo.jimokNm,
-            landArea: building.landInfo.ladArea,
-            zoneType: building.landInfo.prposAreaNm,
-            officialLandPrice: building.landInfo.pblntfPclnd?.toString(),
-            priceDate: building.landInfo.lastUpdated,
-          }
-        : null,
+      land: {
+        platArea: building.platArea,
+        jimok,
+        zoneTypes: landUseList.map((l) => ({
+          code: l.zoneClsCd,
+          name: l.zoneClsNm,
+          note: l.note,
+        })),
+        regulation,
+        officialPrices: priceList.map((p) => ({
+          year: p.refYear,
+          pricePerSqm: p.pricePerSqm.toString(),
+        })),
+      },
       floorStatuses: building.floorStatuses.map((f) => ({
         flrNo: f.flrNo,
         flrNoNm: f.flrNoNm,
+        flrSortNo: f.flrSortNo,
         flrArea: f.flrArea,
         flrMainPurps: f.flrMainPurps,
         strctCdNm: f.strctCdNm,

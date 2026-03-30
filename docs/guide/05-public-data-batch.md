@@ -52,6 +52,9 @@ psql -h [HOST] -U [USER] -d [DATABASE] -c "\copy staging_legal_dong_codes FROM '
 
 # 표제부 (예시)
 psql -h [HOST] -U [USER] -d [DATABASE] -c "\copy staging_building_info FROM 'staging_building_info.csv' WITH (FORMAT CSV, HEADER, ENCODING 'UTF8', NULL '')"
+
+# 토지이용계획정보
+psql -h [HOST] -U [USER] -d [DATABASE] -c "\copy staging_land_use_plan FROM 'database/staging_land_use_plan.csv' WITH (FORMAT CSV, HEADER, ENCODING 'UTF8', NULL '')"
 ```
 
 **Step 3: 데이터 변환 및 이관 (04번)**

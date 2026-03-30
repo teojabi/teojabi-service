@@ -393,9 +393,9 @@ body.map-page {
 
 .panel-header {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: space-between;
-    padding: 18px 20px 16px;
+    padding: 16px 20px 12px;
     border-bottom: 1px solid var(--border-color);
     flex-shrink: 0;
 }
@@ -433,8 +433,11 @@ body.map-page {
 
 .panel-body {
     flex: 1;
-    overflow-y: auto;
+    overflow: hidden;
     padding: 20px;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
 }
 
 .panel-body::-webkit-scrollbar {
@@ -446,11 +449,62 @@ body.map-page {
     border-radius: 4px;
 }
 
+/* 탭 콘텐츠 스크롤 영역 */
+.panel-tab-scroll-area {
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0;
+}
+
+.panel-tab-scroll-area::-webkit-scrollbar {
+    width: 4px;
+}
+
+.panel-tab-scroll-area::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+    border-radius: 4px;
+}
+
+/* 패널 하단 고정 푸터 */
+.panel-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+    padding: 12px 20px;
+    border-top: 1px solid var(--border-color);
+    background: #ffffff;
+    flex-shrink: 0;
+}
+
+.panel-footer-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 16px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    background: #ffffff;
+    color: var(--text-main);
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+}
+
+.panel-footer-btn:hover {
+    background: var(--bg-muted);
+    border-color: var(--primary-color);
+    color: var(--primary-color);
+}
+
+.panel-footer-btn i {
+    font-size: 1rem;
+}
+
 /* 패널 주소 섹션 */
 .panel-address-section {
-    margin-bottom: 20px;
-    padding-bottom: 16px;
-    border-bottom: 1px solid var(--border-color);
+    flex: 1;
+    min-width: 0;
 }
 
 .panel-address-tag {
@@ -649,6 +703,7 @@ body.map-page {
     background: var(--bg-muted);
     border-radius: var(--radius-md);
     padding: 4px;
+    flex-shrink: 0;
 }
 
 .panel-tab {
@@ -723,6 +778,61 @@ body.map-page {
     color: var(--text-main);
     font-weight: 600;
     text-align: right;
+}
+
+/* 용도지역 항목 (세로 2칸) */
+.panel-zone-item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 10px 12px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    font-size: 0.85rem;
+}
+
+.panel-zone-name {
+    font-weight: 700;
+    color: var(--text-main);
+}
+
+.panel-zone-note {
+    color: var(--text-muted);
+    font-size: 0.82rem;
+}
+
+/* 공시지가 목록 */
+.panel-price-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+}
+
+.panel-price-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 14px;
+    border-bottom: 1px solid var(--border-color);
+    font-size: 0.85rem;
+}
+
+.panel-price-row:last-child {
+    border-bottom: none;
+}
+
+.panel-price-year {
+    color: var(--text-muted);
+    font-weight: 500;
+}
+
+.panel-price-value {
+    font-weight: 600;
+    color: var(--primary-color);
 }
 
 /* 빈 메시지 */

@@ -286,6 +286,7 @@
                             <tr><th>대지 / 연면적</th><td id="b-areas">-</td></tr>
                             <tr><th>건폐율 / 용적률</th><td id="b-ratios">-</td></tr>
                             <tr><th>규모(층수)</th><td id="b-floors">-</td></tr>
+                            <tr><th>건물높이</th><td id="b-height">-</td></tr>
                             <tr><th>사용승인일</th><td id="b-approval-date">-</td></tr>
                         </tbody>
                     </table>
@@ -293,12 +294,21 @@
                     <table class="data-table">
                         <tbody>
                             <tr><th>지목</th><td id="l-land-category">-</td></tr>
-                            <tr><th>토지면적</th><td id="l-land-area">-</td></tr>
-                            <tr><th>용도지역</th><td id="l-zone-type">-</td></tr>
-                            <tr><th>공시지가</th><td id="l-official-price" style="font-weight: 700; color: var(--primary-color);">-</td></tr>
-                            <tr><th>공시 기준일</th><td id="l-price-date">-</td></tr>
+                            <tr><th>대지면적</th><td id="l-land-area">-</td></tr>
+                            <tr><th>법정 건폐율</th><td id="l-bcr-limit" style="font-weight: 700; color: var(--primary-color);">-</td></tr>
+                            <tr><th>법정 용적률</th><td id="l-far-limit" style="font-weight: 700; color: var(--primary-color);">-</td></tr>
                         </tbody>
                     </table>
+
+                    <h3 style="font-size: 1.05rem; margin: 2rem 0 0.8rem; color: var(--text-main);"><i class="ri-landscape-line" style="color: var(--primary-color);"></i> 용도지역지구</h3>
+                    <div id="l-zone-list" class="data-list-container">
+                        <div class="empty-box">용도지역 정보가 없습니다.</div>
+                    </div>
+
+                    <h3 style="font-size: 1.05rem; margin: 2rem 0 0.8rem; color: var(--text-main);"><i class="ri-money-dollar-circle-line" style="color: var(--primary-color);"></i> 연도별 공시지가</h3>
+                    <div id="l-price-list" class="data-list-container">
+                        <div class="empty-box">공시지가 정보가 없습니다.</div>
+                    </div>
 
                     <!-- 층별 현황 -->
                     <h3 style="font-size: 1.05rem; margin: 2rem 0 0.8rem; color: var(--text-main);"><i class="ri-stack-line" style="color: var(--primary-color);"></i> 층별 현황 세부 분석</h3>

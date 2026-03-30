@@ -31,3 +31,4 @@ yarn-debug.log*
 yarn-error.log*
 
 database/staging_*.csv
+database/공시지가_*.csv

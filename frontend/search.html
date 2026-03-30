@@ -14,6 +14,8 @@
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&display=swap" rel="stylesheet">
     <!-- 한글폰트 SUITE -->
     <link href="https://cdn.jsdelivr.net/gh/sun-typeface/SUITE@2/fonts/static/woff2/SUITE.css" rel="stylesheet">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
     <!-- CSS -->
     <link rel="stylesheet" href="css/style.css">
     <link rel="stylesheet" href="css/components.css">
@@ -62,9 +64,10 @@
     ────────────────────────────────────────────── -->
     <div id="map-panel" role="complementary" aria-label="위치 정보 패널">
         <div class="panel-header">
-            <div class="panel-title">
-                <i class="ri-map-pin-2-line"></i>
-                <span id="panel-header-address">위치 정보</span>
+            <div id="panel-address-section" class="panel-address-section" style="display:none;">
+                <div class="panel-address-tag"><i class="ri-map-pin-line"></i> 지번주소</div>
+                <div class="panel-address-main" id="panel-jibun-address">-</div>
+                <div class="panel-address-sub" id="panel-road-address">도로명: -</div>
             </div>
             <button class="panel-close-btn" id="btn-panel-close" title="닫기" aria-label="패널 닫기">
                 <i class="ri-close-line"></i>
@@ -76,13 +79,6 @@
             <div id="panel-loading" class="panel-loading">
                 <div class="panel-loading-spinner"></div>
                 <p>위치 정보를 불러오는 중...</p>
-            </div>
-
-            <!-- 주소 섹션 -->
-            <div id="panel-address-section" class="panel-address-section" style="display:none;">
-                <div class="panel-address-tag"><i class="ri-map-pin-line"></i> 지번주소</div>
-                <div class="panel-address-main" id="panel-jibun-address">-</div>
-                <div class="panel-address-sub" id="panel-road-address">도로명: -</div>
             </div>
 
             <!-- 탭 -->
@@ -100,6 +96,9 @@
                     <i class="ri-store-2-line"></i> 상가
                 </button>
             </div>
+
+            <!-- 탭 콘텐츠 스크롤 영역 -->
+            <div id="panel-tab-scroll-area" class="panel-tab-scroll-area">
 
             <!-- 건물 정보 탭 콘텐츠 -->
             <div id="panel-tab-building" class="panel-tab-content">
@@ -155,6 +154,10 @@
                             <div class="panel-info-card-label">지하층수</div>
                             <div class="panel-info-card-value" id="b-underground-floors">-</div>
                         </div>
+                        <div class="panel-info-card">
+                            <div class="panel-info-card-label">건물높이</div>
+                            <div class="panel-info-card-value" id="b-height">-</div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -169,22 +172,36 @@
                             <div class="panel-info-card-value" id="l-land-category">-</div>
                         </div>
                         <div class="panel-info-card">
-                            <div class="panel-info-card-label">토지면적</div>
+                            <div class="panel-info-card-label">대지면적</div>
                             <div class="panel-info-card-value" id="l-land-area">-</div>
                         </div>
+                    </div>
+                </div>
+                <div class="panel-section">
+                    <div class="panel-section-title">법정 건폐율 / 용적률</div>
+                    <div class="panel-info-grid">
                         <div class="panel-info-card">
-                            <div class="panel-info-card-label">용도지역</div>
-                            <div class="panel-info-card-value" id="l-zone-type">-</div>
+                            <div class="panel-info-card-label">법정 건폐율</div>
+                            <div class="panel-info-card-value highlight" id="l-bcr-limit">-</div>
                         </div>
                         <div class="panel-info-card">
-                            <div class="panel-info-card-label">공시지가 기준일</div>
-                            <div class="panel-info-card-value" id="l-price-date">-</div>
-                        </div>
-                        <div class="panel-info-card" style="grid-column: span 2;">
-                            <div class="panel-info-card-label">공시지가 (원/㎡)</div>
-                            <div class="panel-info-card-value highlight" id="l-official-price">-</div>
+                            <div class="panel-info-card-label">법정 용적률</div>
+                            <div class="panel-info-card-value highlight" id="l-far-limit">-</div>
                         </div>
                     </div>
+                </div>
+                <div class="panel-section">
+                    <div class="panel-section-title">용도지역지구</div>
+                    <div id="l-zone-list" class="panel-floor-list">
+                        <p class="panel-empty-msg">용도지역 정보가 없습니다.</p>
+                    </div>
+                </div>
+                <div class="panel-section">
+                    <div class="panel-section-title">연도별 공시지가</div>
+                    <div id="l-price-list" class="panel-price-list">
+                        <p class="panel-empty-msg">공시지가 정보가 없습니다.</p>
+                    </div>
+                    <canvas id="l-price-chart" style="display:none; width:100%; max-height:200px; margin-top:12px;"></canvas>
                 </div>
             </div>
 
@@ -207,6 +224,23 @@
                     </div>
                 </div>
             </div>
+
+            </div>
+            <!-- /panel-tab-scroll-area -->
+
+        </div>
+
+        <!-- 하단 고정 푸터 -->
+        <div class="panel-footer">
+            <button class="panel-footer-btn" id="btn-panel-action1">
+                <i class="ri-bookmark-line"></i> 저장
+            </button>
+            <button class="panel-footer-btn" id="btn-panel-action2">
+                <i class="ri-share-line"></i> 공유
+            </button>
+            <button class="panel-footer-btn" id="btn-panel-action3">
+                <i class="ri-printer-line"></i> 인쇄
+            </button>
         </div>
     </div>
     <!-- /map-panel -->
