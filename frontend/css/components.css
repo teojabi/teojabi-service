@@ -231,6 +231,51 @@
 .btn-google:hover {
     background-color: var(--bg-muted);
 }
+
+/* ────────────────────────────────────────
+   모바일 헤더 반응형
+──────────────────────────────────────── */
+@media (max-width: 768px) {
+    .header-inner {
+        padding: 0 12px;
+    }
+
+    .header-logo-img {
+        height: 30px;
+    }
+
+    .header-nav {
+        gap: 0.6rem;
+    }
+
+    .nav-link {
+        font-size: 0.82rem;
+    }
+
+    .header-nav .btn {
+        padding: 0.3rem 0.6rem;
+        font-size: 0.78rem;
+    }
+
+    .header-user-profile {
+        gap: 0.4rem;
+        padding-left: 0.6rem;
+    }
+
+    .user-name {
+        font-size: 0.82rem;
+    }
+
+    .user-greeting {
+        display: none;
+    }
+
+    .header-user-profile .btn {
+        padding: 0.25rem 0.5rem;
+        font-size: 0.75rem;
+    }
+}
+
 /* POI 카테고리 뱃지 */
 .poi-category {
     font-size: 0.7rem;
