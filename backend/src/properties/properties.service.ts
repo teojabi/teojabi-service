@@ -2,6 +2,10 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { SupabaseService } from '../supabase/supabase.service';
 
+// [주의] $queryRaw / $executeRaw 등 Raw SQL에서는 반드시 DB 실제 컬럼명(snake_case)을 사용해야 합니다.
+// Prisma Client의 camelCase 필드명(예: createdAt, ownerId)은 Raw SQL에서 인식되지 않습니다.
+// 올바른 예: created_at, updated_at, owner_id  |  잘못된 예: "createdAt", "ownerId"
+
 @Injectable()
 export class PropertiesService {
   private readonly logger = new Logger(PropertiesService.name);
@@ -16,7 +20,7 @@ export class PropertiesService {
             SELECT id, title, description, address, pnu, price, before_image, after_image,
                    ST_X(location::geometry) as lng, ST_Y(location::geometry) as lat
             FROM property
-            ORDER BY "createdAt" DESC
+            ORDER BY created_at DESC
             LIMIT 50;
         `.then((rows) =>
       rows.map((row) => ({
@@ -45,11 +49,11 @@ export class PropertiesService {
   async findByOwnerId(ownerId: string) {
     if (!ownerId) return [];
     return this.prisma.$queryRaw<any[]>`
-            SELECT id, title, description, address, pnu, price, before_image, after_image, "createdAt",
+            SELECT id, title, description, address, pnu, price, before_image, after_image, created_at,
                    ST_X(location::geometry) as lng, ST_Y(location::geometry) as lat
             FROM property
-            WHERE "ownerId" = ${ownerId}
-            ORDER BY "createdAt" DESC;
+            WHERE owner_id = ${ownerId}
+            ORDER BY created_at DESC;
         `.then((rows) =>
       rows.map((row) => ({
         ...row,
@@ -84,7 +88,7 @@ export class PropertiesService {
       let pnuStr = pnu || null;
 
       const result = await this.prisma.$queryRaw<any[]>`
-                INSERT INTO property (id, title, description, address, pnu, price, before_image, after_image, location, "ownerId", "updatedAt", "createdAt")
+                INSERT INTO property (id, title, description, address, pnu, price, before_image, after_image, location, owner_id, updated_at, created_at)
                 VALUES (gen_random_uuid(), ${title}, ${description}, ${address}, ${pnuStr}, ${refinedPrice}, ${beforeImageUrl}, ${afterImageUrl}, ST_SetSRID(ST_MakePoint(${refinedLng}, ${refinedLat}), 4326), ${ownerId || null}, NOW(), NOW())
                 RETURNING id, title;
             `;
@@ -131,7 +135,7 @@ export class PropertiesService {
                     before_image = ${newBeforeImageUrl || existing.before_image},
                     after_image = ${newAfterImageUrl || existing.after_image},
                     location = ST_SetSRID(ST_MakePoint(${refinedLng}, ${refinedLat}), 4326),
-                    "updatedAt" = NOW()
+                    updated_at = NOW()
                 WHERE id = ${id};
             `;
 

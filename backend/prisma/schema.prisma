@@ -99,21 +99,21 @@ model Favorite {
 }
 
 model BuildingInfo {
-  id             Int       @id @default(autoincrement())
-  pnu            String    @unique @db.Char(19) // 필지고유번호
-  bldNm          String?   @map("bld_nm") // 건물 명칭
-  platArea       Decimal?  @map("plat_area") @db.Decimal(15, 2) // 대지면적(m2)
-  archArea       Decimal?  @map("arch_area") @db.Decimal(15, 2) // 건축면적(m2)
-  bcRat          Decimal?  @map("bc_rat") @db.Decimal(5, 2) // 건폐율(%)
-  vlRat          Decimal?  @map("vl_rat") @db.Decimal(7, 2) // 용적률(%)
-  totArea        Decimal?  @map("tot_area") @db.Decimal(15, 2) // 연면적(m2)
-  grndFlrCnt     Int?      @map("grnd_flr_cnt") // 지상 층수
-  ugndFlrCnt     Int?      @map("ugnd_flr_cnt") // 지하 층수
-  buildingHeight Decimal?  @map("building_height") @db.Decimal(10, 2) // 건물 높이(m)
-  strctCdNm      String?   @map("strct_cd_nm") // 구조 명칭
-  mainPurpsCdNm  String?   @map("main_purps_cd_nm") // 주용도 명칭
-  useAprDay      String?   @map("use_apr_day")          // 사용승인일
-  createdAt      DateTime  @default(now()) @map("created_at")
+  id             Int      @id @default(autoincrement())
+  pnu            String   @unique @db.Char(19) // 필지고유번호
+  bldNm          String?  @map("bld_nm") // 건물 명칭
+  platArea       Decimal? @map("plat_area") @db.Decimal(15, 2) // 대지면적(m2)
+  archArea       Decimal? @map("arch_area") @db.Decimal(15, 2) // 건축면적(m2)
+  bcRat          Decimal? @map("bc_rat") @db.Decimal(5, 2) // 건폐율(%)
+  vlRat          Decimal? @map("vl_rat") @db.Decimal(7, 2) // 용적률(%)
+  totArea        Decimal? @map("tot_area") @db.Decimal(15, 2) // 연면적(m2)
+  grndFlrCnt     Int?     @map("grnd_flr_cnt") // 지상 층수
+  ugndFlrCnt     Int?     @map("ugnd_flr_cnt") // 지하 층수
+  buildingHeight Decimal? @map("building_height") @db.Decimal(10, 2) // 건물 높이(m)
+  strctCdNm      String?  @map("strct_cd_nm") // 구조 명칭
+  mainPurpsCdNm  String?  @map("main_purps_cd_nm") // 주용도 명칭
+  useAprDay      String?  @map("use_apr_day") // 사용승인일
+  createdAt      DateTime @default(now()) @map("created_at")
 
   floorStatuses FloorStatus[]
   stores        StoreInfo[]
@@ -164,20 +164,23 @@ model FloorStatus {
   flrArea      Decimal?     @map("flr_area") @db.Decimal(15, 2) // 해당 층 면적(m2)
   flrMainPurps String?      @map("flr_main_purps") // 해당 층 주용도
   strctCdNm    String?      @map("strct_cd_nm") // 해당 층 구조
+  createdAt    DateTime     @default(now()) @map("created_at")
+
   @@index([pnu])
   @@map("floor_status")
 }
 
 model StoreInfo {
-  storeId      String       @id @map("store_id") // 상가업소번호
-  pnu          String       @db.Char(19)
-  building     BuildingInfo @relation(fields: [pnu], references: [pnu])
-  storeNm      String       @map("store_nm") // 상호명
-  cateLargeNm  String?      @map("cate_large_nm") // 업종 대분류
-  cateMidNm    String?      @map("cate_mid_nm") // 업종 중분류
-  flrNo        String?      @map("flr_no") // 입점 층
-  hoNo         String?      @map("ho_no") // 입점 호수
-  createdAt    DateTime     @default(now()) @map("created_at")
+  storeId     String       @id @map("store_id") // 상가업소번호
+  pnu         String       @db.Char(19)
+  building    BuildingInfo @relation(fields: [pnu], references: [pnu])
+  storeNm     String       @map("store_nm") // 상호명
+  cateLargeNm String?      @map("cate_large_nm") // 업종 대분류
+  cateMidNm   String?      @map("cate_mid_nm") // 업종 중분류
+  flrNo       String?      @map("flr_no") // 입점 층
+  hoNo        String?      @map("ho_no") // 입점 호수
+  createdAt   DateTime     @default(now()) @map("created_at")
+
   @@index([pnu])
   @@map("store_info")
 }

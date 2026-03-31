@@ -10,11 +10,12 @@ const execPromise = promisify(exec);
 @Injectable()
 export class PublicDataBatchService {
   private readonly logger = new Logger(PublicDataBatchService.name);
-  // 윈도우 환경을 고려한 psql 기본 경로 (필요시 .env에서 설정 가능하도록 확장 가능)
-  private readonly psqlPath =
-    'C:\\Program Files\\PostgreSQL\\18\\bin\\psql.exe';
+  // psql 경로는 환경변수 PSQL_PATH에서 가져옵니다. 미설정 시 기본값 'psql' (PATH에 등록된 경우)
+  private readonly psqlPath: string;
 
-  constructor(private configService: ConfigService) {}
+  constructor(private configService: ConfigService) {
+    this.psqlPath = this.configService.get<string>('PSQL_PATH') || 'psql';
+  }
 
   /**
    * 매주 일요일 새벽 3시에 실행되는 대량 데이터 업데이트 배치
