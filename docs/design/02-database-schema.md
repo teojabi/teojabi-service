@@ -175,7 +175,7 @@ model BuildingInfo {
   buildingHeight   Decimal?  @map("building_height") @db.Decimal(10, 2) // 건물 높이 (m)
   strctCdNm        String?   @map("strct_cd_nm")                       // 구조 명칭
   mainPurpsCdNm    String?   @map("main_purps_cd_nm")                  // 주용도 명칭
-  useAprDay        DateTime? @map("use_apr_day") @db.Date              // 사용승인일
+  useAprDay        String?   @map("use_apr_day")                       // 사용승인일 (부분 날짜 포함 가능: YYYYMMDD, YYYY-MM, YYYY 등)
   createdAt        DateTime  @default(now()) @map("created_at")        // 데이터 생성일시
 
   floorStatuses    FloorStatus[]                                       // 층별 현황 (1:N)
@@ -200,6 +200,7 @@ model FloorStatus {
   flrArea        Decimal?     @map("flr_area") @db.Decimal(15, 2)     // 해당 층 면적 (㎡)
   flrMainPurps   String?      @map("flr_main_purps")                  // 해당 층 주용도
   strctCdNm      String?      @map("strct_cd_nm")                     // 해당 층 구조
+  createdAt      DateTime     @default(now()) @map("created_at")      // 데이터 생성일시
 
   @@index([pnu])
   @@map("floor_status")

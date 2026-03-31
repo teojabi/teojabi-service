@@ -47,6 +47,7 @@ CREATE TABLE IF NOT EXISTS property (
     title TEXT NOT NULL,
     description TEXT NOT NULL,
     address TEXT UNIQUE NOT NULL,
+    pnu CHAR(19),
     before_image TEXT,
     after_image TEXT,
     price DECIMAL(15, 2),
@@ -61,6 +62,7 @@ COMMENT ON COLUMN property.id IS '매물 고유 식별자 (UUID)';
 COMMENT ON COLUMN property.title IS '매물 제목';
 COMMENT ON COLUMN property.description IS '매물 상세 설명';
 COMMENT ON COLUMN property.address IS '매물 주소 (고유)';
+COMMENT ON COLUMN property.pnu IS '필지고유번호 (19자리 PNU 코드)';
 COMMENT ON COLUMN property.before_image IS '리모델링 전 이미지 URL';
 COMMENT ON COLUMN property.after_image IS '리모델링 후 이미지 URL';
 COMMENT ON COLUMN property.price IS '매물 가격';

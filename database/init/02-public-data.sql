@@ -81,7 +81,8 @@ CREATE TABLE IF NOT EXISTS floor_status (
     flr_sort_no INTEGER,                      -- 정렬 번호 (옥탑=3000+층, 지상=2000+층, 지하=1000-층)
     flr_area NUMERIC(15, 2),                  -- 해당 층 면적(m²)
     flr_main_purps VARCHAR(100),              -- 해당 층 주용도
-    strct_cd_nm VARCHAR(100)                  -- 해당 층 구조
+    strct_cd_nm VARCHAR(100),                 -- 해당 층 구조
+    created_at TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE INDEX IF NOT EXISTS idx_floor_status_pnu ON floor_status(pnu);
@@ -95,6 +96,7 @@ COMMENT ON COLUMN floor_status.flr_sort_no IS '정렬 번호 (옥탑=3000번대,
 COMMENT ON COLUMN floor_status.flr_area IS '해당 층 면적 (m²)';
 COMMENT ON COLUMN floor_status.flr_main_purps IS '해당 층 주용도';
 COMMENT ON COLUMN floor_status.strct_cd_nm IS '해당 층 구조';
+COMMENT ON COLUMN floor_status.created_at IS '데이터 생성일시';
 
 
 -- -----------------------------------------------------------------------------

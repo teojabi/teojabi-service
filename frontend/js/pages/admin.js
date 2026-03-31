@@ -84,8 +84,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         const listHtml = properties.map(prop => `
             <div class="property-card-admin" style="display: flex; gap: 20px; padding: 1.5rem; border: 1px solid var(--border-color); border-radius: var(--radius-md); margin-bottom: 1rem; align-items: center; background: #fff;">
                 <div style="width: 100px; height: 100px; background: var(--bg-muted); border-radius: var(--radius-sm); overflow: hidden; flex-shrink: 0;">
-                    ${prop.images && prop.images[0]
-                ? `<img src="${prop.images[0]}" style="width: 100%; height: 100%; object-fit: cover;">`
+                    ${prop.before_image
+                ? `<img src="${prop.before_image}" style="width: 100%; height: 100%; object-fit: cover;">`
                 : `<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: var(--border-color);"><i class="ri-image-line" style="font-size: 2rem;"></i></div>`}
                 </div>
                 <div style="flex-grow: 1;">
