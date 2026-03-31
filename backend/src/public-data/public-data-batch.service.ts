@@ -122,7 +122,8 @@ export class PublicDataBatchService {
 
       this.logger.log('Public data batch update completed successfully.');
     } catch (error) {
-      this.logger.error(`Batch update failed: ${error.message}`);
+      const err = error as Error;
+      this.logger.error(`Batch update failed: ${err.message}`);
     }
   }
 
@@ -148,7 +149,8 @@ export class PublicDataBatchService {
       }
       return stdout;
     } catch (error) {
-      throw new Error(`psql execution failed: ${error.message}`);
+      const err = error as Error;
+      throw new Error(`psql execution failed: ${err.message}`);
     }
   }
 }

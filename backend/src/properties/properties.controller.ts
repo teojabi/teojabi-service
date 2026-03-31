@@ -77,8 +77,8 @@ export class PropertiesController {
   async createProperty(
     @UploadedFiles()
     files: {
-      beforeImage?: Express.Multer.File[];
-      afterImage?: Express.Multer.File[];
+      beforeImage?: any[];
+      afterImage?: any[];
     },
     @Body() body: any,
     @Request() req: any,
@@ -104,8 +104,8 @@ export class PropertiesController {
     @Param('id') id: string,
     @UploadedFiles()
     files: {
-      beforeImage?: Express.Multer.File[];
-      afterImage?: Express.Multer.File[];
+      beforeImage?: any[];
+      afterImage?: any[];
     },
     @Body() body: any,
   ) {

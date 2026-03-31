@@ -62,7 +62,7 @@ export class PropertiesService {
     );
   }
 
-  async createProperty(data: any, files?: { beforeImage?: Express.Multer.File[], afterImage?: Express.Multer.File[] }) {
+  async createProperty(data: any, files?: { beforeImage?: any[], afterImage?: any[] }) {
     const { title, description, address, price, lat, lng, pnu, ownerId } = data;
 
     if (!title || !address) {
@@ -101,7 +101,7 @@ export class PropertiesService {
     }
   }
 
-  async updateProperty(id: string, data: any, files?: { beforeImage?: Express.Multer.File[], afterImage?: Express.Multer.File[] }) {
+  async updateProperty(id: string, data: any, files?: { beforeImage?: any[], afterImage?: any[] }) {
     const { title, description, address, price, lat, lng, pnu } = data;
 
     const existing = await this.findById(id);

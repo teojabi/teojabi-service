@@ -1,5 +1,16 @@
 const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+
+const connectionString = process.env.DATABASE_URL ?? process.env.DIRECT_URL;
+
+if (!connectionString) {
+  throw new Error('DATABASE_URL or DIRECT_URL must be set.');
+}
+
+const { PrismaPg } = require('@prisma/adapter-pg');
+
+const prisma = new PrismaClient({
+  adapter: new PrismaPg({ connectionString }),
+});
 
 async function main() {
   try {

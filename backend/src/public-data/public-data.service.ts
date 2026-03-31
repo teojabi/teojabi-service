@@ -179,9 +179,16 @@ export class PublicDataService {
         raw: item, // 프론트엔드에서 추가 좌표 필드(x, y 등)를 참조할 수 있도록 원본 데이터 포함
       }));
     } catch (error) {
+      const err = error as {
+        response?: {
+          data?: unknown;
+        };
+        message?: string;
+      };
+
       this.logger.error(
         `Naver Local Search API error for query "${query}":`,
-        error?.response?.data || error.message,
+        err.response?.data || err.message || 'Unknown error',
       );
       return [];
     }

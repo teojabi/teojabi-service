@@ -24,7 +24,7 @@ export class SupabaseService {
    * @param file Express.Multer.File object
    * @returns Public URL string of the uploaded image
    */
-  async uploadImage(file: Express.Multer.File): Promise<string> {
+  async uploadImage(file: any): Promise<string> {
     const bucketName =
       this.configService.get<string>('SUPABASE_BUCKET') || 'post-images';
 
