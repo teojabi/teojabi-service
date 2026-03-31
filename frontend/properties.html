@@ -16,6 +16,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&display=swap" rel="stylesheet">
     <!-- 한글폰트 SUITE -->
     <link href="https://cdn.jsdelivr.net/gh/sun-typeface/SUITE@2/fonts/static/woff2/SUITE.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
     <link rel="stylesheet" href="/css/style.css">
     <link rel="stylesheet" href="/css/components.css">
     <style>
@@ -70,9 +71,15 @@
             gap: 1.5rem;
         }
 
-        .property-hero-image {
+        .property-images {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.75rem;
+        }
+
+        .property-image-box {
             width: 100%;
-            aspect-ratio: 4 / 3;
+            aspect-ratio: 1 / 1;
             background-color: var(--bg-muted);
             border-radius: var(--radius-lg);
             overflow: hidden;
@@ -81,12 +88,24 @@
             align-items: center;
             justify-content: center;
             color: var(--text-muted);
-            font-size: 3rem;
+            font-size: 2rem;
+            position: relative;
         }
-        .property-hero-image img {
+        .property-image-box img {
             width: 100%;
             height: 100%;
             object-fit: cover;
+        }
+        .property-image-box .image-label {
+            position: absolute;
+            top: 0.5rem;
+            left: 0.5rem;
+            background: rgba(0, 0, 0, 0.55);
+            color: #fff;
+            font-size: 0.75rem;
+            font-weight: 600;
+            padding: 0.2rem 0.6rem;
+            border-radius: var(--radius-sm);
         }
 
         .action-card {
@@ -186,12 +205,24 @@
         }
         .data-list-item {
             display: grid;
-            grid-template-columns: 1fr 2fr 1fr;
+            grid-template-columns: 1fr 1fr;
             gap: 1rem;
             padding: 1rem 1.2rem;
             border-bottom: 1px solid var(--border-color);
             font-size: 0.95rem;
             align-items: center;
+        }
+        .data-list-item.three-col {
+            grid-template-columns: 1fr 2fr 1fr;
+        }
+        @media (max-width: 600px) {
+            .data-list-item {
+                grid-template-columns: 1fr;
+                gap: 0.3rem;
+            }
+            .data-list-item.three-col {
+                grid-template-columns: 1fr;
+            }
         }
         .data-list-item:nth-child(even) {
             background-color: var(--bg-muted);
@@ -236,8 +267,13 @@
     <main class="detail-grid">
         <!-- 1 Ratio: Left Column (Image & Actions) -->
         <div class="left-col">
-            <div class="property-hero-image" id="prop-hero">
-                <i class="ri-image-line"></i>
+            <div class="property-images" id="prop-images">
+                <div class="property-image-box" id="prop-before">
+                    <i class="ri-image-line"></i>
+                </div>
+                <div class="property-image-box" id="prop-after">
+                    <i class="ri-image-line"></i>
+                </div>
             </div>
             
             <div class="action-card">
@@ -308,6 +344,9 @@
                     <h3 style="font-size: 1.05rem; margin: 2rem 0 0.8rem; color: var(--text-main);"><i class="ri-money-dollar-circle-line" style="color: var(--primary-color);"></i> 연도별 공시지가</h3>
                     <div id="l-price-list" class="data-list-container">
                         <div class="empty-box">공시지가 정보가 없습니다.</div>
+                    </div>
+                    <div id="price-chart-wrapper" style="display:none; margin-top:1rem;">
+                        <canvas id="price-chart" height="132"></canvas>
                     </div>
 
                     <!-- 층별 현황 -->

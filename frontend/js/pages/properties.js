@@ -31,8 +31,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         document.getElementById('prop-price').textContent = window.formatPriceToKorean ? window.formatPriceToKorean(propData.price) : propData.price;
         document.getElementById('prop-description').innerHTML = propData.description || '';
 
-        if (propData.thumb) {
-            document.getElementById('prop-hero').innerHTML = `<img src="${propData.thumb}" alt="hero image">`;
+        const beforeBox = document.getElementById('prop-before');
+        const afterBox = document.getElementById('prop-after');
+        if (propData.before_image) {
+            beforeBox.innerHTML = `<img src="${propData.before_image}" alt="before image"><span class="image-label">Before</span>`;
+        }
+        if (propData.after_image) {
+            afterBox.innerHTML = `<img src="${propData.after_image}" alt="after image"><span class="image-label">After</span>`;
         }
 
         // 0. 관심 매물 초기 상태 확인
@@ -121,7 +126,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                     zoneListEl.innerHTML = l.zoneTypes.map(z => {
                         return `<div class="data-list-item">
                             <span style="font-weight:600; color:var(--primary-color)">${z.name || '-'}</span>
-                            <span style="color:var(--text-muted); font-size: 0.85rem;">${z.code || ''}</span>
                             <span style="text-align:right">${z.note || ''}</span>
                         </div>`;
                     }).join('');
@@ -130,12 +134,52 @@ document.addEventListener('DOMContentLoaded', async () => {
                 // 연도별 공시지가
                 const priceListEl = document.getElementById('l-price-list');
                 if (l.officialPrices && l.officialPrices.length > 0) {
-                    priceListEl.innerHTML = l.officialPrices.map(p => {
+                    const sorted = [...l.officialPrices].sort((a, b) => a.year - b.year);
+                    priceListEl.innerHTML = sorted.map(p => {
                         return `<div class="data-list-item">
                             <span style="font-weight:600">${p.year}년</span>
                             <span style="text-align:right; font-weight:700; color:var(--primary-color)">${Number(p.pricePerSqm).toLocaleString()} 원/㎡</span>
                         </div>`;
                     }).join('');
+
+                    // 꺾은선 그래프
+                    const chartWrapper = document.getElementById('price-chart-wrapper');
+                    chartWrapper.style.display = 'block';
+                    const ctx = document.getElementById('price-chart').getContext('2d');
+                    new Chart(ctx, {
+                        type: 'line',
+                        data: {
+                            labels: sorted.map(p => p.year + '년'),
+                            datasets: [{
+                                label: '공시지가 (원/㎡)',
+                                data: sorted.map(p => Number(p.pricePerSqm)),
+                                borderColor: getComputedStyle(document.documentElement).getPropertyValue('--primary-color').trim() || '#6366f1',
+                                backgroundColor: 'rgba(99,102,241,0.1)',
+                                fill: true,
+                                tension: 0,
+                                pointRadius: 4,
+                                pointHoverRadius: 6,
+                                borderWidth: 2
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            plugins: {
+                                legend: { display: false },
+                                tooltip: {
+                                    callbacks: {
+                                        label: ctx => ctx.parsed.y.toLocaleString() + ' 원/㎡'
+                                    }
+                                }
+                            },
+                            scales: {
+                                y: {
+                                    ticks: { callback: v => v.toLocaleString() },
+                                    beginAtZero: false
+                                }
+                            }
+                        }
+                    });
                 }
             }
 
@@ -145,7 +189,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 floorEl.innerHTML = floors.map(f => {
                     const no = f.flrNoNm || (f.flrNo != null ? f.flrNo + '층' : '-');
                     const area = f.flrArea ? Number(f.flrArea).toLocaleString() + ' ㎡' : '-';
-                    return `<div class="data-list-item">
+                    return `<div class="data-list-item three-col">
                         <span style="font-weight:600; color:var(--primary-color)">${no}</span>
                         <span>${f.flrMainPurps || '-'}</span>
                         <span style="text-align:right">${area}</span>
@@ -159,7 +203,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 storeEl.innerHTML = stores.map(s => {
                     const cate = [s.cateLargeNm, s.cateMidNm].filter(Boolean).join(' > ');
                     const loc = (s.flrNo ? s.flrNo + '층' : '') + (s.hoNo ? ' ' + s.hoNo + '호' : '');
-                    return `<div class="data-list-item">
+                    return `<div class="data-list-item three-col">
                         <span style="font-weight:600">${s.storeNm || '-'}</span>
                         <span style="color:var(--text-muted); font-size: 0.85rem;">${cate || '-'}</span>
                         <span style="text-align:right">${loc || '-'}</span>

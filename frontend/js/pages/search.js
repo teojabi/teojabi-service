@@ -7,6 +7,7 @@ let map = null;
 let cadastralLayer = null;
 let searchMarker = null;
 let clickMarker = null;
+let propertyMarkers = [];
 
 // ────────────────────────────────────────
 // 진입점: 네이버 지도 SDK 로드 콜백
@@ -41,6 +42,9 @@ window.initMap = function() {
 
     // 3. 이벤트 바인딩
     bindEvents();
+
+    // 4. 컨설팅 매물 마커 표시
+    loadPropertyMarkers();
 }
 
 // ────────────────────────────────────────
@@ -154,6 +158,49 @@ function bindEvents() {
             alert('이 브라우저는 위치 정보 기능을 지원하지 않습니다.');
         }
     });
+}
+
+// ────────────────────────────────────────
+// 컨설팅 매물 마커
+// ────────────────────────────────────────
+async function loadPropertyMarkers() {
+    try {
+        const res = await fetch(`${CONFIG.API_BASE_URL}/api/v1/properties`);
+        const data = await res.json();
+        if (!Array.isArray(data)) return;
+
+        // 기존 마커 제거
+        propertyMarkers.forEach(m => m.setMap(null));
+        propertyMarkers = [];
+
+        data.forEach(prop => {
+            if (!prop.lat || !prop.lng) return;
+            const marker = new naver.maps.Marker({
+                position: new naver.maps.LatLng(prop.lat, prop.lng),
+                map: map,
+                title: prop.title || '',
+                icon: {
+                    content: `<div style="
+                        width: 28px; height: 28px;
+                        background: #e53935;
+                        border: 2.5px solid #fff;
+                        border-radius: 50% 50% 50% 0;
+                        transform: rotate(-45deg);
+                        box-shadow: 0 2px 6px rgba(0,0,0,0.35);
+                    "></div>`,
+                    anchor: new naver.maps.Point(14, 28)
+                }
+            });
+
+            naver.maps.Event.addListener(marker, 'click', () => {
+                handleMapClick(new naver.maps.LatLng(prop.lat, prop.lng), true, true);
+            });
+
+            propertyMarkers.push(marker);
+        });
+    } catch (e) {
+        console.error('컨설팅 매물 마커 로드 실패:', e);
+    }
 }
 
 // ────────────────────────────────────────
@@ -392,17 +439,23 @@ function selectSearchResult(item) {
 // ────────────────────────────────────────
 // 지도 클릭 핸들러
 // ────────────────────────────────────────
-function handleMapClick(coord) {
-    // 클릭 마커 표시
-    if (clickMarker) clickMarker.setMap(null);
-    clickMarker = new naver.maps.Marker({
-        position: coord,
-        map: map,
-        icon: {
-            content: '<div class="click-marker"><i class="ri-map-pin-fill"></i></div>',
-            anchor: new naver.maps.Point(12, 28)
-        }
-    });
+function handleMapClick(coord, skipClickMarker, isPropertyMarker) {
+    // 클릭 마커 표시 (매물 마커 클릭 시에는 생략)
+    if (!skipClickMarker) {
+        if (clickMarker) clickMarker.setMap(null);
+        clickMarker = new naver.maps.Marker({
+            position: coord,
+            map: map,
+            icon: {
+                content: '<div class="click-marker"><i class="ri-map-pin-fill"></i></div>',
+                anchor: new naver.maps.Point(12, 28)
+            }
+        });
+    }
+
+    // 컨설팅매물 배지 표시/숨김
+    const consultingBadge = document.getElementById('panel-consulting-badge');
+    if (consultingBadge) consultingBadge.style.display = isPropertyMarker ? 'inline-flex' : 'none';
 
     // 패널 열고 로딩 상태로 초기화
     openPanel();
@@ -599,7 +652,7 @@ function renderLocationInfo(data) {
                         borderColor: '#4A7CFE',
                         backgroundColor: 'rgba(74,124,254,0.1)',
                         fill: true,
-                        tension: 0.3,
+                        tension: 0,
                         pointRadius: 4,
                         pointBackgroundColor: '#4A7CFE'
                     }]

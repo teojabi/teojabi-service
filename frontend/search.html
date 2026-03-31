@@ -65,7 +65,10 @@
     <div id="map-panel" role="complementary" aria-label="위치 정보 패널">
         <div class="panel-header">
             <div id="panel-address-section" class="panel-address-section" style="display:none;">
-                <div class="panel-address-tag"><i class="ri-map-pin-line"></i> 지번주소</div>
+                <div style="display:flex; align-items:center; gap:0.5rem;">
+                    <div class="panel-address-tag"><i class="ri-map-pin-line"></i> 지번주소</div>
+                    <div id="panel-consulting-badge" class="panel-address-tag" style="display:none; background:#fde8e8; color:#c0392b; border:1px solid #f5b7b1; margin-bottom:0;">컨설팅매물</div>
+                </div>
                 <div class="panel-address-main" id="panel-jibun-address">-</div>
                 <div class="panel-address-sub" id="panel-road-address">도로명: -</div>
             </div>
@@ -201,7 +204,7 @@
                     <div id="l-price-list" class="panel-price-list">
                         <p class="panel-empty-msg">공시지가 정보가 없습니다.</p>
                     </div>
-                    <canvas id="l-price-chart" style="display:none; width:100%; max-height:200px; margin-top:12px;"></canvas>
+                    <canvas id="l-price-chart" style="display:none; width:100%; max-height:120px; margin-top:12px;"></canvas>
                 </div>
             </div>
 
