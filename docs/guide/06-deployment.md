@@ -259,7 +259,7 @@ nano .env   # 또는 vi .env
 
 ```bash
 cd ~/teojabi-service/backend
-pm2 start dist/main.js --name teojabi-backend
+pm2 start dist/src/main.js --name teojabi-backend
 
 # 현재 상태 확인 — status가 "online"이면 성공
 pm2 status

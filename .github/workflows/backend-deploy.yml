@@ -55,8 +55,10 @@ jobs:
             npx prisma generate
             echo "=== Step 6:  npm run build"
             npm run build
-            echo "=== Step 7:  pm2 restart teojabi-backend"
-            pm2 restart teojabi-backend
+            echo "=== Step 7:  pm2 delete teojabi-backend (if exists)"
+            pm2 delete teojabi-backend || true
+            echo "=== Step 8:  pm2 start dist/src/main.js --name teojabi-backend"
+            pm2 start dist/src/main.js --name teojabi-backend
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           DIRECT_URL: ${{ secrets.DIRECT_URL }}

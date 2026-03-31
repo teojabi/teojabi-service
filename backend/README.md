@@ -82,7 +82,7 @@ npm run start:prod
 >
 > ```bash
 > # 최초 실행
-> pm2 start dist/main.js --name teojabi-backend
+> pm2 start dist/src/main.js --name teojabi-backend
 >
 > # 재시작 (배포 시)
 > pm2 restart teojabi-backend
