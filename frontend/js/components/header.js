@@ -25,7 +25,9 @@ export function renderHeader(containerId) {
                         <!-- 모바일 드롭다운 -->
                         <div id="mobile-user-dropdown" class="mobile-user-dropdown">
                             <a href="/mypage.html" id="dropdown-mypage">마이페이지</a>
-                            <a href="/admin.html" id="dropdown-admin" class="hidden">관리자</a>
+                            <!-- 관리자 전용 메뉴 항목 -->
+                            <a href="/admin.html" id="dropdown-admin-prop-manage" class="hidden admin-nav-item" data-tab="prop-manage"><i class="ri-list-settings-line"></i> 매물 관리</a>
+                            <a href="/admin.html" id="dropdown-admin-reserv-manage" class="hidden admin-nav-item" data-tab="reserv-manage"><i class="ri-calendar-check-line"></i> 예약 관리</a>
                             <button onclick="window.logout()">로그아웃</button>
                         </div>
                     </div>
@@ -44,9 +46,18 @@ export function renderHeader(containerId) {
             dropdown.classList.toggle('open');
         });
 
-        // 외부 클릭 시 드롭다운 닫기
-        document.addEventListener('click', () => {
-            dropdown.classList.remove('open');
+        // 관리자 메뉴 항목 클릭 시 탭 정보를 sessionStorage에 저장
+        dropdown.querySelectorAll('.admin-nav-item[data-tab]').forEach(link => {
+            link.addEventListener('click', () => {
+                sessionStorage.setItem('adminTab', link.getAttribute('data-tab'));
+            });
+        });
+
+        // 외부 클릭 시 드롭다운 닫기 (드롭다운 내부 클릭은 제외)
+        document.addEventListener('click', (e) => {
+            if (!dropdown.contains(e.target) && e.target !== userNameEl) {
+                dropdown.classList.remove('open');
+            }
         });
     }
 }

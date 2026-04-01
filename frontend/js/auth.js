@@ -41,7 +41,6 @@ function updateAuthUI(isLoggedIn, user) {
     const userNameSpan = document.getElementById('header-user-name');
     const adminBtn = document.getElementById('btn-header-admin');
     const mypageBtn = document.getElementById('btn-header-mypage');
-    const dropdownAdmin = document.getElementById('dropdown-admin');
     const dropdownMypage = document.getElementById('dropdown-mypage');
 
     if (isLoggedIn && user) {
@@ -53,12 +52,15 @@ function updateAuthUI(isLoggedIn, user) {
         if (user.role === 'ADMIN') {
             if (adminBtn) adminBtn.classList.remove('hidden');
             if (mypageBtn) mypageBtn.classList.add('hidden');
-            if (dropdownAdmin) dropdownAdmin.classList.remove('hidden');
             if (dropdownMypage) dropdownMypage.classList.add('hidden');
+
+            // 관리자 드롭다운 메뉴 항목 표시
+            document.querySelectorAll('.admin-nav-item').forEach(el => {
+                el.classList.remove('hidden');
+            });
         } else {
             if (adminBtn) adminBtn.classList.add('hidden');
             if (mypageBtn) mypageBtn.classList.remove('hidden');
-            if (dropdownAdmin) dropdownAdmin.classList.add('hidden');
             if (dropdownMypage) dropdownMypage.classList.remove('hidden');
         }
     } else {

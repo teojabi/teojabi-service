@@ -11,36 +11,61 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
     }
 
-    // 탭 전환 로직
+    // --- 매물 목록 조회 컨테이너 (switchTab 내 fetchMyProperties 호출을 위해 먼저 선언)
+    const propertyListContainer = document.getElementById('property-list-container');
+
+    // 탭 전환 함수
+    function switchTab(targetId) {
+        const navItems = document.querySelectorAll('.admin-nav .nav-item');
+        const panels = document.querySelectorAll('.admin-content .panel');
+
+        navItems.forEach(nav => nav.classList.remove('active'));
+        const activeNav = document.querySelector(`.admin-nav .nav-item[data-target="${targetId}"]`);
+        if (activeNav) activeNav.classList.add('active');
+
+        panels.forEach(panel => {
+            if (panel.id === targetId) {
+                panel.classList.remove('hidden');
+                if (targetId === 'prop-manage') {
+                    fetchMyProperties();
+                }
+            } else {
+                panel.classList.add('hidden');
+            }
+        });
+
+        // 모바일 드롭다운 닫기
+        const dropdown = document.getElementById('mobile-user-dropdown');
+        if (dropdown) dropdown.classList.remove('open');
+    }
+
+    // sessionStorage 또는 URL 쿼리 파라미터로 초기 탭 설정 (없으면 prop-manage가 기본)
+    const urlParams = new URLSearchParams(window.location.search);
+    const savedTab = sessionStorage.getItem('adminTab');
+    sessionStorage.removeItem('adminTab');
+    const initialTab = savedTab || urlParams.get('tab') || 'prop-manage';
+    switchTab(initialTab);
+
+    // 탭 전환 로직 (사이드바 nav)
     const navItems = document.querySelectorAll('.admin-nav .nav-item');
     const panels = document.querySelectorAll('.admin-content .panel');
 
     navItems.forEach(item => {
         item.addEventListener('click', () => {
-            navItems.forEach(nav => nav.classList.remove('active'));
-            item.classList.add('active');
-
-            const targetId = item.getAttribute('data-target');
-            panels.forEach(panel => {
-                if (panel.id === targetId) {
-                    panel.classList.remove('hidden');
-                    // 등록 매물 관리 탭 활성화 시 목록 새로고침
-                    if (targetId === 'prop-manage') {
-                        fetchMyProperties();
-                    }
-                } else {
-                    panel.classList.add('hidden');
-                }
-            });
+            switchTab(item.getAttribute('data-target'));
         });
     });
 
     // --- 매물 목록 조회 및 렌더링 ---
-    const propertyListContainer = document.getElementById('property-list-container');
     const btnRefreshProperties = document.getElementById('btn-refresh-properties');
 
     if (btnRefreshProperties) {
         btnRefreshProperties.addEventListener('click', fetchMyProperties);
+    }
+
+    const btnGoPropRegister = document.getElementById('btn-go-prop-register');
+    if (btnGoPropRegister) {
+        btnGoPropRegister.addEventListener('click', () => switchTab('prop-register'));
     }
 
     async function fetchMyProperties() {
@@ -82,21 +107,33 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         const listHtml = properties.map(prop => `
-            <div class="property-card-admin" style="display: flex; gap: 20px; padding: 1.5rem; border: 1px solid var(--border-color); border-radius: var(--radius-md); margin-bottom: 1rem; align-items: center; background: #fff;">
-                <div style="width: 100px; height: 100px; background: var(--bg-muted); border-radius: var(--radius-sm); overflow: hidden; flex-shrink: 0;">
-                    ${prop.before_image
-                ? `<img src="${prop.before_image}" style="width: 100%; height: 100%; object-fit: cover;">`
-                : `<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: var(--border-color);"><i class="ri-image-line" style="font-size: 2rem;"></i></div>`}
+            <div class="property-card-admin">
+                <!-- 모바일: 카드형 이미지 영역 -->
+                <div class="prop-admin-images">
+                    <div class="prop-admin-img-wrap">
+                        ${prop.before_image
+                ? `<img src="${prop.before_image}" alt="Before">`
+                : `<div class="prop-admin-img-placeholder"><i class="ri-image-line"></i></div>`}
+                        <span class="prop-admin-img-label">Before</span>
+                    </div>
+                    <div class="prop-admin-img-wrap">
+                        ${prop.after_image
+                ? `<img src="${prop.after_image}" alt="After">`
+                : `<div class="prop-admin-img-placeholder"><i class="ri-image-line"></i></div>`}
+                        <span class="prop-admin-img-label">After</span>
+                    </div>
                 </div>
-                <div style="flex-grow: 1;">
-                    <h3 style="margin-bottom: 0.5rem; font-size: 1.1rem;">${prop.title}</h3>
-                    <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 0.3rem;"><i class="ri-map-pin-line"></i> ${prop.address}</p>
-                    <p style="font-weight: 700; color: var(--primary-color);">${formatPrice(prop.price)}</p>
-                </div>
-                <div style="text-align: right; flex-shrink: 0;">
-                    <div style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.5rem;">${new Date(prop.createdAt).toLocaleDateString()}</div>
-                    <button class="btn btn-outline btn-sm" onclick="editProperty('${prop.id}')">수정</button>
-                    <button class="btn btn-danger btn-sm" onclick="deleteProperty('${prop.id}')" style="margin-left: 5px; background-color: var(--error-color); color: white; border: none;">삭제</button>
+                <!-- 정보 + 버튼 영역 -->
+                <div class="prop-admin-bottom">
+                    <div class="prop-admin-info">
+                        <h3>${prop.title}</h3>
+                        <p class="prop-admin-address"><i class="ri-map-pin-line"></i> ${prop.address}</p>
+                        <p class="prop-admin-price">${formatPrice(prop.price)}</p>
+                        <p class="prop-admin-date">${prop.created_at ? new Date(prop.created_at).toLocaleDateString() : ''}</p>
+                    </div>
+                    <div class="prop-admin-actions">
+                        <button class="btn btn-outline btn-sm" onclick="editProperty('${prop.id}')">수정</button>
+                    </div>
                 </div>
             </div>
         `).join('');
@@ -137,13 +174,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const prop = await res.json();
 
             // 탭 전환
-            navItems.forEach(n => n.classList.remove('active'));
-            const registerNavItem = document.querySelector('[data-target="prop-register"]');
-            if (registerNavItem) registerNavItem.classList.add('active');
-
-            panels.forEach(p => p.classList.add('hidden'));
-            const registerPanel = document.getElementById('prop-register');
-            if (registerPanel) registerPanel.classList.remove('hidden');
+            switchTab('prop-register');
 
             // 폼 채우기
             const form = document.getElementById('property-form');
