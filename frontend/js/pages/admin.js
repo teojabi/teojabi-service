@@ -65,7 +65,25 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const btnGoPropRegister = document.getElementById('btn-go-prop-register');
     if (btnGoPropRegister) {
-        btnGoPropRegister.addEventListener('click', () => switchTab('prop-register'));
+        btnGoPropRegister.addEventListener('click', () => {
+            // 폼 초기화 (수정 모드 잔여 데이터 제거)
+            const form = document.getElementById('property-form');
+            if (form) {
+                form.reset();
+                delete form.dataset.editId;
+                const submitBtn = form.querySelector('button[type="submit"]');
+                if (submitBtn) submitBtn.innerHTML = '<i class="ri-save-3-line"></i> 매물 저장하고 게시하기';
+                const previewBefore = document.getElementById('preview-before');
+                const previewAfter = document.getElementById('preview-after');
+                if (previewBefore) previewBefore.style.display = 'none';
+                if (previewAfter) previewAfter.style.display = 'none';
+                const geocodeResult = document.getElementById('geocode-result');
+                if (geocodeResult) geocodeResult.textContent = '';
+                const priceKr = document.getElementById('price-kr');
+                if (priceKr) priceKr.textContent = '';
+            }
+            switchTab('prop-register');
+        });
     }
 
     async function fetchMyProperties() {
@@ -199,6 +217,28 @@ document.addEventListener('DOMContentLoaded', async () => {
                     geocodeResult.style.color = 'var(--text-muted)';
                 } else {
                     geocodeResult.textContent = '';
+                }
+            }
+
+            // 기존 이미지 미리보기 표시
+            const previewBefore = document.getElementById('preview-before');
+            const previewBeforeImg = document.getElementById('preview-before-img');
+            const previewAfter = document.getElementById('preview-after');
+            const previewAfterImg = document.getElementById('preview-after-img');
+            if (previewBefore && previewBeforeImg) {
+                if (prop.before_image) {
+                    previewBeforeImg.src = prop.before_image;
+                    previewBefore.style.display = 'block';
+                } else {
+                    previewBefore.style.display = 'none';
+                }
+            }
+            if (previewAfter && previewAfterImg) {
+                if (prop.after_image) {
+                    previewAfterImg.src = prop.after_image;
+                    previewAfter.style.display = 'block';
+                } else {
+                    previewAfter.style.display = 'none';
                 }
             }
 
@@ -419,8 +459,17 @@ document.addEventListener('DOMContentLoaded', async () => {
                 delete propertyForm.dataset.editId;
                 submitBtn.innerHTML = '<i class="ri-save-3-line"></i> 매물 저장하고 게시하기';
 
-                // 등록 성공 후 목록 갱신 (만약 탭을 이동하지 않더라도 미리 받아둠)
+                // 이미지 미리보기 초기화
+                const previewBefore = document.getElementById('preview-before');
+                const previewAfter = document.getElementById('preview-after');
+                if (previewBefore) previewBefore.style.display = 'none';
+                if (previewAfter) previewAfter.style.display = 'none';
+                const priceKr = document.getElementById('price-kr');
+                if (priceKr) priceKr.textContent = '';
+
+                // 등록/수정 성공 후 목록 갱신 및 매물 관리 탭으로 이동
                 fetchMyProperties();
+                switchTab('prop-manage');
 
             } catch (err) {
                 console.error(err);
