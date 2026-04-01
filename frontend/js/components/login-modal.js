@@ -13,7 +13,7 @@ export function renderLoginModal(containerId) {
                 </div>
                 <div class="modal-body">
                     <p style="color: var(--text-muted); font-size: 0.95rem; margin-bottom: 1.5rem;">
-                        소셜 계정으로 터잡이에 1초만에 가입 및 로그인하세요.
+                        소셜 계정으로 터잡이에 1초 간편 가입 & 로그인
                     </p>
                     
                     <button class="auth-provider-btn btn-kakao" onclick="location.href='${CONFIG.API_BASE_URL}/api/v1/auth/kakao'">
