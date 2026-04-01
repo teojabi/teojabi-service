@@ -42,6 +42,7 @@ body {
     background-color: var(--bg-main);
     line-height: 1.6;
     -webkit-font-smoothing: antialiased;
+    padding-top: var(--header-height);
 }
 
 a {

@@ -55,8 +55,10 @@
     background: rgba(255, 255, 255, 0.9);
     backdrop-filter: blur(10px);
     border-bottom: 1px solid var(--border-color);
-    position: sticky;
+    position: fixed;
     top: 0;
+    left: 0;
+    right: 0;
     z-index: 1000;
 }
 
@@ -103,6 +105,7 @@
     gap: 0.8rem;
     padding-left: 1rem;
     border-left: 1px solid var(--border-color);
+    position: relative;
 }
 
 .header-user-profile.hidden {
@@ -232,6 +235,47 @@
     background-color: var(--bg-muted);
 }
 
+/* 모바일 사용자 드롭다운 메뉴 */
+.mobile-user-dropdown {
+    display: none;
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    background: var(--bg-main);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-md);
+    min-width: 130px;
+    z-index: 2000;
+    overflow: hidden;
+}
+
+.mobile-user-dropdown.open {
+    display: block;
+}
+
+.mobile-user-dropdown a,
+.mobile-user-dropdown button {
+    display: block;
+    width: 100%;
+    padding: 0.7rem 1rem;
+    text-align: left;
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: var(--text-main);
+    background: none;
+    border: none;
+    cursor: pointer;
+    transition: var(--transition);
+    text-decoration: none;
+}
+
+.mobile-user-dropdown a:hover,
+.mobile-user-dropdown button:hover {
+    background: var(--bg-muted);
+    color: var(--primary-color);
+}
+
 /* ────────────────────────────────────────
    모바일 헤더 반응형
 ──────────────────────────────────────── */
@@ -246,15 +290,19 @@
 
     .header-nav {
         gap: 0.6rem;
+        flex-wrap: nowrap;
+        align-items: center;
     }
 
     .nav-link {
         font-size: 0.82rem;
+        white-space: nowrap;
     }
 
     .header-nav .btn {
         padding: 0.3rem 0.6rem;
         font-size: 0.78rem;
+        white-space: nowrap;
     }
 
     .header-user-profile {
@@ -262,8 +310,27 @@
         padding-left: 0.6rem;
     }
 
+    /* 모바일: 마이페이지/로그아웃 버튼 숨기고 드롭다운으로 대체 */
+    .header-user-profile #btn-header-mypage,
+    .header-user-profile #btn-header-admin,
+    .header-user-profile #btn-header-logout {
+        display: none !important;
+    }
+
     .user-name {
-        font-size: 0.82rem;
+        font-size: 0.85rem;
+        cursor: pointer;
+        color: var(--primary-color);
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        white-space: nowrap;
+    }
+
+    .user-name::after {
+        content: '\25BE';
+        font-size: 0.7rem;
     }
 
     .user-greeting {
