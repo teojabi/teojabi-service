@@ -473,7 +473,9 @@ body.map-page {
     display: flex;
     align-items: center;
     justify-content: space-around;
-    padding: 12px 20px;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 10px 12px;
     border-top: 1px solid var(--border-color);
     background: #ffffff;
     flex-shrink: 0;
@@ -481,17 +483,21 @@ body.map-page {
 
 .panel-footer-btn {
     display: flex;
+    flex-direction: row;
     align-items: center;
-    gap: 6px;
-    padding: 8px 16px;
+    gap: 5px;
+    padding: 6px 8px;
     border: 1px solid var(--border-color);
     border-radius: var(--radius-md);
     background: #ffffff;
     color: var(--text-main);
-    font-size: 0.85rem;
+    font-size: 0.72rem;
     font-weight: 500;
     cursor: pointer;
     transition: background 0.15s, border-color 0.15s;
+    flex: 1 1 calc(50% - 5px);
+    min-width: 0;
+    white-space: nowrap;
 }
 
 .panel-footer-btn:hover {
@@ -502,6 +508,7 @@ body.map-page {
 
 .panel-footer-btn i {
     font-size: 1rem;
+    flex-shrink: 0;
 }
 
 /* 패널 주소 섹션 */
@@ -948,6 +955,214 @@ body.panel-open .map-controls {
 }
 
 /* ────────────────────────────────────────
+   우측 컨설팅 매물 패널
+──────────────────────────────────────── */
+#consulting-panel {
+    position: fixed;
+    top: var(--header-height);
+    right: 0;
+    width: 380px;
+    height: calc(100vh - var(--header-height));
+    background: #ffffff;
+    box-shadow: -4px 0 24px rgba(0, 0, 0, 0.12);
+    z-index: 300;
+    display: flex;
+    flex-direction: column;
+    transform: translateX(100%);
+    transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+    overflow: hidden;
+}
+
+#consulting-panel.open {
+    transform: translateX(0);
+}
+
+.cp-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border-color);
+    flex-shrink: 0;
+    background: #fff;
+}
+
+.cp-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: #fde8e8;
+    color: #c0392b;
+    border: 1px solid #f5b7b1;
+    border-radius: 20px;
+    padding: 4px 12px;
+    font-size: 0.85rem;
+    font-weight: 700;
+}
+
+.cp-body {
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0;
+}
+
+.cp-body::-webkit-scrollbar {
+    width: 4px;
+}
+
+.cp-body::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+    border-radius: 4px;
+}
+
+/* 이미지 영역 */
+.cp-images {
+    width: 100%;
+    display: flex;
+    height: 200px;
+    background: var(--bg-muted);
+    flex-shrink: 0;
+}
+
+.cp-image-box {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+}
+
+.cp-image-box img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.cp-image-box + .cp-image-box {
+    border-left: 2px solid #fff;
+}
+
+.cp-image-label {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    background: rgba(0, 0, 0, 0.55);
+    color: #fff;
+    font-size: 0.72rem;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: var(--radius-sm);
+}
+
+.cp-image-placeholder {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-muted);
+    font-size: 2.5rem;
+    background: var(--bg-muted);
+}
+
+/* 제목/가격 섹션 */
+.cp-title-section {
+    padding: 16px 20px 12px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.cp-price {
+    font-size: 1.6rem;
+    font-weight: 800;
+    color: var(--primary-color);
+    margin-bottom: 4px;
+    line-height: 1.2;
+}
+
+.cp-title {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--text-main);
+    margin-bottom: 6px;
+}
+
+.cp-address {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.cp-address i {
+    color: var(--primary-color);
+}
+
+/* 액션 버튼 */
+.cp-actions {
+    display: flex;
+    gap: 8px;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.cp-actions .btn {
+    font-size: 0.85rem;
+    padding: 0.55rem 0.8rem;
+}
+
+/* 섹션 */
+.cp-section {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.cp-section:last-child {
+    border-bottom: none;
+}
+
+.cp-section-title {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--text-main);
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.cp-section-title i {
+    color: var(--primary-color);
+}
+
+.cp-description {
+    font-size: 0.9rem;
+    line-height: 1.75;
+    color: var(--text-main);
+    white-space: pre-line;
+}
+
+.cp-checklist {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.cp-checklist li {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    font-size: 0.88rem;
+    color: var(--text-main);
+}
+
+.cp-checklist li i {
+    color: var(--primary-color);
+    margin-top: 2px;
+    flex-shrink: 0;
+}
+
+/* ────────────────────────────────────────
    커스텀 마커
 ──────────────────────────────────────── */
 .custom-marker {
@@ -989,6 +1204,10 @@ body.panel-open .map-controls {
 ──────────────────────────────────────── */
 @media (max-width: 768px) {
     #map-panel {
+        width: 100vw;
+    }
+
+    #consulting-panel {
         width: 100vw;
     }
 

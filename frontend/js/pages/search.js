@@ -8,6 +8,7 @@ let cadastralLayer = null;
 let searchMarker = null;
 let clickMarker = null;
 let propertyMarkers = [];
+let currentPropertyData = null;
 
 // ────────────────────────────────────────
 // 진입점: 네이버 지도 SDK 로드 콜백
@@ -117,6 +118,9 @@ function bindEvents() {
     // 패널 닫기 버튼
     document.getElementById('btn-panel-close').addEventListener('click', closePanel);
 
+    // 컨설팅 패널 닫기 버튼
+    document.getElementById('btn-consulting-panel-close').addEventListener('click', closeConsultingPanel);
+
     // 탭 전환
     document.querySelectorAll('.panel-tab').forEach(function(tab) {
         tab.addEventListener('click', function() {
@@ -139,23 +143,6 @@ function bindEvents() {
         } else {
             cadastralLayer.setMap(map);
             this.classList.add('active');
-        }
-    });
-
-    // 지도 컨트롤: 현위치
-    document.getElementById('btn-ctrl-current').addEventListener('click', function() {
-        if (navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition(
-                (pos) => {
-                    const latlng = new naver.maps.LatLng(pos.coords.latitude, pos.coords.longitude);
-                    map.morph(latlng, 17); // 부드럽게 이동 및 줌
-                },
-                (err) => {
-                    alert('현재 위치를 가져올 수 없습니다. 권한을 확인해 주세요.');
-                }
-            );
-        } else {
-            alert('이 브라우저는 위치 정보 기능을 지원하지 않습니다.');
         }
     });
 }
@@ -193,7 +180,7 @@ async function loadPropertyMarkers() {
             });
 
             naver.maps.Event.addListener(marker, 'click', () => {
-                handleMapClick(new naver.maps.LatLng(prop.lat, prop.lng), true, true);
+                openConsultingPanel(prop);
             });
 
             propertyMarkers.push(marker);
@@ -437,10 +424,87 @@ function selectSearchResult(item) {
 }
 
 // ────────────────────────────────────────
+// 컨설팅 패널 제어
+// ────────────────────────────────────────
+function openConsultingPanel(prop) {
+    currentPropertyData = prop;
+    const panel = document.getElementById('consulting-panel');
+    panel.classList.add('open');
+
+    // 로딩 상태
+    document.getElementById('cp-loading').style.display = 'flex';
+    document.getElementById('cp-content').style.display = 'none';
+
+    // 매물 상세 API 호출
+    fetch(`${CONFIG.API_BASE_URL}/api/v1/properties/${prop.id}`, { credentials: 'include' })
+        .then(res => res.json())
+        .then(data => {
+            renderConsultingPanel(data);
+        })
+        .catch(() => {
+            // API 실패 시 목록 데이터로 렌더링
+            renderConsultingPanel(prop);
+        });
+}
+
+function closeConsultingPanel() {
+    document.getElementById('consulting-panel').classList.remove('open');
+    currentPropertyData = null;
+}
+
+function renderConsultingPanel(prop) {
+    document.getElementById('cp-loading').style.display = 'none';
+    document.getElementById('cp-content').style.display = 'block';
+
+    // 이미지
+    const imagesEl = document.getElementById('cp-images');
+    if (prop.before_image && prop.after_image) {
+        imagesEl.innerHTML = `
+            <div class="cp-image-box">
+                <div class="cp-image-label">Before</div>
+                <img src="${prop.before_image}" alt="시공 전">
+            </div>
+            <div class="cp-image-box">
+                <div class="cp-image-label">After</div>
+                <img src="${prop.after_image}" alt="시공 후">
+            </div>`;
+    } else if (prop.after_image || prop.before_image || prop.thumb) {
+        const img = prop.after_image || prop.before_image || prop.thumb;
+        imagesEl.innerHTML = `<div class="cp-image-box"><img src="${img}" alt="매물 이미지"></div>`;
+    } else {
+        imagesEl.innerHTML = `<div class="cp-image-placeholder"><i class="ri-building-4-line"></i></div>`;
+    }
+
+    // 가격
+    const formattedPrice = window.formatPriceToKorean ? window.formatPriceToKorean(prop.price) : (prop.price || '-');
+    document.getElementById('cp-price').textContent = formattedPrice;
+
+    // 제목 & 주소
+    document.getElementById('cp-title').textContent = prop.title || '-';
+    document.getElementById('cp-address').textContent = prop.address || '-';
+
+    // 설명
+    document.getElementById('cp-description').textContent = prop.description || prop.consulting_comment || '컨설팅 분석 내용이 없습니다.';
+
+    // 상세 보기 버튼
+    const detailBtn = document.getElementById('cp-btn-detail');
+    detailBtn.onclick = () => {
+        const hasHtmlExt = window.location.pathname.endsWith('.html');
+        const targetPath = hasHtmlExt ? '/properties.html' : '/properties';
+        window.location.href = `${targetPath}?id=${prop.id}&pnu=${prop.pnu || ''}`;
+    };
+
+    // 상담 신청 버튼
+    document.getElementById('cp-btn-consult').onclick = () => {
+        alert('프리미엄 상담 신청 기능은 준비 중입니다.');
+    };
+}
+
+// ────────────────────────────────────────
 // 지도 클릭 핸들러
 // ────────────────────────────────────────
-function handleMapClick(coord, skipClickMarker, isPropertyMarker) {
-    // 클릭 마커 표시 (매물 마커 클릭 시에는 생략)
+function handleMapClick(coord, skipClickMarker) {
+    // 클릭 마커 표시
     if (!skipClickMarker) {
         if (clickMarker) clickMarker.setMap(null);
         clickMarker = new naver.maps.Marker({
@@ -452,10 +516,6 @@ function handleMapClick(coord, skipClickMarker, isPropertyMarker) {
             }
         });
     }
-
-    // 컨설팅매물 배지 표시/숨김
-    const consultingBadge = document.getElementById('panel-consulting-badge');
-    if (consultingBadge) consultingBadge.style.display = isPropertyMarker ? 'inline-flex' : 'none';
 
     // 패널 열고 로딩 상태로 초기화
     openPanel();
