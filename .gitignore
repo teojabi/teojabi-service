@@ -1,8 +1,8 @@
 # Node modules
 node_modules/
 
-# Frontend API key config (실제 키 값 포함 - Git 제외)
-frontend/js/config.js
+# Frontend API key config (환경 감지 로직만 포함 - Git 추적)
+# frontend/js/config.js
 
 # Environment files
 .env
