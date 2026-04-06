@@ -1,4 +1,4 @@
-name: Deploy Static Pages
+name: Deploy Frontend to Github Pages
 
 on:
   push:
