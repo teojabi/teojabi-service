@@ -1,43 +1,35 @@
-name: Deploy Frontend to Porkbun
+name: Deploy Static Pages
 
 on:
   push:
-    branches: [ "main" ]
-    paths:
-      - 'frontend/**'
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
 
 jobs:
-  deploy:
+  build:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Generate config.js
-        env:
-          API_BASE_URL: ${{ secrets.API_BASE_URL }}
-          NAVER_MAP_CLIENT_ID: ${{ secrets.NAVER_MAP_CLIENT_ID }}
-        run: |
-          cat > frontend/js/config.js << EOF
-          const CONFIG = {
-              API_BASE_URL: '${API_BASE_URL}',
-              NAVER_MAP_CLIENT_ID: '${NAVER_MAP_CLIENT_ID}',
-          };
-          EOF
-
-      - name: Upload to Porkbun via FTP
-        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
         with:
-          server: ${{ secrets.FTP_SERVER }}
-          username: ${{ secrets.FTP_USERNAME }}
-          password: ${{ secrets.FTP_PASSWORD }}
-          local-dir: ./frontend/
-          server-dir: /
-          dangerous-clean-slate: true
-          exclude: |
-            **/.git*
-            **/.git*/**
-            **/config.example.js
-            **/package-lock.json
-            **/node_modules/**
+          path: 'frontend'
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
