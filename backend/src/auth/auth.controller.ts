@@ -60,7 +60,7 @@ export class AuthController {
     const redirectUrl =
       user.role === 'ADMIN'
         ? `${frontendUrl}/admin.html`
-        : `${frontendUrl}/mypage.html`;
+        : `${frontendUrl}/mypage.html${user.isNewUser ? '?newUser=1' : ''}`;
     return res.redirect(redirectUrl);
   }
 
@@ -87,7 +87,7 @@ export class AuthController {
     const redirectUrl =
       user.role === 'ADMIN'
         ? `${frontendUrl}/admin.html`
-        : `${frontendUrl}/mypage.html`;
+        : `${frontendUrl}/mypage.html${user.isNewUser ? '?newUser=1' : ''}`;
     return res.redirect(redirectUrl);
   }
 
@@ -114,7 +114,7 @@ export class AuthController {
     const redirectUrl =
       user.role === 'ADMIN'
         ? `${frontendUrl}/admin.html`
-        : `${frontendUrl}/mypage.html`;
+        : `${frontendUrl}/mypage.html${user.isNewUser ? '?newUser=1' : ''}`;
     return res.redirect(redirectUrl);
   }
 

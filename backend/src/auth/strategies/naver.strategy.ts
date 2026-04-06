@@ -33,7 +33,7 @@ export class NaverStrategy extends PassportStrategy(Strategy, 'naver') {
       profile.username ||
       profile._json?.name ||
       profile._json?.nickname ||
-      '네이버 유저';
+      '네이버유저';
 
     // Auth Service를 통해 유저 검증 또는 생성
     const user = await this.authService.validateSocialUser(

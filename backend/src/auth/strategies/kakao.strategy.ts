@@ -31,7 +31,7 @@ export class KakaoStrategy extends PassportStrategy(Strategy, 'kakao') {
       profile.username ||
       profile._json?.properties?.nickname ||
       profile._json?.kakao_account?.profile?.nickname ||
-      '카카오 유저';
+      '카카오유저';
 
     // Auth Service를 통해 유저 검증 또는 생성
     const user = await this.authService.validateSocialUser(

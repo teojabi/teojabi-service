@@ -33,7 +33,7 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
       profile.displayName ||
       profile.name?.givenName ||
       profile._json?.name ||
-      '구글 유저';
+      '구글유저';
 
     // Auth Service를 통해 유저 검증 또는 생성
     const user = await this.authService.validateSocialUser(

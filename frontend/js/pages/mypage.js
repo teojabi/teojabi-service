@@ -27,16 +27,14 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         // 인증된 사용자 정보 바인딩
-        const profileName = document.getElementById('profile-name');
-        const profileEmail = document.getElementById('profile-email');
-        const profileAvatar = document.getElementById('profile-avatar');
+        bindProfileUI(authState.user);
 
-        if (authState.user.name) profileName.textContent = authState.user.name;
-        if (authState.user.email) profileEmail.textContent = authState.user.email;
-        if (authState.user.image) {
-            profileAvatar.innerHTML = `<img src="${authState.user.image}" alt="Profile">`;
-        } else {
-            profileAvatar.innerHTML = `<i class="ri-user-fill"></i>`;
+        // 최초 로그인 여부 확인: URL에 ?newUser=1 파라미터가 있는 경우에만
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('newUser') === '1') {
+            openWelcomeModal(authState.user);
+            // 파라미터를 URL에서 제거 (새로고침 시 재표시 방지)
+            history.replaceState(null, '', window.location.pathname);
         }
 
         // fetchMyReservations();
@@ -44,6 +42,118 @@ document.addEventListener('DOMContentLoaded', () => {
 
     }, 500); // app.js의 글로벌 auth 로드 대기
 });
+
+function bindProfileUI(user) {
+    const profileName = document.getElementById('profile-name');
+    const profileEmail = document.getElementById('profile-email');
+    if (profileName) profileName.textContent = user.name || '사용자';
+    if (profileEmail) profileEmail.textContent = user.email || '이메일 미설정';
+}
+
+// ── 정보 수정 모달 ──────────────────────────────────────────
+
+window.openEditModal = function () {
+    const user = authState.user;
+    document.getElementById('edit-name').value = user.name || '';
+    document.getElementById('edit-email').value = user.email || '';
+    document.getElementById('edit-email-error').style.display = 'none';
+    document.getElementById('edit-modal').classList.add('active');
+};
+
+window.closeEditModal = function () {
+    document.getElementById('edit-modal').classList.remove('active');
+};
+
+window.submitEditProfile = async function () {
+    const name = document.getElementById('edit-name').value.trim();
+    const email = document.getElementById('edit-email').value.trim();
+    const emailError = document.getElementById('edit-email-error');
+
+    if (!email) {
+        emailError.style.display = 'block';
+        return;
+    }
+    emailError.style.display = 'none';
+
+    try {
+        const res = await fetch(`${CONFIG.API_BASE_URL}/api/v1/users/me`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ name: name || authState.user.name, email }),
+        });
+
+        if (!res.ok) {
+            const err = await res.json();
+            alert(err.message || '저장에 실패했습니다.');
+            return;
+        }
+
+        const updated = await res.json();
+        authState.user = updated;
+        bindProfileUI(updated);
+        window.closeEditModal();
+    } catch (e) {
+        console.error('updateProfile error:', e);
+        alert('저장 중 오류가 발생했습니다.');
+    }
+};
+
+// ── 최초 로그인 환영 모달 ────────────────────────────────────
+
+function openWelcomeModal(user) {
+    document.getElementById('welcome-name').value = user.name || '';
+    document.getElementById('welcome-email').value = user.email || '';
+    document.getElementById('welcome-email-error').style.display = 'none';
+    document.getElementById('welcome-modal').classList.add('active');
+}
+
+window.closeWelcomeModal = function () {
+    // 이메일이 없으면 닫기 불가 (강제)
+    if (!authState.user.email) {
+        document.getElementById('welcome-email-error').style.display = 'block';
+        document.getElementById('welcome-email').focus();
+        return;
+    }
+    document.getElementById('welcome-modal').classList.remove('active');
+};
+
+window.submitWelcomeProfile = async function () {
+    const name = document.getElementById('welcome-name').value.trim();
+    const email = document.getElementById('welcome-email').value.trim();
+    const emailError = document.getElementById('welcome-email-error');
+
+    if (!email) {
+        emailError.style.display = 'block';
+        return;
+    }
+    emailError.style.display = 'none';
+
+    try {
+        const res = await fetch(`${CONFIG.API_BASE_URL}/api/v1/users/me`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ name: name || authState.user.name, email }),
+        });
+
+        if (!res.ok) {
+            const err = await res.json();
+            alert(err.message || '저장에 실패했습니다.');
+            return;
+        }
+
+        const updated = await res.json();
+        authState.user = updated;
+        bindProfileUI(updated);
+        document.getElementById('welcome-modal').classList.remove('active');
+    } catch (e) {
+        console.error('welcomeProfile error:', e);
+        alert('저장 중 오류가 발생했습니다.');
+    }
+};
+
+// ── 관심 매물 ────────────────────────────────────────────────
 
 async function fetchMyLikes() {
     const tabLikes = document.getElementById('tab-likes');

@@ -2,6 +2,11 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { Role } from '@prisma/client';
 
+export interface UpdateUserDto {
+  name?: string;
+  email?: string;
+}
+
 @Injectable()
 export class UsersService {
   constructor(private readonly prisma: PrismaService) {}
@@ -21,10 +26,6 @@ export class UsersService {
     });
   }
 
-  async findByEmail(email: string) {
-    return this.prisma.user.findUnique({ where: { email } });
-  }
-
   async createUser(data: any) {
     return this.prisma.user.create({ data });
   }
@@ -33,6 +34,13 @@ export class UsersService {
     return this.prisma.user.update({
       where: { id },
       data: { role },
+    });
+  }
+
+  async updateUser(id: string, dto: UpdateUserDto) {
+    return this.prisma.user.update({
+      where: { id },
+      data: dto,
     });
   }
 

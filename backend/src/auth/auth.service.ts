@@ -16,10 +16,7 @@ export class AuthService {
     name: string,
   ): Promise<any> {
     let user = await this.usersService.findByProvider(provider, providerId);
-    if (!user && email) {
-      // 동일 이메일로 다른 provider로 가입된 계정이 있는지 확인
-      user = await this.usersService.findByEmail(email);
-    }
+    let isNewUser = false;
     if (!user) {
       // Create user if not exists
       user = await this.usersService.createSocialUser(
@@ -28,9 +25,10 @@ export class AuthService {
         email,
         name,
       );
+      isNewUser = true;
     }
 
-    return user;
+    return { id: user.id, email: user.email, name: user.name, role: user.role, isNewUser };
   }
 
   async generateJwtCookiePayload(user: any) {

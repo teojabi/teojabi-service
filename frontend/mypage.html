@@ -29,25 +29,22 @@
             text-align: center;
         }
 
-        .avatar {
-            width: 100px;
-            height: 100px;
-            border-radius: 50%;
-            background: white;
-            color: var(--primary-color);
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 3rem;
-            margin-bottom: 1rem;
-            overflow: hidden;
-            border: 4px solid rgba(255, 255, 255, 0.2);
+        .profile-header h2 {
+            font-size: 2rem;
+            margin-bottom: 0.4rem;
         }
 
-        .avatar img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
+        .profile-header p {
+            font-size: 1.1rem;
+            opacity: 0.8;
+            margin-bottom: 1.5rem;
+        }
+
+        .profile-actions {
+            display: flex;
+            gap: 0.75rem;
+            justify-content: center;
+            align-items: center;
         }
 
         .dashboard-container {
@@ -94,6 +91,82 @@
             display: block;
             animation: fadeInUp 0.3s ease-out forwards;
         }
+
+        /* 모달 공통 */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-overlay.active {
+            display: flex;
+        }
+
+        .modal-box {
+            background: var(--bg-main);
+            border-radius: var(--radius-lg);
+            padding: 2.5rem 2rem;
+            width: 100%;
+            max-width: 420px;
+            box-shadow: var(--shadow-lg);
+        }
+
+        .modal-box h3 {
+            margin-bottom: 0.5rem;
+            font-size: 1.3rem;
+        }
+
+        .modal-box p.modal-desc {
+            color: var(--text-muted);
+            font-size: 0.95rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .modal-field {
+            margin-bottom: 1.2rem;
+        }
+
+        .modal-field label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 0.4rem;
+            font-size: 0.9rem;
+        }
+
+        .modal-field input {
+            width: 100%;
+            padding: 0.7rem 1rem;
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            font-size: 1rem;
+            background: var(--bg-muted);
+            color: var(--text-main);
+            box-sizing: border-box;
+        }
+
+        .modal-field input:focus {
+            outline: none;
+            border-color: var(--primary-color);
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 0.75rem;
+            justify-content: flex-end;
+            margin-top: 1.5rem;
+        }
+
+        .modal-error {
+            color: var(--danger-color, #e53e3e);
+            font-size: 0.88rem;
+            margin-top: 0.3rem;
+            display: none;
+        }
     </style>
 </head>
 
@@ -101,11 +174,16 @@
     <div id="header-container"></div>
 
     <section class="profile-header">
-        <div class="avatar" id="profile-avatar"><i class="ri-user-line"></i></div>
-        <h2 id="profile-name" style="font-size: 2rem;">로딩 중...</h2>
-        <p id="profile-email" style="font-size: 1.1rem; opacity: 0.8;">-</p>
-        <button class="btn btn-outline" style="border-color: rgba(255,255,255,0.4); color: white; margin-top: 1.5rem;"
-            onclick="window.logout()">로그아웃</button>
+        <h2 id="profile-name">로딩 중...</h2>
+        <p id="profile-email">-</p>
+        <div class="profile-actions">
+            <button class="btn btn-outline" style="border-color: rgba(255,255,255,0.4); color: white; display:inline-flex; align-items:center; justify-content:center;"
+                onclick="window.logout()">로그아웃</button>
+            <button class="btn btn-outline" style="font-size:1.2rem; border-color: rgba(255,255,255,0.4); color: white; display:inline-flex; align-items:center; justify-content:center;"
+                onclick="openEditModal()" title="사용자 정보 수정">
+                <i class="ri-pencil-line"></i>
+            </button>
+        </div>
     </section>
 
     <main class="container">
@@ -136,6 +214,48 @@
             </div>
         </div>
     </main>
+
+    <!-- 사용자 정보 수정 모달 -->
+    <div class="modal-overlay" id="edit-modal">
+        <div class="modal-box">
+            <h3>사용자 정보 수정</h3>
+            <p class="modal-desc">닉네임과 연락처 이메일을 수정할 수 있습니다.</p>
+            <div class="modal-field">
+                <label for="edit-name">닉네임</label>
+                <input type="text" id="edit-name" placeholder="닉네임을 입력하세요">
+            </div>
+            <div class="modal-field">
+                <label for="edit-email">연락처 이메일 <span style="color:var(--danger-color,#e53e3e)">*</span></label>
+                <input type="email" id="edit-email" placeholder="이메일을 입력하세요">
+                <div class="modal-error" id="edit-email-error">이메일은 필수 입력 항목입니다.</div>
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-ghost" onclick="closeEditModal()">취소</button>
+                <button class="btn btn-primary" onclick="submitEditProfile()">저장</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 최초 로그인 사용자 정보 확인 모달 -->
+    <div class="modal-overlay" id="welcome-modal">
+        <div class="modal-box">
+            <h3>👋 환영합니다!</h3>
+            <p class="modal-desc">서비스 이용을 위해 닉네임과 연락처 이메일을 확인해 주세요.<br>이메일은 반드시 입력해야 합니다.</p>
+            <div class="modal-field">
+                <label for="welcome-name">닉네임</label>
+                <input type="text" id="welcome-name" placeholder="닉네임을 입력하세요">
+            </div>
+            <div class="modal-field">
+                <label for="welcome-email">연락처 이메일 <span style="color:var(--danger-color,#e53e3e)">*</span></label>
+                <input type="email" id="welcome-email" placeholder="이메일을 입력하세요">
+                <div class="modal-error" id="welcome-email-error">이메일은 필수 입력 항목입니다.</div>
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-ghost" onclick="closeWelcomeModal()">나중에</button>
+                <button class="btn btn-primary" onclick="submitWelcomeProfile()">확인 및 저장</button>
+            </div>
+        </div>
+    </div>
 
     <div id="login-modal-container"></div>
     <script src="/js/config.js"></script>
