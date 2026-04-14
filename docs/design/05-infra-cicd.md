@@ -84,7 +84,7 @@
 |---|---|
 | 프론트엔드 URL | `http://localhost:3000` |
 | 백엔드 URL | `http://localhost:3001` |
-| 데이터베이스 | Supabase Cloud 또는 Supabase Local CLI |
+| 데이터베이스 | Supabase Cloud |
 
 ### 3.2 운영 환경
 

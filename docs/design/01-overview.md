@@ -108,8 +108,7 @@ teojabi-service/
 │   │   └── schema.prisma   (DB 스키마 정의)
 │   └── .env.example        (환경변수 템플릿)
 └── database/           # Tier 3 — DB 초기화 스크립트
-    ├── init/           (SQL 스크립트 01~06)
-    └── supabase/       (Supabase Local CLI 설정)
+    └── init/           (SQL 스크립트 01~04)
 ```
 
 ---

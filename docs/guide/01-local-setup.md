@@ -45,7 +45,7 @@ cp .env.example .env
 
 ```env
 # DB 연결
-DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:54322/postgres"
+DATABASE_URL="postgresql://postgres:[PASSWORD]@db.[PROJECT_ID].supabase.co:5432/postgres"
 
 # 서버 설정
 PORT=3001
@@ -148,20 +148,6 @@ python -m http.server 3000
 
 `.env`의 `DATABASE_URL`에 Supabase 대시보드의 연결 문자열을 입력하면 바로 사용 가능합니다.
 
-### Supabase Local CLI 사용 시 (Docker 필요)
-
-```bash
-# Supabase CLI 설치
-npm install -g supabase
-
-# 로컬 실행
-supabase start
-
-# 출력되는 URL과 키를 .env에 적용
-# API URL: http://localhost:54321
-# anon key: (출력된 값 복사)
-```
-
 ---
 
 ## 포트 요약
@@ -171,4 +157,3 @@ supabase start
 | 프론트엔드 | 3000 | `http://localhost:3000` |
 | 백엔드 (NestJS) | 3001 | `http://localhost:3001` |
 | Swagger 문서 | 3001 | `http://localhost:3001/api/docs` |
-| Supabase Local | 54321 | `http://localhost:54321` |
