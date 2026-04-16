@@ -188,8 +188,24 @@ async function fetchMyLikes() {
             };
 
             let imageHTML = '';
-            if (prop.after_image || prop.before_image || prop.thumb) {
-                const singleImg = prop.after_image || prop.before_image || prop.thumb;
+            const hasBefore = !!prop.beforeImage;
+            const hasAfter = !!prop.afterImage;
+
+            if (hasBefore && hasAfter) {
+                // 비포/애프터 두 개 나란히 표시
+                imageHTML = `
+                    <div class="card-image-container" style="height:200px; display:flex; gap:2px; background:#eee; position:relative;">
+                        <div style="width:50%; height:100%; position:relative; overflow:hidden;">
+                            <img src="${prop.beforeImage}" style="width:100%; height:100%; object-fit:cover;" alt="Before">
+                            <span class="card-image-label" style="left:8px;">Before</span>
+                        </div>
+                        <div style="width:50%; height:100%; position:relative; overflow:hidden;">
+                            <img src="${prop.afterImage}" style="width:100%; height:100%; object-fit:cover;" alt="After">
+                            <span class="card-image-label" style="right:8px;">After</span>
+                        </div>
+                    </div>`;
+            } else if (hasAfter || hasBefore || prop.thumb) {
+                const singleImg = prop.afterImage || prop.beforeImage || prop.thumb;
                 imageHTML = `<img src="${singleImg}" class="card-image" style="height:200px; width:100%; object-fit:cover;" alt="매물 썸네일">`;
             } else {
                 imageHTML = `<div class="card-image" style="height:200px; display:flex; align-items:center; justify-content:center; background:#f4f4f4; color:#aaa; font-size:2rem;"><i class="ri-building-4-line"></i></div>`;
