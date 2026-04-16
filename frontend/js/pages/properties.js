@@ -214,41 +214,15 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         // 예약 버튼 액션
         document.getElementById('btn-reserve-action').addEventListener('click', async () => {
-            if (!authState.isAuthenticated) {
-                alert("로그인 후 이용 가능합니다.");
-                window.openLoginModal();
-                return;
-            }
-
-            // 브라우저 테스트 자동화를 위해 prompt가 취소되거나 막힐 경우 기본값 허용
-            let reqDate;
-            try { reqDate = prompt("예약 희망 날짜를 입력하세요 분 (YYYY-MM-DD):", new Date().toISOString().split('T')[0]); } catch (e) { }
-            if (!reqDate) reqDate = new Date().toISOString().split('T')[0];
-
-            let reqMsg;
-            try { reqMsg = prompt("남기실 문의 메시지를 입력하세요:"); } catch (e) { }
-            if (!reqMsg) reqMsg = "상담 요청합니다. (자동 기입)";
-
-            try {
-                const res = await fetch(`${CONFIG.API_BASE_URL}/api/v1/reservations`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    credentials: 'include',
-                    body: JSON.stringify({
-                        propertyId: id,
-                        date: new Date(`${reqDate}T12:00:00Z`).toISOString(),
-                        message: reqMsg
-                    })
+            if (typeof window.requestPremiumConsultation === 'function') {
+                await window.requestPremiumConsultation({
+                    type: 'PROPERTY',
+                    propertyId: id,
+                    pnu: pnu,
+                    address: propData.address
                 });
-
-                if (res.ok) {
-                    alert("상담 예약이 성공적으로 완료되었습니다.");
-                } else {
-                    alert("예약에 실패했습니다.");
-                }
-            } catch (err) {
-                console.error("Reservation Error:", err);
-                alert("서버 오류로 인해 예약할 수 없습니다.");
+            } else {
+                alert('상담 신청 기능을 불러올 수 없습니다.');
             }
         });
 

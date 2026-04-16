@@ -9,6 +9,8 @@ let searchMarker = null;
 let clickMarker = null;
 let propertyMarkers = [];
 let currentPropertyData = null;
+let currentPanelPnu = null;
+let currentPanelAddress = null;
 
 // ────────────────────────────────────────
 // 진입점: 네이버 지도 SDK 로드 콜백
@@ -147,14 +149,30 @@ function bindEvents() {
     });
 
     // 패널 하단 푸터 액션 버튼들
-    // 1. 상담 예약
-    document.getElementById('btn-panel-action1').addEventListener('click', function() {
-        alert('상담 예약 서비스는 준비 중입니다.');
+    // 1. 프리미엄 상담 신청
+    document.getElementById('btn-panel-action1').addEventListener('click', async function() {
+        if (typeof window.requestPremiumConsultation === 'function') {
+            await window.requestPremiumConsultation({
+                type: 'GENERAL',
+                pnu: currentPanelPnu,
+                address: currentPanelAddress
+            });
+        } else {
+            alert('상담 신청 기능을 불러올 수 없습니다.');
+        }
     });
 
     // 2. 전문가 리빌딩 리포트
-    document.getElementById('btn-panel-action2').addEventListener('click', function() {
-        alert('전문가 리빌딩 리포트 신청 기능은 준비 중입니다.');
+    document.getElementById('btn-panel-action2').addEventListener('click', async function() {
+        if (typeof window.requestPremiumConsultation === 'function') {
+            await window.requestPremiumConsultation({
+                type: 'REPORT',
+                pnu: currentPanelPnu,
+                address: currentPanelAddress
+            });
+        } else {
+            alert('리포트 신청 기능을 불러올 수 없습니다.');
+        }
     });
 
     // 3. 리포트 예시 (새 창으로 띄우기)
@@ -527,9 +545,18 @@ function renderConsultingPanel(prop) {
         window.location.href = `${targetPath}?id=${prop.id}&pnu=${prop.pnu || ''}`;
     };
 
-    // 상담 신청 버튼
-    document.getElementById('cp-btn-consult').onclick = () => {
-        alert('프리미엄 상담 신청 기능은 준비 중입니다.');
+    // 프리미엄 상담 신청 버튼 (오른쪽 패널)
+    document.getElementById('cp-btn-consult').onclick = async () => {
+        if (typeof window.requestPremiumConsultation === 'function') {
+            await window.requestPremiumConsultation({
+                type: 'PROPERTY',
+                propertyId: prop.id,
+                pnu: prop.pnu,
+                address: prop.address
+            });
+        } else {
+            alert('상담 신청 기능을 불러올 수 없습니다.');
+        }
     };
 }
 
@@ -600,6 +627,8 @@ function handleMapClick(coord, skipClickMarker) {
             });
 
             // 주소 섹션 표시
+            currentPanelPnu = pnu;
+            currentPanelAddress = jibunAddress;
             document.getElementById('panel-jibun-address').textContent = jibunAddress || '주소 미확인';
             document.getElementById('panel-road-address').textContent = roadAddress ? '도로명: ' + roadAddress : '도로명 정보 없음';
             document.getElementById('panel-address-section').style.display = 'block';
@@ -643,6 +672,8 @@ function openPanel() {
 function closePanel() {
     document.getElementById('map-panel').classList.remove('open');
     document.body.classList.remove('panel-open');
+    currentPanelPnu = null;
+    currentPanelAddress = null;
     if (clickMarker) {
         clickMarker.setMap(null);
         clickMarker = null;

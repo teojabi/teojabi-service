@@ -53,7 +53,6 @@ model User {
 
   properties    Property[]
   reservations  Reservation[]
-  favorites     Favorite[]
 
   createdAt     DateTime  @default(now())  @map("created_at")
   updatedAt     DateTime  @updatedAt       @map("updated_at")
@@ -101,21 +100,25 @@ model Property {
 }
 ```
 
-### 3.3 Reservation (상담 예약)
+### 3.3 Reservation (프리미엄 상담 신청)
 
-사용자가 특정 매물에 대해 상담을 예약하는 정보입니다.
+사용자가 특정 매물 또는 일반 필지에 대해 '프리미엄 상담'을 신청하는 정보입니다.
+용어 통일을 위해 기존 '상담 예약'에서 '프리미엄 상담 신청'으로 명칭을 변경하였습니다.
 
 ```prisma
 model Reservation {
-  id            String    @id @default(uuid())
-  date          DateTime                          // 예약 일시
-  status        ResStatus @default(PENDING)       // 예약 상태
-  message       String?   @db.Text                // 상담 시 요청 사항
+  id            String          @id @default(uuid())
+  type          ReservationType @default(GENERAL)       // 신청 분류
+  date          DateTime                                // 상담 희망 일시
+  status        ResStatus       @default(PENDING)       // 신청 상태
+  message       String?         @db.Text                // 상담 시 요청 사항
+  pnu           String?         @db.Char(19)            // 일반 필지 신청 시 대상 PNU
+  address       String?                                 // 신청 당시 대상 주소
 
   userId        String    @map("user_id")
   user          User      @relation(fields: [userId], references: [id])
-  propertyId    String    @map("property_id")
-  property      Property  @relation(fields: [propertyId], references: [id])
+  propertyId    String?   @map("property_id")     // 컨설팅 매물 신청 시 연결 (일반 필지는 null)
+  property      Property? @relation(fields: [propertyId], references: [id])
 
   createdAt     DateTime  @default(now())  @map("created_at")
   updatedAt     DateTime  @updatedAt       @map("updated_at")
@@ -123,10 +126,16 @@ model Reservation {
   @@map("reservation")
 }
 
+enum ReservationType {
+  GENERAL   // 일반 필지 상담 신청
+  PROPERTY  // 등록된 컨설팅 매물 상담 신청
+  REPORT    // 전문가 리포트 요청
+}
+
 enum ResStatus {
-  PENDING     // 예약 대기
-  CONFIRMED   // 예약 확정
-  CANCELLED   // 예약 취소
+  PENDING     // 신청 대기
+  CONFIRMED   // 신청 확정
+  CANCELLED   // 신청 취소
   COMPLETED   // 상담 완료
 }
 ```

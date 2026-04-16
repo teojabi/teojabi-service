@@ -6,8 +6,11 @@ export class ReservationsService {
   constructor(private readonly prisma: PrismaService) {}
 
   async create(userId: string, data: any) {
-    if (!data.propertyId || !data.date) {
-      throw new Error('Property ID and date are required');
+    if (!data.propertyId && !data.pnu) {
+      throw new Error('Property ID or PNU is required');
+    }
+    if (!data.date) {
+      throw new Error('Date is required');
     }
 
     const reservationDate = new Date(data.date);
@@ -15,19 +18,24 @@ export class ReservationsService {
       throw new Error('Invalid date');
     }
 
-    // Check if property exists
-    const property = await this.prisma.property.findUnique({
-      where: { id: data.propertyId },
-    });
+    // If propertyId is provided, check if property exists
+    if (data.propertyId) {
+      const property = await this.prisma.property.findUnique({
+        where: { id: data.propertyId },
+      });
 
-    if (!property) {
-      throw new Error('Property not found');
+      if (!property) {
+        throw new Error('Property not found');
+      }
     }
 
     return this.prisma.reservation.create({
       data: {
         userId,
-        propertyId: data.propertyId,
+        type: data.type || 'GENERAL',
+        propertyId: data.propertyId || null,
+        pnu: data.pnu || null,
+        address: data.address || null,
         date: reservationDate,
         message: data.message,
       },

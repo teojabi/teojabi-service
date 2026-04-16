@@ -74,27 +74,36 @@ COMMENT ON COLUMN property.updated_at IS '매물 정보 수정일시';
 -- property.location 컬럼 공간 인덱스 생성
 CREATE INDEX IF NOT EXISTS property_location_idx ON property USING GIST (location);
 
--- 5. 상담 예약(reservation) 테이블
+-- 5. 프리미엄 상담 신청(reservation) 테이블
+DROP TYPE IF EXISTS "ReservationType";
+CREATE TYPE "ReservationType" AS ENUM ('GENERAL', 'PROPERTY', 'REPORT');
+
 CREATE TABLE IF NOT EXISTS reservation (
     id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+    type "ReservationType" NOT NULL DEFAULT 'GENERAL',
     date TIMESTAMP(3) WITH TIME ZONE NOT NULL,
     status "ResStatus" NOT NULL DEFAULT 'PENDING',
     message TEXT,
     user_id TEXT NOT NULL REFERENCES "user"(id) ON DELETE RESTRICT ON UPDATE CASCADE,
-    property_id TEXT NOT NULL REFERENCES property(id) ON DELETE RESTRICT ON UPDATE CASCADE,
+    property_id TEXT REFERENCES property(id) ON DELETE SET NULL ON UPDATE CASCADE,
+    pnu CHAR(19), -- 특정 매물이 아닌 일반 필지에서 신청할 경우를 위한 PNU
+    address TEXT, -- 신청 당시의 주소 정보 저장
     created_at TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-COMMENT ON TABLE reservation IS '상담 예약 정보';
-COMMENT ON COLUMN reservation.id IS '예약 고유 식별자 (UUID)';
-COMMENT ON COLUMN reservation.date IS '상담 예약 일시';
-COMMENT ON COLUMN reservation.status IS '예약 상태 (PENDING, CONFIRMED, CANCELLED, COMPLETED)';
-COMMENT ON COLUMN reservation.message IS '예약 시 남긴 메시지';
-COMMENT ON COLUMN reservation.user_id IS '예약자 (user.id FK)';
-COMMENT ON COLUMN reservation.property_id IS '예약 대상 매물 (property.id FK)';
-COMMENT ON COLUMN reservation.created_at IS '예약 생성일시';
-COMMENT ON COLUMN reservation.updated_at IS '예약 정보 수정일시';
+COMMENT ON TABLE reservation IS '프리미엄 상담 신청 정보';
+COMMENT ON COLUMN reservation.id IS '신청 고유 식별자 (UUID)';
+COMMENT ON COLUMN reservation.type IS '신청 분류 (GENERAL: 일반 필지, PROPERTY: 등록 매물, REPORT: 전문가 리포트)';
+COMMENT ON COLUMN reservation.date IS '상담 희망 일시';
+COMMENT ON COLUMN reservation.status IS '신청 상태 (PENDING, CONFIRMED, CANCELLED, COMPLETED)';
+COMMENT ON COLUMN reservation.message IS '신청 시 남긴 메시지';
+COMMENT ON COLUMN reservation.user_id IS '신청자 (user.id FK)';
+COMMENT ON COLUMN reservation.property_id IS '대상 매물 (property.id FK, 일반 필지 신청 시 NULL)';
+COMMENT ON COLUMN reservation.pnu IS '대상 필지고유번호 (일반 필지 신청 시 사용)';
+COMMENT ON COLUMN reservation.address IS '상담 대상 주소';
+COMMENT ON COLUMN reservation.created_at IS '신청 생성일시';
+COMMENT ON COLUMN reservation.updated_at IS '신청 정보 수정일시';
 
 -- 6. 관심 매물(favorite) 테이블
 CREATE TABLE IF NOT EXISTS favorite (

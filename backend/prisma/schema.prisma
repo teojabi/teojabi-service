@@ -60,20 +60,29 @@ model Property {
 }
 
 model Reservation {
-  id      String    @id @default(uuid())
+  id      String          @id @default(uuid())
+  type    ReservationType @default(GENERAL)
   date    DateTime
-  status  ResStatus @default(PENDING)
-  message String?   @db.Text
+  status  ResStatus       @default(PENDING)
+  message String?         @db.Text
+  pnu     String?         @db.Char(19)
+  address String?
 
-  userId     String   @map("user_id")
-  user       User     @relation(fields: [userId], references: [id])
-  propertyId String   @map("property_id")
-  property   Property @relation(fields: [propertyId], references: [id])
+  userId     String    @map("user_id")
+  user       User      @relation(fields: [userId], references: [id])
+  propertyId String?   @map("property_id")
+  property   Property? @relation(fields: [propertyId], references: [id])
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@map("reservation")
+}
+
+enum ReservationType {
+  GENERAL
+  PROPERTY
+  REPORT
 }
 
 enum ResStatus {
