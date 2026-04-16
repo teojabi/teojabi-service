@@ -37,7 +37,7 @@ document.addEventListener('DOMContentLoaded', () => {
             history.replaceState(null, '', window.location.pathname);
         }
 
-        // fetchMyReservations();
+        fetchMyReservations();
         fetchMyLikes();
 
     }, 500); // app.js의 글로벌 auth 로드 대기
@@ -46,8 +46,15 @@ document.addEventListener('DOMContentLoaded', () => {
 function bindProfileUI(user) {
     const profileName = document.getElementById('profile-name');
     const profileEmail = document.getElementById('profile-email');
+    const profilePhone = document.getElementById('profile-phone');
+    const phoneBadge = document.getElementById('phone-status-badge');
+
     if (profileName) profileName.textContent = user.name || '사용자';
     if (profileEmail) profileEmail.textContent = user.email || '이메일 미설정';
+    if (profilePhone) profilePhone.textContent = user.phone || '연락처 미등록';
+    if (phoneBadge) {
+        phoneBadge.style.display = user.phoneVerified ? 'inline-block' : 'none';
+    }
 }
 
 // ── 정보 수정 모달 ──────────────────────────────────────────
@@ -56,6 +63,7 @@ window.openEditModal = function () {
     const user = authState.user;
     document.getElementById('edit-name').value = user.name || '';
     document.getElementById('edit-email').value = user.email || '';
+    document.getElementById('edit-phone').value = user.phone || '';
     document.getElementById('edit-email-error').style.display = 'none';
     document.getElementById('edit-modal').classList.add('active');
 };
@@ -67,6 +75,7 @@ window.closeEditModal = function () {
 window.submitEditProfile = async function () {
     const name = document.getElementById('edit-name').value.trim();
     const email = document.getElementById('edit-email').value.trim();
+    const phone = document.getElementById('edit-phone').value.trim();
     const emailError = document.getElementById('edit-email-error');
 
     if (!email) {
@@ -80,7 +89,7 @@ window.submitEditProfile = async function () {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'include',
-            body: JSON.stringify({ name: name || authState.user.name, email }),
+            body: JSON.stringify({ name: name || authState.user.name, email, phone }),
         });
 
         if (!res.ok) {
@@ -104,6 +113,7 @@ window.submitEditProfile = async function () {
 function openWelcomeModal(user) {
     document.getElementById('welcome-name').value = user.name || '';
     document.getElementById('welcome-email').value = user.email || '';
+    document.getElementById('welcome-phone').value = user.phone || '';
     document.getElementById('welcome-email-error').style.display = 'none';
     document.getElementById('welcome-modal').classList.add('active');
 }
@@ -121,6 +131,7 @@ window.closeWelcomeModal = function () {
 window.submitWelcomeProfile = async function () {
     const name = document.getElementById('welcome-name').value.trim();
     const email = document.getElementById('welcome-email').value.trim();
+    const phone = document.getElementById('welcome-phone').value.trim();
     const emailError = document.getElementById('welcome-email-error');
 
     if (!email) {
@@ -134,7 +145,7 @@ window.submitWelcomeProfile = async function () {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'include',
-            body: JSON.stringify({ name: name || authState.user.name, email }),
+            body: JSON.stringify({ name: name || authState.user.name, email, phone }),
         });
 
         if (!res.ok) {
@@ -154,6 +165,81 @@ window.submitWelcomeProfile = async function () {
 };
 
 // ── 관심 매물 ────────────────────────────────────────────────
+
+async function fetchMyReservations() {
+    const tabReservations = document.getElementById('tab-reservations');
+    try {
+        const res = await fetch(`${CONFIG.API_BASE_URL}/api/v1/reservations/me`, { credentials: 'include' });
+        const data = await res.json();
+
+        let contentHtml = `<h3 style="margin-bottom: 1.5rem;">나의 상담 예약 내역</h3>`;
+
+        if (!data || data.length === 0) {
+            contentHtml += `
+            <div style="text-align: center; padding: 4rem; color: var(--text-muted); border: 1px dashed var(--border-color); border-radius: var(--radius-md);">
+                <i class="ri-calendar-close-line" style="font-size: 3rem; margin-bottom: 1rem; display:block;"></i>
+                예약된 상담 내역이 없습니다.
+            </div>`;
+            tabReservations.innerHTML = contentHtml;
+            return;
+        }
+
+        const listContainer = document.createElement('div');
+        listContainer.style.display = 'flex';
+        listContainer.style.flexDirection = 'column';
+        listContainer.style.gap = '1rem';
+
+        data.forEach(resv => {
+            const item = document.createElement('div');
+            item.className = 'property-card resv-item-card'; // 스타일 재활용 및 커스텀 클래스 추가
+            item.style.display = 'flex';
+            item.style.flexDirection = 'column'; // 모바일 우선 세로 배치
+            item.style.padding = '1.5rem';
+            item.style.gap = '1rem';
+
+            const statusMap = {
+                'PENDING': { label: '대기중', color: 'orange' },
+                'CONFIRMED': { label: '확정됨', color: 'green' },
+                'CANCELLED': { label: '취소됨', color: 'red' },
+                'COMPLETED': { label: '완료됨', color: 'blue' }
+            };
+            const status = statusMap[resv.status] || { label: resv.status, color: 'gray' };
+            const typeLabel = resv.type === 'REPORT' ? '리포트 신청' : (resv.type === 'PROPERTY' ? '매물 상담' : '일반 상담');
+
+            const dateStr = new Date(resv.date).toLocaleString();
+            const createdAtStr = new Date(resv.createdAt).toLocaleDateString();
+
+            item.innerHTML = `
+                <div style="width: 100%;">
+                    <div style="display:flex; align-items:center; gap:8px; margin-bottom:12px; flex-wrap: wrap;">
+                        <span style="background:${status.color}; color:white; padding:2px 8px; border-radius:4px; font-size:0.8rem;">${status.label}</span>
+                        <span style="color:var(--primary-color); font-weight:600; font-size:0.85rem;">${typeLabel}</span>
+                        <span style="color:var(--text-muted); font-size:0.8rem; margin-left:auto;">신청일: ${createdAtStr}</span>
+                    </div>
+                    <h4 style="margin-bottom:8px; font-size:1.1rem; line-height:1.4;">${resv.address || (resv.property ? resv.property.address : '주소 정보 없음')}</h4>
+                    <div style="display:flex; flex-direction:column; gap:6px; margin-bottom:12px;">
+                        <p style="color:var(--text-main); font-size:0.9rem; display:flex; align-items:center; gap:5px;">
+                            <i class="ri-calendar-line" style="color:var(--primary-color);"></i> 
+                            <span style="color:var(--text-muted); margin-right:4px;">희망 일시:</span> ${dateStr}
+                        </p>
+                    </div>
+                    <div style="background:var(--bg-muted); padding:12px; border-radius:var(--radius-sm); font-size:0.9rem; color:var(--text-main); border-left:3px solid var(--border-color);">
+                        ${resv.message || '남긴 메시지가 없습니다.'}
+                    </div>
+                </div>
+            `;
+            listContainer.appendChild(item);
+        });
+
+        tabReservations.innerHTML = contentHtml;
+        tabReservations.appendChild(listContainer);
+
+    } catch (err) {
+        console.error("fetchMyReservations error:", err);
+        tabReservations.innerHTML = `<h3 style="margin-bottom: 1.5rem;">나의 상담 예약 내역</h3>
+            <p style="color:var(--danger-color); text-align:center;">예약 내역을 불러오는데 실패했습니다.</p>`;
+    }
+}
 
 async function fetchMyLikes() {
     const tabLikes = document.getElementById('tab-likes');

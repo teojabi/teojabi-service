@@ -50,6 +50,8 @@ model User {
   role          Role      @default(USER)
   provider      String?                         // 소셜 로그인 제공자 (kakao, naver, google)
   providerId    String?   @map("provider_id")   // 소셜 로그인 고유 ID
+  phone         String?                         // 사용자 전화번호
+  phoneVerified Boolean   @default(false) @map("phone_verified") // 전화번호 인증 여부
 
   properties    Property[]
   reservations  Reservation[]

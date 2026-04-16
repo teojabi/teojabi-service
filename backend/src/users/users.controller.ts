@@ -15,13 +15,14 @@ export class UsersController {
   @UseGuards(JwtAuthGuard)
   @Patch('me')
   async updateProfile(@Request() req: any, @Body() body: UpdateUserDto) {
-    const { name, email } = body;
+    const { name, email, phone } = body;
     if (email !== undefined && !email) {
       throw new BadRequestException('이메일은 비워둘 수 없습니다.');
     }
     const dto: UpdateUserDto = {};
     if (name !== undefined) dto.name = name;
     if (email !== undefined) dto.email = email;
+    if (phone !== undefined) dto.phone = phone;
     return this.usersService.updateUser(req.user.id, dto);
   }
 }

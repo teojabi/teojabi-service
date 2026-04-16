@@ -29,6 +29,7 @@ export class ReservationsService {
       }
     }
 
+    console.log(`[ReservationsService] Creating reservation for user: ${userId}`, data);
     return this.prisma.reservation.create({
       data: {
         userId,
@@ -48,8 +49,57 @@ export class ReservationsService {
       include: {
         property: true,
       },
-      orderBy: { date: 'desc' },
+      orderBy: { createdAt: 'desc' },
     });
+  }
+
+  async findAll(query?: any) {
+    const page = parseInt(query?.page || '1');
+    const limit = parseInt(query?.limit || '10');
+    const skip = (page - 1) * limit;
+    const type = query?.type;
+    const status = query?.status;
+
+    const where: any = {};
+    if (type && type !== 'ALL') {
+      where.type = type;
+    }
+    if (status && status !== 'ALL') {
+      where.status = status;
+    }
+
+    const [items, total] = await Promise.all([
+      this.prisma.reservation.findMany({
+        where,
+        include: {
+          property: true,
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              phone: true,
+              phoneVerified: true,
+            },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit,
+      }),
+      this.prisma.reservation.count({ where }),
+    ]);
+
+    console.log(`[ReservationsService] Found ${items.length}/${total} reservations (page: ${page}, type: ${type})`);
+    return {
+      items,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
   }
 
   async updateStatus(id: string, status: any) {

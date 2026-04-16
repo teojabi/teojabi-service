@@ -16,6 +16,8 @@ model User {
   role       Role    @default(USER)
   provider   String?
   providerId String? @map("provider_id")
+  phone      String?
+  phoneVerified Boolean @default(false) @map("phone_verified")
 
   properties   Property[]
   reservations Reservation[]

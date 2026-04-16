@@ -25,6 +25,8 @@ CREATE TABLE IF NOT EXISTS "user" (
     role "Role" NOT NULL DEFAULT 'USER',
     provider TEXT,
     provider_id TEXT,
+    phone TEXT,
+    phone_verified BOOLEAN NOT NULL DEFAULT FALSE,
     created_at TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(provider, provider_id)
@@ -38,6 +40,8 @@ COMMENT ON COLUMN "user".image IS '프로필 이미지 URL';
 COMMENT ON COLUMN "user".role IS '사용자 권한 (USER, PREMIUM_BASIC, PREMIUM_PLUS, ADMIN)';
 COMMENT ON COLUMN "user".provider IS '소셜 로그인 제공자 (naver, kakao, google)';
 COMMENT ON COLUMN "user".provider_id IS '소셜 로그인 제공자의 사용자 고유 ID';
+COMMENT ON COLUMN "user".phone IS '사용자 전화번호';
+COMMENT ON COLUMN "user".phone_verified IS '전화번호 인증 여부';
 COMMENT ON COLUMN "user".created_at IS '계정 생성일시';
 COMMENT ON COLUMN "user".updated_at IS '계정 정보 수정일시';
 

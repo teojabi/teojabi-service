@@ -28,6 +28,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 panel.classList.remove('hidden');
                 if (targetId === 'prop-manage') {
                     fetchMyProperties();
+                } else if (targetId === 'reserv-manage') {
+                    fetchReservations();
                 } else if (targetId === 'settings-manage') {
                     fetchSettings();
                 }
@@ -87,6 +89,197 @@ document.addEventListener('DOMContentLoaded', async () => {
             switchTab('prop-register');
         });
     }
+
+    // --- 예약 관리 상태 ---
+    let reservationState = {
+        page: 1,
+        limit: 10,
+        type: 'ALL',
+        status: 'ALL'
+    };
+
+    async function fetchReservations() {
+        const container = document.getElementById('reservation-list-container');
+        if (!container) return;
+
+        container.innerHTML = `
+            <div style="text-align: center; padding: 3rem; color: var(--text-muted);">
+                <i class="ri-loader-4-line ri-spin" style="font-size: 2rem; margin-bottom: 1rem; display: block;"></i>
+                예약 목록을 불러오는 중입니다...
+            </div>`;
+
+        try {
+            const query = new URLSearchParams({
+                page: reservationState.page,
+                limit: reservationState.limit,
+                type: reservationState.type,
+                status: reservationState.status
+            }).toString();
+
+            const res = await fetch(`${CONFIG.API_BASE_URL}/api/v1/reservations?${query}`, {
+                credentials: 'include'
+            });
+
+            if (!res.ok) throw new Error('목록을 불러오지 못했습니다.');
+
+            const data = await res.json();
+            renderReservationList(data.items);
+            renderReservationPagination(data.meta);
+        } catch (err) {
+            console.error(err);
+            container.innerHTML = `
+                <div style="text-align: center; padding: 3rem; color: var(--error-color);">
+                    <i class="ri-error-warning-line" style="font-size: 2rem; margin-bottom: 1rem; display: block;"></i>
+                    에러: ${err.message}
+                </div>`;
+        }
+    }
+
+    function renderReservationList(reservations) {
+        const container = document.getElementById('reservation-list-container');
+        if (!container) return;
+
+        if (!reservations || reservations.length === 0) {
+            container.innerHTML = '<p style="text-align:center; padding:3rem; color:var(--text-muted);">신청된 예약이 없습니다.</p>';
+            return;
+        }
+
+        let html = '';
+
+        reservations.forEach(resv => {
+            const statusMap = {
+                'PENDING': { label: '대기중', color: 'orange' },
+                'CONFIRMED': { label: '확정됨', color: 'green' },
+                'CANCELLED': { label: '취소됨', color: 'red' },
+                'COMPLETED': { label: '완료됨', color: 'blue' }
+            };
+            const status = statusMap[resv.status] || { label: resv.status, color: 'gray' };
+            const typeLabel = resv.type === 'REPORT' ? '리포트 신청' : (resv.type === 'PROPERTY' ? '매물 상담' : '일반 상담');
+            const dateStr = new Date(resv.date).toLocaleString();
+            const createdAtStr = new Date(resv.createdAt).toLocaleDateString();
+
+            html += `
+                <div class="reservation-card">
+                    <div class="resv-header">
+                        <div>
+                            <span style="font-weight:600; color:var(--primary-color);">${typeLabel}</span>
+                            <span style="font-size:0.8rem; color:var(--text-muted); margin-left:8px;">희망: ${dateStr}</span>
+                        </div>
+                        <span style="background:${status.color}; color:white; padding:2px 8px; border-radius:4px; font-size:0.75rem;">${status.label}</span>
+                    </div>
+                    <div class="resv-body">
+                        <div class="resv-info-grid">
+                            <div class="resv-info-item">
+                                <label>신청자</label>
+                                <div style="display: flex; flex-direction: column; gap: 4px;">
+                                    <span style="font-weight: 600;">${resv.user?.name || '이름없음'}</span>
+                                    <span style="font-size: 0.85rem; color: var(--text-muted); display: flex; align-items: center; gap: 4px;">
+                                        <i class="ri-mail-line" style="font-size: 0.9rem;"></i> ${resv.user?.email || '-'}
+                                    </span>
+                                    <span style="font-size: 0.85rem; color: var(--text-main); display: flex; align-items: center; gap: 4px;">
+                                        <i class="ri-phone-line" style="font-size: 0.9rem;"></i> ${resv.user?.phone || '연락처 미등록'}
+                                        ${resv.user?.phoneVerified ? '<span style="font-size: 0.7rem; color: var(--primary-color); border: 1px solid var(--primary-color); padding: 0 4px; border-radius: 4px;">인증</span>' : ''}
+                                    </span>
+                                </div>
+                            </div>
+                            <div class="resv-info-item">
+                                <label>대상 주소</label>
+                                <span>${resv.address || (resv.property ? resv.property.address : '-')}</span>
+                            </div>
+                            <div class="resv-info-item">
+                                <label>신청 일자</label>
+                                <span>${createdAtStr}</span>
+                            </div>
+                        </div>
+                        <div class="resv-message">
+                            ${resv.message || '남긴 메시지가 없습니다.'}
+                        </div>
+                    </div>
+                    <div class="resv-footer">
+                        <div style="font-size:0.85rem; color:var(--text-muted);">상태 변경</div>
+                        <select onchange="window.updateReservationStatus('${resv.id}', this.value)" style="padding:6px 10px; border-radius:4px; border:1px solid var(--border-color); outline:none; cursor:pointer; background:#fff;">
+                            <option value="PENDING" ${resv.status === 'PENDING' ? 'selected' : ''}>대기중</option>
+                            <option value="CONFIRMED" ${resv.status === 'CONFIRMED' ? 'selected' : ''}>확정</option>
+                            <option value="COMPLETED" ${resv.status === 'COMPLETED' ? 'selected' : ''}>완료</option>
+                            <option value="CANCELLED" ${resv.status === 'CANCELLED' ? 'selected' : ''}>취소</option>
+                        </select>
+                    </div>
+                </div>`;
+        });
+
+        container.innerHTML = html;
+    }
+
+    function renderReservationPagination(meta) {
+        const paginationContainer = document.getElementById('reservation-pagination');
+        if (!paginationContainer) return;
+
+        const { page, totalPages } = meta;
+        let html = '';
+
+        if (totalPages > 1) {
+            // 이전 버튼
+            html += `<button class="btn btn-sm btn-outline" ${page === 1 ? 'disabled' : ''} onclick="window.changeReservationPage(${page - 1})">이전</button>`;
+
+            // 페이지 번호
+            for (let i = 1; i <= totalPages; i++) {
+                html += `<button class="btn btn-sm ${i === page ? 'btn-primary' : 'btn-outline'}" onclick="window.changeReservationPage(${i})">${i}</button>`;
+            }
+
+            // 다음 버튼
+            html += `<button class="btn btn-sm btn-outline" ${page === totalPages ? 'disabled' : ''} onclick="window.changeReservationPage(${page + 1})">다음</button>`;
+        }
+
+        paginationContainer.innerHTML = html;
+    }
+
+    window.changeReservationPage = (page) => {
+        reservationState.page = page;
+        fetchReservations();
+    };
+
+    // 필터링 이벤트 바인딩
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            // UI 업데이트
+            document.querySelectorAll('.filter-btn').forEach(b => {
+                b.classList.remove('active');
+                b.classList.add('btn-outline');
+            });
+            e.target.classList.add('active');
+            e.target.classList.remove('btn-outline');
+
+            // 상태 업데이트 및 재조회
+            reservationState.type = e.target.dataset.type;
+            reservationState.page = 1; // 필터 변경 시 첫 페이지로
+            fetchReservations();
+        });
+    });
+
+    const btnRefreshReservations = document.getElementById('btn-refresh-reservations');
+    if (btnRefreshReservations) {
+        btnRefreshReservations.addEventListener('click', fetchReservations);
+    }
+
+    window.updateReservationStatus = async function (id, newStatus) {
+        if (!confirm('예약 상태를 변경하시겠습니까?')) return;
+
+        try {
+            const res = await fetch(`${CONFIG.API_BASE_URL}/api/v1/reservations/${id}/status`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ status: newStatus })
+            });
+
+            if (!res.ok) throw new Error('상태 변경에 실패했습니다.');
+            alert('변경되었습니다.');
+            fetchReservations();
+        } catch (err) {
+            console.error(err);
+            alert(err.message);
+        }
+    };
 
     async function fetchMyProperties() {
         if (!propertyListContainer) return;

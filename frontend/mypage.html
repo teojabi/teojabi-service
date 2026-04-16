@@ -203,6 +203,11 @@
     <section class="profile-header">
         <h2 id="profile-name">로딩 중...</h2>
         <p id="profile-email">-</p>
+        <div id="profile-phone-container" style="margin-top: -1rem; margin-bottom: 1.5rem; font-size: 0.95rem; display: flex; align-items: center; justify-content: center; gap: 8px;">
+            <i class="ri-phone-line"></i>
+            <span id="profile-phone">연락처 미등록</span>
+            <span id="phone-status-badge" style="font-size: 0.75rem; padding: 2px 6px; border-radius: 12px; background: rgba(0,0,0,0.2); display: none;">인증완료</span>
+        </div>
         <div class="profile-actions">
             <button class="btn btn-outline" style="border-color: rgba(255,255,255,0.4); color: white; display:inline-flex; align-items:center; justify-content:center;"
                 onclick="window.logout()">로그아웃</button>
@@ -246,7 +251,7 @@
     <div class="modal-overlay" id="edit-modal">
         <div class="modal-box">
             <h3>사용자 정보 수정</h3>
-            <p class="modal-desc">닉네임과 연락처 이메일을 수정할 수 있습니다.</p>
+            <p class="modal-desc">닉네임과 연락처 정보를 수정할 수 있습니다.</p>
             <div class="modal-field">
                 <label for="edit-name">닉네임</label>
                 <input type="text" id="edit-name" placeholder="닉네임을 입력하세요">
@@ -255,6 +260,11 @@
                 <label for="edit-email">연락처 이메일 <span style="color:var(--danger-color,#e53e3e)">*</span></label>
                 <input type="email" id="edit-email" placeholder="이메일을 입력하세요">
                 <div class="modal-error" id="edit-email-error">이메일은 필수 입력 항목입니다.</div>
+            </div>
+            <div class="modal-field">
+                <label for="edit-phone">전화번호</label>
+                <input type="tel" id="edit-phone" placeholder="010-0000-0000" maxlength="13">
+                <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 4px;">상담 신청 시 연락 가능한 번호를 입력해주세요.</p>
             </div>
             <div class="modal-actions">
                 <button class="btn btn-ghost" onclick="closeEditModal()">취소</button>
@@ -267,7 +277,7 @@
     <div class="modal-overlay" id="welcome-modal">
         <div class="modal-box">
             <h3>👋 환영합니다!</h3>
-            <p class="modal-desc">서비스 이용을 위해 닉네임과 연락처 이메일을 확인해 주세요.<br>이메일은 반드시 입력해야 합니다.</p>
+            <p class="modal-desc">서비스 이용을 위해 상세 정보를 확인해 주세요.<br>이메일은 반드시 입력해야 합니다.</p>
             <div class="modal-field">
                 <label for="welcome-name">닉네임</label>
                 <input type="text" id="welcome-name" placeholder="닉네임을 입력하세요">
@@ -276,6 +286,10 @@
                 <label for="welcome-email">연락처 이메일 <span style="color:var(--danger-color,#e53e3e)">*</span></label>
                 <input type="email" id="welcome-email" placeholder="이메일을 입력하세요">
                 <div class="modal-error" id="welcome-email-error">이메일은 필수 입력 항목입니다.</div>
+            </div>
+            <div class="modal-field">
+                <label for="welcome-phone">전화번호</label>
+                <input type="tel" id="welcome-phone" placeholder="010-0000-0000" maxlength="13">
             </div>
             <div class="modal-actions">
                 <button class="btn btn-ghost" onclick="closeWelcomeModal()">나중에</button>

@@ -56,7 +56,161 @@
         .admin-content {
             flex-grow: 1;
             padding: 3rem;
-            max-width: 1000px;
+            max-width: 1200px;
+        }
+
+        /* 반응형 레이아웃 조정 */
+        @media (max-width: 1024px) {
+            .admin-sidebar {
+                width: 200px;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .admin-layout {
+                flex-direction: column;
+            }
+
+            .admin-sidebar {
+                width: 100%;
+                border-right: none;
+                border-bottom: 1px solid var(--border-color);
+                padding: 1rem 0;
+            }
+
+            .admin-nav {
+                display: flex;
+                overflow-x: auto;
+                padding: 0 1rem;
+            }
+
+            .admin-nav .nav-item {
+                padding: 0.8rem 1.2rem;
+                white-space: nowrap;
+                border-right: none;
+                border-bottom: 3px solid transparent;
+            }
+
+            .admin-nav .nav-item.active {
+                border-right: none;
+                border-bottom: 3px solid var(--primary-color);
+            }
+
+            .admin-content {
+                padding: 1.5rem;
+            }
+
+            .panel {
+                padding: 1.5rem;
+            }
+
+            .prop-manage-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 1rem;
+            }
+
+            .prop-admin-images {
+                width: 100%;
+                flex-direction: row;
+                height: 100px;
+            }
+
+            .property-card-admin {
+                flex-direction: column;
+                align-items: stretch;
+                padding: 1rem;
+            }
+
+            .prop-admin-info {
+                flex-grow: 1;
+            }
+
+            .prop-admin-actions {
+                flex-direction: row;
+                justify-content: flex-end;
+                border-top: 1px solid var(--border-color);
+                padding-top: 1rem;
+                margin-top: 0.5rem;
+                width: 100%;
+            }
+
+            .btn-label {
+                display: none;
+            }
+        }
+
+        /* 예약 관리 카드 스타일 */
+        .reservation-card {
+            background: var(--bg-main);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            margin-bottom: 1rem;
+            overflow: hidden;
+            transition: var(--transition);
+        }
+
+        .reservation-card:hover {
+            box-shadow: var(--shadow-md);
+        }
+
+        .resv-header {
+            padding: 1rem;
+            background: var(--bg-muted);
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .resv-body {
+            padding: 1.2rem;
+        }
+
+        .resv-info-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .resv-info-item label {
+            display: block;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-bottom: 0.2rem;
+        }
+
+        .resv-info-item span {
+            font-weight: 500;
+            word-break: break-all;
+        }
+
+        .resv-message {
+            background: var(--bg-muted);
+            padding: 0.8rem;
+            border-radius: var(--radius-sm);
+            font-size: 0.9rem;
+            margin-bottom: 1rem;
+        }
+
+        .resv-footer {
+            padding: 1rem;
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+        }
+
+        @media (max-width: 480px) {
+            .resv-info-grid {
+                grid-template-columns: 1fr;
+            }
+            .resv-footer {
+                flex-direction: column;
+                align-items: stretch;
+            }
         }
 
         .form-group {
@@ -399,8 +553,33 @@
                 </div>
             </div>
             <div id="reserv-manage" class="panel hidden">
-                <h2>전체 예약 관리</h2>
-                <p>사용자들의 예약 신청 내역 관리</p>
+                <div class="prop-manage-header">
+                    <h2 class="prop-manage-title"><i class="ri-calendar-check-line"></i> 전체 예약 관리</h2>
+                    <div class="prop-manage-actions">
+                        <button class="btn btn-outline btn-sm" id="btn-refresh-reservations">
+                            <i class="ri-refresh-line"></i><span class="btn-label"> 새로고침</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 필터링 섹션 -->
+                <div class="filter-section" style="margin-bottom: 1.5rem; display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                    <button class="btn btn-sm filter-btn active" data-type="ALL">전체</button>
+                    <button class="btn btn-sm filter-btn btn-outline" data-type="GENERAL">일반 상담</button>
+                    <button class="btn btn-sm filter-btn btn-outline" data-type="PROPERTY">매물 상담</button>
+                    <button class="btn btn-sm filter-btn btn-outline" data-type="REPORT">리포트 신청</button>
+                </div>
+
+                <div id="reservation-list-container">
+                    <div style="text-align: center; padding: 3rem; color: var(--text-muted);">
+                        <i class="ri-loader-4-line ri-spin" style="font-size: 2rem; margin-bottom: 1rem; display: block;"></i>
+                        예약 목록을 불러오는 중입니다...
+                    </div>
+                </div>
+
+                <!-- 페이징 섹션 -->
+                <div id="reservation-pagination" style="margin-top: 2rem; display: flex; justify-content: center; gap: 0.5rem;">
+                </div>
             </div>
 
             <!-- 서비스 설정 탭 -->
