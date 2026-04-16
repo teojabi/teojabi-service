@@ -28,6 +28,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 panel.classList.remove('hidden');
                 if (targetId === 'prop-manage') {
                     fetchMyProperties();
+                } else if (targetId === 'settings-manage') {
+                    fetchSettings();
                 }
             } else {
                 panel.classList.add('hidden');
@@ -477,6 +479,60 @@ document.addEventListener('DOMContentLoaded', async () => {
             } finally {
                 submitBtn.disabled = false;
                 submitBtn.innerHTML = originalBtnText;
+            }
+        });
+    }
+
+    // --- 서비스 설정 관리 ---
+    async function fetchSettings() {
+        const sampleReportUrlInput = document.getElementById('setting-sample-report-url');
+        if (!sampleReportUrlInput) return;
+
+        try {
+            const res = await fetch(`${CONFIG.API_BASE_URL}/api/v1/settings/sample_report_url`, {
+                credentials: 'include'
+            });
+            const json = await res.json();
+            if (json.success && json.data) {
+                sampleReportUrlInput.value = json.data.value || '';
+            }
+        } catch (err) {
+            console.error('설정 로드 실패:', err);
+        }
+    }
+
+    const btnSaveSampleReportUrl = document.getElementById('btn-save-sample-report-url');
+    if (btnSaveSampleReportUrl) {
+        btnSaveSampleReportUrl.addEventListener('click', async () => {
+            const val = document.getElementById('setting-sample-report-url').value.trim();
+            if (!val) {
+                alert('URL을 입력해주세요.');
+                return;
+            }
+
+            btnSaveSampleReportUrl.disabled = true;
+            btnSaveSampleReportUrl.innerHTML = '<i class="ri-loader-4-line ri-spin"></i> 저장 중...';
+
+            try {
+                const res = await fetch(`${CONFIG.API_BASE_URL}/api/v1/settings`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ key: 'sample_report_url', value: val }),
+                    credentials: 'include'
+                });
+
+                if (res.ok) {
+                    alert('저장되었습니다.');
+                } else {
+                    const errData = await res.json();
+                    alert('저장 실패: ' + (errData.message || '알 수 없는 오류'));
+                }
+            } catch (err) {
+                console.error(err);
+                alert('에러 발생: ' + err.message);
+            } finally {
+                btnSaveSampleReportUrl.disabled = false;
+                btnSaveSampleReportUrl.innerHTML = '저장';
             }
         });
     }

@@ -301,6 +301,9 @@
                 <div class="nav-item" data-target="reserv-manage">
                     <i class="ri-calendar-check-line"></i> 예약 관리
                 </div>
+                <div class="nav-item" data-target="settings-manage">
+                    <i class="ri-settings-4-line"></i> 서비스 설정
+                </div>
             </nav>
         </aside>
 
@@ -398,6 +401,20 @@
             <div id="reserv-manage" class="panel hidden">
                 <h2>전체 예약 관리</h2>
                 <p>사용자들의 예약 신청 내역 관리</p>
+            </div>
+
+            <!-- 서비스 설정 탭 -->
+            <div id="settings-manage" class="panel hidden">
+                <h2 style="margin-bottom: 2rem;"><i class="ri-settings-4-line"></i> 서비스 설정 관리</h2>
+                
+                <div class="form-group">
+                    <label>샘플 보고서 URL</label>
+                    <div style="display:flex; gap:10px;">
+                        <input type="text" id="setting-sample-report-url" class="form-control" placeholder="https://..." value="">
+                        <button type="button" class="btn btn-primary" id="btn-save-sample-report-url" style="white-space:nowrap;">저장</button>
+                    </div>
+                    <small style="color: var(--text-muted); display:block; margin-top:5px;">지도 검색 페이지의 '리포트 예시' 버튼 클릭 시 열리는 주소입니다.</small>
+                </div>
             </div>
 
         </main>

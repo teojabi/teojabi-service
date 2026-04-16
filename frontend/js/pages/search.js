@@ -145,6 +145,39 @@ function bindEvents() {
             this.classList.add('active');
         }
     });
+
+    // 패널 하단 푸터 액션 버튼들
+    // 1. 상담 예약
+    document.getElementById('btn-panel-action1').addEventListener('click', function() {
+        alert('상담 예약 서비스는 준비 중입니다.');
+    });
+
+    // 2. 전문가 리빌딩 리포트
+    document.getElementById('btn-panel-action2').addEventListener('click', function() {
+        alert('전문가 리빌딩 리포트 신청 기능은 준비 중입니다.');
+    });
+
+    // 3. 리포트 예시 (새 창으로 띄우기)
+    document.getElementById('btn-panel-action3').addEventListener('click', async function() {
+        let reportUrl = 'https://teojabi.com/samples/sample_report.pdf'; // 기본값
+        
+        try {
+            const res = await fetch(`${CONFIG.API_BASE_URL}/api/v1/settings/sample_report_url`);
+            const json = await res.json();
+            if (json.success && json.data && json.data.value) {
+                reportUrl = json.data.value;
+            }
+        } catch (err) {
+            console.error('리포트 URL 로드 실패, 기본값 사용:', err);
+        }
+        
+        window.open(reportUrl, '_blank');
+    });
+
+    // 4. AI 재건축 시뮬레이션
+    document.getElementById('btn-panel-action4').addEventListener('click', function() {
+        alert('AI 재건축 시뮬레이션 서비스는 준비 중입니다.');
+    });
 }
 
 // ────────────────────────────────────────

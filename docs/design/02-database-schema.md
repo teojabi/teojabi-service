@@ -311,6 +311,26 @@ model LegalDongCodes {
 
 > **참고**: 이 테이블은 데이터 이관(import) SQL에서만 사용되며, 현재 백엔드 NestJS 코드에서 직접 조회하지 않으므로 Prisma `schema.prisma`에는 모델을 추가하지 않아도 무방합니다. 향후 법정동 검색/자동완성 등의 기능 구현 시 추가를 검토합니다.
 
+### 4.8 Setting (서비스 설정)
+
+서비스 운영에 필요한 다양한 설정값(예: 샘플 보고서 URL 등)을 Key-Value 형태로 저장하는 모델입니다.
+
+```prisma
+model Setting {
+  id    Int     @id @default(autoincrement())
+  key   String  @unique                      // 설정 키 (예: sample_report_url)
+  value String? @db.Text                     // 설정 값
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("setting")
+}
+```
+
+- **용도**: 관리자 페이지에서 동적으로 변경 가능한 시스템 변수 관리.
+- **예시**: `sample_report_url` 키를 통해 지도 검색 화면의 리포트 예시 링크 주소 관리.
+
 ---
 
 ## 5. 테이블 관계도
@@ -344,6 +364,10 @@ model LegalDongCodes {
 
 ┌────────────────────┐
 │ legal_dong_codes   │  (독립 참조 테이블, 데이터 이관 시 PNU 생성에 사용)
+└────────────────────┘
+
+┌────────────────────┐
+│     setting        │  (독립 설정 테이블, 서비스 운영 변수 관리)
 └────────────────────┘
 ```
 

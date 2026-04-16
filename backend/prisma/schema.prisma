@@ -182,3 +182,14 @@ model StoreInfo {
   @@index([pnu])
   @@map("store_info")
 }
+
+model Setting {
+  id    Int     @id @default(autoincrement())
+  key   String  @unique
+  value String? @db.Text
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("setting")
+}

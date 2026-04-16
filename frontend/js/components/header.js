@@ -28,6 +28,7 @@ export function renderHeader(containerId) {
                             <!-- 관리자 전용 메뉴 항목 -->
                             <a href="/admin.html" id="dropdown-admin-prop-manage" class="hidden admin-nav-item" data-tab="prop-manage"><i class="ri-list-settings-line"></i> 매물 관리</a>
                             <a href="/admin.html" id="dropdown-admin-reserv-manage" class="hidden admin-nav-item" data-tab="reserv-manage"><i class="ri-calendar-check-line"></i> 예약 관리</a>
+                            <a href="/admin.html" id="dropdown-admin-settings-manage" class="hidden admin-nav-item" data-tab="settings-manage"><i class="ri-settings-4-line"></i> 서비스 설정</a>
                             <button onclick="window.logout()">로그아웃</button>
                         </div>
                     </div>

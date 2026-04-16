@@ -32,7 +32,7 @@ CREATE TABLE IF NOT EXISTS "user" (
 
 COMMENT ON TABLE "user" IS '서비스 사용자 정보';
 COMMENT ON COLUMN "user".id IS '사용자 고유 식별자 (UUID)';
-COMMENT ON COLUMN "user".email IS '이메일 주소 (고유)';
+COMMENT ON COLUMN "user".email IS '이메일 주소';
 COMMENT ON COLUMN "user".name IS '사용자 이름';
 COMMENT ON COLUMN "user".image IS '프로필 이미지 URL';
 COMMENT ON COLUMN "user".role IS '사용자 권한 (USER, PREMIUM_BASIC, PREMIUM_PLUS, ADMIN)';
@@ -111,7 +111,23 @@ COMMENT ON COLUMN favorite.user_id IS '사용자 (user.id FK)';
 COMMENT ON COLUMN favorite.property_id IS '관심 매물 (property.id FK)';
 COMMENT ON COLUMN favorite.created_at IS '관심 매물 등록일시';
 
--- 7. Updated_at 자동 갱신 트리거 함수
+-- 7. 서비스 설정(setting) 테이블
+CREATE TABLE IF NOT EXISTS setting (
+    id SERIAL PRIMARY KEY,
+    key TEXT UNIQUE NOT NULL,
+    value TEXT,
+    created_at TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+COMMENT ON TABLE setting IS '서비스 설정 정보 (Key-Value 스토어)';
+COMMENT ON COLUMN setting.id IS '설정 고유 식별자 (자동 증가)';
+COMMENT ON COLUMN setting.key IS '설정 키 (Unique)';
+COMMENT ON COLUMN setting.value IS '설정 값 (Text)';
+COMMENT ON COLUMN setting.created_at IS '설정 생성일시';
+COMMENT ON COLUMN setting.updated_at IS '설정 수정일시';
+
+-- 8. Updated_at 자동 갱신 트리거 함수
 CREATE OR REPLACE FUNCTION update_modified_column()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -138,6 +154,12 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'update_reservation_modtime') THEN
         CREATE TRIGGER update_reservation_modtime
         BEFORE UPDATE ON reservation
+        FOR EACH ROW EXECUTE FUNCTION update_modified_column();
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'update_setting_modtime') THEN
+        CREATE TRIGGER update_setting_modtime
+        BEFORE UPDATE ON setting
         FOR EACH ROW EXECUTE FUNCTION update_modified_column();
     END IF;
 END $$;
