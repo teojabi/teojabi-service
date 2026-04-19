@@ -2,6 +2,9 @@
 
 /* Buttons */
 .btn {
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
     display: inline-flex;
     align-items: center;
     justify-content: center;

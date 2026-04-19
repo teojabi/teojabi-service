@@ -238,6 +238,8 @@ body.map-page .map-controls {
     overflow: hidden;
     border: 2px solid transparent;
     transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    /* Safari overflow: hidden + border-radius flexbug fix */
+    isolation: isolate;
 }
 
 .search-input-row:focus-within {
@@ -288,6 +290,9 @@ body.map-page .map-controls {
 }
 
 #btn-search-submit {
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
     background: var(--primary-color);
     border: none;
     cursor: pointer;
@@ -297,6 +302,10 @@ body.map-page .map-controls {
     font-size: 1rem;
     transition: background 0.2s;
     flex-shrink: 0;
+    /* 텍스트 렌더링 최적화 */
+    -webkit-font-smoothing: antialiased;
+    /* 사파리 우측 잘림 방지를 위해 버튼 자체에 우측 라운드 적용 */
+    border-radius: 0 var(--radius-lg) var(--radius-lg) 0;
 }
 
 #btn-search-submit:hover {
