@@ -235,11 +235,10 @@ body.map-page .map-controls {
     background: #ffffff;
     border-radius: var(--radius-lg);
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.18);
-    overflow: hidden;
+    /* overflow: hidden; */ /* 제거: 사파리에서 버튼 우측이 잘리는 현상 방지 */
     border: 2px solid transparent;
     transition: border-color 0.2s ease, box-shadow 0.2s ease;
-    /* Safari overflow: hidden + border-radius flexbug fix */
-    isolation: isolate;
+    /* isolation: isolate; */ /* 제거: overflow: hidden 제거 시 불필요 */
 }
 
 .search-input-row:focus-within {
@@ -256,6 +255,7 @@ body.map-page .map-controls {
 
 #search-input {
     flex: 1;
+    min-width: 0; /* 추가: 모바일에서 버튼이 밀리지 않도록 입력창 축소 허용 */
     border: none;
     outline: none;
     padding: 14px 8px;
@@ -296,15 +296,16 @@ body.map-page .map-controls {
     background: var(--primary-color);
     border: none;
     cursor: pointer;
-    padding: 0 18px;
+    padding: 0 20px;
+    min-width: 80px; /* 추가: 버튼의 크기를 고정하여 텍스트 가독성 확보 */
     height: 52px;
     color: #fff;
     font-size: 1rem;
+    font-weight: 600; /* 추가: 버튼 텍스트 시인성 강화 */
     transition: background 0.2s;
-    flex-shrink: 0;
-    /* 텍스트 렌더링 최적화 */
+    flex-shrink: 0; /* 버튼이 절대 줄어들지 않도록 고정 */
     -webkit-font-smoothing: antialiased;
-    /* 사파리 우측 잘림 방지를 위해 버튼 자체에 우측 라운드 적용 */
+    /* 버튼 자체에 우측 라운드 적용 (부모의 overflow 없이도 형태 유지) */
     border-radius: 0 var(--radius-lg) var(--radius-lg) 0;
 }
 
