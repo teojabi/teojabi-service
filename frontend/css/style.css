@@ -25,6 +25,9 @@
     --radius-lg: 12px;
     --radius-full: 9999px;
 
+    /* 지도 페이지 푸터 높이 추정치 */
+    --map-footer-height: 85px;
+
     /* Transition */
     --transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
@@ -43,6 +46,15 @@ body {
     line-height: 1.6;
     -webkit-font-smoothing: antialiased;
     padding-top: var(--header-height);
+    padding-bottom: 60px; /* 푸터 고정 스타일로 인한 바닥 여백 확보 */
+}
+
+/* 지도 페이지 및 메인 페이지는 바닥 여백 및 스크롤 제외 */
+body.map-page,
+body.home-page {
+    padding-bottom: 0;
+    overflow: hidden;
+    height: 100dvh;
 }
 
 a {
@@ -68,17 +80,23 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 /* Landing Page Hero */
+.landing-main {
+    height: calc(100dvh - var(--header-height));
+    overflow: hidden;
+}
+
 .hero-section {
-    min-height: calc(100vh - var(--header-height));
+    height: 100%;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     text-align: center;
     background: linear-gradient(rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.5)), url('../img/bg.webp') no-repeat bottom center/cover;
-    padding: 60px 20px;
+    padding: 20px;
     color: white;
     position: relative;
+    overflow: hidden;
 }
 
 .hero-content {
@@ -93,6 +111,7 @@ h1, h2, h3, h4, h5, h6 {
 .hero-symbol {
     margin-top: auto;
     padding-top: 2rem;
+    padding-bottom: 80px; /* 푸터에 가리지 않도록 하단 여백 추가 */
     animation: fadeInUp 1s ease-out 0.3s both;
 }
 
@@ -117,6 +136,7 @@ h1, h2, h3, h4, h5, h6 {
     letter-spacing: -0.02em;
     text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
     white-space: nowrap;
+    padding: 0 0px;
 }
 
 .hero-subtitle {
@@ -124,6 +144,7 @@ h1, h2, h3, h4, h5, h6 {
     color: rgba(255, 255, 255, 0.9);
     margin-bottom: 2.5rem;
     text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+    padding: 0 0px;
 }
 
 .hero-actions {
@@ -171,6 +192,16 @@ h1, h2, h3, h4, h5, h6 {
 /* 지도 페이지는 body 스크롤을 막아야 함 */
 body.map-page {
     overflow: hidden;
+}
+
+/* 지도 페이지 푸터 플로팅 스타일 - components.css에서 공통으로 처리됨 */
+body.map-page #footer-container {
+    z-index: 400;
+}
+
+/* 지도 페이지 하단 컨트롤과 푸터 겹침 방지 */
+body.map-page .map-controls {
+    bottom: calc(var(--map-footer-height) + 10px); /* 푸터 높이 + 여백 */
 }
 
 #map-container {
@@ -379,10 +410,10 @@ body.map-page {
     top: var(--header-height);
     left: 0;
     width: 390px;
-    height: calc(100vh - var(--header-height));
+    height: calc(100vh - var(--header-height) - var(--map-footer-height));
     background: #ffffff;
     box-shadow: 4px 0 24px rgba(0, 0, 0, 0.12);
-    z-index: 300;
+    z-index: 500; /* 푸터(400)보다 위에 오도록 조정 */
     display: flex;
     flex-direction: column;
     transform: translateX(-100%);
@@ -457,6 +488,13 @@ body.map-page {
     flex: 1;
     overflow-y: auto;
     min-height: 0;
+    padding-bottom: 20px; /* 기존 */
+}
+
+@media (max-width: 768px) {
+    .panel-tab-scroll-area {
+        padding-bottom: 200px; /* 패널 내부 하단 고정 버튼(약 180px)에 가려지는 것 방지 */
+    }
 }
 
 .panel-tab-scroll-area::-webkit-scrollbar {
@@ -961,10 +999,10 @@ body.panel-open .map-controls {
     top: var(--header-height);
     right: 0;
     width: 380px;
-    height: calc(100vh - var(--header-height));
+    height: calc(100vh - var(--header-height) - var(--map-footer-height));
     background: #ffffff;
     box-shadow: -4px 0 24px rgba(0, 0, 0, 0.12);
-    z-index: 300;
+    z-index: 500; /* 푸터(400)보다 위에 오도록 조정 */
     display: flex;
     flex-direction: column;
     transform: translateX(100%);
@@ -1003,6 +1041,13 @@ body.panel-open .map-controls {
     flex: 1;
     overflow-y: auto;
     min-height: 0;
+    padding-bottom: 60px; /* 푸터 영역 확보 */
+}
+
+@media (max-width: 768px) {
+    .cp-body {
+        padding-bottom: 120px; /* 모바일 푸터 및 여유 여백 */
+    }
 }
 
 .cp-body::-webkit-scrollbar {
@@ -1202,12 +1247,44 @@ body.panel-open .map-controls {
    모바일 반응형
 ──────────────────────────────────────── */
 @media (max-width: 768px) {
+    :root {
+        --map-footer-height: 120px; /* 모바일 safe-area 대응 높이 */
+    }
+
+    /* 메인 페이지 (index.html) 모바일 대응 */
+    .hero-title {
+        white-space: normal;
+        font-size: 1.8rem;
+        line-height: 1.3;
+        word-break: keep-all;
+        padding: 0 0px;
+    }
+
+    .hero-subtitle {
+        font-size: 1rem;
+        margin-bottom: 2rem;
+        word-break: keep-all;
+        padding: 0 0px;
+        line-height: 1.5;
+    }
+
+    .hero-symbol {
+        padding-bottom: 110px; /* 모바일 푸터 높이 대응 */
+    }
+
+    .symbol-img {
+        width: 100px;
+        height: 100px;
+    }
+
     #map-panel {
         width: 100vw;
+        height: calc(100vh - var(--header-height) - var(--map-footer-height));
     }
 
     #consulting-panel {
         width: 100vw;
+        height: calc(100vh - var(--header-height) - var(--map-footer-height));
     }
 
     .search-bar-wrapper {
@@ -1216,7 +1293,7 @@ body.panel-open .map-controls {
     }
 
     .map-controls {
-        bottom: 20px;
+        bottom: calc(var(--map-footer-height) + 10px);
         right: 10px;
     }
 

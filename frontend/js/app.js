@@ -1,12 +1,16 @@
 // js/app.js
 import { renderHeader } from './components/header.js';
+import { renderFooter } from './components/footer.js';
 import { renderLoginModal } from './components/login-modal.js';
 import { checkAuthStatus } from './auth.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
     // 1. 공통 UI 컴포넌트 렌더링
     renderHeader('header-container');
+    renderFooter('footer-container');
     renderLoginModal('login-modal-container');
+
+    // 2. 초기화 (푸터 위치 보정을 위한 스타일 등은 CSS에서 처리)
 
     // 2. 초기 렌더링 애니메이션 (선택)
     document.body.style.opacity = '1';

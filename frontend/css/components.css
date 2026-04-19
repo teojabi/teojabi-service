@@ -17,7 +17,7 @@
 }
 
 .btn-lg {
-    padding: 0.8rem 1.8rem;
+    padding: -0.2rem 1.8rem;
     font-size: 1.1rem;
     border-radius: var(--radius-lg);
 }
@@ -352,4 +352,123 @@
     border-radius: 4px;
     margin-left: 6px;
     font-weight: 500;
+}
+
+/* Footer */
+#footer-container {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    z-index: 400; /* 패널들(500)보다 아래에 오도록 설정 */
+    pointer-events: none; /* 지도 클릭 방해 금지 */
+}
+
+.app-footer {
+    padding: 10px 0;
+    padding-bottom: calc(10px + env(safe-area-inset-bottom));
+    background: rgba(255, 255, 255, 0.75);
+    backdrop-filter: blur(12px);
+    border-top: 1px solid var(--border-color);
+    pointer-events: auto; /* 푸터 내 링크는 클릭 가능하게 */
+    color: var(--text-main);
+}
+
+.footer-inner {
+    max-width: var(--max-width);
+    margin: 0 auto;
+    padding: 0 20px;
+}
+
+.footer-content {
+    display: none; /* 상세 정보는 지도 페이지 방식처럼 기본적으로 숨김 */
+}
+
+.footer-bottom {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 4px;
+}
+
+.footer-legal-links {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 0;
+    font-size: 0.75rem;
+}
+
+.footer-legal-links a {
+    color: var(--text-muted);
+    transition: var(--transition);
+}
+
+.footer-legal-links a:hover {
+    color: var(--primary-color);
+}
+
+.footer-legal-links .divider {
+    color: var(--border-color);
+}
+
+.footer-bottom .copyright {
+    margin: 0;
+    font-size: 0.65rem;
+    color: var(--text-muted);
+}
+
+.business-info-summary {
+    color: var(--text-muted);
+    font-size: 0.7rem;
+    text-align: center;
+    margin-bottom: 2px;
+}
+
+.copyright {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+}
+
+/* Home Page Footer (거의 완전 투명) */
+.home-page .app-footer {
+    background: rgba(255, 255, 255, 0.1); /* 투명도를 0.05에서 0.1로 약간 조정 */
+    backdrop-filter: blur(4px);
+    border-top: 1px solid rgba(255, 255, 255, 0.15);
+    color: rgba(255, 255, 255, 0.95);
+}
+
+.home-page .footer-legal-links a,
+.home-page .footer-bottom .copyright,
+.home-page .business-info-summary {
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.home-page .footer-legal-links .divider {
+    color: rgba(255, 255, 255, 0.2);
+}
+
+.home-page .footer-legal-links a:hover {
+    color: #fff;
+}
+
+@media (max-width: 768px) {
+    .app-footer {
+        padding: 6px 0;
+        padding-bottom: calc(12px + env(safe-area-inset-bottom));
+    }
+
+    .business-info-summary {
+        font-size: 0.6rem;
+        padding: 0 10px;
+        display: block;
+        line-height: 1.4;
+    }
+
+    .footer-legal-links {
+        gap: 8px;
+        font-size: 0.7rem;
+    }
 }
