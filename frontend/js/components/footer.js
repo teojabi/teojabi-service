@@ -3,6 +3,11 @@ export function renderFooter(containerId) {
     const container = document.getElementById(containerId);
     if (!container) return;
 
+    // 메인 페이지 전용 스타일 클래스 추가
+    if (document.body.classList.contains('home-page')) {
+        container.classList.add('home-page-footer');
+    }
+
     container.innerHTML = `
         <footer class="app-footer">
             <div class="footer-inner">

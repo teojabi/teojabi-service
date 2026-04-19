@@ -55,6 +55,7 @@ body.home-page {
     padding-bottom: 0;
     overflow: hidden;
     height: 100dvh;
+    position: relative; /* 자식 fixed 요소의 안정성을 위해 추가 */
 }
 
 a {
@@ -97,6 +98,7 @@ h1, h2, h3, h4, h5, h6 {
     color: white;
     position: relative;
     overflow: hidden;
+    z-index: 1; /* 푸터보다 낮게 설정 */
 }
 
 .hero-content {
@@ -1269,7 +1271,7 @@ body.panel-open .map-controls {
     }
 
     .hero-symbol {
-        padding-bottom: 110px; /* 모바일 푸터 높이 대응 */
+        padding-bottom: 90px; /* 여백 소폭 조정 */
     }
 
     .symbol-img {

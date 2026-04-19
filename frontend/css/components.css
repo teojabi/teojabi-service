@@ -367,7 +367,7 @@
 .app-footer {
     padding: 10px 0;
     padding-bottom: calc(10px + env(safe-area-inset-bottom));
-    background: rgba(255, 255, 255, 0.75);
+    background: rgba(255, 255, 255, 0.5);
     backdrop-filter: blur(12px);
     border-top: 1px solid var(--border-color);
     pointer-events: auto; /* 푸터 내 링크는 클릭 가능하게 */
@@ -433,17 +433,22 @@
 }
 
 /* Home Page Footer (거의 완전 투명) */
+#footer-container.home-page-footer {
+    z-index: 600; /* 메인 페이지에서 가시성 확보 */
+}
+
 .home-page .app-footer {
-    background: rgba(255, 255, 255, 0.1); /* 투명도를 0.05에서 0.1로 약간 조정 */
-    backdrop-filter: blur(4px);
-    border-top: 1px solid rgba(255, 255, 255, 0.15);
-    color: rgba(255, 255, 255, 0.95);
+    background: rgba(255, 255, 255, 0.05); /* 투명도 미세 조정 */
+    backdrop-filter: blur(8px);
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    color: #ffffff; /* 완전 흰색으로 */
+    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.5); /* 텍스트 그림자 추가로 가독성 확보 */
 }
 
 .home-page .footer-legal-links a,
 .home-page .footer-bottom .copyright,
 .home-page .business-info-summary {
-    color: rgba(255, 255, 255, 0.7);
+    color: rgba(255, 255, 255, 0.9);
 }
 
 .home-page .footer-legal-links .divider {
