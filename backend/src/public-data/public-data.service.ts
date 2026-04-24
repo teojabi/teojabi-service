@@ -14,19 +14,19 @@ export class PublicDataService {
     private readonly configService: ConfigService,
   ) {}
 
-  // 특정 주소의 데이터를 외부 API에서 조회 (캐시 없이 직접 반환)
+  // ?�정 주소???�이?��? ?��? API?�서 조회 (캐시 ?�이 직접 반환)
   async syncAddress(address: string) {
     this.logger.debug(`Fetching external data for ${address}`);
 
-    // TODO: 실제 공공데이터 API 연동 시 주석 해제 후 구현
+    // TODO: ?�제 공공?�이??API ?�동 ??주석 ?�제 ??구현
     // const apiUrl = `https://api.vworld.kr/req/data?service=data&request=GetFeature&data=LT_C_UQ111&key=YOUR_KEY&domain=http://localhost:3000&attrFilter=ldCode:like:${address}`;
     // const response = await firstValueFrom(this.httpService.get(apiUrl));
     // const apiData = response.data;
 
-    // 임시 모의 데이터 (이제 DB에 저장하지 않고 직접 반환)
+    // ?�시 모의 ?�이??(?�제 DB???�?�하지 ?�고 직접 반환)
     const mockOfficialPrice = Math.floor(Math.random() * 5000) + 1000;
     const mockActualPrice = mockOfficialPrice * 1.5;
-    const mockLandUsePlan = '제2종 일반주거지역';
+    const mockLandUsePlan = "제2종일반주거지역";
 
     return {
       address,
@@ -37,12 +37,12 @@ export class PublicDataService {
     };
   }
 
-  // 프론트엔드/API에서 데이터 단건 조회 요청 (캐시 없이 즉시 조회 후 반환)
+  // ?�론?�엔??API?�서 ?�이???�건 조회 ?�청 (캐시 ?�이 즉시 조회 ??반환)
   async getPublicData(address: string) {
     return this.syncAddress(address);
   }
 
-  // PNU 기반 건물·토지·층별현황·상가 정보 DB 조회
+  // PNU 기반 건물·?��?·층별?�황·?��? ?�보 DB 조회
   async getLocationInfo(pnu: string): Promise<any> {
     this.logger.debug(`getLocationInfo called: pnu=${pnu}`);
 
@@ -58,18 +58,18 @@ export class PublicDataService {
       return null;
     }
 
-    // 용도지역 목록 (복수)
+    // ?�도지??목록 (복수)
     const landUseList = await this.prisma.landUseInfo.findMany({
       where: { pnu },
     });
 
-    // 연도별 공시지가 (복수, 최신순)
+    // ?�도�?공시지가 (복수, 최신??
     const priceList = await this.prisma.officialLandPrice.findMany({
       where: { pnu },
       orderBy: { refYear: 'desc' },
     });
 
-    // 용도지역지구명으로 법정 건폐율/용적률 매칭
+    // ?�도지???구명?�로 법정 건폐???�적�?매칭
     const zoneNames = landUseList
       .map((l) => l.zoneClsNm)
       .filter((n): n is string => !!n);
@@ -80,7 +80,7 @@ export class PublicDataService {
           })
         : [];
 
-    // 매칭 결과가 정확히 1건일 때만 사용, 그 외는 null
+    // 매칭 결과가 ?�확??1건일 ?�만 ?�용, �??�는 null
     const regulation =
       matchedRegulations.length === 1
         ? {
@@ -91,9 +91,9 @@ export class PublicDataService {
           }
         : null;
 
-    // PNU에서 대장구분 추출 (11번째 자리: 1=일반, 2=산)
+    // PNU?�서 ?�?�구�?추출 (11번째 ?�리: 1=?�반, 2=??
     const landTypeCode = pnu.charAt(10);
-    const jimok = landTypeCode === '2' ? '산' : '일반';
+    const jimok = landTypeCode === "2" ? "산" : "일반";
 
     return {
       building: {
@@ -144,7 +144,7 @@ export class PublicDataService {
     };
   }
 
-  // 키워드(POI) 검색: 네이버 로컬 검색 API를 통해 정보 반환
+  // ?�워??POI) 검?? ?�이�?로컬 검??API�??�해 ?�보 반환
   async searchByKeyword(query: string): Promise<any[]> {
     const clientId = this.configService.get<string>('NAVER_CLIENT_ID');
     const clientSecret = this.configService.get<string>('NAVER_CLIENT_SECRET');
@@ -176,7 +176,7 @@ export class PublicDataService {
         category: item.category,
         mapx: Number(item.mapx),
         mapy: Number(item.mapy),
-        raw: item, // 프론트엔드에서 추가 좌표 필드(x, y 등)를 참조할 수 있도록 원본 데이터 포함
+        raw: item, // ?�론?�엔?�에??추�? 좌표 ?�드(x, y ??�?참조?????�도�??�본 ?�이???�함
       }));
     } catch (error) {
       const err = error as {
@@ -192,5 +192,41 @@ export class PublicDataService {
       );
       return [];
     }
+  }
+
+  // ?�재 지???�역 ?�의 geom_score_layer ?�이?��? GeoJSON?�로 반환
+  async getScoreLayer(
+    minLat: number,
+    minLng: number,
+    maxLat: number,
+    maxLng: number,
+  ) {
+    const result = await this.prisma.$queryRawUnsafe<any[]>(
+      `
+      SELECT 
+        pnu,
+        score_grade as "scoreGrade",
+        ST_AsGeoJSON(ST_Transform(geom, 4326))::json as geometry
+      FROM geom_score_layer
+      WHERE geom && ST_Transform(ST_MakeEnvelope($1, $2, $3, $4, 4326), ST_SRID(geom))
+      LIMIT 2000
+    `,
+      minLng,
+      minLat,
+      maxLng,
+      maxLat,
+    );
+
+    return {
+      type: "FeatureCollection",
+      features: result.map((row) => ({
+        type: "Feature",
+        geometry: row.geometry,
+        properties: {
+          pnu: row.pnu,
+          scoreGrade: row.scoreGrade,
+        },
+      })),
+    };
   }
 }

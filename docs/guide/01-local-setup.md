@@ -11,7 +11,7 @@
 | Node.js | v20.x 이상 | `node -v` |
 | npm | v10.x 이상 | `npm -v` |
 | Git | 최신 | `git --version` |
-| PostgreSQL Client (psql) | 14 이상 | `psql --version` |
+
 
 ---
 

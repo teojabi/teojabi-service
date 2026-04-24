@@ -35,4 +35,25 @@ export class PublicDataController {
     const result = await this.publicDataService.getLocationInfo(pnu);
     return { success: true, data: result };
   }
+
+  // geom_score_layer 데이터 조회 (GeoJSON)
+  // GET /api/v1/public-data/score-layer?minLat=...&minLng=...&maxLat=...&maxLng=...
+  @Get('score-layer')
+  async getScoreLayer(
+    @Query('minLat') minLat: string,
+    @Query('minLng') minLng: string,
+    @Query('maxLat') maxLat: string,
+    @Query('maxLng') maxLng: string,
+  ) {
+    if (!minLat || !minLng || !maxLat || !maxLng) {
+      return { success: false, message: 'Bounding box coordinates are required' };
+    }
+    const result = await this.publicDataService.getScoreLayer(
+      parseFloat(minLat),
+      parseFloat(minLng),
+      parseFloat(maxLat),
+      parseFloat(maxLng),
+    );
+    return { success: true, data: result };
+  }
 }

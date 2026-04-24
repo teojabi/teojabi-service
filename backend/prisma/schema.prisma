@@ -9,14 +9,14 @@ datasource db {
 }
 
 model User {
-  id         String  @id @default(uuid())
-  email      String?
-  name       String?
-  image      String? @db.Text
-  role       Role    @default(USER)
-  provider   String?
-  providerId String? @map("provider_id")
-  phone      String?
+  id            String  @id @default(uuid())
+  email         String?
+  name          String?
+  image         String? @db.Text
+  role          Role    @default(USER)
+  provider      String?
+  providerId    String? @map("provider_id")
+  phone         String?
   phoneVerified Boolean @default(false) @map("phone_verified")
 
   properties   Property[]
@@ -203,4 +203,15 @@ model Setting {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@map("setting")
+}
+
+model GeomScoreLayer {
+  id         Int                                          @id @default(autoincrement())
+  pnu        String                                       @db.Char(19)
+  geom       Unsupported("geometry(MultiPolygon, 4326)")?
+  scoreGrade Int                                          @map("score_grade")
+  createdAt  DateTime                                     @default(now()) @map("created_at")
+
+  @@index([geom], type: Gist)
+  @@map("geom_score_layer")
 }

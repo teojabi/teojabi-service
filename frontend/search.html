@@ -50,10 +50,24 @@
 
         <!-- 지도 컨트롤 버튼들 -->
         <div class="map-controls">
+            <button class="map-ctrl-btn" id="btn-ctrl-teojabi" title="터잡이 레이어">
+                <i class="ri-focus-3-line"></i>
+                <span>터잡이</span>
+            </button>
             <button class="map-ctrl-btn" id="btn-ctrl-cadastral" title="지적편집도">
                 <i class="ri-layout-grid-line"></i>
                 <span>지적도</span>
             </button>
+        </div>
+
+        <div id="map-wait-overlay" class="map-wait-overlay" aria-hidden="true" aria-live="polite">
+            <div class="map-wait-card">
+                <div class="map-wait-illustration" aria-hidden="true">
+                    <div class="map-wait-pulse"></div>
+                    <i class="ri-map-pin-time-line"></i>
+                </div>
+                <p>대기중...</p>
+            </div>
         </div>
     </div>
     <!-- /map-container -->

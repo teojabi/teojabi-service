@@ -1,4 +1,4 @@
-// 네이버 지도 검색 화면 메인 로직
+﻿// 네이버 지도 검색 화면 메인 로직
 
 // ────────────────────────────────────────
 // 전역 상태
@@ -11,6 +11,13 @@ let propertyMarkers = [];
 let currentPropertyData = null;
 let currentPanelPnu = null;
 let currentPanelAddress = null;
+const mapRenderState = {
+    overlay: null,
+    motionPending: false,
+    asyncPendingCount: 0,
+    hideTimer: null,
+    forceHideTimer: null
+};
 
 // ────────────────────────────────────────
 // 진입점: 네이버 지도 SDK 로드 콜백
@@ -45,6 +52,8 @@ window.initMap = function() {
 
     // 3. 이벤트 바인딩
     bindEvents();
+    bindMapRenderWaitEvents();
+    addTeojabiEvents();
 
     // 4. 컨설팅 매물 마커 표시
     loadPropertyMarkers();
@@ -138,6 +147,7 @@ function bindEvents() {
     // 지도 컨트롤: 지적도
     document.getElementById('btn-ctrl-cadastral').addEventListener('click', function() {
         if (!cadastralLayer) return;
+        runMapQuickRefreshWait();
         const isVisible = cadastralLayer.getMap();
         if (isVisible) {
             cadastralLayer.setMap(null);
@@ -196,6 +206,97 @@ function bindEvents() {
     document.getElementById('btn-panel-action4').addEventListener('click', function() {
         alert('AI 재건축 시뮬레이션 서비스는 준비 중입니다.');
     });
+}
+
+function getMapWaitOverlay() {
+    if (!mapRenderState.overlay) {
+        mapRenderState.overlay = document.getElementById('map-wait-overlay');
+    }
+    return mapRenderState.overlay;
+}
+
+function showMapWaitOverlay() {
+    const overlay = getMapWaitOverlay();
+    if (!overlay) return;
+
+    overlay.classList.add('active');
+    overlay.setAttribute('aria-hidden', 'false');
+
+    if (mapRenderState.forceHideTimer) {
+        clearTimeout(mapRenderState.forceHideTimer);
+    }
+
+    mapRenderState.forceHideTimer = setTimeout(function() {
+        mapRenderState.motionPending = false;
+        mapRenderState.asyncPendingCount = 0;
+        hideMapWaitOverlay();
+    }, 8000);
+}
+
+function hideMapWaitOverlay() {
+    const overlay = getMapWaitOverlay();
+    if (!overlay) return;
+
+    overlay.classList.remove('active');
+    overlay.setAttribute('aria-hidden', 'true');
+
+    if (mapRenderState.forceHideTimer) {
+        clearTimeout(mapRenderState.forceHideTimer);
+        mapRenderState.forceHideTimer = null;
+    }
+}
+
+function scheduleMapWaitHide() {
+    if (mapRenderState.hideTimer) {
+        clearTimeout(mapRenderState.hideTimer);
+    }
+
+    mapRenderState.hideTimer = setTimeout(function() {
+        if (!mapRenderState.motionPending && mapRenderState.asyncPendingCount === 0) {
+            hideMapWaitOverlay();
+        }
+    }, 120);
+}
+
+function startMapMotionWait() {
+    mapRenderState.motionPending = true;
+    showMapWaitOverlay();
+}
+
+function finishMapMotionWait() {
+    mapRenderState.motionPending = false;
+
+    if (mapRenderState.asyncPendingCount > 0) {
+        return;
+    }
+
+    scheduleMapWaitHide();
+}
+
+function beginMapAsyncWait() {
+    mapRenderState.asyncPendingCount += 1;
+    showMapWaitOverlay();
+}
+
+function endMapAsyncWait() {
+    mapRenderState.asyncPendingCount = Math.max(0, mapRenderState.asyncPendingCount - 1);
+
+    if (mapRenderState.motionPending || mapRenderState.asyncPendingCount > 0) {
+        return;
+    }
+
+    scheduleMapWaitHide();
+}
+
+function runMapQuickRefreshWait(duration) {
+    beginMapAsyncWait();
+    setTimeout(endMapAsyncWait, duration || 220);
+}
+
+function bindMapRenderWaitEvents() {
+    naver.maps.Event.addListener(map, 'dragstart', startMapMotionWait);
+    naver.maps.Event.addListener(map, 'zoom_changed', startMapMotionWait);
+    naver.maps.Event.addListener(map, 'idle', finishMapMotionWait);
 }
 
 // ────────────────────────────────────────
@@ -454,6 +555,7 @@ function selectSearchResult(item) {
     }
 
     if (map && latlng) {
+        startMapMotionWait();
         try {
             // 네이버 지도 API 예제(tutorial-5-map-moves.example.html) 참고: morph가 가장 부드럽고 안정적임
             map.morph(latlng, 17);
@@ -563,7 +665,7 @@ function renderConsultingPanel(prop) {
 // ────────────────────────────────────────
 // 지도 클릭 핸들러
 // ────────────────────────────────────────
-function handleMapClick(coord, skipClickMarker) {
+function handleMapClick(coord, skipClickMarker, fixedPnu) {
     // 클릭 마커 표시
     if (!skipClickMarker) {
         if (clickMarker) clickMarker.setMap(null);
@@ -594,7 +696,7 @@ function handleMapClick(coord, skipClickMarker) {
             const results = response.v2.results;
             let jibunAddress = '';
             let roadAddress = '';
-            let pnu = '';
+            let pnu = (typeof fixedPnu === 'string' ? fixedPnu.trim() : '');
 
             results.forEach(function(r) {
                 if (r.name === 'addr') {
@@ -613,7 +715,9 @@ function handleMapClick(coord, skipClickMarker) {
                     const landType = land && land.type ? land.type : '1';
                     const num1 = land && land.number1 ? String(land.number1).padStart(4, '0') : '0000';
                     const num2 = land && land.number2 ? String(land.number2).padStart(4, '0') : '0000';
-                    pnu = codeId + landType + num1 + num2;
+                    if (!pnu) {
+                        pnu = codeId + landType + num1 + num2;
+                    }
                 } else if (r.name === 'roadaddr') {
                     const region = r.region;
                     const land = r.land;
@@ -848,3 +952,263 @@ function renderLocationInfo(data) {
     document.getElementById('panel-tab-floor').style.display = 'none';
     document.getElementById('panel-tab-store').style.display = 'none';
 }
+// ────────────────────────────────────────
+// 터잡이 레이어(GeoJSON)
+// ────────────────────────────────────────
+const teojabiState = {
+    isActive: false,
+    layer: null,
+    debugBox: null,
+    abortController: null,
+    requestSeq: 0,
+    listeners: {
+        idle: null,
+        zoomChanged: null,
+        dragStart: null
+    }
+};
+
+function createTeojabiLayer() {
+    const layer = new naver.maps.Data();
+    layer.setStyle(function(f) {
+        const color = getTeojabiColor(f.getProperty("scoreGrade"));
+        return {
+            fillColor: color,
+            fillOpacity: 0.6,
+            strokeColor: color,
+            strokeWeight: 1,
+            zIndex: 100,
+            clickable: true
+        };
+    });
+
+    naver.maps.Event.addListener(layer, 'click', function(e) {
+        if (!teojabiState.isActive) return;
+
+        const coord = e && (e.coord || e.latLng);
+        if (!coord) return;
+
+        const featurePnu = e.feature && typeof e.feature.getProperty === 'function'
+            ? String(e.feature.getProperty('pnu') || '').trim()
+            : '';
+
+        handleMapClick(coord, false, featurePnu);
+    });
+
+    return layer;
+}
+
+function ensureTeojabiLayer() {
+    if (!teojabiState.layer) {
+        teojabiState.layer = createTeojabiLayer();
+    }
+}
+
+function abortTeojabiRequest() {
+    if (teojabiState.abortController) {
+        teojabiState.abortController.abort();
+        teojabiState.abortController = null;
+    }
+}
+
+function clearTeojabiDebugBox() {
+    if (teojabiState.debugBox) {
+        teojabiState.debugBox.setMap(null);
+    }
+}
+
+function updateTeojabiDebugBox(bounds) {
+    if (!teojabiState.debugBox) {
+        teojabiState.debugBox = new naver.maps.Rectangle({
+            map: map,
+            bounds: bounds,
+            strokeColor: '#0000ff',
+            strokeWeight: 2,
+            fillOpacity: 0,
+            clickable: false
+        });
+        return;
+    }
+
+    teojabiState.debugBox.setBounds(bounds);
+    teojabiState.debugBox.setMap(map);
+}
+
+function detachTeojabiLayer() {
+    if (teojabiState.layer) {
+        teojabiState.layer.setMap(null);
+    }
+}
+
+function swapTeojabiLayer(nextLayer) {
+    const prevLayer = teojabiState.layer;
+    teojabiState.layer = nextLayer;
+
+    if (teojabiState.isActive) {
+        teojabiState.layer.setMap(map);
+    }
+
+    if (prevLayer) {
+        prevLayer.setMap(null);
+    }
+}
+
+function resetTeojabiLayerEmpty() {
+    const emptyLayer = createTeojabiLayer();
+    swapTeojabiLayer(emptyLayer);
+}
+
+function removeTeojabiListeners() {
+    if (teojabiState.listeners.idle) {
+        naver.maps.Event.removeListener(teojabiState.listeners.idle);
+        teojabiState.listeners.idle = null;
+    }
+    if (teojabiState.listeners.zoomChanged) {
+        naver.maps.Event.removeListener(teojabiState.listeners.zoomChanged);
+        teojabiState.listeners.zoomChanged = null;
+    }
+    if (teojabiState.listeners.dragStart) {
+        naver.maps.Event.removeListener(teojabiState.listeners.dragStart);
+        teojabiState.listeners.dragStart = null;
+    }
+}
+
+/**
+ * 터잡이 레이어 데이터를 백엔드에서 가져와 갱신합니다.
+ */
+async function updateTeojabiLayer() {
+    if (!teojabiState.isActive) return;
+
+    const zoom = map.getZoom();
+    if (zoom < 17) {
+        abortTeojabiRequest();
+        clearTeojabiDebugBox();
+        resetTeojabiLayerEmpty();
+        return;
+    }
+
+    beginMapAsyncWait();
+
+    const bounds = map.getBounds();
+    const sw = bounds.getSW();
+    const ne = bounds.getNE();
+
+    updateTeojabiDebugBox(bounds);
+    console.log(`[teojabi-layer] Request Update - Zoom: ${zoom}`);
+
+    abortTeojabiRequest();
+    const controller = new AbortController();
+    teojabiState.abortController = controller;
+    const requestSeq = ++teojabiState.requestSeq;
+
+    try {
+        const url = `${CONFIG.API_BASE_URL}/api/v1/public-data/score-layer?minLat=${sw.lat()}&minLng=${sw.lng()}&maxLat=${ne.lat()}&maxLng=${ne.lng()}`;
+        const res = await fetch(url, { signal: controller.signal });
+        const json = await res.json();
+
+        if (controller.signal.aborted) return;
+        if (requestSeq !== teojabiState.requestSeq) return;
+        if (!teojabiState.isActive || map.getZoom() < 17) return;
+
+        if (!json.success || !json.data) {
+            console.warn("[teojabi-layer] Invalid response payload", json);
+            return;
+        }
+
+        const nextLayer = createTeojabiLayer();
+        const features = Array.isArray(json.data.features) ? json.data.features : [];
+
+        if (features.length > 0) {
+            nextLayer.addGeoJson(json.data);
+            console.log(`[teojabi-layer] Render Success: ${features.length} features added.`);
+        } else {
+            console.log("[teojabi-layer] No features found in this area.");
+        }
+
+        if (requestSeq !== teojabiState.requestSeq) return;
+        if (!teojabiState.isActive || map.getZoom() < 17) return;
+
+        swapTeojabiLayer(nextLayer);
+    } catch (e) {
+        if (e.name === 'AbortError') {
+            console.log("[teojabi-layer] Request aborted by new interaction");
+        } else {
+            console.error("[teojabi-layer] Update failed:", e);
+        }
+    } finally {
+        if (teojabiState.abortController === controller) {
+            teojabiState.abortController = null;
+        }
+        endMapAsyncWait();
+    }
+}
+
+/**
+ * 등급 점수에 따른 색상을 반환합니다.
+ */
+function getTeojabiColor(grade) {
+    const s = Number(grade);
+    if (s == 100) return '#F44336';
+    if (s >= 95) return '#E53935';
+    if (s >= 90) return '#F4511E';
+    if (s >= 85) return '#FB8C00';
+    if (s >= 80) return '#FDD835';
+    if (s >= 75) return '#FFEB3B';
+    if (s >= 70) return '#FFF176';
+    if (s >= 65) return '#DCE775';
+    if (s >= 60) return '#CDDC39';
+    if (s >= 55) return '#8BC34A';
+    return '#4CAF50';
+}
+
+/**
+ * 터잡이 레이어 초기화 및 이벤트 바인딩
+ */
+function addTeojabiEvents() {
+    ensureTeojabiLayer();
+
+    document.getElementById("btn-ctrl-teojabi").addEventListener("click", function() {
+        if (teojabiState.isActive) {
+            runMapQuickRefreshWait(200);
+            teojabiState.isActive = false;
+            this.classList.remove("active");
+            abortTeojabiRequest();
+            removeTeojabiListeners();
+            clearTeojabiDebugBox();
+            detachTeojabiLayer();
+            resetTeojabiLayerEmpty();
+        } else {
+            if (map.getZoom() < 17) {
+                alert("터잡이 레이어는 줌 레벨 17 이상에서만 확인할 수 있습니다. 지도를 확대해 주세요.");
+                return;
+            }
+
+            teojabiState.isActive = true;
+            this.classList.add("active");
+
+            ensureTeojabiLayer();
+            teojabiState.layer.setMap(map);
+
+            updateTeojabiLayer();
+
+            teojabiState.listeners.idle = naver.maps.Event.addListener(map, "idle", function() {
+                updateTeojabiLayer();
+            });
+
+            teojabiState.listeners.zoomChanged = naver.maps.Event.addListener(map, "zoom_changed", function() {
+                if (!teojabiState.isActive) return;
+                abortTeojabiRequest();
+                if (map.getZoom() < 17) {
+                    clearTeojabiDebugBox();
+                    resetTeojabiLayerEmpty();
+                }
+            });
+
+            teojabiState.listeners.dragStart = naver.maps.Event.addListener(map, "dragstart", function() {
+                if (!teojabiState.isActive) return;
+                abortTeojabiRequest();
+            });
+        }
+    });
+}
+
