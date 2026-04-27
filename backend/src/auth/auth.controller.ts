@@ -7,6 +7,18 @@ import { AuthService } from './auth.service';
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
+  private buildRedirectUrl(user: any, frontendUrl: string, provider: string) {
+    if (user.role === 'ADMIN') {
+      return `${frontendUrl}/admin.html`;
+    }
+
+    if (user.isNewUser) {
+      return `${frontendUrl}/terms-consent.html?provider=${provider}`;
+    }
+
+    return `${frontendUrl}/mypage.html`;
+  }
+
   @Get('mock-login')
   async mockLogin(@Res() res: Response) {
     // 테스트 환경용 임시 ADMIN 로그인 (실제 배포 시 제거 필요)
@@ -57,10 +69,7 @@ export class AuthController {
 
     // 역할에 따른 리다이렉트 분기
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
-    const redirectUrl =
-      user.role === 'ADMIN'
-        ? `${frontendUrl}/admin.html`
-        : `${frontendUrl}/mypage.html${user.isNewUser ? '?newUser=1' : ''}`;
+    const redirectUrl = this.buildRedirectUrl(user, frontendUrl, 'kakao');
     return res.redirect(redirectUrl);
   }
 
@@ -84,10 +93,7 @@ export class AuthController {
 
     // 역할에 따른 리다이렉트 분기
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
-    const redirectUrl =
-      user.role === 'ADMIN'
-        ? `${frontendUrl}/admin.html`
-        : `${frontendUrl}/mypage.html${user.isNewUser ? '?newUser=1' : ''}`;
+    const redirectUrl = this.buildRedirectUrl(user, frontendUrl, 'naver');
     return res.redirect(redirectUrl);
   }
 
@@ -111,10 +117,7 @@ export class AuthController {
 
     // 역할에 따른 리다이렉트 분기
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
-    const redirectUrl =
-      user.role === 'ADMIN'
-        ? `${frontendUrl}/admin.html`
-        : `${frontendUrl}/mypage.html${user.isNewUser ? '?newUser=1' : ''}`;
+    const redirectUrl = this.buildRedirectUrl(user, frontendUrl, 'google');
     return res.redirect(redirectUrl);
   }
 

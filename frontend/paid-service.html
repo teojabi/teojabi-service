@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>유료서비스 정책 - 터잡이</title>
+    <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/gh/sun-typeface/SUITE@2/fonts/static/woff2/SUITE.css" rel="stylesheet">
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="/css/components.css">
+    <style>
+        .paid-service-container {
+            max-width: 1100px;
+            margin: calc(var(--header-height) + 2rem) auto 4rem;
+            padding: 0 1.25rem;
+        }
+
+        .paid-hero {
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 60%, #1d4ed8 100%);
+            color: #fff;
+            border-radius: var(--radius-lg);
+            padding: 2.5rem;
+            box-shadow: var(--shadow-sm);
+            margin-bottom: 1.5rem;
+        }
+
+        .paid-hero .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: .5rem;
+            background: rgba(255, 255, 255, 0.18);
+            border: 1px solid rgba(255, 255, 255, 0.35);
+            border-radius: 999px;
+            padding: .4rem .9rem;
+            font-size: .85rem;
+            margin-bottom: 1rem;
+        }
+
+        .paid-hero h1 {
+            font-size: 2.1rem;
+            font-weight: 800;
+            margin-bottom: .75rem;
+            letter-spacing: -0.02em;
+        }
+
+        .paid-hero p {
+            color: rgba(255, 255, 255, 0.88);
+            max-width: 780px;
+            line-height: 1.75;
+        }
+
+        .notice-box {
+            background: #eff6ff;
+            border: 1px solid #bfdbfe;
+            border-radius: var(--radius-md);
+            padding: 1rem 1.1rem;
+            color: #1e3a8a;
+            font-size: .95rem;
+            margin-bottom: 2rem;
+        }
+
+        .section-title {
+            font-size: 1.45rem;
+            font-weight: 800;
+            color: var(--text-main);
+            margin-bottom: .9rem;
+            letter-spacing: -0.01em;
+        }
+
+        .muted {
+            color: var(--text-sub);
+            line-height: 1.75;
+            margin-bottom: 1rem;
+        }
+
+        .plan-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 1rem;
+            margin: 1rem 0 2rem;
+        }
+
+        .plan-card {
+            background: #fff;
+            border: 1px solid #e5e7eb;
+            border-radius: var(--radius-lg);
+            padding: 1.25rem;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .plan-card.recommended {
+            border: 2px solid #2563eb;
+            position: relative;
+        }
+
+        .plan-tag {
+            position: absolute;
+            right: 1rem;
+            top: -0.6rem;
+            background: #2563eb;
+            color: #fff;
+            border-radius: 999px;
+            padding: .2rem .65rem;
+            font-size: .75rem;
+            font-weight: 700;
+        }
+
+        .plan-name {
+            font-size: 1.05rem;
+            font-weight: 800;
+            margin-bottom: .35rem;
+            color: var(--text-main);
+        }
+
+        .plan-price {
+            font-size: 1.65rem;
+            font-weight: 900;
+            color: #111827;
+            margin-bottom: .5rem;
+        }
+
+        .plan-price span {
+            font-size: .95rem;
+            font-weight: 500;
+            color: #6b7280;
+        }
+
+        .plan-list {
+            margin: 0;
+            padding-left: 1.15rem;
+            color: #374151;
+            line-height: 1.7;
+            font-size: .95rem;
+        }
+
+        .benefit-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 1rem;
+            margin: 1rem 0 2rem;
+        }
+
+        .mapping-table-wrap {
+            overflow-x: auto;
+            margin: 1rem 0 2rem;
+            border: 1px solid #dbe2ea;
+            border-radius: var(--radius-md);
+            background: #fff;
+        }
+
+        .mapping-table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 760px;
+        }
+
+        .mapping-table th,
+        .mapping-table td {
+            border-bottom: 1px solid #e5e7eb;
+            padding: .85rem .9rem;
+            text-align: center;
+            font-size: .92rem;
+            color: #374151;
+        }
+
+        .mapping-table thead th {
+            background: #eff6ff;
+            color: #1e3a8a;
+            font-weight: 800;
+        }
+
+        .mapping-table tbody th {
+            background: #f8fafc;
+            color: #111827;
+            font-weight: 700;
+            text-align: left;
+            white-space: nowrap;
+        }
+
+        .mapping-table tbody tr:last-child th,
+        .mapping-table tbody tr:last-child td {
+            border-bottom: none;
+        }
+
+        .benefit-item {
+            background: #fff;
+            border: 1px solid #e5e7eb;
+            border-radius: var(--radius-md);
+            padding: 1rem;
+        }
+
+        .benefit-item i {
+            color: #2563eb;
+            font-size: 1.2rem;
+            margin-right: .4rem;
+        }
+
+        .benefit-item h3 {
+            font-size: 1rem;
+            margin: 0 0 .5rem;
+            color: var(--text-main);
+        }
+
+        .benefit-item p {
+            margin: 0;
+            color: var(--text-sub);
+            line-height: 1.7;
+            font-size: .92rem;
+        }
+
+        .faq-list {
+            display: grid;
+            gap: .8rem;
+            margin-bottom: 2rem;
+        }
+
+        .faq-item {
+            background: #fff;
+            border: 1px solid #e5e7eb;
+            border-radius: var(--radius-md);
+            padding: 1rem;
+        }
+
+        .faq-item h4 {
+            font-size: .98rem;
+            font-weight: 800;
+            margin-bottom: .45rem;
+            color: var(--text-main);
+        }
+
+        .faq-item p {
+            margin: 0;
+            color: var(--text-sub);
+            line-height: 1.7;
+            font-size: .93rem;
+        }
+
+        .updated-date {
+            color: #6b7280;
+            font-size: .9rem;
+            text-align: right;
+            margin-top: 1rem;
+        }
+
+        @media (max-width: 768px) {
+            .paid-hero {
+                padding: 1.6rem;
+            }
+
+            .paid-hero h1 {
+                font-size: 1.7rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="header-container"></div>
+
+    <main>
+        <div class="paid-service-container">
+            <section class="paid-hero">
+                <span class="badge"><i class="ri-vip-crown-2-line"></i> 유료서비스 안내</span>
+                <h1>터잡이 구독 요금제 안내</h1>
+                <p>
+                    회원님의 이용 패턴에 맞춰 일반/Light/Pro/Master 구독 등급을 선택할 수 있습니다.
+                    각 등급별 검색 한도와 기능 권한을 아래에서 확인해 주세요.
+                </p>
+            </section>
+
+            <div class="notice-box">
+                Light에서 Pro로 업그레이드 시 차액 3만 원만 결제되며, 업그레이드 결제일 기준으로 이용 기간(30일)이 다시 시작됩니다.
+            </div>
+
+            <section>
+                <h2 class="section-title">구독 등급별 요금제</h2>
+                <p class="muted">월 검색 한도, 데이터 공개 범위, 리포트 권한을 기준으로 선택할 수 있습니다.</p>
+
+                <div class="plan-grid">
+                    <article class="plan-card">
+                        <h3 class="plan-name">일반 (General)</h3>
+                        <p class="plan-price">무료 <span>/ 월</span></p>
+                        <ul class="plan-list">
+                            <li>월 검색 한도 2회</li>
+                            <li>AI 재건축 분석 버튼 미제공</li>
+                            <li>실거래 상세/ROI 비공개</li>
+                            <li>전문가 리포트 요청 불가</li>
+                        </ul>
+                    </article>
+
+                    <article class="plan-card">
+                        <h3 class="plan-name">Light</h3>
+                        <p class="plan-price">₩10,000 <span>/ 월</span></p>
+                        <ul class="plan-list">
+                            <li>월 AI 재건축 분석 40회</li>
+                            <li>AI 재건축 분석 버튼 제공</li>
+                            <li>실거래 상세/ROI 비공개</li>
+                            <li>전문가 리포트 요청 권한(단건 결제)</li>
+                        </ul>
+                    </article>
+
+                    <article class="plan-card recommended">
+                        <span class="plan-tag">추천</span>
+                        <h3 class="plan-name">Pro</h3>
+                        <p class="plan-price">₩40,000 <span>/ 월</span></p>
+                        <ul class="plan-list">
+                            <li>월 검색 한도 200회</li>
+                            <li>AI 재건축 분석 버튼 제공</li>
+                            <li>모든 실거래 상세 데이터/ROI 공개</li>
+                            <li>전문가 리포트 요청 권한(단건 결제)</li>
+                        </ul>
+                    </article>
+
+                    <article class="plan-card">
+                        <h3 class="plan-name">Master</h3>
+                        <p class="plan-price">₩180,000 <span>/ 연</span></p>
+                        <ul class="plan-list">
+                            <li>월 검색 무제한</li>
+                            <li>AI 재건축 분석 버튼 제공</li>
+                            <li>모든 데이터 공개</li>
+                            <li>전문가 리포트 요청 권한(단건 결제)</li>
+                        </ul>
+                    </article>
+                </div>
+            </section>
+
+            <section>
+                <h2 class="section-title">등급별 기능 비교</h2>
+                <div class="benefit-grid">
+                    <article class="benefit-item">
+                        <h3><i class="ri-search-line"></i>월 검색 한도</h3>
+                        <p>일반 2회 / Light 40회 / Pro 200회 / Master 무제한</p>
+                    </article>
+                    <article class="benefit-item">
+                        <h3><i class="ri-robot-2-line"></i>AI 시뮬레이션</h3>
+                        <p>일반은 미제공, Light/Pro/Master에서 제공됩니다.</p>
+                    </article>
+                    <article class="benefit-item">
+                        <h3><i class="ri-bar-chart-box-line"></i>실거래 상세/ROI</h3>
+                        <p>Pro와 Master 등급에서 모든 실데이터(ROI 포함)를 확인할 수 있습니다.</p>
+                    </article>
+                    <article class="benefit-item">
+                        <h3><i class="ri-file-list-3-line"></i>전문가 리포트</h3>
+                        <p>Light/Pro/Master는 전문가 리포트를 단건 결제로 요청할 수 있습니다.</p>
+                    </article>
+                </div>
+            </section>
+
+            <section>
+                <h2 class="section-title">기능 권한 매핑표</h2>
+                <p class="muted">문서 기준으로 구독 등급별 핵심 기능 권한을 표로 정리했습니다.</p>
+                <div class="mapping-table-wrap">
+                    <table class="mapping-table" aria-label="구독 등급별 기능 권한 매핑표">
+                        <thead>
+                            <tr>
+                                <th scope="col">구분</th>
+                                <th scope="col">일반(General)</th>
+                                <th scope="col">Light</th>
+                                <th scope="col">Pro</th>
+                                <th scope="col">Master</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <th scope="row">월 검색 한도</th>
+                                <td>2회</td>
+                                <td>40회</td>
+                                <td>200회</td>
+                                <td>무제한</td>
+                            </tr>
+                            <tr>
+                                <th scope="row">AI 시뮬레이션</th>
+                                <td>X</td>
+                                <td>O</td>
+                                <td>O</td>
+                                <td>O</td>
+                            </tr>
+                            <tr>
+                                <th scope="row">실거래 상세/ROI</th>
+                                <td>X</td>
+                                <td>X</td>
+                                <td>O</td>
+                                <td>O</td>
+                            </tr>
+                            <tr>
+                                <th scope="row">전문가 리포트</th>
+                                <td>X</td>
+                                <td>O(단건결제)</td>
+                                <td>O(단건결제)</td>
+                                <td>O(단건결제)</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section>
+                <h2 class="section-title">이용 안내 FAQ</h2>
+                <div class="faq-list">
+                    <article class="faq-item">
+                        <h4>Q. Light에서 Pro로 업그레이드하면 어떻게 결제되나요?</h4>
+                        <p>A. Light(월 1만 원) 이용 중 Pro로 전환하면 차액 3만 원만 결제되며, 결제일 기준으로 30일 이용 기간이 리셋됩니다.</p>
+                    </article>
+                    <article class="faq-item">
+                        <h4>Q. 전문가 리포트는 구독에 포함되나요?</h4>
+                        <p>A. 전문가 리포트는 Light/Pro/Master에서 요청 권한이 제공되며, 실제 발급은 단건 결제로 진행됩니다.</p>
+                    </article>
+                    <article class="faq-item">
+                        <h4>Q. Pro와 Master의 주요 차이는 무엇인가요?</h4>
+                        <p>A. 두 등급 모두 모든 데이터 공개 및 리포트 요청 권한이 제공되며, Pro는 월 200회 검색, Master는 무제한 검색이 가능합니다.</p>
+                    </article>
+                </div>
+            </section>
+
+            <p class="updated-date">최종 업데이트: 2026년 4월 27일</p>
+        </div>
+    </main>
+
+    <div id="login-modal-container"></div>
+    <div id="footer-container"></div>
+
+    <script src="/js/config.js"></script>
+    <script type="module" src="/js/app.js"></script>
+</body>
+</html>

@@ -29,8 +29,9 @@ export function renderFooter(containerId) {
                             <h4 class="link-title">고객지원</h4>
                             <ul>
                                 <li><a href="/terms.html">이용약관</a></li>
-                                <li><a href="/privacy.html" class="bold">개인정보처리방침</a></li>
+                                <li><a href="/privacy.html" class="bold" style="font-weight: 800; color: #1e40af;">개인정보처리방침</a></li>
                                 <li><a href="/refund.html">환불 정책</a></li>
+                                <li><a href="/paid-service.html">유료서비스</a></li>
                             </ul>
                         </div>
                     </div>
@@ -42,7 +43,9 @@ export function renderFooter(containerId) {
                     <div class="footer-legal-links">
                         <a href="/terms.html">이용약관</a>
                         <span class="divider">|</span>
-                        <a href="/privacy.html" class="bold">개인정보처리방침</a>
+                        <a href="/privacy.html" class="bold" style="font-weight: 800; color: #1e40af;">개인정보처리방침</a>
+                        <span class="divider">|</span>
+                        <a href="/paid-service.html">유료서비스</a>
                         <span class="divider">|</span>
                         <a href="/refund.html">환불 정책</a>
                     </div>
