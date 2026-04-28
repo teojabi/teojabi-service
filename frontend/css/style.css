@@ -524,9 +524,23 @@ body.map-page .map-controls {
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
+    gap: 12px;
     padding: 16px 20px 12px;
     border-bottom: 1px solid var(--border-color);
     flex-shrink: 0;
+    position: relative;
+}
+
+.panel-header-side {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    justify-content: space-between;
+    position: absolute;
+    top: 16px;
+    right: 20px;
+    bottom: 12px;
+    min-width: max-content;
 }
 
 .panel-title {
@@ -604,7 +618,7 @@ body.map-page .map-controls {
 /* 패널 하단 고정 푸터 */
 .panel-footer {
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
     align-items: stretch;
     gap: 8px;
     padding: 12px;
@@ -628,7 +642,8 @@ body.map-page .map-controls {
     font-weight: 600;
     cursor: pointer;
     transition: background 0.15s, border-color 0.15s;
-    width: 100%;
+    width: auto;
+    flex: 1;
     white-space: nowrap;
 }
 
@@ -645,7 +660,7 @@ body.map-page .map-controls {
 
 /* 패널 주소 섹션 */
 .panel-address-section {
-    flex: 1;
+    width: 100%;
     min-width: 0;
 }
 
@@ -667,12 +682,59 @@ body.map-page .map-controls {
     font-weight: 600;
     color: var(--text-main);
     line-height: 1.4;
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+
+.panel-address-content-row {
+    display: flex;
+    align-items: flex-start;
+}
+
+.panel-address-content-main {
+    min-width: 0;
+    flex: 1;
+}
+
+.panel-address-metrics {
+    flex-shrink: 0;
+    text-align: right;
+    padding-top: 4px;
+}
+
+.panel-address-metrics-value {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: #E2572D;
+    line-height: 1.2;
+}
+
+.panel-address-metrics-label {
+    margin-top: 4px;
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    line-height: 1.2;
+}
+
+.panel-ai-response {
+    padding: 14px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    background: #ffffff;
+    color: var(--text-main);
+    font-size: 0.9rem;
+    line-height: 1.6;
+    white-space: pre-line;
 }
 
 .panel-address-sub {
     font-size: 0.82rem;
     color: var(--text-muted);
     margin-top: 4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 /* 공공데이터 정보 섹션 */

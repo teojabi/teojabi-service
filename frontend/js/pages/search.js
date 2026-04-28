@@ -138,7 +138,7 @@ function bindEvents() {
             const target = this.getAttribute('data-tab');
             document.querySelectorAll('.panel-tab').forEach(function(t) { t.classList.remove('active'); });
             this.classList.add('active');
-            ['building', 'land', 'floor', 'store'].forEach(function(name) {
+            ['building', 'ai-newbuild', 'land', 'floor'].forEach(function(name) {
                 document.getElementById('panel-tab-' + name).style.display = target === name ? 'block' : 'none';
             });
         });
@@ -202,10 +202,6 @@ function bindEvents() {
         window.open(reportUrl, '_blank');
     });
 
-    // 4. AI 재건축 시뮬레이션
-    document.getElementById('btn-panel-action4').addEventListener('click', function() {
-        alert('AI 재건축 시뮬레이션 서비스는 준비 중입니다.');
-    });
 }
 
 function getMapWaitOverlay() {
@@ -636,9 +632,6 @@ function renderConsultingPanel(prop) {
     document.getElementById('cp-title').textContent = prop.title || '-';
     document.getElementById('cp-address').textContent = prop.address || '-';
 
-    // 설명
-    document.getElementById('cp-description').textContent = prop.description || prop.consulting_comment || '컨설팅 분석 내용이 없습니다.';
-
     // 상세 보기 버튼
     const detailBtn = document.getElementById('cp-btn-detail');
     detailBtn.onclick = () => {
@@ -790,14 +783,19 @@ function setPanelLoading(isLoading) {
         document.getElementById('panel-address-section').style.display = 'none';
         document.getElementById('panel-tabs').style.display = 'none';
         document.getElementById('panel-tab-building').style.display = 'none';
+        document.getElementById('panel-tab-ai-newbuild').style.display = 'none';
         document.getElementById('panel-tab-land').style.display = 'none';
         document.getElementById('panel-tab-floor').style.display = 'none';
-        document.getElementById('panel-tab-store').style.display = 'none';
     }
 }
 
 function showPanelError(message) {
     const loading = document.getElementById('panel-loading');
+    document.getElementById('panel-tabs').style.display = 'none';
+    document.getElementById('panel-tab-building').style.display = 'none';
+    document.getElementById('panel-tab-ai-newbuild').style.display = 'none';
+    document.getElementById('panel-tab-land').style.display = 'none';
+    document.getElementById('panel-tab-floor').style.display = 'none';
     loading.style.display = 'flex';
     loading.innerHTML = `<p style="color:var(--danger-color);"><i class="ri-error-warning-line"></i> ${message}</p>`;
 }
@@ -810,6 +808,11 @@ function renderLocationInfo(data) {
     const l = data.land || null;
     const floors = data.floorStatuses || [];
     const stores = data.stores || [];
+
+    var aiNewBuildResponseEl = document.getElementById('ai-newbuild-response');
+    if (aiNewBuildResponseEl) {
+        aiNewBuildResponseEl.textContent = '제미나이 응답이 준비되면 이 영역에 표시됩니다.';
+    }
 
     // 건물 기본정보
     document.getElementById('b-name').textContent            = b.name || '-';
@@ -948,9 +951,9 @@ function renderLocationInfo(data) {
     document.querySelectorAll('.panel-tab').forEach(function(t) { t.classList.remove('active'); });
     document.querySelector('.panel-tab[data-tab="building"]').classList.add('active');
     document.getElementById('panel-tab-building').style.display = 'block';
+    document.getElementById('panel-tab-ai-newbuild').style.display = 'none';
     document.getElementById('panel-tab-land').style.display = 'none';
     document.getElementById('panel-tab-floor').style.display = 'none';
-    document.getElementById('panel-tab-store').style.display = 'none';
 }
 // ────────────────────────────────────────
 // 터잡이 레이어(GeoJSON)

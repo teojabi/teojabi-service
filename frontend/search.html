@@ -79,12 +79,22 @@
         <div class="panel-header">
             <div id="panel-address-section" class="panel-address-section" style="display:none;">
                 <div class="panel-address-tag"><i class="ri-map-pin-line"></i> 지번주소</div>
-                <div class="panel-address-main" id="panel-jibun-address">-</div>
-                <div class="panel-address-sub" id="panel-road-address">도로명: -</div>
+                <div class="panel-address-content-row">
+                    <div class="panel-address-content-main">
+                        <div class="panel-address-main" id="panel-jibun-address">-</div>
+                        <div class="panel-address-sub" id="panel-road-address">도로명: -</div>
+                    </div>
+                </div>
             </div>
-            <button class="panel-close-btn" id="btn-panel-close" title="닫기" aria-label="패널 닫기">
-                <i class="ri-close-line"></i>
-            </button>
+            <div class="panel-header-side">
+                <button class="panel-close-btn" id="btn-panel-close" title="닫기" aria-label="패널 닫기">
+                    <i class="ri-close-line"></i>
+                </button>
+                <div class="panel-address-metrics">
+                    <div class="panel-address-metrics-value"><span id="panel-remaining-far">542%</span> / <span id="panel-teojabi-score">85점</span></div>
+                    <div class="panel-address-metrics-label">남은 용적률 / 터잡이 지수</div>
+                </div>
+            </div>
         </div>
 
         <div class="panel-body" id="panel-body">
@@ -99,14 +109,14 @@
                 <button class="panel-tab active" data-tab="building">
                     <i class="ri-building-2-line"></i> 건물
                 </button>
+                <button class="panel-tab" data-tab="ai-newbuild">
+                    <i class="ri-sparkling-2-line"></i> ai 신축
+                </button>
                 <button class="panel-tab" data-tab="land">
                     <i class="ri-landscape-line"></i> 토지
                 </button>
                 <button class="panel-tab" data-tab="floor">
                     <i class="ri-stack-line"></i> 층별
-                </button>
-                <button class="panel-tab" data-tab="store">
-                    <i class="ri-store-2-line"></i> 상가
                 </button>
             </div>
 
@@ -175,6 +185,16 @@
                 </div>
             </div>
 
+            <!-- ai 신축 탭 콘텐츠 -->
+            <div id="panel-tab-ai-newbuild" class="panel-tab-content" style="display:none;">
+                <div class="panel-section">
+                    <div class="panel-section-title">ai 신축 분석</div>
+                    <div id="ai-newbuild-response" class="panel-ai-response">
+                        제미나이 응답이 준비되면 이 영역에 표시됩니다.
+                    </div>
+                </div>
+            </div>
+
             <!-- 토지 정보 탭 콘텐츠 -->
             <div id="panel-tab-land" class="panel-tab-content" style="display:none;">
                 <div class="panel-section">
@@ -226,10 +246,6 @@
                         <p class="panel-empty-msg">층별 정보가 없습니다.</p>
                     </div>
                 </div>
-            </div>
-
-            <!-- 상가 탭 콘텐츠 -->
-            <div id="panel-tab-store" class="panel-tab-content" style="display:none;">
                 <div class="panel-section">
                     <div class="panel-section-title">상가·업소 현황</div>
                     <div id="store-list" class="panel-store-list">
@@ -245,17 +261,14 @@
 
         <!-- 하단 고정 푸터 -->
         <div class="panel-footer">
-            <button class="panel-footer-btn" id="btn-panel-action4">
-                <i class="ri-robot-line"></i> AI 재건축 시뮬레이션
-            </button>
             <button class="panel-footer-btn" id="btn-panel-action1">
-                <i class="ri-calendar-check-line"></i> 프리미엄 상담 신청
+                <i class="ri-calendar-check-line"></i> 상담신청
             </button>
             <button class="panel-footer-btn" id="btn-panel-action2">
-                <i class="ri-file-text-line"></i> 전문가 리빌딩 리포트
+                <i class="ri-file-text-line"></i> 전문가리포트
             </button>
             <button class="panel-footer-btn" id="btn-panel-action3">
-                <i class="ri-file-copy-line"></i> 리포트 예시
+                <i class="ri-file-copy-line"></i> 예시
             </button>
         </div>
     </div>
@@ -299,12 +312,6 @@
                     <button class="btn btn-outline" id="cp-btn-detail" style="flex:1;">
                         <i class="ri-arrow-right-line"></i> 상세 보기
                     </button>
-                </div>
-
-                <!-- 컨설팅 분석 리포트 -->
-                <div class="cp-section">
-                    <div class="cp-section-title"><i class="ri-file-search-line"></i> 터잡이 컨설팅 분석 리포트</div>
-                    <div class="cp-description" id="cp-description">-</div>
                 </div>
 
                 <!-- 체크리스트 -->
