@@ -745,6 +745,7 @@ function handleMapClick(coord, skipClickMarker, fixedPnu) {
                     setPanelLoading(false);
                     if (json.success && json.data) {
                         renderLocationInfo(json.data);
+                        loadAiNewbuildAnalysis(pnu);
                     } else {
                         showPanelError('해당 필지의 건물·토지 정보가 없습니다.');
                     }
@@ -756,6 +757,92 @@ function handleMapClick(coord, skipClickMarker, fixedPnu) {
                 });
         }
     );
+}
+
+async function loadAiNewbuildAnalysis(pnu) {
+    const el = document.getElementById('ai-newbuild-response');
+    if (!el || !pnu) {
+        return;
+    }
+
+    el.textContent = '제미나이 분석 중...';
+
+    try {
+        const res = await fetch(`${CONFIG.API_BASE_URL}/api/v1/public-data/ai-newbuild?pnu=${encodeURIComponent(pnu)}`);
+        const json = await res.json();
+
+        if (json.success && json.data && json.data.summary) {
+            el.innerHTML = renderAiMarkdown(json.data.summary);
+            return;
+        }
+
+        el.textContent = 'AI 분석 결과를 불러오지 못했습니다.';
+    } catch (e) {
+        console.error('[panel] ai-newbuild API error:', e);
+        el.textContent = '네트워크 오류로 AI 분석을 불러오지 못했습니다.';
+    }
+}
+
+function renderAiMarkdown(markdown) {
+    if (typeof markdown !== 'string' || !markdown.trim()) {
+        return '';
+    }
+
+    const escaped = markdown
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+
+    const lines = escaped.split(/\r?\n/);
+    const html = [];
+    let inList = false;
+
+    const closeListIfOpen = function() {
+        if (inList) {
+            html.push('</ul>');
+            inList = false;
+        }
+    };
+
+    lines.forEach(function(line) {
+        const heading = line.match(/^(#{1,6})\s+(.+)$/);
+        const bullet = line.match(/^\s*[-*]\s+(.+)$/);
+
+        if (!line.trim()) {
+            closeListIfOpen();
+            return;
+        }
+
+        if (heading) {
+            closeListIfOpen();
+            const level = Math.min(heading[1].length + 2, 6);
+            html.push(`<h${level}>${applyInlineMarkdown(heading[2])}</h${level}>`);
+            return;
+        }
+
+        if (bullet) {
+            if (!inList) {
+                html.push('<ul>');
+                inList = true;
+            }
+            html.push(`<li>${applyInlineMarkdown(bullet[1])}</li>`);
+            return;
+        }
+
+        closeListIfOpen();
+        html.push(`<p>${applyInlineMarkdown(line)}</p>`);
+    });
+
+    closeListIfOpen();
+    return html.join('');
+}
+
+function applyInlineMarkdown(text) {
+    return text
+        .replace(/`([^`]+)`/g, '<code>$1</code>')
+        .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+        .replace(/\*([^*]+)\*/g, '<em>$1</em>')
+        .replace(/\[(.*?)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
 }
 
 // ────────────────────────────────────────

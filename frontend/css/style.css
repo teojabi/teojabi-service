@@ -725,7 +725,43 @@ body.map-page .map-controls {
     color: var(--text-main);
     font-size: 0.9rem;
     line-height: 1.6;
-    white-space: pre-line;
+    white-space: normal;
+}
+
+.panel-ai-response h3,
+.panel-ai-response h4,
+.panel-ai-response h5,
+.panel-ai-response h6 {
+    margin: 14px 0 8px;
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--text-main);
+}
+
+.panel-ai-response p {
+    margin: 0 0 8px;
+}
+
+.panel-ai-response ul {
+    margin: 0 0 8px 18px;
+    padding: 0;
+}
+
+.panel-ai-response li {
+    margin-bottom: 4px;
+}
+
+.panel-ai-response code {
+    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+    background: var(--bg-muted);
+    border-radius: 4px;
+    padding: 1px 4px;
+    font-size: 0.85em;
+}
+
+.panel-ai-response a {
+    color: var(--primary-color);
+    text-decoration: underline;
 }
 
 .panel-address-sub {

@@ -36,6 +36,17 @@ export class PublicDataController {
     return { success: true, data: result };
   }
 
+  // PNU 기반 Gemini 신축/리빌딩 분석
+  // GET /api/v1/public-data/ai-newbuild?pnu=1168010100106180000
+  @Get('ai-newbuild')
+  async getAiNewbuild(@Query('pnu') pnu: string) {
+    if (!pnu) {
+      return { success: false, message: 'pnu is required' };
+    }
+    const result = await this.publicDataService.getAiNewbuildAnalysis(pnu);
+    return { success: true, data: result };
+  }
+
   // geom_score_layer 데이터 조회 (GeoJSON)
   // GET /api/v1/public-data/score-layer?minLat=...&minLng=...&maxLat=...&maxLng=...
   @Get('score-layer')
