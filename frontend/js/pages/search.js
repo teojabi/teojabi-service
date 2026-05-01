@@ -895,11 +895,28 @@ function renderLocationInfo(data) {
     const l = data.land || null;
     const floors = data.floorStatuses || [];
     const stores = data.stores || [];
+    const metrics = data.metrics || {};
 
     var aiNewBuildResponseEl = document.getElementById('ai-newbuild-response');
     if (aiNewBuildResponseEl) {
         aiNewBuildResponseEl.textContent = '제미나이 응답이 준비되면 이 영역에 표시됩니다.';
     }
+
+    function formatMetricValue(value, suffix) {
+        if (value == null) {
+            return '-';
+        }
+
+        var numericValue = Number(value);
+        if (!Number.isFinite(numericValue) || numericValue === 0) {
+            return '-';
+        }
+
+        return numericValue.toLocaleString() + suffix;
+    }
+
+    document.getElementById('panel-remaining-far').textContent = formatMetricValue(metrics.remainingFar, '%');
+    document.getElementById('panel-teojabi-score').textContent = formatMetricValue(metrics.teojabiScore, '점');
 
     // 건물 기본정보
     document.getElementById('b-name').textContent            = b.name || '-';

@@ -69,6 +69,18 @@ export class PublicDataService {
       orderBy: { refYear: 'desc' },
     });
 
+    // TODO: 남은 용적률/터잡이 지수 조회 테이블은 추후 변경 예정 (현재: master_map)
+    const [masterMapMetric] = await this.prisma.$queryRaw<
+      Array<{ remainingFar: number | null; teojabiScore: number | null }>
+    >`
+      SELECT
+        "용적률차이" AS "remainingFar",
+        "투자점수" AS "teojabiScore"
+      FROM master_map
+      WHERE pnu = ${pnu}
+      LIMIT 1
+    `;
+
     // ?�도지???구명?�로 법정 건폐???�적�?매칭
     const zoneNames = landUseList
       .map((l) => l.zoneClsNm)
@@ -141,6 +153,10 @@ export class PublicDataService {
         flrNo: s.flrNo,
         hoNo: s.hoNo,
       })),
+      metrics: {
+        remainingFar: masterMapMetric?.remainingFar ?? null,
+        teojabiScore: masterMapMetric?.teojabiScore ?? null,
+      },
     };
   }
 
