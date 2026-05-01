@@ -17,7 +17,8 @@ jobs:
           host: ${{ secrets.NCP_SSH_HOST }}
           username: ${{ secrets.NCP_SSH_USER }}
           password: ${{ secrets.NCP_SSH_PASSWORD }}
-          timeout: '20m'
+          connect_timeout: 30
+          command_timeout: 20m
           envs: DATABASE_URL,DIRECT_URL,PORT,FRONTEND_URL,JWT_SECRET,SUPABASE_URL,SUPABASE_ANON_KEY,SUPABASE_SERVICE_ROLE_KEY,SUPABASE_BUCKET,NAVER_CLIENT_ID,NAVER_CLIENT_SECRET,NAVER_CALLBACK_URL,KAKAO_CLIENT_ID,KAKAO_CLIENT_SECRET,KAKAO_CALLBACK_URL,GOOGLE_CLIENT_ID,GOOGLE_CLIENT_SECRET,GOOGLE_CALLBACK_URL,GEMINI_API_KEY
           script: |
             echo "=== Step 1: 디렉토리 이동 ==="
