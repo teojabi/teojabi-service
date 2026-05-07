@@ -346,6 +346,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     </div>
                     <div class="prop-admin-actions">
                         <button class="btn btn-outline btn-sm" onclick="editProperty('${prop.id}')">수정</button>
+                        <button class="btn btn-danger btn-sm" onclick="deleteProperty('${prop.id}')">삭제</button>
                     </div>
                 </div>
             </div>

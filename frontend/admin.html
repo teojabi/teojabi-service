@@ -391,7 +391,7 @@
                 padding: 0;
                 gap: 0;
                 overflow: hidden;
-                aspect-ratio: 1 / 1;
+                aspect-ratio: auto;
                 width: 100%;
             }
 
@@ -410,22 +410,30 @@
 
             .prop-admin-bottom {
                 display: flex;
-                align-items: center;
-                justify-content: space-between;
+                flex-direction: column;
+                align-items: stretch;
                 padding: 0.6rem 0.8rem;
-                gap: 0.5rem;
+                gap: 0.6rem;
                 width: 100%;
                 box-sizing: border-box;
             }
 
             .prop-admin-info {
                 padding: 0;
-                flex: 1;
+                width: 100%;
                 text-align: left;
             }
 
             .prop-admin-info h3 {
                 font-size: 0.9rem;
+                line-height: 1.35;
+                word-break: keep-all;
+            }
+
+            .prop-admin-address,
+            .prop-admin-price {
+                line-height: 1.3;
+                word-break: keep-all;
             }
 
             .prop-admin-date {
@@ -433,11 +441,18 @@
             }
 
             .prop-admin-actions {
-                flex-direction: column;
-                justify-content: center;
-                padding: 0;
-                gap: 4px;
+                flex-direction: row;
+                justify-content: flex-end;
+                width: 100%;
+                border-top: 1px solid var(--border-color);
+                padding: 0.5rem 0 0;
+                gap: 6px;
                 flex-shrink: 0;
+            }
+
+            .prop-admin-actions .btn {
+                min-width: 64px;
+                white-space: nowrap;
             }
         }
     </style>
