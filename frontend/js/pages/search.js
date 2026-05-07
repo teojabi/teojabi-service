@@ -52,7 +52,6 @@ window.initMap = function() {
 
     // 3. 이벤트 바인딩
     bindEvents();
-    bindMapRenderWaitEvents();
     addTeojabiEvents();
 
     // 4. 컨설팅 매물 마커 표시
@@ -147,7 +146,6 @@ function bindEvents() {
     // 지도 컨트롤: 지적도
     document.getElementById('btn-ctrl-cadastral').addEventListener('click', function() {
         if (!cadastralLayer) return;
-        runMapQuickRefreshWait();
         const isVisible = cadastralLayer.getMap();
         if (isVisible) {
             cadastralLayer.setMap(null);
@@ -255,11 +253,13 @@ function scheduleMapWaitHide() {
 }
 
 function startMapMotionWait() {
+    if (!teojabiState.isActive) return;
     mapRenderState.motionPending = true;
     showMapWaitOverlay();
 }
 
 function finishMapMotionWait() {
+    if (!teojabiState.isActive) return;
     mapRenderState.motionPending = false;
 
     if (mapRenderState.asyncPendingCount > 0) {
@@ -285,6 +285,7 @@ function endMapAsyncWait() {
 }
 
 function runMapQuickRefreshWait(duration) {
+    if (!teojabiState.isActive) return;
     beginMapAsyncWait();
     setTimeout(endMapAsyncWait, duration || 220);
 }
@@ -1278,7 +1279,6 @@ function addTeojabiEvents() {
 
     document.getElementById("btn-ctrl-teojabi").addEventListener("click", function() {
         if (teojabiState.isActive) {
-            runMapQuickRefreshWait(200);
             teojabiState.isActive = false;
             this.classList.remove("active");
             abortTeojabiRequest();
