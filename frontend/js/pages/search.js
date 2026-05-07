@@ -867,6 +867,8 @@ function closePanel() {
 function setPanelLoading(isLoading) {
     document.getElementById('panel-loading').style.display = isLoading ? 'flex' : 'none';
     if (isLoading) {
+        document.getElementById('panel-remaining-far').textContent = '-';
+        document.getElementById('panel-teojabi-score').textContent = '-';
         document.getElementById('panel-address-section').style.display = 'none';
         document.getElementById('panel-tabs').style.display = 'none';
         document.getElementById('panel-tab-building').style.display = 'none';
@@ -912,7 +914,7 @@ function renderLocationInfo(data) {
             return '-';
         }
 
-        return numericValue.toLocaleString() + suffix;
+        return Math.trunc(numericValue).toLocaleString() + suffix;
     }
 
     document.getElementById('panel-remaining-far').textContent = formatMetricValue(metrics.remainingFar, '%');

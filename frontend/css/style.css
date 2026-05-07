@@ -704,15 +704,15 @@ body.map-page .map-controls {
 
 .panel-address-metrics-value {
     font-family: 'Montserrat', sans-serif;
-    font-size: 1.2rem;
+    font-size: 0.96rem;
     font-weight: 700;
-    color: #E2572D;
+    color: var(--primary-color);
     line-height: 1.2;
 }
 
 .panel-address-metrics-label {
     margin-top: 4px;
-    font-size: 0.7rem;
+    font-size: 0.56rem;
     color: var(--text-muted);
     line-height: 1.2;
 }
