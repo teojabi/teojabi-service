@@ -1,6 +1,17 @@
 // js/pages/properties.js
 import { authState } from '../auth.js';
 
+function canSeeFullAddress() {
+    return authState.isAuthenticated && authState.user?.role === 'ADMIN';
+}
+
+function getDisplayAddress(prop) {
+    if (canSeeFullAddress()) {
+        return prop.address || '-';
+    }
+    return prop.legal_dong_name || prop.address || '-';
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
     const params = new URLSearchParams(window.location.search);
     const id = params.get('id');
@@ -27,7 +38,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         // --- 기본 데이터 바인딩 ---
         document.getElementById('prop-title').textContent = propData.title || '-';
-        document.getElementById('prop-address').innerHTML = `<i class="ri-map-pin-line"></i> ${propData.address || '-'}`;
+        document.getElementById('prop-address').innerHTML = `<i class="ri-map-pin-line"></i> ${getDisplayAddress(propData)}`;
         document.getElementById('prop-price').textContent = window.formatPriceToKorean ? window.formatPriceToKorean(propData.price) : propData.price;
         document.getElementById('prop-description').innerHTML = propData.description || '';
 

@@ -17,10 +17,12 @@ export class PropertiesService {
 
   async findAll() {
     return this.prisma.$queryRaw<any[]>`
-            SELECT id, title, description, address, pnu, price, before_image, after_image,
-                   ST_X(location::geometry) as lng, ST_Y(location::geometry) as lat
-            FROM property
-            ORDER BY created_at DESC
+            SELECT p.id, p.title, p.description, p.address, p.pnu, p.price, p.before_image, p.after_image,
+                   ldc.name AS legal_dong_name,
+                   ST_X(p.location::geometry) as lng, ST_Y(p.location::geometry) as lat
+            FROM property p
+            LEFT JOIN legal_dong_codes ldc ON LEFT(p.pnu, 10) = ldc.code
+            ORDER BY p.created_at DESC
             LIMIT 50;
         `.then((rows) =>
       rows.map((row) => ({
@@ -33,10 +35,12 @@ export class PropertiesService {
   async findById(id: string) {
     if (!id) return null;
     const rows = await this.prisma.$queryRaw<any[]>`
-            SELECT id, title, description, address, pnu, price, before_image, after_image,
-                   ST_X(location::geometry) as lng, ST_Y(location::geometry) as lat
-            FROM property
-            WHERE id = ${id}
+            SELECT p.id, p.title, p.description, p.address, p.pnu, p.price, p.before_image, p.after_image,
+                   ldc.name AS legal_dong_name,
+                   ST_X(p.location::geometry) as lng, ST_Y(p.location::geometry) as lat
+            FROM property p
+            LEFT JOIN legal_dong_codes ldc ON LEFT(p.pnu, 10) = ldc.code
+            WHERE p.id = ${id}
         `;
     if (rows.length === 0) return null;
     const row = rows[0];
@@ -49,11 +53,13 @@ export class PropertiesService {
   async findByOwnerId(ownerId: string) {
     if (!ownerId) return [];
     return this.prisma.$queryRaw<any[]>`
-            SELECT id, title, description, address, pnu, price, before_image, after_image, created_at,
-                   ST_X(location::geometry) as lng, ST_Y(location::geometry) as lat
-            FROM property
-            WHERE owner_id = ${ownerId}
-            ORDER BY created_at DESC;
+            SELECT p.id, p.title, p.description, p.address, p.pnu, p.price, p.before_image, p.after_image, p.created_at,
+                   ldc.name AS legal_dong_name,
+                   ST_X(p.location::geometry) as lng, ST_Y(p.location::geometry) as lat
+            FROM property p
+            LEFT JOIN legal_dong_codes ldc ON LEFT(p.pnu, 10) = ldc.code
+            WHERE p.owner_id = ${ownerId}
+            ORDER BY p.created_at DESC;
         `.then((rows) =>
       rows.map((row) => ({
         ...row,

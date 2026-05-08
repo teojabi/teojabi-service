@@ -2,7 +2,7 @@
 import { renderHeader } from './components/header.js';
 import { renderFooter } from './components/footer.js';
 import { renderLoginModal } from './components/login-modal.js';
-import { checkAuthStatus } from './auth.js';
+import { checkAuthStatus, authState } from './auth.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
     // 1. 공통 UI 컴포넌트 렌더링
@@ -18,6 +18,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 3. 글로벌 인증 상태 체크 
     // HttpOnly 쿠키 기반이므로 auth.js 내부에서 API를 찔러보고 UI 상태(로그인/로그아웃 버튼 등) 갱신
     await checkAuthStatus();
+
+    // non-module 스크립트에서도 권한 정보를 참조할 수 있도록 노출
+    window.currentUserRole = authState.user?.role || null;
 });
 
 // 전역 유틸 함수 노출

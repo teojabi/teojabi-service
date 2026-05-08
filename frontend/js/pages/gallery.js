@@ -1,4 +1,16 @@
 // js/pages/gallery.js
+import { authState } from '../auth.js';
+
+function canSeeFullAddress() {
+    return authState.isAuthenticated && authState.user?.role === 'ADMIN';
+}
+
+function getDisplayAddress(prop) {
+    if (canSeeFullAddress()) {
+        return prop.address || '-';
+    }
+    return prop.legal_dong_name || prop.address || '-';
+}
 
 document.addEventListener('DOMContentLoaded', async () => {
     const galleryContainer = document.getElementById('gallery-container');
@@ -60,7 +72,7 @@ function renderGallery(properties, container) {
             ${imageHTML}
             <div class="card-body">
                 <h3 class="card-title">${prop.title}</h3>
-                <p class="card-address"><i class="ri-map-pin-line"></i> ${prop.address}</p>
+                <p class="card-address"><i class="ri-map-pin-line"></i> ${getDisplayAddress(prop)}</p>
                 <p class="card-price">${formattedPrice}</p>
             </div>
         `;

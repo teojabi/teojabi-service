@@ -11,6 +11,18 @@ let propertyMarkers = [];
 let currentPropertyData = null;
 let currentPanelPnu = null;
 let currentPanelAddress = null;
+
+function canSeeFullAddress() {
+    return window.currentUserRole === 'ADMIN';
+}
+
+function getDisplayAddress(prop) {
+    if (canSeeFullAddress()) {
+        return prop.address || '-';
+    }
+    return prop.legal_dong_name || prop.address || '-';
+}
+
 const mapRenderState = {
     overlay: null,
     motionPending: false,
@@ -631,7 +643,7 @@ function renderConsultingPanel(prop) {
 
     // 제목 & 주소
     document.getElementById('cp-title').textContent = prop.title || '-';
-    document.getElementById('cp-address').textContent = prop.address || '-';
+    document.getElementById('cp-address').textContent = getDisplayAddress(prop);
 
     // 상세 보기 버튼
     const detailBtn = document.getElementById('cp-btn-detail');
