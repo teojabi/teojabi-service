@@ -728,6 +728,59 @@ body.map-page .map-controls {
     white-space: normal;
 }
 
+.panel-ai-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+.panel-ai-request-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border: none;
+    border-radius: var(--radius-md);
+    padding: 8px 12px;
+    font-size: 0.86rem;
+    font-weight: 600;
+    color: #ffffff;
+    background: var(--primary-color);
+    cursor: pointer;
+}
+
+.panel-ai-request-btn:disabled {
+    cursor: not-allowed;
+    opacity: 0.65;
+}
+
+.panel-ai-loading {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.82rem;
+    color: var(--text-muted);
+}
+
+.panel-ai-loading-spinner {
+    width: 14px;
+    height: 14px;
+    border: 2px solid var(--border-color);
+    border-top-color: var(--primary-color);
+    border-radius: 50%;
+    animation: panel-ai-spin 0.8s linear infinite;
+}
+
+@keyframes panel-ai-spin {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
+}
+
 .panel-ai-response h3,
 .panel-ai-response h4,
 .panel-ai-response h5,

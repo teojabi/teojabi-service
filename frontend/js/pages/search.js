@@ -11,6 +11,7 @@ let propertyMarkers = [];
 let currentPropertyData = null;
 let currentPanelPnu = null;
 let currentPanelAddress = null;
+let aiNewbuildRequestPending = false;
 
 function canSeeFullAddress() {
     return window.currentUserRole === 'ADMIN';
@@ -154,6 +155,14 @@ function bindEvents() {
             });
         });
     });
+
+    // ai 신축 제미나이 분석 요청
+    const aiRequestBtn = document.getElementById('btn-ai-newbuild-request');
+    if (aiRequestBtn) {
+        aiRequestBtn.addEventListener('click', function() {
+            loadAiNewbuildAnalysis(currentPanelPnu);
+        });
+    }
 
     // 지도 컨트롤: 지적도
     document.getElementById('btn-ctrl-cadastral').addEventListener('click', function() {
@@ -758,7 +767,6 @@ function handleMapClick(coord, skipClickMarker, fixedPnu) {
                     setPanelLoading(false);
                     if (json.success && json.data) {
                         renderLocationInfo(json.data);
-                        loadAiNewbuildAnalysis(pnu);
                     } else {
                         showPanelError('해당 필지의 건물·토지 정보가 없습니다.');
                     }
@@ -774,11 +782,11 @@ function handleMapClick(coord, skipClickMarker, fixedPnu) {
 
 async function loadAiNewbuildAnalysis(pnu) {
     const el = document.getElementById('ai-newbuild-response');
-    if (!el || !pnu) {
+    if (!el || !pnu || aiNewbuildRequestPending) {
         return;
     }
 
-    el.textContent = '제미나이 분석 중...';
+    setAiNewbuildLoading(true);
 
     try {
         const res = await fetch(`${CONFIG.API_BASE_URL}/api/v1/public-data/ai-newbuild?pnu=${encodeURIComponent(pnu)}`);
@@ -793,6 +801,32 @@ async function loadAiNewbuildAnalysis(pnu) {
     } catch (e) {
         console.error('[panel] ai-newbuild API error:', e);
         el.textContent = '네트워크 오류로 AI 분석을 불러오지 못했습니다.';
+    } finally {
+        setAiNewbuildLoading(false);
+    }
+}
+
+function setAiNewbuildLoading(isLoading) {
+    aiNewbuildRequestPending = isLoading;
+
+    const loadingEl = document.getElementById('ai-newbuild-loading');
+    if (loadingEl) {
+        loadingEl.style.display = isLoading ? 'inline-flex' : 'none';
+    }
+
+    const requestBtn = document.getElementById('btn-ai-newbuild-request');
+    if (requestBtn) {
+        requestBtn.disabled = isLoading;
+        requestBtn.style.display = isLoading ? 'none' : 'inline-flex';
+    }
+}
+
+function resetAiNewbuildPanel() {
+    setAiNewbuildLoading(false);
+
+    const aiNewBuildResponseEl = document.getElementById('ai-newbuild-response');
+    if (aiNewBuildResponseEl) {
+        aiNewBuildResponseEl.textContent = '제미나이 응답이 준비되면 이 영역에 표시됩니다.';
     }
 }
 
@@ -871,6 +905,7 @@ function closePanel() {
     document.body.classList.remove('panel-open');
     currentPanelPnu = null;
     currentPanelAddress = null;
+    resetAiNewbuildPanel();
     if (clickMarker) {
         clickMarker.setMap(null);
         clickMarker = null;
@@ -912,10 +947,7 @@ function renderLocationInfo(data) {
     const stores = data.stores || [];
     const metrics = data.metrics || {};
 
-    var aiNewBuildResponseEl = document.getElementById('ai-newbuild-response');
-    if (aiNewBuildResponseEl) {
-        aiNewBuildResponseEl.textContent = '제미나이 응답이 준비되면 이 영역에 표시됩니다.';
-    }
+    resetAiNewbuildPanel();
 
     function formatMetricValue(value, suffix) {
         if (value == null) {
