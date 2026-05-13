@@ -826,7 +826,7 @@ function resetAiNewbuildPanel() {
 
     const aiNewBuildResponseEl = document.getElementById('ai-newbuild-response');
     if (aiNewBuildResponseEl) {
-        aiNewBuildResponseEl.textContent = '제미나이 응답이 준비되면 이 영역에 표시됩니다.';
+        aiNewBuildResponseEl.textContent = 'AI 응답이 준비되면 이 영역에 표시됩니다.';
     }
 }
 
