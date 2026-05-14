@@ -361,6 +361,11 @@ async function fetchMyPaidMembership() {
                 </div>
             `;
 
+        const hasDailyLimit = Number(credit?.totalCredits || 0) >= 200;
+        const dailyLimitRow = hasDailyLimit
+            ? `<p style="margin: 0.2rem 0;"><strong>일일 제한:</strong> 일일 최대 50회 제한</p>`
+            : '';
+
         const creditCard = credit
             ? `
                 <div style="background: var(--bg-muted); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 1rem; margin-bottom: 1.5rem;">
@@ -368,6 +373,7 @@ async function fetchMyPaidMembership() {
                     <p style="margin: 0.2rem 0;"><strong>총 크레딧:</strong> ${Number(credit.totalCredits || 0).toLocaleString('ko-KR')}</p>
                     <p style="margin: 0.2rem 0;"><strong>사용 크레딧:</strong> ${Number(credit.usedCredits || 0).toLocaleString('ko-KR')}</p>
                     <p style="margin: 0.2rem 0;"><strong>잔여 크레딧:</strong> ${Number(credit.availableCredits || 0).toLocaleString('ko-KR')}</p>
+                    ${dailyLimitRow}
                     <p style="margin: 0.2rem 0; color: var(--text-muted); font-size: 0.85rem;">최종 반영: ${formatDateTime(credit.updatedAt)}</p>
                 </div>
             `

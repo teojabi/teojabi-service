@@ -18,6 +18,8 @@ let aiCreditSummary = {
     availableCredits: 0
 };
 
+const AI_DAILY_LIMIT = 50;
+
 function canSeeFullAddress() {
     return window.currentUserRole === 'ADMIN';
 }
@@ -869,7 +871,9 @@ function updateAiCreditUI() {
         const available = Number(aiCreditSummary?.availableCredits || 0);
         const total = Number(aiCreditSummary?.totalCredits || 0);
         const used = Number(aiCreditSummary?.usedCredits || 0);
-        creditEl.textContent = `크레딧 잔여 ${available.toLocaleString('ko-KR')}회 (총 ${total.toLocaleString('ko-KR')} / 사용 ${used.toLocaleString('ko-KR')})`;
+        const dailyLimitNotice = resolveDailyLimitNotice(total);
+        const baseText = `크레딧 잔여 ${available.toLocaleString('ko-KR')}회 (총 ${total.toLocaleString('ko-KR')} / 사용 ${used.toLocaleString('ko-KR')})`;
+        creditEl.textContent = dailyLimitNotice ? `${baseText} · ${dailyLimitNotice}` : baseText;
         creditEl.style.color = available > 0 ? 'var(--text-muted)' : 'var(--danger-color)';
     }
 
@@ -879,6 +883,14 @@ function updateAiCreditUI() {
             requestBtn.disabled = (aiCreditSummary?.availableCredits || 0) <= 0;
         }
     }
+}
+
+function resolveDailyLimitNotice(totalCredits) {
+    const total = Number(totalCredits || 0);
+    if (total >= 200) {
+        return `일일 최대 ${AI_DAILY_LIMIT.toLocaleString('ko-KR')}회`;
+    }
+    return null;
 }
 
 async function fetchAiCreditSummary() {

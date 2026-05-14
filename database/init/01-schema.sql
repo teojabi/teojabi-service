@@ -265,6 +265,17 @@ CREATE TABLE IF NOT EXISTS user_credit_wallet (
                                                updated_at TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+-- 일별 분석 요청 사용량(일 50회 제한 기준)
+CREATE TABLE IF NOT EXISTS user_credit_daily_usage (
+                                                    id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+                                                    user_id TEXT NOT NULL REFERENCES "user"(id) ON DELETE CASCADE ON UPDATE CASCADE,
+                                                    usage_date DATE NOT NULL,
+                                                    used_count INT NOT NULL DEFAULT 0 CHECK (used_count >= 0),
+                                                    created_at TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                                                    updated_at TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                                                    UNIQUE (user_id, usage_date)
+);
+
 -- 선택: 웹훅 이벤트 저장(중복 방지)
 CREATE TABLE IF NOT EXISTS payment_webhook_event (
                                                      id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
@@ -365,6 +376,17 @@ COMMENT ON COLUMN user_credit_wallet.total_credits IS '지급된 총 크레딧 �
 COMMENT ON COLUMN user_credit_wallet.used_credits IS '사용한 크레딧 수량';
 COMMENT ON COLUMN user_credit_wallet.created_at IS '생성 시각';
 COMMENT ON COLUMN user_credit_wallet.updated_at IS '수정 시각';
+
+-- =========================================================
+-- user_credit_daily_usage
+-- =========================================================
+COMMENT ON TABLE user_credit_daily_usage IS '사용자별 일자 단위 AI 분석 요청 사용량(일일 제한 검증용) 테이블';
+COMMENT ON COLUMN user_credit_daily_usage.id IS '일별 사용량 PK(UUID 문자열)';
+COMMENT ON COLUMN user_credit_daily_usage.user_id IS '사용자 ID(FK: user.id)';
+COMMENT ON COLUMN user_credit_daily_usage.usage_date IS '사용 집계 기준 일자';
+COMMENT ON COLUMN user_credit_daily_usage.used_count IS '해당 일자 누적 사용 건수';
+COMMENT ON COLUMN user_credit_daily_usage.created_at IS '생성 시각';
+COMMENT ON COLUMN user_credit_daily_usage.updated_at IS '수정 시각';
 
 -- =========================================================
 -- payment_webhook_event

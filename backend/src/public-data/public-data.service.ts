@@ -1,8 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { firstValueFrom } from 'rxjs';
+
+const UNLIMITED_MONTHLY_CREDITS = 2_147_483_647;
+const DAILY_LIMIT_FOR_PRO_AND_MASTER = 50;
 
 @Injectable()
 export class PublicDataService {
@@ -284,10 +288,87 @@ export class PublicDataService {
   } | null> {
     return this.prisma.$transaction(async (tx) => {
       await tx.$executeRaw`
+        CREATE TABLE IF NOT EXISTS user_credit_daily_usage (
+          id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+          user_id TEXT NOT NULL REFERENCES "user"(id) ON DELETE CASCADE ON UPDATE CASCADE,
+          usage_date DATE NOT NULL,
+          used_count INT NOT NULL DEFAULT 0 CHECK (used_count >= 0),
+          created_at TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          UNIQUE (user_id, usage_date)
+        )
+      `;
+
+      await tx.$executeRaw`
         INSERT INTO user_credit_wallet (user_id, total_credits, used_credits)
         VALUES (${userId}, 2, 0)
         ON CONFLICT (user_id) DO NOTHING
       `;
+
+      const walletRows = await tx.$queryRaw<Array<{ total_credits: number; used_credits: number }>>`
+        SELECT total_credits, used_credits
+        FROM user_credit_wallet
+        WHERE user_id = ${userId}
+        LIMIT 1
+      `;
+
+      if (walletRows.length === 0) {
+        return null;
+      }
+
+      const totalCredits = Number(walletRows[0].total_credits || 0);
+      const usedCredits = Number(walletRows[0].used_credits || 0);
+      const isUnlimitedPlan = totalCredits >= UNLIMITED_MONTHLY_CREDITS;
+
+      const planRows = await tx.$queryRaw<Array<{ code: string; amount: Prisma.Decimal }>>`
+        SELECT sp.code, sp.amount
+        FROM user_subscription us
+        JOIN subscription_plan sp ON sp.id = us.plan_id
+        WHERE us.user_id = ${userId}
+          AND us.status = 'ACTIVE'
+        ORDER BY us.updated_at DESC, us.created_at DESC
+        LIMIT 1
+      `;
+
+      const activePlanCode = planRows[0]?.code ?? '';
+      const activePlanAmount = planRows[0] ? Number(planRows[0].amount) : 0;
+      const normalizedPlanCode = activePlanCode.toUpperCase();
+      const dailyLimit =
+        normalizedPlanCode.includes('PRO') ||
+        normalizedPlanCode.includes('MASTER') ||
+        normalizedPlanCode.includes('CONNECT') ||
+        activePlanAmount === 40000 ||
+        activePlanAmount === 180000
+          ? DAILY_LIMIT_FOR_PRO_AND_MASTER
+          : null;
+
+      if (dailyLimit !== null) {
+        const dailyRows = await tx.$queryRaw<Array<{ used_count: number }>>`
+          INSERT INTO user_credit_daily_usage (user_id, usage_date, used_count)
+          VALUES (${userId}, CURRENT_DATE, 0)
+          ON CONFLICT (user_id, usage_date) DO NOTHING
+          RETURNING used_count
+        `;
+
+        const currentDailyCount =
+          dailyRows.length > 0
+            ? Number(dailyRows[0].used_count || 0)
+            : Number(
+                (
+                  await tx.$queryRaw<Array<{ used_count: number }>>`
+                    SELECT used_count
+                    FROM user_credit_daily_usage
+                    WHERE user_id = ${userId}
+                      AND usage_date = CURRENT_DATE
+                    LIMIT 1
+                  `
+                )[0]?.used_count || 0,
+              );
+
+        if (currentDailyCount >= dailyLimit) {
+          return null;
+        }
+      }
 
       const updatedRows = await tx.$queryRaw<
         Array<{ total_credits: number; used_credits: number }>
@@ -304,13 +385,25 @@ export class PublicDataService {
         return null;
       }
 
-      const totalCredits = Number(updatedRows[0].total_credits || 0);
-      const usedCredits = Number(updatedRows[0].used_credits || 0);
+      if (dailyLimit !== null) {
+        await tx.$executeRaw`
+          UPDATE user_credit_daily_usage
+          SET used_count = used_count + 1,
+              updated_at = CURRENT_TIMESTAMP
+          WHERE user_id = ${userId}
+            AND usage_date = CURRENT_DATE
+        `;
+      }
+
+      const nextTotalCredits = Number(updatedRows[0].total_credits || 0);
+      const nextUsedCredits = Number(updatedRows[0].used_credits || 0);
 
       return {
-        totalCredits,
-        usedCredits,
-        availableCredits: Math.max(totalCredits - usedCredits, 0),
+        totalCredits: nextTotalCredits,
+        usedCredits: nextUsedCredits,
+        availableCredits: isUnlimitedPlan
+          ? DAILY_LIMIT_FOR_PRO_AND_MASTER
+          : Math.max(nextTotalCredits - nextUsedCredits, 0),
       };
     });
   }

@@ -22,6 +22,8 @@ const INVOICE_STATUS = {
   CANCELLED: 'CANCELLED',
 } as const;
 
+const UNLIMITED_MONTHLY_CREDITS = 2_147_483_647;
+
 type SubscriptionStatusValue = (typeof SUBSCRIPTION_STATUS)[keyof typeof SUBSCRIPTION_STATUS];
 
 @Injectable()
@@ -182,6 +184,8 @@ export class SubscriptionsService {
             currentPeriodEnd,
           },
         });
+
+        await this.resetAiCreditWalletForPlan(tx, userId, plan.code, Number(plan.amount));
 
         await this.syncUserRole(tx, userId, plan.code, SUBSCRIPTION_STATUS.ACTIVE);
 
@@ -391,6 +395,13 @@ export class SubscriptionsService {
         },
       });
 
+      await this.resetAiCreditWalletForPlan(
+        this.prisma,
+        invoice.subscription.userId,
+        invoice.subscription.plan.code,
+        Number(invoice.subscription.plan.amount),
+      );
+
       await this.syncUserRole(
         this.prisma,
         invoice.subscription.userId,
@@ -506,6 +517,53 @@ export class SubscriptionsService {
     // PortOne 결제 paymentId 최대 길이(32) 제약을 만족하도록 짧은 형식 사용
     // 예: sub_mb9x3n2h_k4j8pz (최대 32자 이내)
     return `sub_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+  }
+
+  private async resetAiCreditWalletForPlan(
+    client: Prisma.TransactionClient | PrismaService,
+    userId: string,
+    planCode: string,
+    amount: number,
+  ) {
+    const policy = this.resolveAiCreditPolicy(planCode, amount);
+    if (!policy) {
+      return;
+    }
+
+    await client.$executeRaw`
+      INSERT INTO user_credit_wallet (user_id, total_credits, used_credits)
+      VALUES (${userId}, ${policy.monthlyCredits}, 0)
+      ON CONFLICT (user_id)
+      DO UPDATE SET
+        total_credits = EXCLUDED.total_credits,
+        used_credits = 0,
+        updated_at = CURRENT_TIMESTAMP
+    `;
+  }
+
+  private resolveAiCreditPolicy(
+    planCode: string,
+    amount: number,
+  ): { monthlyCredits: number; dailyLimit: number | null } | null {
+    const normalizedPlanCode = (planCode || '').toUpperCase();
+
+    if (
+      normalizedPlanCode.includes('MASTER') ||
+      normalizedPlanCode.includes('CONNECT') ||
+      amount === 180000
+    ) {
+      return { monthlyCredits: UNLIMITED_MONTHLY_CREDITS, dailyLimit: 50 };
+    }
+
+    if (normalizedPlanCode.includes('PRO') || amount === 40000) {
+      return { monthlyCredits: 200, dailyLimit: 50 };
+    }
+
+    if (normalizedPlanCode.includes('LIGHT') || amount === 10000) {
+      return { monthlyCredits: 40, dailyLimit: null };
+    }
+
+    return null;
   }
 
   private async syncUserRole(
