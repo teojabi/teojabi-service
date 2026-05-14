@@ -19,15 +19,39 @@ model User {
   phone         String?
   phoneVerified Boolean @default(false) @map("phone_verified")
 
-  properties   Property[]
-  reservations Reservation[]
-  favorites    Favorite[]
+  properties    Property[]
+  reservations  Reservation[]
+  favorites     Favorite[]
+  subscriptions UserSubscription[]
+  billingKeys   BillingKey[]
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@unique([provider, providerId])
   @@map("user")
+}
+
+enum SubscriptionStatus {
+  PENDING
+  ACTIVE
+  PAST_DUE
+  CANCELLED
+  EXPIRED
+}
+
+enum InvoiceStatus {
+  READY
+  PAID
+  FAILED
+  CANCELLED
+}
+
+enum IntervalUnit {
+  DAY
+  WEEK
+  MONTH
+  YEAR
 }
 
 enum Role {
@@ -105,6 +129,111 @@ model Favorite {
 
   @@unique([userId, propertyId])
   @@map("favorite")
+}
+
+model SubscriptionPlan {
+  id            String  @id @default(uuid())
+  code          String  @unique
+  name          String
+  amount        Decimal @db.Decimal(12, 2)
+  currency      String  @default("KRW")
+  intervalUnit  String  @db.Text @map("interval_unit")
+  intervalCount Int     @default(1) @map("interval_count")
+  trialDays     Int     @default(0) @map("trial_days")
+  active        Boolean @default(true)
+
+  subscriptions UserSubscription[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("subscription_plan")
+}
+
+model UserSubscription {
+  id                 String           @id @default(uuid())
+  userId             String           @map("user_id")
+  user               User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  planId             String           @map("plan_id")
+  plan               SubscriptionPlan @relation(fields: [planId], references: [id], onDelete: Restrict)
+  status             String           @db.Text
+  startAt            DateTime?        @map("start_at")
+  currentPeriodStart DateTime?        @map("current_period_start")
+  currentPeriodEnd   DateTime?        @map("current_period_end")
+  cancelAtPeriodEnd  Boolean          @default(false) @map("cancel_at_period_end")
+  cancelledAt        DateTime?        @map("cancelled_at")
+  endedAt            DateTime?        @map("ended_at")
+
+  invoices SubscriptionInvoice[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([userId])
+  @@index([status])
+  @@map("user_subscription")
+}
+
+model BillingKey {
+  id                String    @id @default(uuid())
+  userId            String    @map("user_id")
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  portoneCustomerId String    @map("portone_customer_id")
+  billingKey        String    @unique @map("billing_key")
+  channelKey        String    @map("channel_key")
+  provider          String?
+  cardCompany       String?   @map("card_company")
+  cardLast4         String?   @map("card_last4")
+  cardExpiryYear    String?   @map("card_expiry_year")
+  cardExpiryMonth   String?   @map("card_expiry_month")
+  isActive          Boolean   @default(true) @map("is_active")
+  issuedAt          DateTime  @default(now()) @map("issued_at")
+  deletedAt         DateTime? @map("deleted_at")
+
+  invoices SubscriptionInvoice[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("billing_key")
+}
+
+model SubscriptionInvoice {
+  id               String           @id @default(uuid())
+  subscriptionId   String           @map("subscription_id")
+  subscription     UserSubscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  billingKeyId     String?          @map("billing_key_id")
+  billingKey       BillingKey?      @relation(fields: [billingKeyId], references: [id], onDelete: SetNull)
+  portonePaymentId String           @unique @map("portone_payment_id")
+  portoneTxId      String?          @map("portone_tx_id")
+  amount           Decimal          @db.Decimal(12, 2)
+  currency         String           @default("KRW")
+  status           String           @db.Text
+  failReason       String?          @map("fail_reason")
+  paidAt           DateTime?        @map("paid_at")
+  requestedAt      DateTime         @default(now()) @map("requested_at")
+  rawPayload       Json?            @map("raw_payload")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([subscriptionId])
+  @@index([status])
+  @@map("subscription_invoice")
+}
+
+model PaymentWebhookEvent {
+  id            String    @id @default(uuid())
+  eventId       String?   @unique @map("event_id")
+  paymentId     String?   @map("payment_id")
+  eventType     String?   @map("event_type")
+  status        String?
+  payload       Json
+  receivedAt    DateTime  @default(now()) @map("received_at")
+  processedAt   DateTime? @map("processed_at")
+  processResult String?   @map("process_result")
+
+  @@map("payment_webhook_event")
 }
 
 model BuildingInfo {

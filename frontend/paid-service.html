@@ -89,6 +89,8 @@
             border-radius: var(--radius-lg);
             padding: 1.25rem;
             box-shadow: var(--shadow-sm);
+            display: flex;
+            flex-direction: column;
         }
 
         .plan-card.recommended {
@@ -134,6 +136,31 @@
             color: #374151;
             line-height: 1.7;
             font-size: .95rem;
+            flex: 1;
+        }
+
+        .plan-action {
+            margin-top: 1rem;
+            width: 100%;
+            border: none;
+            border-radius: 10px;
+            background: #2563eb;
+            color: #fff;
+            font-weight: 700;
+            font-size: .95rem;
+            padding: .75rem .9rem;
+            cursor: pointer;
+        }
+
+        .plan-action:disabled {
+            background: #93c5fd;
+            cursor: not-allowed;
+        }
+
+        .payment-result {
+            margin-top: 1rem;
+            font-size: .92rem;
+            color: #334155;
         }
 
         .benefit-grid {
@@ -299,6 +326,7 @@
                             <li>실거래 상세/ROI 비공개</li>
                             <li>전문가 리포트 요청 권한(단건 결제)</li>
                         </ul>
+                        <button class="plan-action" data-plan-code="BASIC_MONTHLY">Light 구독 시작</button>
                     </article>
 
                     <article class="plan-card recommended">
@@ -311,6 +339,7 @@
                             <li>모든 실거래 상세 데이터/ROI 공개</li>
                             <li>전문가 리포트 요청 권한(단건 결제)</li>
                         </ul>
+                        <button class="plan-action" data-plan-code="PLUS_MONTHLY">Pro 구독 시작</button>
                     </article>
 
                     <article class="plan-card">
@@ -322,6 +351,7 @@
                             <li>모든 데이터 공개</li>
                             <li>전문가 리포트 요청 권한(단건 결제)</li>
                         </ul>
+                        <button class="plan-action" data-plan-code="MASTER_YEARLY">Master 연결제 시작</button>
                     </article>
                 </div>
             </section>
@@ -330,66 +360,70 @@
                 <h2 class="section-title">등급별 기능 비교</h2>
                 <div class="benefit-grid">
                     <article class="benefit-item">
-                        <h3><i class="ri-search-line"></i>월 검색 한도</h3>
-                        <p>일반 2회 / Light 40회 / Pro 200회 / Master 무제한</p>
+                        <h3><i class="ri-home-4-line"></i>매물 상세 페이지 조회</h3>
+                        <p>비회원은 리스트만 확인 가능하며, 일반/Light/Pro/Master는 상세 페이지를 조회할 수 있습니다.</p>
                     </article>
                     <article class="benefit-item">
-                        <h3><i class="ri-robot-2-line"></i>AI 시뮬레이션</h3>
-                        <p>일반은 미제공, Light/Pro/Master에서 제공됩니다.</p>
+                        <h3><i class="ri-robot-2-line"></i>AI 신축 분석</h3>
+                        <p>일반 2회, Light 40회, Pro 200회(1일 50회 제한), Master 무제한(1일 50회 제한)으로 제공됩니다.</p>
                     </article>
                     <article class="benefit-item">
-                        <h3><i class="ri-bar-chart-box-line"></i>실거래 상세/ROI</h3>
-                        <p>Pro와 Master 등급에서 모든 실데이터(ROI 포함)를 확인할 수 있습니다.</p>
+                        <h3><i class="ri-file-list-3-line"></i>전문가 리포트 신청</h3>
+                        <p>일반은 단건결제로 신청 가능하며, Light/Pro/Master도 단건결제로 신청할 수 있습니다.</p>
                     </article>
                     <article class="benefit-item">
-                        <h3><i class="ri-file-list-3-line"></i>전문가 리포트</h3>
-                        <p>Light/Pro/Master는 전문가 리포트를 단건 결제로 요청할 수 있습니다.</p>
+                        <h3><i class="ri-mail-send-line"></i>새로운 매물 이메일 알림 서비스</h3>
+                        <p>Pro와 Master에서만 매주 1회 이메일 알림이 제공됩니다.</p>
                     </article>
                 </div>
             </section>
 
             <section>
                 <h2 class="section-title">기능 권한 매핑표</h2>
-                <p class="muted">문서 기준으로 구독 등급별 핵심 기능 권한을 표로 정리했습니다.</p>
                 <div class="mapping-table-wrap">
                     <table class="mapping-table" aria-label="구독 등급별 기능 권한 매핑표">
                         <thead>
                             <tr>
-                                <th scope="col">구분</th>
+                                <th scope="col">기능 구분</th>
+                                <th scope="col">비회원</th>
                                 <th scope="col">일반(General)</th>
-                                <th scope="col">Light</th>
-                                <th scope="col">Pro</th>
-                                <th scope="col">Master</th>
+                                <th scope="col">Light(만원)</th>
+                                <th scope="col">Pro(4만원)</th>
+                                <th scope="col">Master(연18만원)</th>
                             </tr>
                         </thead>
                         <tbody>
                             <tr>
-                                <th scope="row">월 검색 한도</th>
-                                <td>2회</td>
-                                <td>40회</td>
-                                <td>200회</td>
-                                <td>무제한</td>
-                            </tr>
-                            <tr>
-                                <th scope="row">AI 시뮬레이션</th>
-                                <td>X</td>
+                                <th scope="row">매물 상세 페이지 조회</th>
+                                <td>제한 (리스트만 공개)</td>
+                                <td>O</td>
                                 <td>O</td>
                                 <td>O</td>
                                 <td>O</td>
                             </tr>
                             <tr>
-                                <th scope="row">실거래 상세/ROI</th>
+                                <th scope="row">AI 신축 분석</th>
                                 <td>X</td>
-                                <td>X</td>
-                                <td>O</td>
-                                <td>O</td>
+                                <td>0 2회</td>
+                                <td>O 40회</td>
+                                <td>O 200회 (1일 50회 제한)</td>
+                                <td>O 무제한 (1일 50회 제한)</td>
                             </tr>
                             <tr>
-                                <th scope="row">전문가 리포트</th>
+                                <th scope="row">전문가 리포트 신청</th>
                                 <td>X</td>
+                                <td>X(단건결제)</td>
                                 <td>O(단건결제)</td>
                                 <td>O(단건결제)</td>
                                 <td>O(단건결제)</td>
+                            </tr>
+                            <tr>
+                                <th scope="row">새로운 매물 이메일 알림 서비스</th>
+                                <td>X</td>
+                                <td>X</td>
+                                <td>X</td>
+                                <td>O (매주 1회)</td>
+                                <td>O (매주 1회)</td>
                             </tr>
                         </tbody>
                     </table>
@@ -414,14 +448,16 @@
                 </div>
             </section>
 
-            <p class="updated-date">최종 업데이트: 2026년 4월 27일</p>
+            <p class="updated-date">최종 업데이트: 2026년 4월 28일</p>
         </div>
     </main>
 
     <div id="login-modal-container"></div>
     <div id="footer-container"></div>
 
+    <script src="https://cdn.portone.io/v2/browser-sdk.js"></script>
     <script src="/js/config.js"></script>
     <script type="module" src="/js/app.js"></script>
+    <script type="module" src="/js/pages/paid-service.js?v=20260511-1"></script>
 </body>
 </html>

@@ -12,6 +12,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { SupabaseModule } from './supabase/supabase.module';
 import { FavoritesModule } from './favorites/favorites.module';
 import { SettingsModule } from './settings/settings.module';
+import { SubscriptionsModule } from './subscriptions/subscriptions.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { SettingsModule } from './settings/settings.module';
     SupabaseModule,
     FavoritesModule,
     SettingsModule,
+    SubscriptionsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

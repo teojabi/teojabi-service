@@ -160,16 +160,59 @@ export class PublicDataService {
     };
   }
 
-  async getAiNewbuildAnalysis(pnu: string): Promise<{ summary: string }> {
+  async getAiNewbuildAnalysis(
+    pnu: string,
+    userId: string,
+  ): Promise<
+    | {
+        success: true;
+        data: { summary: string };
+        credit: {
+          totalCredits: number;
+          usedCredits: number;
+          availableCredits: number;
+        };
+      }
+    | {
+        success: false;
+        message: string;
+        credit: {
+          totalCredits: number;
+          usedCredits: number;
+          availableCredits: number;
+        };
+      }
+  > {
+    const credit = await this.consumeCreditForAiRequest(userId);
+    if (!credit) {
+      return {
+        success: false,
+        message: '분석 요청 가능한 크레딧이 없습니다.',
+        credit: {
+          totalCredits: 0,
+          usedCredits: 0,
+          availableCredits: 0,
+        },
+      };
+    }
+
     const apiKey = this.configService.get<string>('GEMINI_API_KEY');
     if (!apiKey) {
       this.logger.warn('GEMINI_API_KEY is not configured');
-      return { summary: 'AI 분석 키가 설정되지 않아 결과를 생성할 수 없습니다.' };
+      return {
+        success: true,
+        data: { summary: 'AI 분석 키가 설정되지 않아 결과를 생성할 수 없습니다.' },
+        credit,
+      };
     }
 
     const locationInfo = await this.getLocationInfo(pnu);
     if (!locationInfo) {
-      return { summary: '해당 필지의 건물·토지 정보가 없어 AI 분석을 진행할 수 없습니다.' };
+      return {
+        success: true,
+        data: { summary: '해당 필지의 건물·토지 정보가 없어 AI 분석을 진행할 수 없습니다.' },
+        credit,
+      };
     }
 
     const prompt = this.buildAiNewbuildPrompt(locationInfo);
@@ -206,10 +249,14 @@ export class PublicDataService {
 
       if (!summary) {
         this.logger.warn(`Gemini returned empty response: pnu=${pnu}`);
-        return { summary: 'AI 분석 결과가 비어 있습니다. 잠시 후 다시 시도해 주세요.' };
+        return {
+          success: true,
+          data: { summary: 'AI 분석 결과가 비어 있습니다. 잠시 후 다시 시도해 주세요.' },
+          credit,
+        };
       }
 
-      return { summary };
+      return { success: true, data: { summary }, credit };
     } catch (error) {
       const err = error as {
         response?: { data?: unknown; status?: number };
@@ -220,10 +267,52 @@ export class PublicDataService {
         err.response?.data || err.message || 'Unknown error',
       );
       return {
-        summary:
-          'AI 분석 중 오류가 발생했습니다. 네트워크 상태 또는 사용량 제한을 확인한 뒤 다시 시도해 주세요.',
+        success: true,
+        data: {
+          summary:
+            'AI 분석 중 오류가 발생했습니다. 네트워크 상태 또는 사용량 제한을 확인한 뒤 다시 시도해 주세요.',
+        },
+        credit,
       };
     }
+  }
+
+  private async consumeCreditForAiRequest(userId: string): Promise<{
+    totalCredits: number;
+    usedCredits: number;
+    availableCredits: number;
+  } | null> {
+    return this.prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`
+        INSERT INTO user_credit_wallet (user_id, total_credits, used_credits)
+        VALUES (${userId}, 2, 0)
+        ON CONFLICT (user_id) DO NOTHING
+      `;
+
+      const updatedRows = await tx.$queryRaw<
+        Array<{ total_credits: number; used_credits: number }>
+      >`
+        UPDATE user_credit_wallet
+        SET used_credits = used_credits + 1,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE user_id = ${userId}
+          AND (total_credits - used_credits) > 0
+        RETURNING total_credits, used_credits
+      `;
+
+      if (updatedRows.length === 0) {
+        return null;
+      }
+
+      const totalCredits = Number(updatedRows[0].total_credits || 0);
+      const usedCredits = Number(updatedRows[0].used_credits || 0);
+
+      return {
+        totalCredits,
+        usedCredits,
+        availableCredits: Math.max(totalCredits - usedCredits, 0),
+      };
+    });
   }
 
   private buildAiNewbuildPrompt(locationInfo: any): string {

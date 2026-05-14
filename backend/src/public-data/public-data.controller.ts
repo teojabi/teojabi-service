@@ -1,4 +1,6 @@
-import { Controller, Get, Query } from '@nestjs/common';
+import { Controller, Get, Query, Req, UseGuards } from '@nestjs/common';
+import { Request } from 'express';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PublicDataService } from './public-data.service';
 
 @Controller('api/v1/public-data')
@@ -39,12 +41,22 @@ export class PublicDataController {
   // PNU 기반 Gemini 신축/리빌딩 분석
   // GET /api/v1/public-data/ai-newbuild?pnu=1168010100106180000
   @Get('ai-newbuild')
-  async getAiNewbuild(@Query('pnu') pnu: string) {
+  @UseGuards(JwtAuthGuard)
+  async getAiNewbuild(@Req() req: Request, @Query('pnu') pnu: string) {
     if (!pnu) {
       return { success: false, message: 'pnu is required' };
     }
-    const result = await this.publicDataService.getAiNewbuildAnalysis(pnu);
-    return { success: true, data: result };
+    const user = req.user as { id: string };
+    const result = await this.publicDataService.getAiNewbuildAnalysis(
+      pnu,
+      user.id,
+    );
+
+    if (!result.success) {
+      return { success: false, message: result.message, credit: result.credit };
+    }
+
+    return { success: true, data: result.data, credit: result.credit };
   }
 
   // geom_score_layer 데이터 조회 (GeoJSON)

@@ -12,6 +12,11 @@ let currentPropertyData = null;
 let currentPanelPnu = null;
 let currentPanelAddress = null;
 let aiNewbuildRequestPending = false;
+let aiCreditSummary = {
+    totalCredits: 0,
+    usedCredits: 0,
+    availableCredits: 0
+};
 
 function canSeeFullAddress() {
     return window.currentUserRole === 'ADMIN';
@@ -786,11 +791,28 @@ async function loadAiNewbuildAnalysis(pnu) {
         return;
     }
 
+    if ((aiCreditSummary?.availableCredits || 0) <= 0) {
+        el.textContent = '잔여 크레딧이 없어 AI 분석을 요청할 수 없습니다.';
+        updateAiCreditUI();
+        return;
+    }
+
     setAiNewbuildLoading(true);
 
     try {
-        const res = await fetch(`${CONFIG.API_BASE_URL}/api/v1/public-data/ai-newbuild?pnu=${encodeURIComponent(pnu)}`);
+        const res = await fetch(`${CONFIG.API_BASE_URL}/api/v1/public-data/ai-newbuild?pnu=${encodeURIComponent(pnu)}`, {
+            credentials: 'include'
+        });
         const json = await res.json();
+
+        if (json && json.credit) {
+            syncAiCreditSummary(json.credit);
+        }
+
+        if (json.success === false) {
+            el.textContent = json.message || 'AI 분석 요청에 실패했습니다.';
+            return;
+        }
 
         if (json.success && json.data && json.data.summary) {
             el.innerHTML = renderAiMarkdown(json.data.summary);
@@ -816,9 +838,80 @@ function setAiNewbuildLoading(isLoading) {
 
     const requestBtn = document.getElementById('btn-ai-newbuild-request');
     if (requestBtn) {
-        requestBtn.disabled = isLoading;
+        const hasCredit = (aiCreditSummary?.availableCredits || 0) > 0;
+        requestBtn.disabled = isLoading || !hasCredit;
         requestBtn.style.display = isLoading ? 'none' : 'inline-flex';
     }
+}
+
+function syncAiCreditSummary(credit) {
+    const totalCredits = Number(credit?.totalCredits || 0);
+    const usedCredits = Number(credit?.usedCredits || 0);
+    const availableCreditsRaw = credit?.availableCredits;
+    const availableCredits = Number(
+        availableCreditsRaw == null
+            ? Math.max(totalCredits - usedCredits, 0)
+            : availableCreditsRaw
+    );
+
+    aiCreditSummary = {
+        totalCredits,
+        usedCredits,
+        availableCredits: Math.max(availableCredits, 0)
+    };
+
+    updateAiCreditUI();
+}
+
+function updateAiCreditUI() {
+    const creditEl = document.getElementById('ai-newbuild-credit');
+    if (creditEl) {
+        const available = Number(aiCreditSummary?.availableCredits || 0);
+        const total = Number(aiCreditSummary?.totalCredits || 0);
+        const used = Number(aiCreditSummary?.usedCredits || 0);
+        creditEl.textContent = `크레딧 잔여 ${available.toLocaleString('ko-KR')}회 (총 ${total.toLocaleString('ko-KR')} / 사용 ${used.toLocaleString('ko-KR')})`;
+        creditEl.style.color = available > 0 ? 'var(--text-muted)' : 'var(--danger-color)';
+    }
+
+    if (!aiNewbuildRequestPending) {
+        const requestBtn = document.getElementById('btn-ai-newbuild-request');
+        if (requestBtn) {
+            requestBtn.disabled = (aiCreditSummary?.availableCredits || 0) <= 0;
+        }
+    }
+}
+
+async function fetchAiCreditSummary() {
+    const creditEl = document.getElementById('ai-newbuild-credit');
+    if (creditEl) {
+        creditEl.textContent = '크레딧 확인 중...';
+        creditEl.style.color = 'var(--text-muted)';
+    }
+
+    try {
+        const res = await fetch(`${CONFIG.API_BASE_URL}/api/v1/subscriptions/my-paid-summary`, {
+            credentials: 'include'
+        });
+
+        if (!res.ok) {
+            throw new Error(`status=${res.status}`);
+        }
+
+        const json = await res.json();
+        if (json?.credit) {
+            syncAiCreditSummary(json.credit);
+            return;
+        }
+    } catch (e) {
+        console.warn('[panel] credit summary API error:', e);
+    }
+
+    aiCreditSummary = {
+        totalCredits: 0,
+        usedCredits: 0,
+        availableCredits: 0
+    };
+    updateAiCreditUI();
 }
 
 function resetAiNewbuildPanel() {
@@ -828,6 +921,8 @@ function resetAiNewbuildPanel() {
     if (aiNewBuildResponseEl) {
         aiNewBuildResponseEl.textContent = 'AI 응답이 준비되면 이 영역에 표시됩니다.';
     }
+
+    fetchAiCreditSummary();
 }
 
 function renderAiMarkdown(markdown) {

@@ -12,6 +12,14 @@ export interface UpdateUserDto {
 export class UsersService {
   constructor(private readonly prisma: PrismaService) {}
 
+  async ensureDefaultCreditWallet(userId: string) {
+    await this.prisma.$executeRaw`
+      INSERT INTO user_credit_wallet (user_id, total_credits, used_credits)
+      VALUES (${userId}, 2, 0)
+      ON CONFLICT (user_id) DO NOTHING
+    `;
+  }
+
   async findById(id: string) {
     return this.prisma.user.findUnique({ where: { id } });
   }
@@ -51,13 +59,24 @@ export class UsersService {
     email: string,
     name: string,
   ) {
-    return this.prisma.user.create({
-      data: {
-        provider,
-        providerId,
-        email,
-        name,
-      },
+    return this.prisma.$transaction(async (tx) => {
+      const user = await tx.user.create({
+        data: {
+          provider,
+          providerId,
+          email,
+          name,
+        },
+      });
+
+      // 기본 권한(로그인 사용자) 분석 요청 크레딧 2회 지급
+      await tx.$executeRaw`
+          INSERT INTO user_credit_wallet (user_id, total_credits, used_credits)
+          VALUES (${user.id}, 2, 0)
+          ON CONFLICT (user_id) DO NOTHING
+        `;
+
+      return user;
     });
   }
 }

@@ -57,6 +57,10 @@ cp .env.example .env
 | `SUPABASE_ANON_KEY` | Supabase Anonymous Key |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase Service Role Key |
 | `SUPABASE_BUCKET` | Supabase Storage 버킷명 |
+| `PORTONE_STORE_ID` | 포트원 Store ID |
+| `PORTONE_CHANNEL_KEY` | 포트원 결제 채널 키 |
+| `PORTONE_API_SECRET` | 포트원 V2 API Secret (백엔드 전용) |
+| `PORTONE_WEBHOOK_SECRET` | 포트원 웹훅 검증용 시크릿 |
 
 ### 설치 및 실행
 

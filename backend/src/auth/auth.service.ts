@@ -28,6 +28,8 @@ export class AuthService {
       isNewUser = true;
     }
 
+    await this.usersService.ensureDefaultCreditWallet(user.id);
+
     return { id: user.id, email: user.email, name: user.name, role: user.role, isNewUser };
   }
 

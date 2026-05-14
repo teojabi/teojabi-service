@@ -39,6 +39,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         fetchMyReservations();
         fetchMyLikes();
+        fetchMyPaidMembership();
 
     }, 500); // app.js의 글로벌 auth 로드 대기
 });
@@ -317,5 +318,111 @@ async function fetchMyLikes() {
         console.error("fetchMyLikes error:", err);
         tabLikes.innerHTML = `<h3 style="margin-bottom: 1.5rem;">찜한 매물</h3>
             <p style="color:var(--danger-color); text-align:center;">관심 매물 목록을 불러오는데 실패했습니다.</p>`;
+    }
+}
+
+function formatKrw(amount) {
+    const numeric = Number(amount || 0);
+    return `${numeric.toLocaleString('ko-KR')}원`;
+}
+
+function formatDateTime(dateString) {
+    if (!dateString) return '-';
+    const date = new Date(dateString);
+    if (Number.isNaN(date.getTime())) return '-';
+    return date.toLocaleString('ko-KR');
+}
+
+async function fetchMyPaidMembership() {
+    const tabPaid = document.getElementById('tab-paid-membership');
+    if (!tabPaid) return;
+
+    try {
+        const res = await fetch(`${CONFIG.API_BASE_URL}/api/v1/subscriptions/my-paid-summary`, { credentials: 'include' });
+        const data = await res.json();
+
+        const subscription = data?.subscription;
+        const credit = data?.credit;
+        const invoices = Array.isArray(data?.invoices) ? data.invoices : [];
+
+        const subscriptionCard = subscription
+            ? `
+                <div style="background: var(--bg-muted); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 1rem; margin-bottom: 1rem;">
+                    <h4 style="margin-bottom: 0.8rem;">구독 정보</h4>
+                    <p style="margin: 0.2rem 0;"><strong>플랜:</strong> ${subscription.plan?.name || '-'} (${subscription.plan?.code || '-'})</p>
+                    <p style="margin: 0.2rem 0;"><strong>상태:</strong> ${subscription.status || '-'}</p>
+                    <p style="margin: 0.2rem 0;"><strong>구독 시작일:</strong> ${formatDateTime(subscription.startAt)}</p>
+                    <p style="margin: 0.2rem 0;"><strong>현재 구독 종료일:</strong> ${formatDateTime(subscription.currentPeriodEnd)}</p>
+                </div>
+            `
+            : `
+                <div style="background: var(--bg-muted); border: 1px dashed var(--border-color); border-radius: var(--radius-md); padding: 1rem; margin-bottom: 1rem; color: var(--text-muted);">
+                    활성 구독 정보가 없습니다.
+                </div>
+            `;
+
+        const creditCard = credit
+            ? `
+                <div style="background: var(--bg-muted); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 1rem; margin-bottom: 1.5rem;">
+                    <h4 style="margin-bottom: 0.8rem;">분석요청 크레딧</h4>
+                    <p style="margin: 0.2rem 0;"><strong>총 크레딧:</strong> ${Number(credit.totalCredits || 0).toLocaleString('ko-KR')}</p>
+                    <p style="margin: 0.2rem 0;"><strong>사용 크레딧:</strong> ${Number(credit.usedCredits || 0).toLocaleString('ko-KR')}</p>
+                    <p style="margin: 0.2rem 0;"><strong>잔여 크레딧:</strong> ${Number(credit.availableCredits || 0).toLocaleString('ko-KR')}</p>
+                    <p style="margin: 0.2rem 0; color: var(--text-muted); font-size: 0.85rem;">최종 반영: ${formatDateTime(credit.updatedAt)}</p>
+                </div>
+            `
+            : `
+                <div style="background: var(--bg-muted); border: 1px dashed var(--border-color); border-radius: var(--radius-md); padding: 1rem; margin-bottom: 1.5rem; color: var(--text-muted);">
+                    크레딧 정보가 없습니다. (아래 SQL 적용 후 표시됩니다)
+                </div>
+            `;
+
+        let invoiceHtml = '';
+        if (invoices.length === 0) {
+            invoiceHtml = `
+                <div style="text-align: center; padding: 2rem; color: var(--text-muted); border: 1px dashed var(--border-color); border-radius: var(--radius-md);">
+                    결제 내역이 없습니다.
+                </div>
+            `;
+        } else {
+            const rows = invoices.map((invoice) => `
+                <tr>
+                    <td style="padding: 0.65rem; border-bottom: 1px solid var(--border-color);">${formatDateTime(invoice.paidAt || invoice.requestedAt)}</td>
+                    <td style="padding: 0.65rem; border-bottom: 1px solid var(--border-color);">${invoice.planName || '-'}</td>
+                    <td style="padding: 0.65rem; border-bottom: 1px solid var(--border-color); text-align:right;">${formatKrw(invoice.amount)}</td>
+                    <td style="padding: 0.65rem; border-bottom: 1px solid var(--border-color);">${invoice.status || '-'}</td>
+                </tr>
+            `).join('');
+
+            invoiceHtml = `
+                <div style="overflow-x:auto; border: 1px solid var(--border-color); border-radius: var(--radius-md);">
+                    <table style="width:100%; border-collapse: collapse; min-width: 540px;">
+                        <thead>
+                            <tr style="background: var(--bg-muted); text-align:left;">
+                                <th style="padding: 0.75rem;">결제일</th>
+                                <th style="padding: 0.75rem;">플랜</th>
+                                <th style="padding: 0.75rem; text-align:right;">금액</th>
+                                <th style="padding: 0.75rem;">상태</th>
+                            </tr>
+                        </thead>
+                        <tbody>${rows}</tbody>
+                    </table>
+                </div>
+            `;
+        }
+
+        tabPaid.innerHTML = `
+            <h3 style="margin-bottom: 1.5rem;">유료회원 정보</h3>
+            ${subscriptionCard}
+            ${creditCard}
+            <h4 style="margin-bottom: 0.8rem;">결제 내역</h4>
+            ${invoiceHtml}
+        `;
+    } catch (err) {
+        console.error('fetchMyPaidMembership error:', err);
+        tabPaid.innerHTML = `
+            <h3 style="margin-bottom: 1.5rem;">유료회원 정보</h3>
+            <p style="color:var(--danger-color); text-align:center;">유료회원 정보를 불러오는데 실패했습니다.</p>
+        `;
     }
 }
