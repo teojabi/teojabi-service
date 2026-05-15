@@ -1,11 +1,21 @@
-import { Injectable } from '@nestjs/common';
+import { ForbiddenException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+
+const SUBSCRIPTION_STATUS = {
+  ACTIVE: 'ACTIVE',
+} as const;
+
+const REPORT_AVAILABLE_PLAN_KEYWORDS = ['LIGHT', 'PRO', 'MASTER'] as const;
 
 @Injectable()
 export class ReservationsService {
   constructor(private readonly prisma: PrismaService) {}
 
   async create(userId: string, data: any) {
+    if (data.type === 'REPORT') {
+      await this.ensureReportPermission(userId);
+    }
+
     if (!data.propertyId && !data.pnu) {
       throw new Error('Property ID or PNU is required');
     }
@@ -107,5 +117,34 @@ export class ReservationsService {
       where: { id },
       data: { status },
     });
+  }
+
+  private async ensureReportPermission(userId: string) {
+    const activeSubscription = await this.prisma.userSubscription.findFirst({
+      where: {
+        userId,
+        status: SUBSCRIPTION_STATUS.ACTIVE,
+        plan: {
+          active: true,
+        },
+      },
+      orderBy: {
+        updatedAt: 'desc',
+      },
+      select: {
+        plan: {
+          select: {
+            code: true,
+          },
+        },
+      },
+    });
+
+    const planCode = activeSubscription?.plan?.code?.toUpperCase() ?? '';
+    const hasPermission = REPORT_AVAILABLE_PLAN_KEYWORDS.some((keyword) => planCode.includes(keyword));
+
+    if (!hasPermission) {
+      throw new ForbiddenException('전문가 리포트 신청은 유료 구독(Light/Pro/Master) 회원만 가능합니다.');
+    }
   }
 }

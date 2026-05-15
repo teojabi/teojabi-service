@@ -61,6 +61,7 @@ export class PropertiesController {
   }
 
   @Get(':id')
+  @UseGuards(JwtAuthGuard)
   async getProperty(@Param('id') id: string) {
     return this.propertiesService.findById(id);
   }

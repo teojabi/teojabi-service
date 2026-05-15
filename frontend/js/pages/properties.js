@@ -1,5 +1,5 @@
 // js/pages/properties.js
-import { authState } from '../auth.js';
+import { authState, checkAuthStatus } from '../auth.js';
 
 function canSeeFullAddress() {
     return authState.isAuthenticated && authState.user?.role === 'ADMIN';
@@ -13,6 +13,14 @@ function getDisplayAddress(prop) {
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
+    await checkAuthStatus();
+
+    if (!authState.isAuthenticated) {
+        alert("로그인 후 이용 가능합니다.");
+        window.location.href = '/gallery.html';
+        return;
+    }
+
     const params = new URLSearchParams(window.location.search);
     const id = params.get('id');
     const pnu = params.get('pnu'); // 갤러리/어드민에서 전달된 PNU 
