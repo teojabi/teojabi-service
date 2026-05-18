@@ -23,6 +23,12 @@ const INVOICE_STATUS = {
 } as const;
 
 const UNLIMITED_MONTHLY_CREDITS = 2_147_483_647;
+const PLAN_TIER_WEIGHT = {
+  GENERAL: 1,
+  LIGHT: 2,
+  PRO: 3,
+  MASTER: 4,
+} as const;
 
 type SubscriptionStatusValue = (typeof SUBSCRIPTION_STATUS)[keyof typeof SUBSCRIPTION_STATUS];
 
@@ -47,6 +53,8 @@ export class SubscriptionsService {
     if (!plan) {
       throw new BadRequestException('유효하지 않은 구독 플랜입니다.');
     }
+
+    const currentSubscription = await this.validateUpgradeEligibility(userId, plan.code);
 
     const storeId = process.env.PORTONE_STORE_ID;
     const channelKey = process.env.PORTONE_CHANNEL_KEY;
@@ -75,6 +83,7 @@ export class SubscriptionsService {
       customerEmail: user?.email ?? null,
       customerPhone: user?.phone ?? null,
       plan,
+      currentSubscription,
     };
   }
 
@@ -97,6 +106,8 @@ export class SubscriptionsService {
     if (!plan) {
       throw new BadRequestException('유효하지 않은 구독 플랜입니다.');
     }
+
+    await this.validateUpgradeEligibility(userId, plan.code);
 
     const channelKey = process.env.PORTONE_CHANNEL_KEY;
     const storeId = process.env.PORTONE_STORE_ID;
@@ -581,5 +592,56 @@ export class SubscriptionsService {
       where: { id: userId },
       data: { role },
     });
+  }
+
+  private resolvePlanTier(code?: string | null): keyof typeof PLAN_TIER_WEIGHT {
+    const normalizedCode = (code || '').toUpperCase();
+    if (normalizedCode.includes('MASTER')) {
+      return 'MASTER';
+    }
+
+    if (normalizedCode.includes('PRO') || normalizedCode.includes('PLUS')) {
+      return 'PRO';
+    }
+
+    if (normalizedCode.includes('LIGHT') || normalizedCode.includes('BASIC')) {
+      return 'LIGHT';
+    }
+
+    return 'GENERAL';
+  }
+
+  private async validateUpgradeEligibility(userId: string, targetPlanCode: string) {
+    const subscription = await this.prisma.userSubscription.findFirst({
+      where: {
+        userId,
+        status: { in: [SUBSCRIPTION_STATUS.ACTIVE, SUBSCRIPTION_STATUS.PENDING, SUBSCRIPTION_STATUS.PAST_DUE] },
+      },
+      include: {
+        plan: {
+          select: {
+            code: true,
+            name: true,
+          },
+        },
+      },
+      orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }],
+    });
+
+    const currentTier = this.resolvePlanTier(subscription?.plan?.code);
+    const targetTier = this.resolvePlanTier(targetPlanCode);
+
+    if (PLAN_TIER_WEIGHT[targetTier] <= PLAN_TIER_WEIGHT[currentTier]) {
+      throw new BadRequestException(
+        `현재 구독 등급(${currentTier})보다 상위 등급만 신청할 수 있습니다.`,
+      );
+    }
+
+    return {
+      tier: currentTier,
+      code: subscription?.plan?.code ?? null,
+      name: subscription?.plan?.name ?? 'General',
+      status: subscription?.status ?? null,
+    };
   }
 }
