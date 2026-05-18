@@ -55,8 +55,8 @@ window.initMap = function() {
     
     // 1. 지도 초기화
     map = new naver.maps.Map('map-container', {
-        center: new naver.maps.LatLng(37.5665, 126.9780), // 서울 시청
-        zoom: 15,
+        center: new naver.maps.LatLng(37.5324, 126.9900), // 용산구청
+        zoom: 13,
         minZoom: 7,
         maxZoom: 21,
         logoControl: true,
