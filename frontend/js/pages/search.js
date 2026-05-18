@@ -615,12 +615,23 @@ function openConsultingPanel(prop) {
 
     // 매물 상세 API 호출
     fetch(`${CONFIG.API_BASE_URL}/api/v1/properties/${prop.id}`, { credentials: 'include' })
-        .then(res => res.json())
-        .then(data => {
-            renderConsultingPanel(data);
+        .then(async (res) => {
+            if (!res.ok) {
+                throw new Error(`property detail request failed: ${res.status}`);
+            }
+
+            const data = await res.json();
+            if (!data || data.success === false || (data.data && typeof data.data === 'object')) {
+                return data?.data && typeof data.data === 'object' ? data.data : prop;
+            }
+
+            return data;
+        })
+        .then((data) => {
+            renderConsultingPanel(data || prop);
         })
         .catch(() => {
-            // API 실패 시 목록 데이터로 렌더링
+            // API 실패/권한 제한 시 목록 데이터로 렌더링
             renderConsultingPanel(prop);
         });
 }
@@ -661,13 +672,22 @@ function renderConsultingPanel(prop) {
     document.getElementById('cp-title').textContent = prop.title || '-';
     document.getElementById('cp-address').textContent = getDisplayAddress(prop);
 
-    // 상세 보기 버튼
+    // 상세 보기 버튼 (로그인 사용자만 활성화)
     const detailBtn = document.getElementById('cp-btn-detail');
-    detailBtn.onclick = () => {
-        const hasHtmlExt = window.location.pathname.endsWith('.html');
-        const targetPath = hasHtmlExt ? '/properties.html' : '/properties';
-        window.location.href = `${targetPath}?id=${prop.id}&pnu=${prop.pnu || ''}`;
-    };
+    const isAuthenticated = !!window.currentUserRole;
+    if (isAuthenticated) {
+        detailBtn.disabled = false;
+        detailBtn.setAttribute('aria-disabled', 'false');
+        detailBtn.onclick = () => {
+            const hasHtmlExt = window.location.pathname.endsWith('.html');
+            const targetPath = hasHtmlExt ? '/properties.html' : '/properties';
+            window.location.href = `${targetPath}?id=${prop.id}&pnu=${prop.pnu || ''}`;
+        };
+    } else {
+        detailBtn.onclick = null;
+        detailBtn.disabled = true;
+        detailBtn.setAttribute('aria-disabled', 'true');
+    }
 
     // 프리미엄 상담 신청 버튼 (오른쪽 패널)
     document.getElementById('cp-btn-consult').onclick = async () => {

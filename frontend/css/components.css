@@ -52,6 +52,27 @@
     color: var(--primary-color);
 }
 
+.btn:disabled,
+.btn[aria-disabled="true"] {
+    cursor: not-allowed;
+    opacity: 0.5;
+    box-shadow: none;
+    transform: none;
+}
+
+.btn-outline:disabled,
+.btn-outline[aria-disabled="true"] {
+    border-color: var(--border-color);
+    color: var(--text-muted);
+    background-color: #f5f7fa;
+}
+
+.btn-outline:disabled:hover,
+.btn-outline[aria-disabled="true"]:hover {
+    border-color: var(--border-color);
+    color: var(--text-muted);
+}
+
 /* Header */
 .app-header {
     height: var(--header-height);
