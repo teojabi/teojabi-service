@@ -21,7 +21,7 @@ export function renderFooter(containerId) {
                             <p><strong>대표자:</strong> 방양임 | <strong>사업자등록번호:</strong> 846-13-02909</p>
                             <p><strong>주소:</strong> 경기도 광주시 머루숯길 22, C-101</p>
                             <p><strong>통신판매업 신고번호:</strong> 제 2026-서울강동-0000호</p>
-                            <p><strong>고객센터:</strong> 070-8919-4609 | <strong>이메일:</strong> support@teojabi.com</p>
+                            <p><strong>고객센터:</strong> 070-8919-4609 | <strong>이메일:</strong> teojabi@gmail.com</p>
                         </div>
                     </div>
                     <div class="footer-links">
@@ -31,7 +31,7 @@ export function renderFooter(containerId) {
                                 <li><a href="/terms.html">이용약관</a></li>
                                 <li><a href="/privacy.html" class="bold" style="font-weight: 800; color: #1e40af;">개인정보처리방침</a></li>
                                 <li><a href="/refund.html">환불 정책</a></li>
-                                <li><a href="/paid-service.html">유료서비스</a></li>
+                                <li><a href="/paid-service.html">구독서비스</a></li>
                             </ul>
                         </div>
                     </div>
@@ -42,7 +42,7 @@ export function renderFooter(containerId) {
                         <span class="divider">|</span>
                         <a href="/privacy.html" class="bold" style="font-weight: 800; color: #1e40af;">개인정보처리방침</a>
                         <span class="divider">|</span>
-                        <a href="/paid-service.html">유료서비스</a>
+                        <a href="/paid-service.html">구독서비스</a>
                         <span class="divider">|</span>
                         <a href="/refund.html">환불정책</a>
                         <span class="divider">|</span>
