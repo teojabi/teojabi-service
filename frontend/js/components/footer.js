@@ -97,7 +97,7 @@ export function renderFooter(containerId) {
                         <p><strong>주소:</strong> 경기도 광주시 머루숯길 22, C-101</p>
                         <p><strong>통신판매업 신고번호:</strong> 제 2026-서울강동-0000호</p>
                         <p><strong>고객센터:</strong> 070-8919-4609</p>
-                        <p><strong>이메일:</strong> support@teojabi.com</p>
+                        <p><strong>이메일:</strong> teojabi@gmail.com</p>
                     </div>
                 `);
                 return;
