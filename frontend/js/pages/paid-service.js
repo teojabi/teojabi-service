@@ -21,6 +21,21 @@ const setButtonsDisabled = (disabled) => {
   });
 };
 
+const shouldHideSubscriptionButtons = () => {
+  const role = window.currentUserRole;
+  return !role || role === 'ADMIN';
+};
+
+const applySubscriptionButtonVisibility = () => {
+  if (!shouldHideSubscriptionButtons()) {
+    return;
+  }
+
+  planButtons.forEach((button) => {
+    button.style.display = 'none';
+  });
+};
+
 const requestJson = async (url, payload) => {
   const response = await fetch(url, {
     method: 'POST',
@@ -71,6 +86,8 @@ const issueBillingKey = async (planCode) => {
     customerId: prepareData.customerId,
   });
 };
+
+applySubscriptionButtonVisibility();
 
 planButtons.forEach((button) => {
   button.addEventListener('click', async () => {
