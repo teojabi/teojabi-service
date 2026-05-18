@@ -119,6 +119,15 @@ export class ReservationsService {
     });
   }
 
+  async updateAdminFeedback(id: string, adminFeedback: string | null) {
+    return this.prisma.reservation.update({
+      where: { id },
+      data: {
+        adminFeedback,
+      },
+    });
+  }
+
   private async ensureReportPermission(userId: string) {
     const activeSubscription = await this.prisma.userSubscription.findFirst({
       where: {

@@ -43,4 +43,11 @@ export class ReservationsController {
   async updateStatus(@Param('id') id: string, @Body('status') status: any) {
     return this.reservationsService.updateStatus(id, status);
   }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  @Patch(':id/feedback')
+  async updateAdminFeedback(@Param('id') id: string, @Body('adminFeedback') adminFeedback: string | null) {
+    return this.reservationsService.updateAdminFeedback(id, adminFeedback ?? null);
+  }
 }

@@ -194,6 +194,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                         <div class="resv-message">
                             ${resv.message || '남긴 메시지가 없습니다.'}
                         </div>
+                        <div style="margin-top: 0.75rem;">
+                            <label style="display:block; font-size:0.85rem; color:var(--text-muted); margin-bottom:6px;">관리자 피드백</label>
+                            <textarea id="feedback-${resv.id}" style="width:100%; min-height:88px; resize:vertical; padding:10px; border-radius:6px; border:1px solid var(--border-color); font-size:0.9rem;" placeholder="상담 신청자에게 전달할 내용을 입력하세요.">${resv.adminFeedback || ''}</textarea>
+                            <div style="margin-top:8px; display:flex; justify-content:flex-end;">
+                                <button class="btn btn-outline btn-sm" onclick="window.updateReservationFeedback('${resv.id}')">피드백 저장</button>
+                            </div>
+                        </div>
                     </div>
                     <div class="resv-footer">
                         <div style="font-size:0.85rem; color:var(--text-muted);">상태 변경</div>
@@ -274,6 +281,30 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             if (!res.ok) throw new Error('상태 변경에 실패했습니다.');
             alert('변경되었습니다.');
+            fetchReservations();
+        } catch (err) {
+            console.error(err);
+            alert(err.message);
+        }
+    };
+
+    window.updateReservationFeedback = async function (id) {
+        const feedbackInput = document.getElementById(`feedback-${id}`);
+        if (!feedbackInput) return;
+
+        const adminFeedback = feedbackInput.value.trim();
+        if (!confirm('관리자 피드백을 저장하시겠습니까?')) return;
+
+        try {
+            const res = await fetch(`${CONFIG.API_BASE_URL}/api/v1/reservations/${id}/feedback`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ adminFeedback })
+            });
+
+            if (!res.ok) throw new Error('피드백 저장에 실패했습니다.');
+            alert('피드백이 저장되었습니다.');
             fetchReservations();
         } catch (err) {
             console.error(err);

@@ -227,6 +227,10 @@ async function fetchMyReservations() {
                     <div style="background:var(--bg-muted); padding:12px; border-radius:var(--radius-sm); font-size:0.9rem; color:var(--text-main); border-left:3px solid var(--border-color);">
                         ${resv.message || '남긴 메시지가 없습니다.'}
                     </div>
+                    <div style="margin-top:12px; background:#f7fbff; padding:12px; border-radius:var(--radius-sm); border-left:3px solid var(--primary-color);">
+                        <div style="font-size:0.8rem; color:var(--primary-color); font-weight:600; margin-bottom:4px;">관리자 피드백</div>
+                        <div style="font-size:0.9rem; color:var(--text-main);">${resv.adminFeedback || '아직 등록된 피드백이 없습니다.'}</div>
+                    </div>
                 </div>
             `;
             listContainer.appendChild(item);

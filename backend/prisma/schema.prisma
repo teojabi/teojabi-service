@@ -86,13 +86,14 @@ model Property {
 }
 
 model Reservation {
-  id      String          @id @default(uuid())
-  type    ReservationType @default(GENERAL)
-  date    DateTime
-  status  ResStatus       @default(PENDING)
-  message String?         @db.Text
-  pnu     String?         @db.Char(19)
-  address String?
+  id            String          @id @default(uuid())
+  type          ReservationType @default(GENERAL)
+  date          DateTime
+  status        ResStatus       @default(PENDING)
+  message       String?         @db.Text
+  adminFeedback String?         @db.Text @map("admin_feedback")
+  pnu           String?         @db.Char(19)
+  address       String?
 
   userId     String    @map("user_id")
   user       User      @relation(fields: [userId], references: [id])

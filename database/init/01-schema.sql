@@ -88,6 +88,7 @@ CREATE TABLE IF NOT EXISTS reservation (
     date TIMESTAMP(3) WITH TIME ZONE NOT NULL,
     status "ResStatus" NOT NULL DEFAULT 'PENDING',
     message TEXT,
+    admin_feedback TEXT,
     user_id TEXT NOT NULL REFERENCES "user"(id) ON DELETE RESTRICT ON UPDATE CASCADE,
     property_id TEXT REFERENCES property(id) ON DELETE SET NULL ON UPDATE CASCADE,
     pnu CHAR(19), -- 특정 매물이 아닌 일반 필지에서 신청할 경우를 위한 PNU
@@ -102,6 +103,7 @@ COMMENT ON COLUMN reservation.type IS '신청 분류 (GENERAL: 일반 필지, PR
 COMMENT ON COLUMN reservation.date IS '상담 희망 일시';
 COMMENT ON COLUMN reservation.status IS '신청 상태 (PENDING, CONFIRMED, CANCELLED, COMPLETED)';
 COMMENT ON COLUMN reservation.message IS '신청 시 남긴 메시지';
+COMMENT ON COLUMN reservation.admin_feedback IS '관리자가 남긴 상담 피드백';
 COMMENT ON COLUMN reservation.user_id IS '신청자 (user.id FK)';
 COMMENT ON COLUMN reservation.property_id IS '대상 매물 (property.id FK, 일반 필지 신청 시 NULL)';
 COMMENT ON COLUMN reservation.pnu IS '대상 필지고유번호 (일반 필지 신청 시 사용)';
