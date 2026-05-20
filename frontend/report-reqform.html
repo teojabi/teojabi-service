@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>터잡이 전문가 리포트 - 정보 입력 및 인증</title>
+    <link href="https://cdn.jsdelivr.net/gh/sun-font/SUITE/css/SUITE.css" rel="stylesheet">
+
+    <style>
+        /* 기본 스타일 초기화 */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'SUITE', sans-serif;
+            letter-spacing: -0.3px;
+        }
+        body {
+            background-color: #f8fafc;
+            color: #334155;
+            line-height: 1.7;
+        }
+        .container {
+            max-width: 768px;
+            margin: 0 auto;
+            background: #ffffff;
+            min-height: 100vh;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.05);
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* 상단 네비게이션 바 */
+        .nav-bar {
+            padding: 16px 24px;
+            border-bottom: 1px solid #f1f5f9;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .nav-bar .brand { font-size: 18px; font-weight: 800; color: #0f172a; }
+        .nav-bar .step-indicator { font-size: 14px; color: #2563eb; font-weight: 700; }
+
+        /* 상단 타이틀 영역 */
+        .title-area { padding: 32px 24px 10px 24px; }
+        .title-area h2 { font-size: 24px; font-weight: 800; color: #0f172a; line-height: 1.4; margin-bottom: 8px; }
+        .title-area p { font-size: 15px; color: #64748b; }
+
+        /* 폼 영역 */
+        .form-container { padding: 24px; flex-grow: 1; }
+        .form-group { margin-bottom: 28px; }
+        .form-label { display: block; font-size: 15px; font-weight: 700; color: #334155; margin-bottom: 10px; }
+        .form-label span { color: #ef4444; margin-left: 2px; }
+
+        /* 주소 컴포넌트 임시 영역 스타일 */
+        .existing-component-box {
+            background-color: #f8fafc;
+            border: 2px dashed #cbd5e1;
+            border-radius: 8px;
+            padding: 24px;
+            text-align: center;
+            color: #64748b;
+            font-size: 15px;
+            font-weight: 500;
+            margin-bottom: 12px;
+        }
+        .input-text {
+            width: 100%;
+            padding: 14px 16px;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            font-size: 15px;
+            color: #0f172a;
+            background-color: #ffffff;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        .input-text:focus { border-color: #2563eb; }
+
+        /* 하이라이트 배너 */
+        .info-banner {
+            background-color: #fefce8;
+            border: 1px solid #fef08a;
+            border-radius: 8px;
+            padding: 14px 16px;
+            font-size: 14px;
+            color: #854d0e;
+            line-height: 1.5;
+        }
+
+        /* 텍스트에어리어 (검토 요청사항) */
+        textarea.input-text { resize: none; height: 120px; line-height: 1.6; }
+
+        /* 본인인증 섹션 */
+        .auth-box {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+            transition: all 0.2s;
+        }
+        .auth-status { font-size: 14px; color: #64748b; margin-bottom: 12px; }
+        .btn-auth {
+            display: inline-flex; align-items: center; gap: 8px;
+            background-color: #ffffff; border: 1px solid #cbd5e1;
+            padding: 12px 24px; border-radius: 6px;
+            font-size: 15px; font-weight: 700; color: #334155;
+            cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+            transition: all 0.2s;
+        }
+        .btn-auth:hover { background-color: #f1f5f9; border-color: #94a3b8; }
+
+        /* 인증 완료 상태 스타일 (UI 전환) */
+        .auth-box.success { background: #f0fdf4; border: 1px solid #bbf7d0; }
+        .auth-box.success .auth-status { color: #166534; font-weight: 700; }
+        .auth-box.success .btn-auth { display: none; }
+
+        /* 하단 고정 액션 바 */
+        .footer-action { padding: 24px; background: #ffffff; border-top: 1px solid #f1f5f9; }
+        .btn-submit {
+            display: block; width: 100%; background: #2563eb; color: #ffffff; border: none;
+            text-align: center; padding: 18px; border-radius: 8px; font-size: 18px; font-weight: 700;
+            cursor: pointer; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2); transition: background 0.2s;
+        }
+        .btn-submit:hover { background: #1d4ed8; }
+        .footer-notice { font-size: 13px; color: #94a3b8; text-align: center; margin-top: 12px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+
+    <div class="nav-bar">
+        <span class="brand">터잡이</span>
+        <span class="step-indicator">② 정보 입력 및 본인인증</span>
+    </div>
+
+    <div class="title-area">
+        <h2>리포트 신청 정보 입력</h2>
+        <p>오직 대표님 부지만을 위한 맞춤 분석이 시작됩니다.</p>
+    </div>
+
+    <div class="form-container">
+        <form id="reportForm" onsubmit="return handleSubmit(event)">
+
+            <div class="form-group">
+                <label class="form-label">주소 입력 <span>*</span></label>
+
+                <div class="existing-component-box">
+                    ⚙️ [기존 터잡이 주소 입력 컴포넌트 재활용 위치]<br>
+                    <span style="font-size:13px; color:#94a3b8;">(개발 시 기존에 구현된 검색/바인딩 시스템 컴포넌트를 이 자리에 그대로 연결합니다.)</span>
+                    <input type="text" id="existingAddressInput" value="서울특별시 강남구 역삼동" style="margin-top:10px; text-align:center;" class="input-text" placeholder="기존 시스템 연동 주소값">
+                </div>
+
+                <div class="info-banner">
+                    ⚠️ 현재 '터잡이 전문가 리포트'는 서비스 품질 유지를 위해 <strong>[서울 전 지역]</strong> 부지만 우선 접수 가능합니다.
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">간단 검토 요청 사항</label>
+                <textarea id="userMemo" class="input-text" placeholder="예: 신축 시 최대 몇 층까지 지을 수 있는지 궁금합니다. 관광호텔로 용도변경이 가능한가요?"></textarea>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">본인인증 <span>*</span></label>
+
+                <div class="auth-box" id="authBox">
+                    <p class="auth-status" id="authStatus">안전한 서비스 이용을 위해 본인인증이 필요합니다.</p>
+                    <button type="button" class="btn-auth" onclick="startVerification()">
+                        📱 휴대폰 본인인증 하기
+                    </button>
+                </div>
+
+                <input type="hidden" id="isVerified" value="false">
+                <input type="hidden" id="userName" value="">
+                <input type="hidden" id="userPhone" value="">
+            </div>
+
+        </form>
+    </div>
+
+    <div class="footer-action">
+        <button type="submit" form="reportForm" class="btn-submit">
+            ③ 결제 진행하기 ➔
+        </button>
+        <p class="footer-notice">버튼을 누르시면 포트원(Portone) 통합 결제창으로 이동합니다.</p>
+    </div>
+
+</div>
+
+<script>
+    /**
+     * 본인인증 시뮬레이션 함수 (Portone 모듈 연동용 가이드)
+     */
+    function startVerification() {
+        alert('본인인증 팝업이 실행됩니다.\n(포트원 모듈 호출 및 실명/전화번호 추출)');
+
+        const authBox = document.getElementById('authBox');
+        const authStatus = document.getElementById('authStatus');
+
+        authBox.classList.add('success');
+        authStatus.innerHTML = '✅ 본인인증 완료 (홍길동 / 010-1234-5678)';
+
+        document.getElementById('isVerified').value = 'true';
+        document.getElementById('userName').value = '홍길동';
+        document.getElementById('userPhone').value = '01012345678';
+    }
+
+    /**
+     * 프론트엔드 유효성 검사 (Form Validation)
+     */
+    function handleSubmit(event) {
+        event.preventDefault();
+
+        const address = document.getElementById('existingAddressInput').value.trim();
+        const isVerified = document.getElementById('isVerified').value;
+
+        // 체크 1: 주소 누락 여부
+        if (!address) {
+            alert('부지 주소를 입력해 주세요.');
+            return false;
+        }
+
+        // 체크 2: 본인인증 여부
+        if (isVerified !== 'true') {
+            alert('결제를 진행하려면 본인인증을 먼저 완료해 주세요.');
+            return false;
+        }
+
+        alert('신청 정보 확인 완료!\n③ 단계 결제 세션으로 이동합니다.');
+        return true;
+    }
+</script>
+
+</body>
+</html>

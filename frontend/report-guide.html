@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>터잡이 전문가 리포트 안내</title>
+    <link href="https://cdn.jsdelivr.net/gh/sun-font/SUITE/css/SUITE.css" rel="stylesheet">
+
+    <style>
+        /* 기본 스타일 초기화 - 폰트를 'SUITE'로 변경 */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'SUITE', sans-serif;
+            letter-spacing: -0.3px;
+        }
+        body {
+            background-color: #f8fafc;
+            color: #334155;
+            line-height: 1.7;
+        }
+        .container {
+            max-width: 768px;
+            margin: 0 auto;
+            background: #ffffff;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.05);
+        }
+
+        /* 히어로 섹션 */
+        .hero {
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            color: #ffffff;
+            padding: 60px 24px;
+            text-align: center;
+        }
+        .hero .subtitle {
+            font-size: 18px;
+            color: #38bdf8;
+            font-weight: 700;
+            margin-bottom: 12px;
+            text-transform: uppercase;
+        }
+        .hero h1 {
+            font-size: 30px;
+            font-weight: 800;
+            line-height: 1.4;
+            margin-bottom: 20px;
+            word-break: keep-all;
+        }
+        .hero p {
+            font-size: 16px;
+            color: #94a3b8;
+            font-weight: 400;
+            word-break: keep-all;
+        }
+
+        /* 공통 섹션 스타일 */
+        section {
+            padding: 50px 24px;
+            border-bottom: 1px solid #f1f5f9;
+        }
+        .section-title {
+            font-size: 22px;
+            font-weight: 800;
+            color: #0f172a;
+            margin-bottom: 24px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        /* 서비스 지역 제한 배너 */
+        .alert-banner {
+            background-color: #f0fdf4;
+            border: 1px solid #bbf7d0;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 15px;
+        }
+        .alert-banner-title { color: #1e40af; font-size: 17px; font-weight: 700; margin-bottom: 6px; display: flex; gap: 6px; align-items: center; }
+        .alert-banner p { color: #1e3a8a; font-size: 15px; }
+
+        /* 버튼 스타일 */
+        .btn-primary {
+            display: block;
+            width: 100%;
+            background: #2563eb;
+            color: #ffffff;
+            text-align: center;
+            padding: 18px;
+            border-radius: 8px;
+            font-size: 19px;
+            font-weight: 700;
+            text-decoration: none;
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2);
+            transition: all 0.2s ease;
+            margin: 20px 0;
+        }
+        .btn-primary:hover {
+            background: #1d4ed8;
+            transform: translateY(-1px);
+        }
+
+        /* 리포트 예시 링크 영역 */
+        .sample-box {
+            background: #f1f5f9;
+            border-radius: 8px;
+            padding: 24px;
+            text-align: center;
+        }
+        .sample-box p { font-size: 16px; color: #64748b; margin-bottom: 16px; font-weight: 500; }
+        .btn-outline {
+            display: inline-block;
+            border: 1px solid #cbd5e1;
+            background: #ffffff;
+            color: #0f172a;
+            padding: 12px 24px;
+            border-radius: 6px;
+            font-size: 15px;
+            font-weight: 700;
+            text-decoration: none;
+            transition: background 0.2s;
+        }
+        .btn-outline:hover { background: #f8fafc; border-color: #94a3b8; }
+
+        /* 추천 대상 체크리스트 (절대 깨지지 않는 순수 마크업) */
+        .recommend-list { list-style: none; }
+        .recommend-list li {
+            position: relative;
+            padding-left: 32px;
+            margin-bottom: 16px;
+            font-size: 16px;
+            color: #475569;
+            word-break: keep-all;
+        }
+        .recommend-list li::before {
+            content: "✓";
+            position: absolute;
+            left: 0;
+            top: 0px;
+            color: #2563eb;
+            font-size: 20px;
+            font-weight: 900;
+        }
+
+        /* 리포트 핵심 내용 카드 */
+        .content-card {
+            background: #f8fafc;
+            border-left: 5px solid #0f172a;
+            padding: 20px;
+            margin-bottom: 16px;
+            border-radius: 0 8px 8px 0;
+        }
+        .content-card h4 { font-size: 18px; color: #0f172a; margin-bottom: 8px; font-weight: 700; }
+        .content-card p { font-size: 15px; color: #475569; word-break: keep-all; }
+
+        /* 프로세스 스텝 */
+        .process-container { position: relative; margin-top: 15px; }
+        .process-step {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 24px;
+            position: relative;
+        }
+        .step-number {
+            width: 60px;
+            height: 28px;
+            background: #e2e8f0;
+            color: #475569;
+            border-radius: 4px;
+            font-size: 13px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+        .process-step.active .step-number {
+            background: #0f172a;
+            color: #ffffff;
+        }
+        .step-text h4 { font-size: 18px; color: #0f172a; margin-bottom: 6px; font-weight: 700; }
+        .step-text p { font-size: 15px; color: #64748b; word-break: keep-all; }
+        .process-notice {
+            font-size: 14px;
+            color: #64748b;
+            background: #f1f5f9;
+            padding: 14px;
+            border-radius: 6px;
+            text-align: center;
+            margin-top: 15px;
+        }
+
+        /* 환불 정책 */
+        .policy-box {
+            background: #fafafa;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 20px;
+        }
+        .policy-item { margin-bottom: 16px; }
+        .policy-item:last-child { margin-bottom: 0; }
+        .policy-item h5 { font-size: 15px; color: #334155; margin-bottom: 6px; font-weight: 700; }
+        .policy-item p { font-size: 14px; color: #64748b; word-break: keep-all; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+
+    <header class="hero">
+        <p class="subtitle">터잡이 전문가 서비스</p>
+        <h1>내 땅의 가치를 극대화하는<br>가장 확실한 방법</h1>
+        <p>건축사, 자산관리 전문가, 그리고 AI 데이터가 결합하여 오직 대표님 부지만을 위한 최적의 개발 시뮬레이션을 제공합니다.</p>
+    </header>
+
+    <section style="padding-bottom: 15px;">
+        <div class="alert-banner">
+            <div class="alert-banner-title">
+                <span>⚠️</span> <h4>서비스 지역 제한 안내</h4>
+            </div>
+            <p>현재 '터잡이 전문가 리포트'는 서비스 품질 유지를 위해 <strong>[서울 전 지역]</strong>을 대상으로만 우선 제공되고 있습니다. (서울 외 지역은 추후 확대 예정)</p>
+        </div>
+
+        <a href="#apply" class="btn-primary">
+            내 부지 분석 신청하고 리포트 받기 ➔
+        </a>
+    </section>
+
+    <section>
+        <div class="sample-box">
+            <p>"어떤 내용이 담기는지 미리 확인해 보세요"</p>
+            <a href="https://incredible-snake-jew8qnq.gamma.site" target="_blank" class="btn-outline">
+                터잡이 전문가 리포트 샘플 보러가기 ↗
+            </a>
+        </div>
+    </section>
+
+    <section>
+        <h3 class="section-title">⭐ 이런 분들께 추천합니다</h3>
+        <ul class="recommend-list">
+            <li>노후화된 건물을 허물고 신축했을 때의 정확한 사업성이 궁금하신 분</li>
+            <li>용적률을 최대한 찾아내어 건물 가치를 극대화하고 싶으신 분</li>
+            <li>복잡한 법적 규제와 건축 허가 가능 여부를 전문가 시선에서 검토받고 싶으신 분</li>
+        </ul>
+    </section>
+
+    <section>
+        <h3 class="section-title">📄 리포트 핵심 내용</h3>
+
+        <div class="content-card">
+            <h4>1. 부지 분석 및 가설계 시뮬레이션</h4>
+            <p>지구단위계획 및 서울시 최신 정책을 반영하여 용적률, 건폐율을 고려한 최적의 층수 및 면적 도출</p>
+        </div>
+
+        <div class="content-card">
+            <h4>2. 매각 시 ROI 및 투자 기간 설정</h4>
+            <p>향후 자산 매각 시의 예상 투자 수익률(ROI)을 정밀 계산하고, 최적의 엑시트(Exit) 및 투자 기간 수립</p>
+        </div>
+
+        <div class="content-card">
+            <h4>3. MD 구성 및 수익성 분석</h4>
+            <p>주변 상권 및 트렌드 데이터를 기반으로 공실을 최소화하는 최적의 임대 구성안 및 예상 수익률 제시</p>
+        </div>
+    </section>
+
+    <section style="background-color: #f8fafc;">
+        <h3 class="section-title">💰 서비스 요금 안내</h3>
+
+        <div style="background: #ffffff; border: 2px solid #2563eb; border-radius: 12px; padding: 32px 24px; box-shadow: 0 4px 15px rgba(37,99,235,0.08); position: relative; overflow: hidden;">
+            <div style="position: absolute; top: 0; right: 0; background: #2563eb; color: #ffffff; padding: 6px 20px; font-size: 13px; font-weight: 700; border-radius: 0 0 0 12px; letter-spacing: 0.5px;">
+                PREMIUM REPORT
+            </div>
+
+            <h4 style="font-size: 22px; color: #0f172a; font-weight: 800; margin-bottom: 8px;">터잡이 전문가 리포트</h4>
+            <p style="font-size: 15px; color: #64748b; margin-bottom: 24px; line-height: 1.5;">건축사 가설계 · 서울시 정책 분석 · MD 및 ROI 시뮬레이션 통합 패키지</p>
+
+            <div style="border-top: 1px dashed #e2e8f0; border-bottom: 1px dashed #e2e8f0; padding: 20px 0; margin-bottom: 24px; display: flex; align-items: baseline; gap: 4px;">
+                <span style="font-size: 34px; font-weight: 800; color: #2563eb;">400,000원</span>
+                <span style="font-size: 15px; color: #475569; font-weight: 600; margin-left: 2px;">/ 건당 (VAT 포함)</span>
+            </div>
+
+            <ul style="list-style: none; padding: 0;">
+                <li style="font-size: 15px; color: #475569; margin-bottom: 12px; display: flex; gap: 10px; align-items: flex-start;">
+                    <span style="color: #2563eb; font-weight: bold; margin-top: -1px;">✔</span>
+                    <span>지구단위계획 및 서울시 최신 정책 보정 <strong>맞춤형 부지 분석</strong></span>
+                </li>
+                <li style="font-size: 15px; color: #475569; margin-bottom: 12px; display: flex; gap: 10px; align-items: flex-start;">
+                    <span style="color: #2563eb; font-weight: bold; margin-top: -1px;">✔</span>
+                    <span>전문 건축사의 시선이 담긴 <strong>가설계 시뮬레이션 및 MD 제안</strong></span>
+                </li>
+                <li style="font-size: 15px; color: #475569; display: flex; gap: 10px; align-items: flex-start;">
+                    <span style="color: #2563eb; font-weight: bold; margin-top: -1px;">✔</span>
+                    <span>매각 시 예상 ROI 계산 및 투자 기간 설정을 포함한 <strong>고해상도 PDF 리포트 발송</strong></span>
+                </li>
+            </ul>
+        </div>
+    </section>
+
+    <section>
+        <h3 class="section-title">🚚 진행 프로세스 및 배송 안내</h3>
+        <p style="font-size:16px; color:#475569; margin-bottom:24px; font-weight:500;">신청부터 수령까지 단 5일! 터잡이는 대표님의 시간을 아끼기 위해 신속하고 정확하게 움직입니다.</p>
+
+        <div class="process-container">
+            <div class="process-step">
+                <div class="step-number">Step 1</div>
+                <div class="step-text">
+                    <h4>정보 입력 및 인증</h4>
+                    <p>부지 주소와 간단한 검토 요청 사항을 입력합니다.</p>
+                </div>
+            </div>
+
+            <div class="process-step">
+                <div class="step-number">Step 2</div>
+                <div class="step-text">
+                    <h4>결제 완료</h4>
+                    <p>결제가 확인되면 터잡이 전담 팀이 즉시 분석에 착수합니다.</p>
+                </div>
+            </div>
+
+            <div class="process-step active">
+                <div class="step-number">Step 3</div>
+                <div class="step-text">
+                    <h4>전문가 분석 (영업일 기준 5일)</h4>
+                    <p>담당 전문가가 배정되어 데이터 분석 및 가설계 검토를 진행합니다.</p>
+                </div>
+            </div>
+
+            <div class="process-step">
+                <div class="step-number">Step 4</div>
+                <div class="step-text">
+                    <h4>PDF 리포트 발송</h4>
+                    <p>입력하신 이메일로 완성된 고해상도 전문가 리포트(PDF)를 발송해 드립니다.</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="process-notice">
+            ℹ️ 리포트 접수 및 발송 상황은 <strong>마이 페이지</strong>에서 확인하세요.
+        </div>
+    </section>
+
+    <section>
+        <h3 class="section-title">🛡️ 결제 및 환불 정책</h3>
+        <div class="policy-box">
+            <div class="policy-item">
+                <h5>• 100% 전액 환불</h5>
+                <p>결제 후 전문가가 분석에 착수하기 전(신청 당일 이내 취소 시)에는 어떠한 조건 없이 100% 환불해 드립니다.</p>
+            </div>
+            <div class="policy-item">
+                <h5>• 환불 불가 안내</h5>
+                <p>본 리포트는 고객님의 부지 맞춤형으로 개별 제작되는 컨설팅 상품 특성상, 전문가 배정 및 리포트 작성 작업이 시작된 이후에는 환불이 불가능합니다.</p>
+            </div>
+            <div class="policy-item">
+                <h5>• 문의 및 접수</h5>
+                <p>리포트 내용에 대한 추가 문의나 수정 요청은 리포트 내 기재된 전담 담당자 직통 연락처를 통해 신속하게 지원받으실 수 있습니다.</p>
+            </div>
+        </div>
+    </section>
+
+    <section id="apply" style="background: #f8fafc; padding: 40px 24px 60px 24px; text-align: center;">
+        <a href="#" class="btn-primary" style="margin:0;">
+            내 부지 분석 신청하고 리포트 받기 ➔
+        </a>
+        <p style="font-size:14px; color:#94a3b8; margin-top:12px;">버튼을 누르시면 간단 정보 입력 및 본인인증 화면으로 이동합니다.</p>
+    </section>
+
+</div>
+
+</body>
+</html>

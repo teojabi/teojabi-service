@@ -211,23 +211,6 @@ function bindEvents() {
         }
     });
 
-    // 3. 리포트 예시 (새 창으로 띄우기)
-    document.getElementById('btn-panel-action3').addEventListener('click', async function() {
-        let reportUrl = 'https://teojabi.com/samples/sample_report.pdf'; // 기본값
-        
-        try {
-            const res = await fetch(`${CONFIG.API_BASE_URL}/api/v1/settings/sample_report_url`);
-            const json = await res.json();
-            if (json.success && json.data && json.data.value) {
-                reportUrl = json.data.value;
-            }
-        } catch (err) {
-            console.error('리포트 URL 로드 실패, 기본값 사용:', err);
-        }
-        
-        window.open(reportUrl, '_blank');
-    });
-
 }
 
 function getMapWaitOverlay() {

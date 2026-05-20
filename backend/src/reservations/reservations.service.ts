@@ -5,7 +5,7 @@ const SUBSCRIPTION_STATUS = {
   ACTIVE: 'ACTIVE',
 } as const;
 
-const REPORT_AVAILABLE_PLAN_KEYWORDS = ['LIGHT', 'PRO', 'MASTER'] as const;
+const REPORT_AVAILABLE_PLAN_KEYWORDS = ['LIGHT', 'BASIC', 'PRO', 'PLUS', 'MASTER'] as const;
 
 @Injectable()
 export class ReservationsService {

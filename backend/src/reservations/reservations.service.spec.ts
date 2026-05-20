@@ -54,6 +54,25 @@ describe('ReservationsService', () => {
     expect(prismaMock.reservation.create).toHaveBeenCalled();
   });
 
+  it('REPORT 신청 시 PLUS 계열 구독 코드도 생성 가능하다', async () => {
+    prismaMock.userSubscription.findFirst.mockResolvedValue({
+      plan: { code: 'plus_monthly' },
+    });
+    prismaMock.reservation.create.mockResolvedValue({ id: 'reservation-2' });
+
+    await expect(
+      service.create('user-1', {
+        type: 'REPORT',
+        pnu: '1111010100100010000',
+        date: '2026-05-15T12:00:00.000Z',
+        message: '테스트',
+      }),
+    ).resolves.toEqual({ id: 'reservation-2' });
+
+    expect(prismaMock.userSubscription.findFirst).toHaveBeenCalled();
+    expect(prismaMock.reservation.create).toHaveBeenCalled();
+  });
+
   it('REPORT 신청 시 구독 플랜이 없으면 거부된다', async () => {
     prismaMock.userSubscription.findFirst.mockResolvedValue(null);
 
