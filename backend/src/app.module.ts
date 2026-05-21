@@ -13,6 +13,7 @@ import { SupabaseModule } from './supabase/supabase.module';
 import { FavoritesModule } from './favorites/favorites.module';
 import { SettingsModule } from './settings/settings.module';
 import { SubscriptionsModule } from './subscriptions/subscriptions.module';
+import { EmailVerificationModule } from './email-verification/email-verification.module';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { SubscriptionsModule } from './subscriptions/subscriptions.module';
     FavoritesModule,
     SettingsModule,
     SubscriptionsModule,
+    EmailVerificationModule,
   ],
   controllers: [AppController],
   providers: [AppService],

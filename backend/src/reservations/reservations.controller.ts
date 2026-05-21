@@ -20,6 +20,18 @@ export class ReservationsController {
   constructor(private readonly reservationsService: ReservationsService) {}
 
   @UseGuards(JwtAuthGuard)
+  @Post('report-payment/prepare')
+  async prepareReportPayment(@Request() req: any, @Body() body: any) {
+    return this.reservationsService.prepareReportPayment(req.user.id, body);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('report-payment/confirm')
+  async confirmReportPayment(@Request() req: any, @Body() body: any) {
+    return this.reservationsService.confirmReportPayment(req.user.id, body);
+  }
+
+  @UseGuards(JwtAuthGuard)
   @Post()
   async createReservation(@Request() req: any, @Body() body: any) {
     return this.reservationsService.create(req.user.id, body);

@@ -461,6 +461,51 @@ function ensureReservationModal() {
         .reservation-input-textarea:focus {
             border-color: #3b82f6;
         }
+        .reservation-email-verification {
+            margin-top: 12px;
+            padding: 12px;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            background: #f8fafc;
+        }
+        .reservation-email-verification.hidden {
+            display: none;
+        }
+        .reservation-email-verification-row {
+            display: flex;
+            justify-content: space-between;
+            gap: 8px;
+            font-size: 14px;
+            color: #334155;
+            margin-bottom: 6px;
+        }
+        .reservation-email-verification-row:last-of-type {
+            margin-bottom: 10px;
+        }
+        .reservation-email-verification-value {
+            font-weight: 600;
+            text-align: right;
+            word-break: break-all;
+        }
+        .reservation-email-verify-btn {
+            border: 1px solid #2563eb;
+            background: #fff;
+            color: #2563eb;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 700;
+            padding: 8px 12px;
+            cursor: pointer;
+        }
+        .reservation-email-verify-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        .reservation-email-verify-message {
+            margin-top: 8px;
+            font-size: 13px;
+            color: #475569;
+        }
         .reservation-modal-footer {
             display: flex;
             justify-content: flex-end;
@@ -498,6 +543,18 @@ function ensureReservationModal() {
                 <div id="reservation-guide-slot"></div>
                 <label class="reservation-input-label" for="reservation-message">문의 메시지</label>
                 <textarea id="reservation-message" class="reservation-input-textarea" maxlength="1000" placeholder="요청하실 내용을 입력해주세요." required></textarea>
+                <div class="reservation-email-verification hidden" id="reservation-email-verification">
+                    <div class="reservation-email-verification-row">
+                        <span>이메일 주소</span>
+                        <span class="reservation-email-verification-value" id="reservation-user-email">-</span>
+                    </div>
+                    <div class="reservation-email-verification-row">
+                        <span>이메일 인증 상태</span>
+                        <span class="reservation-email-verification-value" id="reservation-email-verified">-</span>
+                    </div>
+                    <button type="button" class="reservation-email-verify-btn" id="reservation-send-verification-btn">이메일 인증 보안 메일 전송</button>
+                    <p class="reservation-email-verify-message" id="reservation-email-verify-message"></p>
+                </div>
                 <div class="reservation-modal-footer">
                     <button type="button" class="reservation-btn" data-reservation-close>취소</button>
                     <button type="submit" class="reservation-btn reservation-btn-primary" id="reservation-submit-btn">신청</button>
@@ -523,17 +580,80 @@ function openReservationModal(type = 'GENERAL') {
     const guideSlotEl = overlay.querySelector('#reservation-guide-slot');
     const submitBtnEl = overlay.querySelector('#reservation-submit-btn');
     const messageEl = overlay.querySelector('#reservation-message');
+    const emailSectionEl = overlay.querySelector('#reservation-email-verification');
+    const userEmailEl = overlay.querySelector('#reservation-user-email');
+    const emailVerifiedEl = overlay.querySelector('#reservation-email-verified');
+    const sendVerificationBtnEl = overlay.querySelector('#reservation-send-verification-btn');
+    const verificationMessageEl = overlay.querySelector('#reservation-email-verify-message');
+    const isReportType = type === 'REPORT';
+    const currentUserEmail = authState.user?.email || '';
+    const isEmailVerified = Boolean(authState.user?.emailVerified ?? authState.user?.email_verified);
 
     titleEl.textContent = template.title;
     guideSlotEl.innerHTML = template.guideHtml;
     submitBtnEl.textContent = template.submitLabel;
     messageEl.value = '';
+    verificationMessageEl.textContent = '';
+
+    if (isReportType) {
+        emailSectionEl.classList.remove('hidden');
+        userEmailEl.textContent = currentUserEmail || '등록된 이메일이 없습니다.';
+        emailVerifiedEl.textContent = isEmailVerified ? '인증 완료' : '미인증';
+
+        if (!currentUserEmail) {
+            sendVerificationBtnEl.disabled = true;
+            sendVerificationBtnEl.classList.remove('hidden');
+            verificationMessageEl.textContent = '회원정보에 이메일이 없어 인증 메일을 보낼 수 없습니다.';
+        } else if (isEmailVerified) {
+            sendVerificationBtnEl.disabled = true;
+            sendVerificationBtnEl.classList.add('hidden');
+            verificationMessageEl.textContent = '';
+        } else {
+            sendVerificationBtnEl.disabled = false;
+            sendVerificationBtnEl.classList.remove('hidden');
+        }
+    } else {
+        emailSectionEl.classList.add('hidden');
+        sendVerificationBtnEl.disabled = false;
+        sendVerificationBtnEl.classList.remove('hidden');
+    }
 
     overlay.classList.add('active');
     setTimeout(() => messageEl.focus(), 0);
 
     return new Promise((resolve) => {
         const form = overlay.querySelector('#reservation-modal-form');
+
+        const onSendVerificationEmail = async () => {
+            if (sendVerificationBtnEl.disabled) return;
+
+            sendVerificationBtnEl.disabled = true;
+            const originalButtonText = sendVerificationBtnEl.textContent;
+            sendVerificationBtnEl.textContent = '전송 중...';
+            verificationMessageEl.textContent = '';
+
+            try {
+                const response = await fetch(`${CONFIG.API_BASE_URL}/api/v1/email-verification/send`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                });
+
+                if (!response.ok) {
+                    const errorPayload = await response.json().catch(() => ({}));
+                    throw new Error(errorPayload.message || '인증 메일 전송에 실패했습니다.');
+                }
+
+                verificationMessageEl.textContent = '인증 메일을 전송했습니다. 메일함(스팸함 포함)을 확인해주세요.';
+            } catch (error) {
+                verificationMessageEl.textContent = error.message || '인증 메일 전송 중 오류가 발생했습니다.';
+                if (!isEmailVerified && currentUserEmail) {
+                    sendVerificationBtnEl.disabled = false;
+                }
+            } finally {
+                sendVerificationBtnEl.textContent = originalButtonText;
+            }
+        };
 
         const onSubmit = (event) => {
             event.preventDefault();
@@ -570,11 +690,13 @@ function openReservationModal(type = 'GENERAL') {
             form.removeEventListener('submit', onSubmit);
             overlay.removeEventListener('click', onOverlayClick);
             document.removeEventListener('keydown', onEsc);
+            sendVerificationBtnEl.removeEventListener('click', onSendVerificationEmail);
         }
 
         form.addEventListener('submit', onSubmit);
         overlay.addEventListener('click', onOverlayClick);
         document.addEventListener('keydown', onEsc);
+        sendVerificationBtnEl.addEventListener('click', onSendVerificationEmail);
     });
 }
 
@@ -596,6 +718,16 @@ window.requestPremiumConsultation = async (params) => {
     if (reqMsg === null) return;
 
     try {
+        if (type === 'REPORT') {
+            await requestReportWithOneTimePayment({
+                propertyId: params.propertyId || null,
+                pnu: params.pnu || null,
+                address: params.address || null,
+                message: reqMsg
+            });
+            return;
+        }
+
         const response = await fetch(`${CONFIG.API_BASE_URL}/api/v1/reservations`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -621,6 +753,86 @@ window.requestPremiumConsultation = async (params) => {
         alert("서버 오류로 인해 신청할 수 없습니다. 잠시 후 다시 시도해주세요.");
     }
 };
+
+async function requestReportWithOneTimePayment(payload) {
+    await ensurePortOneBrowserSdk();
+
+    const prepareResponse = await fetch(`${CONFIG.API_BASE_URL}/api/v1/reservations/report-payment/prepare`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+            pnu: payload.pnu,
+            address: payload.address
+        })
+    });
+
+    if (!prepareResponse.ok) {
+        const errData = await prepareResponse.json().catch(() => ({}));
+        throw new Error(errData.message || '결제 준비 중 오류가 발생했습니다.');
+    }
+
+    const prepared = await prepareResponse.json();
+    const paymentResult = await window.PortOne.requestPayment({
+        storeId: prepared.storeId,
+        channelKey: prepared.channelKey,
+        paymentId: prepared.paymentId,
+        orderName: prepared.orderName,
+        totalAmount: prepared.amount,
+        currency: 'CURRENCY_KRW',
+        payMethod: 'CARD',
+        customer: prepared.customer
+    });
+
+    if (paymentResult.code) {
+        throw new Error(paymentResult.message || '결제가 취소되었거나 실패했습니다.');
+    }
+
+    const confirmResponse = await fetch(`${CONFIG.API_BASE_URL}/api/v1/reservations/report-payment/confirm`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+            paymentId: paymentResult.paymentId || prepared.paymentId,
+            propertyId: payload.propertyId,
+            pnu: payload.pnu,
+            address: payload.address,
+            message: payload.message
+        })
+    });
+
+    if (!confirmResponse.ok) {
+        const errData = await confirmResponse.json().catch(() => ({}));
+        throw new Error(errData.message || '결제 확인 중 오류가 발생했습니다.');
+    }
+
+    alert('결제가 완료되어 전문가 리포트 요청이 접수되었습니다.\n담당 컨설턴트가 곧 연락드리겠습니다.');
+}
+
+async function ensurePortOneBrowserSdk() {
+    if (window.PortOne) return;
+
+    await new Promise((resolve, reject) => {
+        const existingScript = document.querySelector('script[data-portone-sdk="true"]');
+        if (existingScript) {
+            existingScript.addEventListener('load', () => resolve(), { once: true });
+            existingScript.addEventListener('error', () => reject(new Error('포트원 SDK 로드 실패')), { once: true });
+            return;
+        }
+
+        const script = document.createElement('script');
+        script.src = 'https://cdn.portone.io/v2/browser-sdk.js';
+        script.async = true;
+        script.dataset.portoneSdk = 'true';
+        script.onload = () => resolve();
+        script.onerror = () => reject(new Error('포트원 SDK 로드 실패'));
+        document.head.appendChild(script);
+    });
+
+    if (!window.PortOne) {
+        throw new Error('결제 모듈을 불러오지 못했습니다.');
+    }
+}
 
 window.formatPriceToKorean = (price) => {
     if (!price) return '가격 정보 없음';

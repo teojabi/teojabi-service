@@ -52,7 +52,13 @@ cp .env.example .env
 | `DIRECT_URL` | DB 직접 연결 URL (Prisma migrate 전용) |
 | `PORT` | 서버 포트 (기본: 3001) |
 | `FRONTEND_URL` | 프론트엔드 URL (CORS) |
+| `BACKEND_PUBLIC_URL` | 이메일 인증 링크에 사용할 백엔드 공개 URL |
 | `JWT_SECRET` | JWT 시크릿 키 |
+| `NCLOUD_MAIL_BASE_URL` | Cloud Outbound Mailer API 엔드포인트 (KR 기본: `https://mail.apigw.ntruss.com`) |
+| `NCLOUD_ACCESS_KEY` | NCP Access Key |
+| `NCLOUD_SECRET_KEY` | NCP Secret Key |
+| `NCLOUD_MAIL_SENDER_ADDRESS` | Cloud Outbound Mailer에 등록된 발신자 이메일 주소 |
+| `NCLOUD_MAIL_SENDER_NAME` | 발신자 이름(선택) |
 | `SUPABASE_URL` | Supabase 프로젝트 URL |
 | `SUPABASE_ANON_KEY` | Supabase Anonymous Key |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase Service Role Key |

@@ -20,6 +20,9 @@ END $$;
 CREATE TABLE IF NOT EXISTS "user" (
     id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
     email TEXT UNIQUE,
+    email_verified BOOLEAN NOT NULL DEFAULT FALSE,
+    email_verified_at TIMESTAMP(3) WITH TIME ZONE,
+    last_verification_sent_at TIMESTAMP(3) WITH TIME ZONE,
     name TEXT,
     image TEXT,
     role "Role" NOT NULL DEFAULT 'USER',
@@ -35,6 +38,9 @@ CREATE TABLE IF NOT EXISTS "user" (
 COMMENT ON TABLE "user" IS '서비스 사용자 정보';
 COMMENT ON COLUMN "user".id IS '사용자 고유 식별자 (UUID)';
 COMMENT ON COLUMN "user".email IS '이메일 주소';
+COMMENT ON COLUMN "user".email_verified IS '이메일 인증 완료 여부';
+COMMENT ON COLUMN "user".email_verified_at IS '이메일 인증 완료 시각';
+COMMENT ON COLUMN "user".last_verification_sent_at IS '최근 이메일 인증 메일 발송 시각';
 COMMENT ON COLUMN "user".name IS '사용자 이름';
 COMMENT ON COLUMN "user".image IS '프로필 이미지 URL';
 COMMENT ON COLUMN "user".role IS '사용자 권한 (USER, PREMIUM_BASIC, PREMIUM_PLUS, ADMIN)';
@@ -404,3 +410,56 @@ COMMENT ON COLUMN payment_webhook_event.payload IS '웹훅 원문 payload(JSONB)
 COMMENT ON COLUMN payment_webhook_event.received_at IS '웹훅 수신 시각';
 COMMENT ON COLUMN payment_webhook_event.processed_at IS '웹훅 처리 완료 시각';
 COMMENT ON COLUMN payment_webhook_event.process_result IS '처리 결과/메시지';
+
+-- =========================================================
+-- email verification schema patch (기존 DB 즉시 적용용)
+-- =========================================================
+
+ALTER TABLE "user"
+    ADD COLUMN IF NOT EXISTS email_verified BOOLEAN NOT NULL DEFAULT FALSE,
+    ADD COLUMN IF NOT EXISTS email_verified_at TIMESTAMP(3) WITH TIME ZONE,
+    ADD COLUMN IF NOT EXISTS last_verification_sent_at TIMESTAMP(3) WITH TIME ZONE;
+
+COMMENT ON COLUMN "user".email_verified IS '이메일 인증 완료 여부';
+COMMENT ON COLUMN "user".email_verified_at IS '이메일 인증 완료 시각';
+COMMENT ON COLUMN "user".last_verification_sent_at IS '최근 이메일 인증 메일 발송 시각';
+
+CREATE TABLE IF NOT EXISTS email_verification_token (
+    id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+    user_id TEXT REFERENCES "user"(id) ON DELETE CASCADE ON UPDATE CASCADE,
+    email TEXT NOT NULL,
+    token_hash TEXT NOT NULL UNIQUE,
+    purpose TEXT NOT NULL DEFAULT 'REPORT_DELIVERY_VERIFICATION',
+    expires_at TIMESTAMP(3) WITH TIME ZONE NOT NULL,
+    used_at TIMESTAMP(3) WITH TIME ZONE,
+    request_ip INET,
+    user_agent TEXT,
+    created_at TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_email_verification_token_user_id ON email_verification_token(user_id);
+CREATE INDEX IF NOT EXISTS idx_email_verification_token_email ON email_verification_token(email);
+CREATE INDEX IF NOT EXISTS idx_email_verification_token_expires_at ON email_verification_token(expires_at);
+
+COMMENT ON TABLE email_verification_token IS '이메일 인증 토큰 발급/사용 이력';
+COMMENT ON COLUMN email_verification_token.id IS '이메일 인증 토큰 고유 식별자 (UUID)';
+COMMENT ON COLUMN email_verification_token.user_id IS '인증 요청 사용자 (user.id FK, 비회원 사전 검증 시 NULL 가능)';
+COMMENT ON COLUMN email_verification_token.email IS '인증 대상 이메일 주소';
+COMMENT ON COLUMN email_verification_token.token_hash IS '인증 토큰 해시값 (원문 저장 금지)';
+COMMENT ON COLUMN email_verification_token.purpose IS '토큰 사용 목적 (예: REPORT_DELIVERY_VERIFICATION)';
+COMMENT ON COLUMN email_verification_token.expires_at IS '토큰 만료 시각';
+COMMENT ON COLUMN email_verification_token.used_at IS '토큰 사용 완료 시각 (1회용 처리)';
+COMMENT ON COLUMN email_verification_token.request_ip IS '인증 요청 시 클라이언트 IP';
+COMMENT ON COLUMN email_verification_token.user_agent IS '인증 요청 시 클라이언트 User-Agent';
+COMMENT ON COLUMN email_verification_token.created_at IS '토큰 생성 시각';
+COMMENT ON COLUMN email_verification_token.updated_at IS '토큰 수정 시각';
+
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'update_email_verification_token_modtime') THEN
+        CREATE TRIGGER update_email_verification_token_modtime
+        BEFORE UPDATE ON email_verification_token
+        FOR EACH ROW EXECUTE FUNCTION update_modified_column();
+    END IF;
+END $$;

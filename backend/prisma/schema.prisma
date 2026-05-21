@@ -9,27 +9,51 @@ datasource db {
 }
 
 model User {
-  id            String  @id @default(uuid())
-  email         String?
-  name          String?
-  image         String? @db.Text
-  role          Role    @default(USER)
-  provider      String?
-  providerId    String? @map("provider_id")
-  phone         String?
-  phoneVerified Boolean @default(false) @map("phone_verified")
+  id                     String    @id @default(uuid())
+  email                  String?
+  emailVerified          Boolean   @default(false) @map("email_verified")
+  emailVerifiedAt        DateTime? @map("email_verified_at")
+  lastVerificationSentAt DateTime? @map("last_verification_sent_at")
+  name                   String?
+  image                  String?   @db.Text
+  role                   Role      @default(USER)
+  provider               String?
+  providerId             String?   @map("provider_id")
+  phone                  String?
+  phoneVerified          Boolean   @default(false) @map("phone_verified")
 
-  properties    Property[]
-  reservations  Reservation[]
-  favorites     Favorite[]
-  subscriptions UserSubscription[]
-  billingKeys   BillingKey[]
+  properties              Property[]
+  reservations            Reservation[]
+  favorites               Favorite[]
+  subscriptions           UserSubscription[]
+  billingKeys             BillingKey[]
+  emailVerificationTokens EmailVerificationToken[]
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@unique([provider, providerId])
   @@map("user")
+}
+
+model EmailVerificationToken {
+  id        String    @id @default(uuid())
+  userId    String?   @map("user_id")
+  user      User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  email     String
+  tokenHash String    @unique @map("token_hash")
+  purpose   String    @default("REPORT_DELIVERY_VERIFICATION")
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  requestIp String?   @db.Inet @map("request_ip")
+  userAgent String?   @map("user_agent")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  @@index([userId])
+  @@index([email])
+  @@index([expiresAt])
+  @@map("email_verification_token")
 }
 
 enum SubscriptionStatus {
