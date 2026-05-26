@@ -226,7 +226,9 @@ function ensureReservationModal() {
             width: 100%;
             max-width: 560px;
             max-height: 90vh;
-            overflow: auto;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
             background: #fff;
             border-radius: 12px;
             box-shadow: 0 20px 48px rgba(15, 23, 42, 0.22);
@@ -254,6 +256,7 @@ function ensureReservationModal() {
         }
         .reservation-modal-body {
             padding: 20px;
+            overflow-y: auto;
         }
         .reservation-guide-block {
             border: 1px solid #e2e8f0;
@@ -556,7 +559,7 @@ function ensureReservationModal() {
                     <p class="reservation-email-verify-message" id="reservation-email-verify-message"></p>
                 </div>
                 <div class="reservation-modal-footer">
-                    <button type="button" class="reservation-btn" data-reservation-close>취소</button>
+                    <button type="button" class="reservation-btn">취소</button>
                     <button type="submit" class="reservation-btn reservation-btn-primary" id="reservation-submit-btn">신청</button>
                 </div>
             </form>
@@ -668,34 +671,26 @@ function openReservationModal(type = 'GENERAL') {
             resolve(value);
         };
 
-        const onCancel = () => {
+        const onCloseButton = () => {
             cleanup();
             closeReservationModal();
             resolve(null);
         };
 
         const onOverlayClick = (event) => {
-            if (event.target === overlay || event.target.closest('[data-reservation-close]')) {
-                onCancel();
+            if (event.target.closest('[data-reservation-close]')) {
+                onCloseButton();
             }
         };
-
-        function onEsc(event) {
-            if (event.key === 'Escape') {
-                onCancel();
-            }
-        }
 
         function cleanup() {
             form.removeEventListener('submit', onSubmit);
             overlay.removeEventListener('click', onOverlayClick);
-            document.removeEventListener('keydown', onEsc);
             sendVerificationBtnEl.removeEventListener('click', onSendVerificationEmail);
         }
 
         form.addEventListener('submit', onSubmit);
         overlay.addEventListener('click', onOverlayClick);
-        document.addEventListener('keydown', onEsc);
         sendVerificationBtnEl.addEventListener('click', onSendVerificationEmail);
     });
 }
