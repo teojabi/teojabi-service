@@ -589,8 +589,29 @@ function openReservationModal(type = 'GENERAL') {
     const sendVerificationBtnEl = overlay.querySelector('#reservation-send-verification-btn');
     const verificationMessageEl = overlay.querySelector('#reservation-email-verify-message');
     const isReportType = type === 'REPORT';
-    const currentUserEmail = authState.user?.email || '';
-    const isEmailVerified = Boolean(authState.user?.emailVerified ?? authState.user?.email_verified);
+    let currentUserEmail = authState.user?.email || '';
+    let isEmailVerified = Boolean(authState.user?.emailVerified ?? authState.user?.email_verified);
+
+    const applyEmailVerificationState = () => {
+        userEmailEl.textContent = currentUserEmail || '등록된 이메일이 없습니다.';
+        emailVerifiedEl.textContent = isEmailVerified ? '인증완료' : '미인증';
+
+        if (!currentUserEmail) {
+            sendVerificationBtnEl.disabled = true;
+            sendVerificationBtnEl.classList.remove('hidden');
+            verificationMessageEl.textContent = '회원정보에 이메일이 없어 인증 메일을 보낼 수 없습니다.';
+            return;
+        }
+
+        if (isEmailVerified) {
+            sendVerificationBtnEl.disabled = true;
+            sendVerificationBtnEl.classList.add('hidden');
+            return;
+        }
+
+        sendVerificationBtnEl.disabled = false;
+        sendVerificationBtnEl.classList.remove('hidden');
+    };
 
     titleEl.textContent = template.title;
     guideSlotEl.innerHTML = template.guideHtml;
@@ -600,21 +621,7 @@ function openReservationModal(type = 'GENERAL') {
 
     if (isReportType) {
         emailSectionEl.classList.remove('hidden');
-        userEmailEl.textContent = currentUserEmail || '등록된 이메일이 없습니다.';
-        emailVerifiedEl.textContent = isEmailVerified ? '인증 완료' : '미인증';
-
-        if (!currentUserEmail) {
-            sendVerificationBtnEl.disabled = true;
-            sendVerificationBtnEl.classList.remove('hidden');
-            verificationMessageEl.textContent = '회원정보에 이메일이 없어 인증 메일을 보낼 수 없습니다.';
-        } else if (isEmailVerified) {
-            sendVerificationBtnEl.disabled = true;
-            sendVerificationBtnEl.classList.add('hidden');
-            verificationMessageEl.textContent = '';
-        } else {
-            sendVerificationBtnEl.disabled = false;
-            sendVerificationBtnEl.classList.remove('hidden');
-        }
+        applyEmailVerificationState();
     } else {
         emailSectionEl.classList.add('hidden');
         sendVerificationBtnEl.disabled = false;
@@ -647,7 +654,14 @@ function openReservationModal(type = 'GENERAL') {
                     throw new Error(errorPayload.message || '인증 메일 전송에 실패했습니다.');
                 }
 
-                verificationMessageEl.textContent = '인증 메일을 전송했습니다. 메일함(스팸함 포함)을 확인해주세요.';
+                await checkAuthStatus();
+                currentUserEmail = authState.user?.email || '';
+                isEmailVerified = Boolean(authState.user?.emailVerified ?? authState.user?.email_verified);
+                applyEmailVerificationState();
+
+                verificationMessageEl.textContent = isEmailVerified
+                    ? '이메일 인증상태 인증완료'
+                    : '인증 메일을 전송했습니다. 메일함(스팸함 포함)을 확인해주세요.';
             } catch (error) {
                 verificationMessageEl.textContent = error.message || '인증 메일 전송 중 오류가 발생했습니다.';
                 if (!isEmailVerified && currentUserEmail) {
