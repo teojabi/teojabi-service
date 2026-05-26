@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { Strategy } from 'passport-naver';
 import { ConfigService } from '@nestjs/config';
@@ -6,6 +6,8 @@ import { AuthService } from '../auth.service';
 
 @Injectable()
 export class NaverStrategy extends PassportStrategy(Strategy, 'naver') {
+  private readonly logger = new Logger(NaverStrategy.name);
+
   constructor(
     private configService: ConfigService,
     private authService: AuthService,
@@ -34,6 +36,10 @@ export class NaverStrategy extends PassportStrategy(Strategy, 'naver') {
       profile._json?.name ||
       profile._json?.nickname ||
       '네이버유저';
+
+    this.logger.log(
+      `네이버 소셜 로그인 원본 응답 데이터: ${JSON.stringify(profile?._json ?? profile)}`,
+    );
 
     // Auth Service를 통해 유저 검증 또는 생성
     const user = await this.authService.validateSocialUser(

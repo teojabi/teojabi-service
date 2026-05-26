@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { Strategy } from 'passport-kakao';
 import { ConfigService } from '@nestjs/config';
@@ -6,6 +6,8 @@ import { AuthService } from '../auth.service';
 
 @Injectable()
 export class KakaoStrategy extends PassportStrategy(Strategy, 'kakao') {
+  private readonly logger = new Logger(KakaoStrategy.name);
+
   constructor(
     private configService: ConfigService,
     private authService: AuthService,
@@ -32,6 +34,10 @@ export class KakaoStrategy extends PassportStrategy(Strategy, 'kakao') {
       profile._json?.properties?.nickname ||
       profile._json?.kakao_account?.profile?.nickname ||
       '카카오유저';
+
+    this.logger.log(
+      `카카오 소셜 로그인 원본 응답 데이터: ${JSON.stringify(profile?._json ?? profile)}`,
+    );
 
     // Auth Service를 통해 유저 검증 또는 생성
     const user = await this.authService.validateSocialUser(

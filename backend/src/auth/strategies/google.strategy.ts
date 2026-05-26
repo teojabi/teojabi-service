@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { Strategy, VerifyCallback } from 'passport-google-oauth20';
 import { ConfigService } from '@nestjs/config';
@@ -6,6 +6,8 @@ import { AuthService } from '../auth.service';
 
 @Injectable()
 export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
+  private readonly logger = new Logger(GoogleStrategy.name);
+
   constructor(
     private configService: ConfigService,
     private authService: AuthService,
@@ -34,6 +36,10 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
       profile.name?.givenName ||
       profile._json?.name ||
       '구글유저';
+
+    this.logger.log(
+      `구글 소셜 로그인 원본 응답 데이터: ${JSON.stringify(profile?._json ?? profile)}`,
+    );
 
     // Auth Service를 통해 유저 검증 또는 생성
     const user = await this.authService.validateSocialUser(
