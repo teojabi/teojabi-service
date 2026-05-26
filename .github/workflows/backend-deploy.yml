@@ -12,7 +12,7 @@ jobs:
 
     steps:
       - name: Deploy to NCP via SSH
-        uses: appleboy/ssh-action@v1
+        uses: appleboy/ssh-action@v1.1.0
         with:
           host: ${{ secrets.NCP_SSH_HOST }}
           username: ${{ secrets.NCP_SSH_USER }}
