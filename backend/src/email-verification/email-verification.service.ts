@@ -6,6 +6,7 @@ import {
   InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
+import axios from 'axios';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { createHash, createHmac, randomBytes } from 'crypto';
@@ -144,12 +145,13 @@ export class EmailVerificationService {
   }
 
   private buildVerificationUrl(rawToken: string) {
-    const backendUrl =
-      this.configService.get<string>('BACKEND_PUBLIC_URL') ||
-      this.configService.get<string>('BACKEND_URL') ||
-      'http://localhost:3000';
+    const backendPublicUrl = this.configService.get<string>('BACKEND_PUBLIC_URL');
+    const backendUrl = this.configService.get<string>('BACKEND_URL');
+    const port = this.configService.get<string>('PORT') || '3001';
+    const fallbackBackendUrl = `http://localhost:${port}`;
+    const baseUrl = backendPublicUrl || backendUrl || fallbackBackendUrl;
 
-    return `${backendUrl}/api/v1/email-verification/confirm?token=${encodeURIComponent(rawToken)}`;
+    return `${baseUrl}/api/v1/email-verification/confirm?token=${encodeURIComponent(rawToken)}`;
   }
 
   private async sendMail(to: string, verificationUrl: string) {
@@ -191,28 +193,18 @@ export class EmailVerificationService {
           },
         ],
         individual: true,
+        confirmAndSend: false,
         advertising: false,
       };
 
-      const response = await fetch(`${baseUrl.replace(/\/$/, '')}${apiPath}`, {
-        method: 'POST',
+      await axios.post(`${baseUrl.replace(/\/$/, '')}${apiPath}`, payload, {
         headers: {
           'Content-Type': 'application/json; charset=UTF-8',
           'x-ncp-apigw-timestamp': timestamp,
           'x-ncp-iam-access-key': accessKey as string,
           'x-ncp-apigw-signature-v2': signature,
         },
-        body: JSON.stringify(payload),
       });
-
-      if (!response.ok) {
-        const errorBody = await response.text();
-        console.error('[EmailVerificationService] Cloud Outbound Mailer response error', {
-          status: response.status,
-          body: errorBody,
-        });
-        throw new Error('Cloud Outbound Mailer API 호출 실패');
-      }
     } catch (error) {
       console.error('[EmailVerificationService] Failed to send email', error);
       throw new InternalServerErrorException(

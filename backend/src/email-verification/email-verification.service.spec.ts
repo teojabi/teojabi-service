@@ -3,19 +3,21 @@ import { EmailVerificationService } from './email-verification.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
 import { BadRequestException, HttpStatus } from '@nestjs/common';
+import axios from 'axios';
+
+jest.mock('axios');
 
 describe('EmailVerificationService', () => {
   let service: EmailVerificationService;
   let prismaMock: any;
-  const fetchMock = jest.fn();
+  let configMap: Record<string, string | undefined>;
+  const axiosPostMock = axios.post as jest.Mock;
 
   beforeEach(async () => {
-    fetchMock.mockResolvedValue({
-      ok: true,
+    axiosPostMock.mockResolvedValue({
       status: 202,
-      text: jest.fn().mockResolvedValue(''),
+      data: {},
     });
-    (global as any).fetch = fetchMock;
 
     prismaMock = {
       user: {
@@ -36,6 +38,16 @@ describe('EmailVerificationService', () => {
       ),
     };
 
+    configMap = {
+      BACKEND_PUBLIC_URL: 'http://localhost:3000',
+      NCLOUD_MAIL_BASE_URL: 'https://mail.apigw.ntruss.com',
+      NCLOUD_ACCESS_KEY: 'ncp-access-key',
+      NCLOUD_SECRET_KEY: 'ncp-secret-key',
+      NCLOUD_MAIL_SENDER_ADDRESS: 'noreply@example.com',
+      NCLOUD_MAIL_SENDER_NAME: '터잡이',
+      PORT: '3001',
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         EmailVerificationService,
@@ -46,17 +58,7 @@ describe('EmailVerificationService', () => {
         {
           provide: ConfigService,
           useValue: {
-            get: (key: string) => {
-              const map: Record<string, string> = {
-                BACKEND_PUBLIC_URL: 'http://localhost:3000',
-                NCLOUD_MAIL_BASE_URL: 'https://mail.apigw.ntruss.com',
-                NCLOUD_ACCESS_KEY: 'ncp-access-key',
-                NCLOUD_SECRET_KEY: 'ncp-secret-key',
-                NCLOUD_MAIL_SENDER_ADDRESS: 'noreply@example.com',
-                NCLOUD_MAIL_SENDER_NAME: '터잡이',
-              };
-              return map[key];
-            },
+            get: (key: string) => configMap[key],
           },
         },
       ],
@@ -97,10 +99,16 @@ describe('EmailVerificationService', () => {
         where: { id: 'user-1' },
       }),
     );
-    expect(fetchMock).toHaveBeenCalledWith(
+    expect(axiosPostMock).toHaveBeenCalledWith(
       'https://mail.apigw.ntruss.com/api/v1/mails',
       expect.objectContaining({
-        method: 'POST',
+        senderAddress: 'noreply@example.com',
+        confirmAndSend: false,
+      }),
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          'x-ncp-iam-access-key': 'ncp-access-key',
+        }),
       }),
     );
   });
@@ -133,5 +141,31 @@ describe('EmailVerificationService', () => {
     await expect(
       service.confirmVerificationToken('expired-token'),
     ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('BACKEND_PUBLIC_URL 미설정 시 PORT(기본 3001) 기반 인증 링크를 사용한다', async () => {
+    configMap.BACKEND_PUBLIC_URL = undefined;
+    configMap.BACKEND_URL = undefined;
+    configMap.PORT = '3001';
+
+    prismaMock.user.findUnique.mockResolvedValue({
+      id: 'user-1',
+      email: 'user@test.com',
+      emailVerified: false,
+      lastVerificationSentAt: null,
+    });
+
+    await service.sendVerificationLink('user-1', {
+      requestIp: '127.0.0.1',
+      userAgent: 'jest',
+    });
+
+    expect(axiosPostMock).toHaveBeenCalledWith(
+      'https://mail.apigw.ntruss.com/api/v1/mails',
+      expect.objectContaining({
+        body: expect.stringContaining('http://localhost:3001/api/v1/email-verification/confirm?token='),
+      }),
+      expect.any(Object),
+    );
   });
 });
