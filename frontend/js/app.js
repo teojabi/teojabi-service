@@ -559,7 +559,7 @@ function ensureReservationModal() {
                     <p class="reservation-email-verify-message" id="reservation-email-verify-message"></p>
                 </div>
                 <div class="reservation-modal-footer">
-                    <button type="button" class="reservation-btn">취소</button>
+                    <button type="button" class="reservation-btn" data-reservation-close>취소</button>
                     <button type="submit" class="reservation-btn reservation-btn-primary" id="reservation-submit-btn">신청</button>
                 </div>
             </form>
