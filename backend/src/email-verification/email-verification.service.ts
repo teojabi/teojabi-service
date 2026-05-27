@@ -147,8 +147,14 @@ export class EmailVerificationService {
   private buildVerificationUrl(rawToken: string) {
     const backendPublicUrl = this.configService.get<string>('BACKEND_PUBLIC_URL');
     const backendUrl = this.configService.get<string>('BACKEND_URL');
+    const nodeEnv = this.configService.get<string>('NODE_ENV');
     const port = this.configService.get<string>('PORT') || '3001';
-    const fallbackBackendUrl = `http://localhost:${port}`;
+    const isLocalLikeEnv = ['local', 'development', 'test'].includes(
+      (nodeEnv || '').toLowerCase(),
+    );
+    const fallbackBackendUrl = isLocalLikeEnv
+      ? `http://localhost:${port}`
+      : 'https://teojabi.com';
     const baseUrl = backendPublicUrl || backendUrl || fallbackBackendUrl;
 
     return `${baseUrl}/api/v1/email-verification/confirm?token=${encodeURIComponent(rawToken)}`;
@@ -185,7 +191,22 @@ export class EmailVerificationService {
         senderAddress,
         senderName,
         title: '[터잡이] 이메일 인증을 완료해 주세요',
-        body: `<p>아래 버튼을 눌러 이메일 인증을 완료해 주세요.</p><p><a href="${verificationUrl}">이메일 인증하기</a></p><p>링크는 ${TOKEN_TTL_MINUTES}분 동안 유효합니다.</p>`,
+        body: `
+<div style="font-family: 'Apple SD Gothic Neo', 'Malgun Gothic', Arial, sans-serif; max-width: 560px; margin: 0 auto; color: #111827; line-height: 1.6;">
+  <h2 style="margin: 0 0 12px; font-size: 20px; color: #111827;">[터잡이] 이메일 인증 안내</h2>
+  <p style="margin: 0 0 12px;">안녕하세요.</p>
+  <p style="margin: 0 0 20px;">아래 버튼을 눌러 이메일 인증을 완료해 주세요.</p>
+  <p style="margin: 0 0 20px;">
+    <a href="${verificationUrl}" style="display: inline-block; padding: 12px 20px; background: #2563eb; color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: 700;">
+      이메일 인증하기
+    </a>
+  </p>
+  <p style="margin: 0 0 8px; font-size: 14px; color: #374151;">인증 링크 유효시간: <strong>${TOKEN_TTL_MINUTES}분</strong></p>
+  <p style="margin: 0; font-size: 13px; color: #6b7280; word-break: break-all;">
+    버튼이 동작하지 않으면 아래 링크를 브라우저에 복사해 접속해 주세요.<br />
+    <a href="${verificationUrl}" style="color: #2563eb; text-decoration: underline;">${verificationUrl}</a>
+  </p>
+</div>`.trim(),
         recipients: [
           {
             address: to,
