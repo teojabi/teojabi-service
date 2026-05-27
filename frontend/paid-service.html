@@ -78,7 +78,7 @@
 
         .plan-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            grid-template-columns: repeat(3, minmax(0, 1fr));
             gap: 1rem;
             margin: 1rem 0 2rem;
         }
@@ -284,6 +284,10 @@
         }
 
         @media (max-width: 768px) {
+            .plan-grid {
+                grid-template-columns: 1fr;
+            }
+
             .paid-hero {
                 padding: 1.6rem;
             }
@@ -303,7 +307,7 @@
                 <span class="badge"><i class="ri-vip-crown-2-line"></i> 유료서비스 안내</span>
                 <h1>터잡이 구독 요금제 안내</h1>
                 <p>
-                    회원님의 이용 패턴에 맞춰 일반/Light/Pro/Master 구독 등급을 선택할 수 있습니다.
+                    회원님의 이용 패턴에 맞춰 일반/Light/Pro 구독 등급을 선택할 수 있습니다.
                     각 등급별 AI 재건축 분석 횟수와 기능 권한을 아래에서 확인해 주세요.
                 </p>
             </section>
@@ -350,18 +354,6 @@
                         </ul>
                         <button class="plan-action" data-plan-code="PLUS_MONTHLY">Pro 구독 시작</button>
                     </article>
-
-                    <article class="plan-card" data-plan-tier="MASTER">
-                        <h3 class="plan-name">Master</h3>
-                        <p class="plan-price">₩180,000 <span>/ 연</span></p>
-                        <ul class="plan-list">
-                            <li>월 AI 재건축 분석 무제한</li>
-                            <li>컨설팅 갤러리 상세페이지 공개</li>
-                            <li>전문가 리포트 요청 권한</li>
-                            <li>새로운 매물 이메일 알림</li>
-                        </ul>
-                        <button class="plan-action" data-plan-code="MASTER_YEARLY">Master 구독 시작</button>
-                    </article>
                 </div>
             </section>
 
@@ -370,19 +362,19 @@
                 <div class="benefit-grid">
                     <article class="benefit-item">
                         <h3><i class="ri-home-4-line"></i>매물 상세 페이지 조회</h3>
-                        <p>비회원은 리스트만 확인 가능하며, 일반/Light/Pro/Master는 상세 페이지를 조회할 수 있습니다.</p>
+                        <p>비회원은 리스트만 확인 가능하며, 일반/Light/Pro는 상세 페이지를 조회할 수 있습니다.</p>
                     </article>
                     <article class="benefit-item">
                         <h3><i class="ri-robot-2-line"></i>AI 신축 분석</h3>
-                        <p>일반 2회, Light 40회, Pro 200회(1일 50회 제한), Master 무제한(1일 50회 제한)으로 제공됩니다.</p>
+                        <p>일반 2회, Light 40회, Pro 200회(1일 50회 제한)로 제공됩니다.</p>
                     </article>
                     <article class="benefit-item">
                         <h3><i class="ri-file-list-3-line"></i>전문가 리포트 신청</h3>
-                        <p>일반은 단건결제로 신청 가능하며, Light/Pro/Master도 단건결제로 신청할 수 있습니다.</p>
+                        <p>일반은 단건결제로 신청 가능하며, Light/Pro도 단건결제로 신청할 수 있습니다.</p>
                     </article>
                     <article class="benefit-item">
                         <h3><i class="ri-mail-send-line"></i>새로운 매물 이메일 알림 서비스</h3>
-                        <p>Pro와 Master에서만 매주 1회 이메일 알림이 제공됩니다.</p>
+                        <p>Pro에서만 매주 1회 이메일 알림이 제공됩니다.</p>
                     </article>
                 </div>
             </section>
@@ -398,14 +390,12 @@
                                 <th scope="col">일반(General)</th>
                                 <th scope="col">Light(만원)</th>
                                 <th scope="col">Pro(4만원)</th>
-                                <th scope="col">Master(연18만원)</th>
                             </tr>
                         </thead>
                         <tbody>
                             <tr>
                                 <th scope="row">매물 상세 페이지 조회</th>
                                 <td>제한 (리스트만 공개)</td>
-                                <td>O</td>
                                 <td>O</td>
                                 <td>O</td>
                                 <td>O</td>
@@ -416,13 +406,11 @@
                                 <td>0 2회</td>
                                 <td>O 40회</td>
                                 <td>O 200회 (1일 50회 제한)</td>
-                                <td>O 무제한 (1일 50회 제한)</td>
                             </tr>
                             <tr>
                                 <th scope="row">전문가 리포트 신청</th>
                                 <td>X</td>
                                 <td>X(단건결제)</td>
-                                <td>O(단건결제)</td>
                                 <td>O(단건결제)</td>
                                 <td>O(단건결제)</td>
                             </tr>
@@ -431,7 +419,6 @@
                                 <td>X</td>
                                 <td>X</td>
                                 <td>X</td>
-                                <td>O (매주 1회)</td>
                                 <td>O (매주 1회)</td>
                             </tr>
                         </tbody>
@@ -448,11 +435,7 @@
                     </article>
                     <article class="faq-item">
                         <h4>Q. 전문가 리포트는 구독에 포함되나요?</h4>
-                        <p>A. 전문가 리포트는 Light/Pro/Master에서 요청 권한이 제공되며, 실제 발급은 단건 결제로 진행됩니다.</p>
-                    </article>
-                    <article class="faq-item">
-                        <h4>Q. Pro와 Master의 주요 차이는 무엇인가요?</h4>
-                        <p>A. 두 등급 모두 모든 데이터 공개 및 리포트 요청 권한이 제공되며, Pro는 월 200회 검색, Master는 무제한 검색이 가능합니다.</p>
+                        <p>A. 전문가 리포트는 Light/Pro에서 요청 권한이 제공되며, 실제 발급은 단건 결제로 진행됩니다.</p>
                     </article>
                 </div>
             </section>
