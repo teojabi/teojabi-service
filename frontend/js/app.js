@@ -591,6 +591,8 @@ function openReservationModal(type = 'GENERAL') {
     const isReportType = type === 'REPORT';
     let currentUserEmail = authState.user?.email || '';
     let isEmailVerified = Boolean(authState.user?.emailVerified ?? authState.user?.email_verified);
+    let emailVerificationPollingTimer = null;
+    let isEmailVerificationChecking = false;
 
     const applyEmailVerificationState = () => {
         userEmailEl.textContent = currentUserEmail || '등록된 이메일이 없습니다.';
@@ -613,6 +615,46 @@ function openReservationModal(type = 'GENERAL') {
         sendVerificationBtnEl.classList.remove('hidden');
     };
 
+    const syncEmailVerificationState = async () => {
+        if (!isReportType || isEmailVerificationChecking) return;
+
+        isEmailVerificationChecking = true;
+        try {
+            await checkAuthStatus();
+            currentUserEmail = authState.user?.email || '';
+            const nextEmailVerified = Boolean(authState.user?.emailVerified ?? authState.user?.email_verified);
+            const wasEmailVerified = isEmailVerified;
+
+            isEmailVerified = nextEmailVerified;
+            applyEmailVerificationState();
+
+            if (!wasEmailVerified && isEmailVerified) {
+                verificationMessageEl.textContent = '이메일 인증상태 인증완료';
+            }
+        } finally {
+            isEmailVerificationChecking = false;
+        }
+    };
+
+    const startEmailVerificationPolling = () => {
+        if (!isReportType || isEmailVerified || emailVerificationPollingTimer) return;
+
+        emailVerificationPollingTimer = setInterval(async () => {
+            await syncEmailVerificationState();
+
+            if (isEmailVerified) {
+                clearInterval(emailVerificationPollingTimer);
+                emailVerificationPollingTimer = null;
+            }
+        }, 5000);
+    };
+
+    const stopEmailVerificationPolling = () => {
+        if (!emailVerificationPollingTimer) return;
+        clearInterval(emailVerificationPollingTimer);
+        emailVerificationPollingTimer = null;
+    };
+
     titleEl.textContent = template.title;
     guideSlotEl.innerHTML = template.guideHtml;
     submitBtnEl.textContent = template.submitLabel;
@@ -622,6 +664,7 @@ function openReservationModal(type = 'GENERAL') {
     if (isReportType) {
         emailSectionEl.classList.remove('hidden');
         applyEmailVerificationState();
+        startEmailVerificationPolling();
     } else {
         emailSectionEl.classList.add('hidden');
         sendVerificationBtnEl.disabled = false;
@@ -654,10 +697,10 @@ function openReservationModal(type = 'GENERAL') {
                     throw new Error(errorPayload.message || '인증 메일 전송에 실패했습니다.');
                 }
 
-                await checkAuthStatus();
-                currentUserEmail = authState.user?.email || '';
-                isEmailVerified = Boolean(authState.user?.emailVerified ?? authState.user?.email_verified);
-                applyEmailVerificationState();
+                await syncEmailVerificationState();
+                if (!isEmailVerified) {
+                    startEmailVerificationPolling();
+                }
 
                 verificationMessageEl.textContent = isEmailVerified
                     ? '이메일 인증상태 인증완료'
@@ -698,6 +741,7 @@ function openReservationModal(type = 'GENERAL') {
         };
 
         function cleanup() {
+            stopEmailVerificationPolling();
             form.removeEventListener('submit', onSubmit);
             overlay.removeEventListener('click', onOverlayClick);
             sendVerificationBtnEl.removeEventListener('click', onSendVerificationEmail);
