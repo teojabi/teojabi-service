@@ -143,7 +143,7 @@ describe('EmailVerificationService', () => {
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
-  it('비로컬 환경에서 BACKEND_PUBLIC_URL 미설정 시 teojabi.com 인증 링크를 사용한다', async () => {
+  it('비로컬 환경에서 BACKEND_PUBLIC_URL 미설정 시 api.teojabi.com 인증 링크를 사용한다', async () => {
     configMap.BACKEND_PUBLIC_URL = undefined;
     configMap.BACKEND_URL = undefined;
     configMap.NODE_ENV = 'production';
@@ -163,7 +163,7 @@ describe('EmailVerificationService', () => {
     expect(axiosPostMock).toHaveBeenCalledWith(
       'https://mail.apigw.ntruss.com/api/v1/mails',
       expect.objectContaining({
-        body: expect.stringContaining('https://teojabi.com/api/v1/email-verification/confirm?token='),
+        body: expect.stringContaining('https://api.teojabi.com/api/v1/email-verification/confirm?token='),
       }),
       expect.any(Object),
     );

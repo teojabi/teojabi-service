@@ -154,7 +154,7 @@ export class EmailVerificationService {
     );
     const fallbackBackendUrl = isLocalLikeEnv
       ? `http://localhost:${port}`
-      : 'https://teojabi.com';
+      : 'https://api.teojabi.com';
     const baseUrl = backendPublicUrl || backendUrl || fallbackBackendUrl;
 
     return `${baseUrl}/api/v1/email-verification/confirm?token=${encodeURIComponent(rawToken)}`;
