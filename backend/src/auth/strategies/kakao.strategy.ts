@@ -16,7 +16,7 @@ export class KakaoStrategy extends PassportStrategy(Strategy, 'kakao') {
       clientID: configService.get<string>('KAKAO_CLIENT_ID') as string,
       clientSecret: configService.get<string>('KAKAO_CLIENT_SECRET') as string,
       callbackURL: configService.get<string>('KAKAO_CALLBACK_URL') as string,
-      scope: ['account_email', 'profile_nickname'],
+      scope: ['profile_nickname'],
     } as any);
   }
 
@@ -26,7 +26,8 @@ export class KakaoStrategy extends PassportStrategy(Strategy, 'kakao') {
     profile: any,
     done: any,
   ) {
-    const providerId = String(profile.id);
+    const providerIdRaw = profile?.id ?? profile?._json?.id;
+    const providerId = providerIdRaw ? String(providerIdRaw) : '';
     const email = profile._json?.kakao_account?.email || null;
     const name =
       profile.displayName ||
@@ -39,13 +40,12 @@ export class KakaoStrategy extends PassportStrategy(Strategy, 'kakao') {
       `카카오 소셜 로그인 원본 응답 데이터: ${JSON.stringify(profile?._json ?? profile)}`,
     );
 
-    // Auth Service를 통해 유저 검증 또는 생성
-    const user = await this.authService.validateSocialUser(
+    const socialPayload = this.authService.buildSocialAuthPayload(
       'kakao',
       providerId,
       email,
       name,
     );
-    done(null, user);
+    done(null, socialPayload);
   }
 }

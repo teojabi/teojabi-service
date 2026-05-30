@@ -26,7 +26,8 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
     profile: any,
     done: VerifyCallback,
   ) {
-    const providerId = String(profile.id);
+    const providerIdRaw = profile?.id ?? profile?._json?.id;
+    const providerId = providerIdRaw ? String(providerIdRaw) : '';
     const email =
       profile.emails && profile.emails.length > 0
         ? profile.emails[0].value
@@ -41,13 +42,12 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
       `구글 소셜 로그인 원본 응답 데이터: ${JSON.stringify(profile?._json ?? profile)}`,
     );
 
-    // Auth Service를 통해 유저 검증 또는 생성
-    const user = await this.authService.validateSocialUser(
+    const socialPayload = this.authService.buildSocialAuthPayload(
       'google',
       providerId,
       email,
       name,
     );
-    done(null, user);
+    done(null, socialPayload);
   }
 }
