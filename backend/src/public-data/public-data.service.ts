@@ -18,16 +18,16 @@ export class PublicDataService {
     private readonly configService: ConfigService,
   ) {}
 
-  // ?�정 주소???�이?��? ?��? API?�서 조회 (캐시 ?�이 직접 반환)
+  // 법정 주소 데이터를 외부 API에서 조회 (캐시 없이 직접 반환)
   async syncAddress(address: string) {
     this.logger.debug(`Fetching external data for ${address}`);
 
-    // TODO: ?�제 공공?�이??API ?�동 ??주석 ?�제 ??구현
+    // TODO: 실제 공공데이터 API 연동 시 아래 주석 해제 후 구현
     // const apiUrl = `https://api.vworld.kr/req/data?service=data&request=GetFeature&data=LT_C_UQ111&key=YOUR_KEY&domain=http://localhost:3000&attrFilter=ldCode:like:${address}`;
     // const response = await firstValueFrom(this.httpService.get(apiUrl));
     // const apiData = response.data;
 
-    // ?�시 모의 ?�이??(?�제 DB???�?�하지 ?�고 직접 반환)
+    // 임시 모의 데이터 (실제 DB에 저장하지 않고 직접 반환)
     const mockOfficialPrice = Math.floor(Math.random() * 5000) + 1000;
     const mockActualPrice = mockOfficialPrice * 1.5;
     const mockLandUsePlan = "제2종일반주거지역";
@@ -41,12 +41,12 @@ export class PublicDataService {
     };
   }
 
-  // ?�론?�엔??API?�서 ?�이???�건 조회 ?�청 (캐시 ?�이 즉시 조회 ??반환)
+  // 프론트엔드에서 API로 데이터 조회 요청 (캐시 없이 즉시 조회 후 반환)
   async getPublicData(address: string) {
     return this.syncAddress(address);
   }
 
-  // PNU 기반 건물·?��?·층별?�황·?��? ?�보 DB 조회
+  // PNU 기반 건물·토지·층별 현황·상가 정보 DB 조회
   async getLocationInfo(pnu: string): Promise<any> {
     this.logger.debug(`getLocationInfo called: pnu=${pnu}`);
 
@@ -62,12 +62,12 @@ export class PublicDataService {
       return null;
     }
 
-    // ?�도지??목록 (복수)
+    // 용도지역 목록 (복수)
     const landUseList = await this.prisma.landUseInfo.findMany({
       where: { pnu },
     });
 
-    // ?�도�?공시지가 (복수, 최신??
+    // 연도별 공시지가 (복수, 최신순)
     const priceList = await this.prisma.officialLandPrice.findMany({
       where: { pnu },
       orderBy: { refYear: 'desc' },
@@ -85,7 +85,7 @@ export class PublicDataService {
       LIMIT 1
     `;
 
-    // ?�도지???구명?�로 법정 건폐???�적�?매칭
+    // 용도지역 구역명으로 법정 건폐율·용적률 매칭
     const zoneNames = landUseList
       .map((l) => l.zoneClsNm)
       .filter((n): n is string => !!n);
@@ -96,7 +96,7 @@ export class PublicDataService {
           })
         : [];
 
-    // 매칭 결과가 ?�확??1건일 ?�만 ?�용, �??�는 null
+    // 매칭 결과가 정확히 1건일 때만 적용, 그 외는 null
     const regulation =
       matchedRegulations.length === 1
         ? {
@@ -107,7 +107,7 @@ export class PublicDataService {
           }
         : null;
 
-    // PNU?�서 ?�?�구�?추출 (11번째 ?�리: 1=?�반, 2=??
+    // PNU에서 토지 구분 추출 (11번째 자리: 1=일반, 2=산)
     const landTypeCode = pnu.charAt(10);
     const jimok = landTypeCode === "2" ? "산" : "일반";
 
@@ -506,7 +506,7 @@ Step 5: ROI(투자 수익률) 시뮬레이션
 ${JSON.stringify(inputData)}`;
   }
 
-  // ?�워??POI) 검?? ?�이�?로컬 검??API�??�해 ?�보 반환
+  // 키워드(POI) 검색 데이터를 로컬 검색 API로 조회해 정보 반환
   async searchByKeyword(query: string): Promise<any[]> {
     const clientId = this.configService.get<string>('NAVER_CLIENT_ID');
     const clientSecret = this.configService.get<string>('NAVER_CLIENT_SECRET');
@@ -538,7 +538,7 @@ ${JSON.stringify(inputData)}`;
         category: item.category,
         mapx: Number(item.mapx),
         mapy: Number(item.mapy),
-        raw: item, // ?�론?�엔?�에??추�? 좌표 ?�드(x, y ??�?참조?????�도�??�본 ?�이???�함
+        raw: item, // 프론트엔드에서 추가 좌표 필드(x, y 등) 참조가 가능하도록 원본 데이터 포함
       }));
     } catch (error) {
       const err = error as {
@@ -556,7 +556,7 @@ ${JSON.stringify(inputData)}`;
     }
   }
 
-  // ?�재 지???�역 ?�의 geom_score_layer ?�이?��? GeoJSON?�로 반환
+  // 현재 지도 영역 내의 geom_score_layer 데이터를 GeoJSON으로 반환
   async getScoreLayer(
     minLat: number,
     minLng: number,
