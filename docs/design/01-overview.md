@@ -101,6 +101,8 @@ teojabi-service/
 │   │   ├── properties/     (매물 CRUD + GIS)
 │   │   ├── reservations/   (예약 CRUD)
 │   │   ├── favorites/      (관심 매물 CRUD)
+│   │   ├── email-verification/ (이메일 인증 링크 발송/확인)
+│   │   ├── subscriptions/  (전자 결재·정기구독)
 │   │   ├── public-data/    (공공데이터 + 배치 서비스)
 │   │   ├── supabase/       (Storage 서비스)
 │   │   └── prisma/         (Prisma 모듈)
@@ -115,15 +117,26 @@ teojabi-service/
 
 ## 6. 핵심 데이터 흐름
 
-### 6.1 소셜 로그인 흐름
+### 6.1 소셜 로그인/회원가입 흐름 (개선 버전)
 
 ```
-사용자 클릭
+사용자 소셜 로그인 클릭
   → Frontend: /api/v1/auth/{provider} 리다이렉트
   → Backend: Passport OAuth 처리
   → 소셜 플랫폼 인증
-  → Backend: JWT 생성 → HttpOnly 쿠키 발급
-  → Frontend: 쿠키 자동 저장 (JS 접근 불가 — XSS 방어)
+
+  [기존 회원]
+  → Backend: provider + providerId 조회 성공
+  → JWT(access_token) 쿠키 발급
+  → Frontend: 로그인 완료 화면 이동
+
+  [신규 회원]
+  → Backend: pending_signup_token + pending_signup_provider 쿠키 발급
+  → Frontend: /api/v1/auth/social/pending-signup-status 조회
+  → 약관 동의 모달 노출
+  → Frontend: /api/v1/auth/social/complete-signup 호출(필수 동의값 포함)
+  → Backend: 사용자 생성 + JWT 쿠키 발급 + pending 쿠키 정리
+  → Frontend: /mypage.html?newUser=1 이동
 ```
 
 ### 6.2 지도 매물 탐색 흐름
@@ -136,7 +149,30 @@ teojabi-service/
   → Frontend: 마커 렌더링 / 클릭 시 슬라이딩 패널 표시
 ```
 
-### 6.3 공공데이터 최신화 흐름
+### 6.3 전자 결재(구독) 연동 흐름
+
+```
+1) 결제 준비
+  → Frontend: /api/v1/subscriptions/prepare-billing (planCode)
+  → Backend: 플랜 유효성/업그레이드 가능 여부 검증
+  → PortOne storeId, channelKey, customerId 반환
+
+2) 빌링키 등록 후 결제 확정
+  → Frontend: 카드 등록 완료 후 billingKey 획득
+  → Frontend: /api/v1/subscriptions/confirm-billing 호출
+  → Backend: billing_key 저장(기존 활성 키 비활성화)
+  → user_subscription(PENDING), subscription_invoice(READY) 생성
+  → PortOne 결제 요청
+    - 성공: invoice=PAID, subscription=ACTIVE, 권한/크레딧 동기화
+    - 실패: invoice=FAILED, subscription=PAST_DUE
+
+3) 웹훅 후처리
+  → PortOne: /api/v1/subscriptions/webhook 호출
+  → Backend: payment_webhook_event에 이벤트 저장(중복 eventId 차단)
+  → 상태별 후처리(PAID/FAILED/CANCELLED) 및 구독 상태 동기화
+```
+
+### 6.4 공공데이터 최신화 흐름
 
 ```
 최초 서비스 오픈 전
@@ -186,7 +222,7 @@ teojabi-service/
 | 문서 | 경로 |
 |---|---|
 | DB 스키마 설계 | [02-database-schema.md](./02-database-schema.md) |
-| REST API 명세 | [03-api-spec.md](./03-api-spec.md) |
+| REST API 명세 (소셜가입/전자결재 절차 포함) | [03-api-spec.md](./03-api-spec.md) |
 | 프론트엔드 구조 | [04-frontend-architecture.md](./04-frontend-architecture.md) |
 | 인프라 및 CI/CD | [05-infra-cicd.md](./05-infra-cicd.md) |
 | 개발 규칙/컨벤션 | [06-conventions.md](./06-conventions.md) |

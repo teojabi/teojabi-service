@@ -22,8 +22,6 @@ PostGIS 확장을 활용한 공간 데이터 처리와 소셜 로그인, 매물 
 ```prisma
 datasource db {
   provider   = "postgresql"
-  url        = env("DATABASE_URL")
-  directUrl  = env("DIRECT_URL")
   extensions = [postgis(schema: "public")]
 }
 
@@ -33,41 +31,51 @@ generator client {
 }
 ```
 
+> 참고: 실제 연결 문자열(`DATABASE_URL`, `DIRECT_URL`)은 Prisma 설정 파일/실행 환경에서 주입되며,
+> 현재 `schema.prisma`의 `datasource` 블록에는 명시하지 않습니다.
+
 ---
 
 ## 3. 서비스 모델 정의
 
 ### 3.1 User (사용자 및 권한)
 
-소셜 로그인(NestJS Passport) 연동과 자체 회원 관리를 위한 모델입니다.
+소셜 로그인 + 회원가입 동의 + 이메일 검증 + 구독/결제를 모두 연결하는 핵심 모델입니다.
 
 ```prisma
 model User {
-  id            String    @id @default(uuid())
-  email         String?   @unique
-  name          String?
-  image         String?   @db.Text
-  role          Role      @default(USER)
-  provider      String?                         // 소셜 로그인 제공자 (kakao, naver, google)
-  providerId    String?   @map("provider_id")   // 소셜 로그인 고유 ID
-  phone         String?                         // 사용자 전화번호
-  phoneVerified Boolean   @default(false) @map("phone_verified") // 전화번호 인증 여부
+  id                     String    @id @default(uuid())
+  email                  String?
+  emailVerified          Boolean   @default(false) @map("email_verified")
+  emailVerifiedAt        DateTime? @map("email_verified_at")
+  lastVerificationSentAt DateTime? @map("last_verification_sent_at")
+  name                   String?
+  image                  String?   @db.Text
+  role                   Role      @default(USER)
+  provider               String?
+  providerId             String?   @map("provider_id")
+  phone                  String?
+  phoneVerified          Boolean   @default(false) @map("phone_verified")
 
-  properties    Property[]
-  reservations  Reservation[]
+  properties              Property[]
+  reservations            Reservation[]
+  favorites               Favorite[]
+  subscriptions           UserSubscription[]
+  billingKeys             BillingKey[]
+  emailVerificationTokens EmailVerificationToken[]
 
-  createdAt     DateTime  @default(now())  @map("created_at")
-  updatedAt     DateTime  @updatedAt       @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   @@unique([provider, providerId])
   @@map("user")
 }
 
 enum Role {
-  USER            // 일반 사용자
-  PREMIUM_BASIC   // 기본 프리미엄
-  PREMIUM_PLUS    // 상위 프리미엄
-  ADMIN           // 관리자 (최고 권한)
+  USER
+  PREMIUM_BASIC
+  PREMIUM_PLUS
+  ADMIN
 }
 ```
 
@@ -158,6 +166,181 @@ model Favorite {
 
   @@unique([userId, propertyId])
   @@map("favorite")
+}
+```
+
+### 3.5 EmailVerificationToken (이메일 인증 토큰)
+
+리포트 요청 전 이메일 인증 절차를 위한 일회성 토큰 저장 모델입니다.
+
+```prisma
+model EmailVerificationToken {
+  id        String    @id @default(uuid())
+  userId    String?   @map("user_id")
+  user      User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  email     String
+  tokenHash String    @unique @map("token_hash")
+  purpose   String    @default("REPORT_DELIVERY_VERIFICATION")
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  requestIp String?   @db.Inet @map("request_ip")
+  userAgent String?   @map("user_agent")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  @@index([userId])
+  @@index([email])
+  @@index([expiresAt])
+  @@map("email_verification_token")
+}
+```
+
+### 3.6 SubscriptionPlan (구독 플랜)
+
+전자 결재(PortOne) 정기결제의 상품 마스터 모델입니다.
+
+```prisma
+model SubscriptionPlan {
+  id            String  @id @default(uuid())
+  code          String  @unique
+  name          String
+  amount        Decimal @db.Decimal(12, 2)
+  currency      String  @default("KRW")
+  intervalUnit  String  @db.Text @map("interval_unit")
+  intervalCount Int     @default(1) @map("interval_count")
+  trialDays     Int     @default(0) @map("trial_days")
+  active        Boolean @default(true)
+
+  subscriptions UserSubscription[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("subscription_plan")
+}
+```
+
+### 3.7 UserSubscription (사용자 구독 상태)
+
+사용자별 구독 라이프사이클(PENDING/ACTIVE/PAST_DUE/CANCELLED/EXPIRED) 추적 모델입니다.
+
+```prisma
+model UserSubscription {
+  id                 String           @id @default(uuid())
+  userId             String           @map("user_id")
+  user               User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  planId             String           @map("plan_id")
+  plan               SubscriptionPlan @relation(fields: [planId], references: [id], onDelete: Restrict)
+  status             String           @db.Text
+  startAt            DateTime?        @map("start_at")
+  currentPeriodStart DateTime?        @map("current_period_start")
+  currentPeriodEnd   DateTime?        @map("current_period_end")
+  cancelAtPeriodEnd  Boolean          @default(false) @map("cancel_at_period_end")
+  cancelledAt        DateTime?        @map("cancelled_at")
+  endedAt            DateTime?        @map("ended_at")
+
+  invoices SubscriptionInvoice[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([userId])
+  @@index([status])
+  @@map("user_subscription")
+}
+```
+
+### 3.8 BillingKey / SubscriptionInvoice / PaymentWebhookEvent
+
+정기결제 키 보관, 청구 이력, 웹훅 이벤트 이력(중복 방지) 모델입니다.
+
+```prisma
+model BillingKey {
+  id                String    @id @default(uuid())
+  userId            String    @map("user_id")
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  portoneCustomerId String    @map("portone_customer_id")
+  billingKey        String    @unique @map("billing_key")
+  channelKey        String    @map("channel_key")
+  provider          String?
+  cardCompany       String?   @map("card_company")
+  cardLast4         String?   @map("card_last4")
+  cardExpiryYear    String?   @map("card_expiry_year")
+  cardExpiryMonth   String?   @map("card_expiry_month")
+  isActive          Boolean   @default(true) @map("is_active")
+  issuedAt          DateTime  @default(now()) @map("issued_at")
+  deletedAt         DateTime? @map("deleted_at")
+
+  invoices SubscriptionInvoice[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("billing_key")
+}
+
+model SubscriptionInvoice {
+  id               String           @id @default(uuid())
+  subscriptionId   String           @map("subscription_id")
+  subscription     UserSubscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  billingKeyId     String?          @map("billing_key_id")
+  billingKey       BillingKey?      @relation(fields: [billingKeyId], references: [id], onDelete: SetNull)
+  portonePaymentId String           @unique @map("portone_payment_id")
+  portoneTxId      String?          @map("portone_tx_id")
+  amount           Decimal          @db.Decimal(12, 2)
+  currency         String           @default("KRW")
+  status           String           @db.Text
+  failReason       String?          @map("fail_reason")
+  paidAt           DateTime?        @map("paid_at")
+  requestedAt      DateTime         @default(now()) @map("requested_at")
+  rawPayload       Json?            @map("raw_payload")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([subscriptionId])
+  @@index([status])
+  @@map("subscription_invoice")
+}
+
+model PaymentWebhookEvent {
+  id            String    @id @default(uuid())
+  eventId       String?   @unique @map("event_id")
+  paymentId     String?   @map("payment_id")
+  eventType     String?   @map("event_type")
+  status        String?
+  payload       Json
+  receivedAt    DateTime  @default(now()) @map("received_at")
+  processedAt   DateTime? @map("processed_at")
+  processResult String?   @map("process_result")
+
+  @@map("payment_webhook_event")
+}
+```
+
+### 3.9 구독/결제 상태 enum
+
+```prisma
+enum SubscriptionStatus {
+  PENDING
+  ACTIVE
+  PAST_DUE
+  CANCELLED
+  EXPIRED
+}
+
+enum InvoiceStatus {
+  READY
+  PAID
+  FAILED
+  CANCELLED
+}
+
+enum IntervalUnit {
+  DAY
+  WEEK
+  MONTH
+  YEAR
 }
 ```
 
@@ -302,27 +485,7 @@ model ZoningRegulation {
 
 - **활용**: `land_use_info.zone_cls_nm`과 `zone_name`을 매칭하여 해당 필지의 법정 건폐율/용적률 조회
 
-### 4.7 LegalDongCodes (법정동코드 매핑)
-
-건축물대장의 시군구코드명+법정동코드명(텍스트)을 실제 10자리 법정동코드로 매핑하기 위한 참조 테이블입니다.
-PNU(필지고유번호) 생성 시 핵심적으로 사용됩니다.
-
-```prisma
-model LegalDongCodes {
-  code    String  @id @db.VarChar(10)                                  // 10자리 법정동코드
-  name    String  @db.VarChar(255)                                     // 시군구/법정동 전체 명칭
-
-  @@map("legal_dong_codes")
-}
-```
-
-- **인덱스**: `idx_legal_dong_codes_name` (name 컬럼)
-- **데이터 출처**: 행정안전부 법정동코드 전체자료
-- **용도**: staging 테이블에서 `building_info`, `floor_status` 등으로 데이터 이관 시 PNU 생성에 사용
-
-> **참고**: 이 테이블은 데이터 이관(import) SQL에서만 사용되며, 현재 백엔드 NestJS 코드에서 직접 조회하지 않으므로 Prisma `schema.prisma`에는 모델을 추가하지 않아도 무방합니다. 향후 법정동 검색/자동완성 등의 기능 구현 시 추가를 검토합니다.
-
-### 4.8 Setting (서비스 설정)
+### 4.7 Setting (서비스 설정)
 
 서비스 운영에 필요한 다양한 설정값(예: 샘플 보고서 URL 등)을 Key-Value 형태로 저장하는 모델입니다.
 
@@ -339,22 +502,54 @@ model Setting {
 }
 ```
 
-- **용도**: 관리자 페이지에서 동적으로 변경 가능한 시스템 변수 관리.
-- **예시**: `sample_report_url` 키를 통해 지도 검색 화면의 리포트 예시 링크 주소 관리.
+- **용도**: 관리자 페이지에서 동적으로 변경 가능한 시스템 변수 관리
+- **예시**: `sample_report_url` 키를 통해 지도 검색 화면의 리포트 예시 링크 주소 관리
+
+### 4.8 GeomScoreLayer (지오메트리 스코어 레이어)
+
+지도/분석용 멀티폴리곤 스코어 레이어를 저장하는 공간 테이블입니다.
+
+```prisma
+model GeomScoreLayer {
+  id         Int                                          @id @default(autoincrement())
+  pnu        String                                       @db.Char(19)
+  geom       Unsupported("geometry(MultiPolygon, 4326)")?
+  scoreGrade Int                                          @map("score_grade")
+  createdAt  DateTime                                     @default(now()) @map("created_at")
+
+  @@index([geom], type: Gist)
+  @@map("geom_score_layer")
+}
+```
+
+### 4.9 Prisma 미관리 보조 테이블
+
+- `legal_dong_codes`: 데이터 이관(SQL) 단계에서 PNU 생성에 사용하는 참조 테이블
+- 위 테이블은 현재 Prisma `schema.prisma`에는 포함되어 있지 않으며, 애플리케이션 런타임 조회 대상이 아닙니다.
 
 ---
 
 ## 5. 테이블 관계도
 
 ```
-┌─────────┐     1:N      ┌──────────────┐     1:N      ┌──────────────┐
-│  user   │──────────────▶│  property    │──────────────▶│ reservation  │
-│         │◀──────────────│              │               │              │
-│         │   1:N ┌───────│              │──────────────▶│  favorite    │
-└─────────┘───────│       └──────────────┘     1:N       └──────────────┘
-     │            └─────────────────────────────────────────────▲
-     │                           1:N                            │
-     └──────────────────────────────────────────────────────────┘
+┌─────────┐ 1:N ┌──────────────┐ 1:N ┌──────────────────────┐
+│  user   │────▶│ user_subscription │───▶│ subscription_invoice │
+│         │     └──────────────┘     └──────────────────────┘
+│         │ 1:N ┌──────────────┐
+│         ├────▶│  billing_key  │
+│         │
+│         │ 1:N ┌──────────────────────────┐
+│         ├────▶│ email_verification_token │
+│         │
+│         │ 1:N ┌──────────────┐ 1:N ┌──────────────┐
+│         ├────▶│  property     │────▶│ reservation  │
+│         │     └──────────────┘     └──────────────┘
+│         │            │
+│         │            └──1:N──▶ favorite
+└─────────┘
+
+subscription_plan ──1:N──▶ user_subscription
+payment_webhook_event (독립 이벤트 로그)
 
 ┌────────────────┐    1:N     ┌──────────────────┐
 │ building_info  │────────────│ land_use_info    │
@@ -374,11 +569,15 @@ model Setting {
 └────────────────────┘
 
 ┌────────────────────┐
-│ legal_dong_codes   │  (독립 참조 테이블, 데이터 이관 시 PNU 생성에 사용)
+│ geom_score_layer   │  (공간 분석 레이어, GIST 인덱스)
 └────────────────────┘
 
 ┌────────────────────┐
 │     setting        │  (독립 설정 테이블, 서비스 운영 변수 관리)
+└────────────────────┘
+
+┌────────────────────┐
+│ legal_dong_codes   │  (Prisma 미관리, SQL 이관 보조 테이블)
 └────────────────────┘
 ```
 
@@ -387,7 +586,9 @@ model Setting {
 ## 6. 시사점
 
 - **PostGIS 활용**: `property` 테이블에 `geometry(Point, 4326)` 필드와 `Gist` 인덱스를 적용하여 지도 검색 및 마커 표시 속도를 최적화합니다.
-- **소셜 로그인**: `user` 테이블에 `provider` + `provider_id` 복합 유니크 인덱스로 소셜 계정 중복 방지.
+- **소셜 로그인/회원가입 분기**: `user.provider + user.provider_id` 복합 유니크 인덱스로 소셜 식별자 중복을 방지하고, 신규 가입은 동의 절차 완료 후 저장합니다.
+- **이메일 검증 이력화**: `email_verification_token`으로 토큰 만료/사용/재전송 추적이 가능하며, 요청 IP/UA 감사 정보를 보관합니다.
+- **전자 결재 연동**: `billing_key` + `subscription_invoice` + `payment_webhook_event` 분리로 결제 시도/결과/웹훅을 독립적으로 추적합니다.
 - **지번 주소 키**: `property.address` 필드를 `@unique`로 설정하여 지번 기준 매물 고유 식별.
-- **공공데이터 분리**: 공공데이터 테이블(`building_info`, `floor_status`, `store_info`, `land_use_info`, `official_land_price`, `zoning_regulation`)은 서비스 핵심 테이블(`user`, `property`, `reservation`)과 독립적으로 관리됩니다.
+- **공공데이터 분리**: 공공데이터 테이블(`building_info`, `floor_status`, `store_info`, `land_use_info`, `official_land_price`, `zoning_regulation`, `geom_score_layer`)은 서비스 핵심 테이블(`user`, `property`, `reservation`)과 독립적으로 관리됩니다.
 - **토지 정보 조합**: 토지 정보는 `building_info`(대지면적), `land_use_info`(용도지역 복수), `official_land_price`(연도별 공시지가), `zoning_regulation`(법정 건폐율/용적률)을 조합하여 API에서 `land` 객체로 제공합니다.
