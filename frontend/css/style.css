@@ -764,9 +764,10 @@ body.map-page .map-controls {
 
 .panel-ai-credit-help-tooltip {
     position: absolute;
-    left: 0;
+    right: 0;
     top: calc(100% + 8px);
-    width: min(280px, 62vw);
+    width: min(260px, calc(100vw - 40px));
+    max-width: calc(100vw - 40px);
     background: #111827;
     color: #ffffff;
     border-radius: 8px;
@@ -781,6 +782,8 @@ body.map-page .map-controls {
     transition: opacity 0.16s ease, transform 0.16s ease, visibility 0.16s ease;
     pointer-events: none;
     z-index: 30;
+    white-space: normal;
+    overflow-wrap: anywhere;
 }
 
 .panel-ai-credit-help:hover .panel-ai-credit-help-tooltip,
