@@ -17,6 +17,7 @@ let aiCreditSummary = {
     usedCredits: 0,
     availableCredits: 0
 };
+let aiCreditAuthRequired = false;
 
 const AI_DAILY_LIMIT = 50;
 
@@ -797,7 +798,9 @@ async function loadAiNewbuildAnalysis(pnu) {
     }
 
     if ((aiCreditSummary?.availableCredits || 0) <= 0) {
-        el.textContent = '잔여 크레딧이 없어 AI 분석을 요청할 수 없습니다.';
+        el.textContent = aiCreditAuthRequired
+            ? '로그인 후 AI 분석을 이용할 수 있습니다.'
+            : '잔여 크레딧이 없어 AI 분석을 요청할 수 없습니다.';
         updateAiCreditUI();
         return;
     }
@@ -864,6 +867,7 @@ function syncAiCreditSummary(credit) {
         usedCredits,
         availableCredits: Math.max(availableCredits, 0)
     };
+    aiCreditAuthRequired = false;
 
     updateAiCreditUI();
 }
@@ -880,12 +884,42 @@ function updateAiCreditUI() {
         creditEl.style.color = available > 0 ? 'var(--text-muted)' : 'var(--danger-color)';
     }
 
+    updateAiCreditHelpUI();
+
     if (!aiNewbuildRequestPending) {
         const requestBtn = document.getElementById('btn-ai-newbuild-request');
         if (requestBtn) {
             requestBtn.disabled = (aiCreditSummary?.availableCredits || 0) <= 0;
         }
     }
+}
+
+function updateAiCreditHelpUI() {
+    const helpBtn = document.getElementById('ai-newbuild-credit-help');
+    const tooltipEl = document.getElementById('ai-newbuild-credit-help-tooltip');
+    if (!helpBtn || !tooltipEl) {
+        return;
+    }
+
+    const availableCredits = Number(aiCreditSummary?.availableCredits || 0);
+    let tooltipMessage = '';
+
+    if (aiCreditAuthRequired) {
+        tooltipMessage = '로그인 후 AI신축 분석을 이용할 수 있습니다. 로그인 또는 회원가입을 진행해 주세요.';
+    } else if (availableCredits <= 0) {
+        tooltipMessage = '잔여 크레딧이 없습니다. 다음 유료 결제 등급으로 업그레이드하면 AI신축 분석 크레딧을 사용할 수 있습니다.';
+    }
+
+    if (!tooltipMessage) {
+        helpBtn.style.display = 'none';
+        tooltipEl.textContent = '';
+        helpBtn.setAttribute('aria-label', '크레딧 안내');
+        return;
+    }
+
+    tooltipEl.textContent = tooltipMessage;
+    helpBtn.setAttribute('aria-label', tooltipMessage);
+    helpBtn.style.display = 'inline-flex';
 }
 
 function resolveDailyLimitNotice(totalCredits) {
@@ -903,10 +937,16 @@ async function fetchAiCreditSummary() {
         creditEl.style.color = 'var(--text-muted)';
     }
 
+    let requiresLogin = false;
+
     try {
         const res = await fetch(`${CONFIG.API_BASE_URL}/api/v1/subscriptions/my-paid-summary`, {
             credentials: 'include'
         });
+
+        if (res.status === 401 || res.status === 403) {
+            requiresLogin = true;
+        }
 
         if (!res.ok) {
             throw new Error(`status=${res.status}`);
@@ -914,12 +954,15 @@ async function fetchAiCreditSummary() {
 
         const json = await res.json();
         if (json?.credit) {
+            aiCreditAuthRequired = false;
             syncAiCreditSummary(json.credit);
             return;
         }
     } catch (e) {
         console.warn('[panel] credit summary API error:', e);
     }
+
+    aiCreditAuthRequired = requiresLogin || !window.currentUserRole;
 
     aiCreditSummary = {
         totalCredits: 0,

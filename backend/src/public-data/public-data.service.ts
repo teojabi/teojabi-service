@@ -200,23 +200,28 @@ export class PublicDataService {
       };
     }
 
+    const buildFailureResponse = async (message: string) => {
+      const restoredCredit = await this.refundCreditForAiRequest(userId);
+      return {
+        success: false as const,
+        message,
+        credit: restoredCredit ?? credit,
+      };
+    };
+
     const apiKey = this.configService.get<string>('GEMINI_API_KEY');
     if (!apiKey) {
       this.logger.warn('GEMINI_API_KEY is not configured');
-      return {
-        success: true,
-        data: { summary: 'AI 분석 키가 설정되지 않아 결과를 생성할 수 없습니다.' },
-        credit,
-      };
+      return buildFailureResponse(
+        'AI 분석 키가 설정되지 않아 결과를 생성할 수 없습니다.',
+      );
     }
 
     const locationInfo = await this.getLocationInfo(pnu);
     if (!locationInfo) {
-      return {
-        success: true,
-        data: { summary: '해당 필지의 건물·토지 정보가 없어 AI 분석을 진행할 수 없습니다.' },
-        credit,
-      };
+      return buildFailureResponse(
+        '해당 필지의 건물·토지 정보가 없어 AI 분석을 진행할 수 없습니다.',
+      );
     }
 
     const prompt = this.buildAiNewbuildPrompt(locationInfo);
@@ -253,11 +258,9 @@ export class PublicDataService {
 
       if (!summary) {
         this.logger.warn(`Gemini returned empty response: pnu=${pnu}`);
-        return {
-          success: true,
-          data: { summary: 'AI 분석 결과가 비어 있습니다. 잠시 후 다시 시도해 주세요.' },
-          credit,
-        };
+        return buildFailureResponse(
+          'AI 분석 결과가 비어 있습니다. 잠시 후 다시 시도해 주세요.',
+        );
       }
 
       return { success: true, data: { summary }, credit };
@@ -270,14 +273,9 @@ export class PublicDataService {
         `Gemini API error for pnu=${pnu}:`,
         err.response?.data || err.message || 'Unknown error',
       );
-      return {
-        success: true,
-        data: {
-          summary:
-            'AI 분석 중 오류가 발생했습니다. 네트워크 상태 또는 사용량 제한을 확인한 뒤 다시 시도해 주세요.',
-        },
-        credit,
-      };
+      return buildFailureResponse(
+        'AI 분석 중 오류가 발생했습니다. 네트워크 상태 또는 사용량 제한을 확인한 뒤 다시 시도해 주세요.',
+      );
     }
   }
 
@@ -397,6 +395,89 @@ export class PublicDataService {
 
       const nextTotalCredits = Number(updatedRows[0].total_credits || 0);
       const nextUsedCredits = Number(updatedRows[0].used_credits || 0);
+
+      return {
+        totalCredits: nextTotalCredits,
+        usedCredits: nextUsedCredits,
+        availableCredits: isUnlimitedPlan
+          ? DAILY_LIMIT_FOR_PRO_AND_MASTER
+          : Math.max(nextTotalCredits - nextUsedCredits, 0),
+      };
+    });
+  }
+
+  private async refundCreditForAiRequest(userId: string): Promise<{
+    totalCredits: number;
+    usedCredits: number;
+    availableCredits: number;
+  } | null> {
+    return this.prisma.$transaction(async (tx) => {
+      const walletRows = await tx.$queryRaw<Array<{ total_credits: number; used_credits: number }>>`
+        SELECT total_credits, used_credits
+        FROM user_credit_wallet
+        WHERE user_id = ${userId}
+        LIMIT 1
+      `;
+
+      if (walletRows.length === 0) {
+        return null;
+      }
+
+      const totalCredits = Number(walletRows[0].total_credits || 0);
+      const usedCredits = Number(walletRows[0].used_credits || 0);
+      const isUnlimitedPlan = totalCredits >= UNLIMITED_MONTHLY_CREDITS;
+
+      const updatedRows =
+        usedCredits > 0
+          ? await tx.$queryRaw<Array<{ total_credits: number; used_credits: number }>>`
+              UPDATE user_credit_wallet
+              SET used_credits = used_credits - 1,
+                  updated_at = CURRENT_TIMESTAMP
+              WHERE user_id = ${userId}
+                AND used_credits > 0
+              RETURNING total_credits, used_credits
+            `
+          : [];
+
+      const nextTotalCredits = Number(
+        (updatedRows[0]?.total_credits ?? totalCredits) || 0,
+      );
+      const nextUsedCredits = Number(
+        (updatedRows[0]?.used_credits ?? usedCredits) || 0,
+      );
+
+      const planRows = await tx.$queryRaw<Array<{ code: string; amount: Prisma.Decimal }>>`
+        SELECT sp.code, sp.amount
+        FROM user_subscription us
+        JOIN subscription_plan sp ON sp.id = us.plan_id
+        WHERE us.user_id = ${userId}
+          AND us.status = 'ACTIVE'
+        ORDER BY us.updated_at DESC, us.created_at DESC
+        LIMIT 1
+      `;
+
+      const activePlanCode = planRows[0]?.code ?? '';
+      const activePlanAmount = planRows[0] ? Number(planRows[0].amount) : 0;
+      const normalizedPlanCode = activePlanCode.toUpperCase();
+      const dailyLimit =
+        normalizedPlanCode.includes('PRO') ||
+        normalizedPlanCode.includes('MASTER') ||
+        normalizedPlanCode.includes('CONNECT') ||
+        activePlanAmount === 40000 ||
+        activePlanAmount === 180000
+          ? DAILY_LIMIT_FOR_PRO_AND_MASTER
+          : null;
+
+      if (dailyLimit !== null) {
+        await tx.$executeRaw`
+          UPDATE user_credit_daily_usage
+          SET used_count = GREATEST(used_count - 1, 0),
+              updated_at = CURRENT_TIMESTAMP
+          WHERE user_id = ${userId}
+            AND usage_date = CURRENT_DATE
+            AND used_count > 0
+        `;
+      }
 
       return {
         totalCredits: nextTotalCredits,

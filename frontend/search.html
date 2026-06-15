@@ -193,8 +193,20 @@
                         <button id="btn-ai-newbuild-request" type="button" class="panel-ai-request-btn">
                             <i class="ri-sparkling-2-line"></i> AI 분석 요청
                         </button>
-                        <div id="ai-newbuild-credit" style="font-size:0.9rem; color:var(--text-muted); margin-left:0.5rem;">
-                            크레딧 확인 중...
+                        <div class="panel-ai-credit-row">
+                            <div id="ai-newbuild-credit" style="font-size:0.9rem; color:var(--text-muted); margin-left:0.5rem;">
+                                크레딧 확인 중...
+                            </div>
+                            <button
+                                id="ai-newbuild-credit-help"
+                                type="button"
+                                class="panel-ai-credit-help"
+                                aria-label="크레딧 안내"
+                                style="display:none;"
+                            >
+                                <i class="ri-question-line" aria-hidden="true"></i>
+                                <span id="ai-newbuild-credit-help-tooltip" class="panel-ai-credit-help-tooltip"></span>
+                            </button>
                         </div>
                         <div id="ai-newbuild-loading" class="panel-ai-loading" style="display:none;">
                             <span class="panel-ai-loading-spinner" aria-hidden="true"></span>
