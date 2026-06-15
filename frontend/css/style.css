@@ -766,7 +766,6 @@ body.map-page .map-controls {
 
 .panel-ai-credit-help-tooltip {
     position: absolute;
-    left: 0;
     top: calc(100% + 8px);
     width: min(260px, calc(100% - 8px));
     max-width: calc(100% - 8px);
