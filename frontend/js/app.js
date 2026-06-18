@@ -60,7 +60,7 @@ const reservationModalTemplates = {
                 <header class="hero">
                     <p class="subtitle">터잡이 전문가 서비스</p>
                     <h1>내 땅의 가치를 극대화하는<br>가장 확실한 방법</h1>
-                    <p>건축사, 자산관리 전문가, 그리고 AI 데이터가 결합하여 오직 대표님 부지만을 위한 최적의 개발 시뮬레이션을 제공합니다.</p>
+                    <p>건축사, 자산관리 전문가, 그리고 AI 데이터를 결합하여 오직 고객을 위한 최적의 개발 시뮬레이션을 제공합니다.</p>
                 </header>
 
                 <section style="padding-bottom: 15px;">
@@ -74,7 +74,7 @@ const reservationModalTemplates = {
 
                 <section>
                     <div class="sample-box">
-                        <p>"어떤 내용이 담기는지 미리 확인해 보세요"</p>
+                        <p>"어떤 내용이 담기는지 미리 확인해 보세요!"</p>
                         <a href="https://incredible-snake-jew8qnq.gamma.site" target="_blank" class="btn-outline" rel="noopener noreferrer">
                             터잡이 전문가 리포트 샘플 보러가기 ↗
                         </a>
@@ -84,9 +84,9 @@ const reservationModalTemplates = {
                 <section>
                     <h3 class="section-title">⭐ 이런 분들께 추천합니다</h3>
                     <ul class="recommend-list">
-                        <li>노후화된 건물을 허물고 신축했을 때의 정확한 사업성이 궁금하신 분</li>
-                        <li>용적률을 최대한 찾아내어 건물 가치를 극대화하고 싶으신 분</li>
-                        <li>복잡한 법적 규제와 건축 허가 가능 여부를 전문가 시선에서 검토받고 싶으신 분</li>
+                        <li>노후 건물을 허물고 신축 시 정확한 사업성이 궁금하신 분</li>
+                        <li>최대 허용 용적률을 확인하고 건물의 가치를 극대화하고 싶으신 분</li>
+                        <li>복잡한 법적 규제와 건축 허가 가능성을 전문가의 시선으로 검토하고 싶으신 분</li>
                     </ul>
                 </section>
 
@@ -144,7 +144,7 @@ const reservationModalTemplates = {
 
                 <section>
                     <h3 class="section-title">🚚 진행 프로세스 및 배송 안내</h3>
-                    <p style="font-size:16px; color:#475569; margin-bottom:24px; font-weight:500;">신청부터 수령까지 단 5일! 터잡이는 대표님의 시간을 아끼기 위해 신속하고 정확하게 움직입니다.</p>
+                    <p style="font-size:16px; color:#475569; margin-bottom:24px; font-weight:500;">신청부터 수령까지 단 5일! 터잡이는 고객의 시간을 소중히 여기며, 정확한 리포트를 제공하기 위해 노력합니다.</p>
 
                     <div class="process-container">
                         <div class="process-step">
@@ -159,7 +159,7 @@ const reservationModalTemplates = {
                             <div class="step-number">Step 2</div>
                             <div class="step-text">
                                 <h4>결제 완료</h4>
-                                <p>결제가 확인되면 터잡이 전담 팀이 즉시 분석에 착수합니다.</p>
+                                <p>결제가 확인되면 터잡이 전담팀이 즉시 분석에 착수합니다.</p>
                             </div>
                         </div>
 
@@ -181,7 +181,7 @@ const reservationModalTemplates = {
                     </div>
 
                     <div class="process-notice">
-                        ℹ️ 리포트 접수 및 발송 상황은 <strong>마이 페이지</strong>에서 확인하세요.
+                        ℹ️ 리포트 접수 및 발송 상황은 <strong>마이페이지</strong>에서 확인하세요.
                     </div>
                 </section>
 

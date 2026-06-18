@@ -373,7 +373,7 @@ async function fetchMyPaidMembership() {
         const creditCard = credit
             ? `
                 <div style="background: var(--bg-muted); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 1rem; margin-bottom: 1.5rem;">
-                    <h4 style="margin-bottom: 0.8rem;">분석요청 크레딧</h4>
+                    <h4 style="margin-bottom: 0.8rem;">분석 요청 크레딧</h4>
                     <p style="margin: 0.2rem 0;"><strong>총 크레딧:</strong> ${Number(credit.totalCredits || 0).toLocaleString('ko-KR')}</p>
                     <p style="margin: 0.2rem 0;"><strong>사용 크레딧:</strong> ${Number(credit.usedCredits || 0).toLocaleString('ko-KR')}</p>
                     <p style="margin: 0.2rem 0;"><strong>잔여 크레딧:</strong> ${Number(credit.availableCredits || 0).toLocaleString('ko-KR')}</p>
