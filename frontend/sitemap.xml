@@ -11,6 +11,10 @@
     <priority>1.0</priority>
   </url>
   <url>
+    <loc>https://teojabi.com/business-info.html</loc>
+    <priority>0.3</priority>
+  </url>
+  <url>
     <loc>https://teojabi.com/gallery.html</loc>
     <priority>0.7</priority>
   </url>
