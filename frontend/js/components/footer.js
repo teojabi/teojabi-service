@@ -48,7 +48,31 @@ export function renderFooter(containerId) {
                         <span class="divider">|</span>
                         <a href="#" data-popup-type="business">사업자정보</a>
                     </div>
-                    <p class="copyright">&copy; 2026 Teojabi. All rights reserved.</p>
+                    <div class="footer-meta">
+                        <p class="copyright">&copy; 2026 Teojabi. All rights reserved.</p>
+                        <div class="footer-social-links" aria-label="터잡이 소셜 링크">
+                            <a href="https://www.instagram.com/teojabi?igsh=M2x3Zmx5aXRjN2M4" target="_blank" rel="noopener noreferrer" class="social-link instagram" aria-label="터잡이 인스타그램" title="터잡이 인스타그램">
+                                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                                    <defs>
+                                        <linearGradient id="footer-instagram-gradient" x1="3" y1="21" x2="21" y2="3" gradientUnits="userSpaceOnUse">
+                                            <stop offset="0%" stop-color="#f9ce34"></stop>
+                                            <stop offset="45%" stop-color="#ee2a7b"></stop>
+                                            <stop offset="100%" stop-color="#6228d7"></stop>
+                                        </linearGradient>
+                                    </defs>
+                                    <rect x="3" y="3" width="18" height="18" rx="5" ry="5" fill="url(#footer-instagram-gradient)"></rect>
+                                    <circle cx="12" cy="12" r="4" fill="none" stroke="#fff" stroke-width="2"></circle>
+                                    <circle cx="17.5" cy="6.5" r="1.2" fill="#fff"></circle>
+                                </svg>
+                            </a>
+                            <a href="https://www.youtube.com/@teojabi" target="_blank" rel="noopener noreferrer" class="social-link youtube" aria-label="터잡이 유튜브" title="터잡이 유튜브">
+                                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                                    <path d="M22 12c0 2.4-.3 4-.6 5-.3 1-1 1.7-2 2-1 .3-4 .6-7.4.6S5.6 19.3 4.6 19c-1-.3-1.7-1-2-2-.3-1-.6-2.6-.6-5s.3-4 .6-5c.3-1 1-1.7 2-2 1-.3 4-.6 7.4-.6s6.4.3 7.4.6c1 .3 1.7 1 2 2 .3 1 .6 2.6.6 5Z" fill="currentColor"></path>
+                                    <path d="M10 8.8v6.4L15.8 12 10 8.8Z" fill="#fff"></path>
+                                </svg>
+                            </a>
+                        </div>
+                    </div>
                 </div>
             </div>
         </footer>
