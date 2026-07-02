@@ -1,4 +1,4 @@
-import { ForbiddenException, Injectable } from '@nestjs/common';
+import { ForbiddenException, Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
 const REPORT_PAYMENT_AMOUNT = 400000;
@@ -8,21 +8,23 @@ const SUBSCRIPTION_STATUS = {
 } as const;
 
 const REPORT_AVAILABLE_PLAN_KEYWORDS = ['LIGHT', 'BASIC', 'PRO', 'PLUS', 'MASTER'] as const;
+const PAYMENT_TYPE_ONETIME = 'onetime';
 
 @Injectable()
 export class ReservationsService {
+  private readonly logger = new Logger(ReservationsService.name);
+
   constructor(private readonly prisma: PrismaService) {}
 
   async prepareReportPayment(
     userId: string,
     data: { pnu?: string | null; address?: string | null },
   ) {
-    const storeId = process.env.PORTONE_STORE_ID;
-    const channelKey = process.env.PORTONE_CHANNEL_KEY;
+    this.logger.debug(
+      `[paymentType=${PAYMENT_TYPE_ONETIME}][prepareReportPayment] started userId=${userId}, pnu=${data?.pnu ?? 'none'}`,
+    );
 
-    if (!storeId || !channelKey) {
-      throw new Error('포트원 설정이 누락되었습니다.');
-    }
+    const { storeId, channelKey } = this.getOnetimePortOneConfig();
 
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
@@ -41,6 +43,10 @@ export class ReservationsService {
     const customerEmail = user?.email?.trim();
     const customerPhoneNumber = user?.phone?.trim();
 
+    this.logger.debug(
+      `[paymentType=${PAYMENT_TYPE_ONETIME}][prepareReportPayment] ready userId=${userId}, paymentId=${paymentId}, amount=${REPORT_PAYMENT_AMOUNT}`,
+    );
+
     return {
       storeId,
       channelKey,
@@ -48,7 +54,11 @@ export class ReservationsService {
       amount: REPORT_PAYMENT_AMOUNT,
       orderName,
       customer: {
+        id: `user_${userId}`,
         customerId: `user_${userId}`,
+        name: {
+          full: customerName,
+        },
         fullName: customerName,
         email: customerEmail || undefined,
         phoneNumber: customerPhoneNumber || undefined,
@@ -66,6 +76,10 @@ export class ReservationsService {
       message: string;
     },
   ) {
+    this.logger.debug(
+      `[paymentType=${PAYMENT_TYPE_ONETIME}][confirmReportPayment] started userId=${userId}, paymentId=${payload?.paymentId ?? 'none'}`,
+    );
+
     if (!payload?.paymentId) {
       throw new Error('paymentId는 필수입니다.');
     }
@@ -86,6 +100,10 @@ export class ReservationsService {
     if (paymentCustomerId && paymentCustomerId !== `user_${userId}`) {
       throw new ForbiddenException('결제 사용자 정보가 일치하지 않습니다.');
     }
+
+    this.logger.debug(
+      `[paymentType=${PAYMENT_TYPE_ONETIME}][confirmReportPayment] verified userId=${userId}, paymentId=${payload.paymentId}`,
+    );
 
     return this.prisma.reservation.create({
       data: {
@@ -258,6 +276,10 @@ export class ReservationsService {
       throw new Error('PORTONE_API_SECRET이 설정되지 않았습니다.');
     }
 
+    this.logger.debug(
+      `[paymentType=${PAYMENT_TYPE_ONETIME}][getPortOnePayment] request start paymentId=${paymentId}`,
+    );
+
     const response = await fetch(`https://api.portone.io/payments/${paymentId}`, {
       headers: {
         Authorization: `PortOne ${secret}`,
@@ -269,6 +291,20 @@ export class ReservationsService {
       throw new Error(`포트원 결제 조회 실패: ${message}`);
     }
 
+    this.logger.debug(
+      `[paymentType=${PAYMENT_TYPE_ONETIME}][getPortOnePayment] request success paymentId=${paymentId}`,
+    );
+
     return response.json();
+  }
+
+  private getOnetimePortOneConfig() {
+    const storeId = process.env.PORTONE_STORE_ID;
+    const channelKey = process.env.PORTONE_CHANNEL_KEY_ONETIME;
+    if (!storeId || !channelKey) {
+      throw new Error('단건 결제 포트원 설정이 누락되었습니다.');
+    }
+
+    return { storeId, channelKey };
   }
 }

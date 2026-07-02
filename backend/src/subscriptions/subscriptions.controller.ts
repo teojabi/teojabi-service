@@ -1,5 +1,6 @@
-import { Body, Controller, Get, Headers, Logger, Post, Req, UseGuards } from '@nestjs/common';
-import { Request } from 'express';
+import { Body, Controller, Get, Headers, Logger, Post, Req, Res, UseGuards } from '@nestjs/common';
+import { Request, Response } from 'express';
+import * as PortOne from '@portone/server-sdk';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { SubscriptionsService } from './subscriptions.service';
 
@@ -31,14 +32,28 @@ export class SubscriptionsController {
   }
 
   @Post('webhook')
-  async handleWebhook(@Headers('x-portone-signature') signature: string | undefined, @Body() payload: any) {
+  async handleWebhook(
+    @Headers() headers: Record<string, string | string[] | undefined>,
+    @Body() payload: any,
+    @Res() res: Response,
+  ) {
     if (process.env.NODE_ENV !== 'production') {
       this.logger.debug(
-        `[PortOne Webhook] signature=${signature ?? 'none'} payload=${JSON.stringify(payload)}`,
+        `[PortOne Webhook] signature=${String(headers['x-portone-signature'] ?? 'none')} payload=${JSON.stringify(payload)}`,
       );
     }
 
-    return this.subscriptionsService.handleWebhook(payload, signature);
+    try {
+      await this.subscriptionsService.handleWebhook(payload, headers);
+      return res.status(200).json({ ok: true });
+    } catch (error: any) {
+      if (error instanceof PortOne.Webhook.WebhookVerificationError) {
+        return res.status(400).json({ ok: false, message: 'invalid webhook signature' });
+      }
+
+      this.logger.error(`[PortOne Webhook] processing error: ${error?.message ?? error}`);
+      return res.status(200).json({ ok: true });
+    }
   }
 
   @Get('my-paid-summary')
