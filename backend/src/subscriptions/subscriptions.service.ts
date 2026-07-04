@@ -433,7 +433,14 @@ export class SubscriptionsService {
       }
       billingKeysToCancel.add(billingKey);
 
-      scheduleIdsByBillingKey.get(billingKey)!.push(invoice.portonePaymentId);
+      const scheduleId = this.extractScheduleIdFromRawPayload(invoice.rawPayload, invoice.portonePaymentId);
+      if (scheduleId) {
+        scheduleIdsByBillingKey.get(billingKey)!.push(scheduleId);
+      } else {
+        this.logger.warn(
+          `[paymentType=${PAYMENT_TYPE_SUBSCRIPTION}][cancelSubscription] missing scheduleId in rawPayload, fallback to billingKey cancel userId=${userId}, subscriptionId=${subscription.id}, invoiceId=${invoice.id}, paymentId=${invoice.portonePaymentId}`,
+        );
+      }
       invoiceIdsByBillingKey.get(billingKey)!.push(invoice.id);
     }
 
@@ -539,6 +546,89 @@ export class SubscriptionsService {
         ? '구독이 취소되었고 당월 결제가 환불 처리되었습니다.'
         : '구독이 취소되었습니다. 현재 이용 기간 내 크레딧은 유지됩니다.',
     };
+  }
+
+  private extractScheduleIdFromRawPayload(
+    rawPayload: Prisma.JsonValue | null | undefined,
+    paymentId: string,
+  ): string | null {
+    const candidate = this.findScheduleIdCandidate(rawPayload, paymentId, 0);
+    if (!candidate) {
+      return null;
+    }
+
+    if (candidate === paymentId) {
+      return null;
+    }
+
+    return candidate;
+  }
+
+  private findScheduleIdCandidate(value: unknown, paymentId: string, depth: number): string | null {
+    if (depth > 6 || value === null || value === undefined) {
+      return null;
+    }
+
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        const candidate = this.findScheduleIdCandidate(item, paymentId, depth + 1);
+        if (candidate) {
+          return candidate;
+        }
+      }
+      return null;
+    }
+
+    if (typeof value !== 'object') {
+      return null;
+    }
+
+    const record = value as Record<string, unknown>;
+    const scheduleIdKeys = ['scheduleId', 'paymentScheduleId'];
+    const directScheduleId = scheduleIdKeys.find((key) => typeof record[key] === 'string');
+    const referencedPaymentId = this.extractReferencedPaymentId(record);
+
+    if (directScheduleId && referencedPaymentId === paymentId) {
+      return record[directScheduleId] as string;
+    }
+
+    if (typeof record.id === 'string' && referencedPaymentId === paymentId && record.id !== paymentId) {
+      return record.id;
+    }
+
+    for (const child of Object.values(record)) {
+      const candidate = this.findScheduleIdCandidate(child, paymentId, depth + 1);
+      if (candidate) {
+        return candidate;
+      }
+    }
+
+    return null;
+  }
+
+  private extractReferencedPaymentId(record: Record<string, unknown>): string | null {
+    if (typeof record.paymentId === 'string') {
+      return record.paymentId;
+    }
+
+    if (typeof record.portonePaymentId === 'string') {
+      return record.portonePaymentId;
+    }
+
+    const paymentNode = record.payment;
+    if (paymentNode && typeof paymentNode === 'object') {
+      const payment = paymentNode as Record<string, unknown>;
+
+      if (typeof payment.id === 'string') {
+        return payment.id;
+      }
+
+      if (typeof payment.paymentId === 'string') {
+        return payment.paymentId;
+      }
+    }
+
+    return null;
   }
 
   async handleWebhook(

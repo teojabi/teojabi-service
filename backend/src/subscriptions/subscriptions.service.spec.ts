@@ -187,6 +187,12 @@ describe('SubscriptionsService', () => {
       {
         id: 'invoice-ready-1',
         portonePaymentId: 'sub_ready_1',
+        rawPayload: {
+          schedule: {
+            id: 'sched_ready_1',
+            paymentId: 'sub_ready_1',
+          },
+        },
         billingKey: {
           billingKey: 'billing_key_1',
         },
@@ -206,7 +212,7 @@ describe('SubscriptionsService', () => {
 
     const cancelScheduleSpy = jest
       .spyOn(service as any, 'cancelPortOneSchedules')
-      .mockResolvedValue({ revokedScheduleIds: ['sub_ready_1'] });
+      .mockResolvedValue({ revokedScheduleIds: ['sched_ready_1'] });
     const cancelPaidSpy = jest.spyOn(service as any, 'cancelPortOnePayment').mockResolvedValue({ ok: true });
 
     const result = await service.cancelSubscription('user-1');
@@ -216,7 +222,7 @@ describe('SubscriptionsService', () => {
     expect(cancelScheduleSpy).toHaveBeenCalledWith(
       expect.objectContaining({
         billingKey: 'billing_key_1',
-        scheduleIds: ['sub_ready_1'],
+        scheduleIds: ['sched_ready_1'],
       }),
     );
     expect(cancelPaidSpy).not.toHaveBeenCalled();
@@ -245,6 +251,10 @@ describe('SubscriptionsService', () => {
       {
         id: 'invoice-ready-2',
         portonePaymentId: 'sub_ready_2',
+        rawPayload: {
+          id: 'sched_ready_2',
+          paymentId: 'sub_ready_2',
+        },
         billingKey: {
           billingKey: 'billing_key_2',
         },
@@ -264,7 +274,7 @@ describe('SubscriptionsService', () => {
 
     const cancelScheduleSpy = jest
       .spyOn(service as any, 'cancelPortOneSchedules')
-      .mockResolvedValue({ revokedScheduleIds: ['sub_ready_2'] });
+      .mockResolvedValue({ revokedScheduleIds: ['sched_ready_2'] });
     const cancelPaidSpy = jest.spyOn(service as any, 'cancelPortOnePayment').mockResolvedValue({ ok: true });
 
     const result = await service.cancelSubscription('user-2');
@@ -275,7 +285,7 @@ describe('SubscriptionsService', () => {
     expect(cancelScheduleSpy).toHaveBeenCalledWith(
       expect.objectContaining({
         billingKey: 'billing_key_2',
-        scheduleIds: ['sub_ready_2'],
+        scheduleIds: ['sched_ready_2'],
       }),
     );
     expect(cancelPaidSpy).toHaveBeenCalledTimes(1);
@@ -327,6 +337,51 @@ describe('SubscriptionsService', () => {
       '예약 결제 취소에 필요한 billingKey 정보가 없습니다.',
     );
     expect(prismaMock.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('구독 취소 시 READY 송장의 scheduleId를 찾지 못하면 billingKey 기준으로 예약 취소를 시도한다', async () => {
+    prismaMock.userSubscription.findFirst.mockResolvedValue({
+      id: 'sub-5',
+      plan: { code: 'LIGHT_MONTHLY', name: 'Light' },
+      currentPeriodStart: new Date('2026-07-01T00:00:00.000Z'),
+    });
+    prismaMock.subscriptionInvoice.findMany.mockResolvedValue([
+      {
+        id: 'invoice-ready-5',
+        portonePaymentId: 'sub_ready_5',
+        rawPayload: {
+          paymentId: 'sub_ready_5',
+        },
+        billingKey: {
+          billingKey: 'billing_key_5',
+        },
+      },
+    ]);
+    prismaMock.$queryRaw.mockResolvedValue([
+      {
+        total_credits: 40,
+        used_credits: 10,
+        updated_at: new Date('2026-07-01T00:00:00.000Z'),
+      },
+    ]);
+    prismaMock.subscriptionInvoice.findFirst.mockResolvedValue(null);
+
+    const cancelScheduleSpy = jest
+      .spyOn(service as any, 'cancelPortOneSchedules')
+      .mockResolvedValue({ revokedScheduleIds: [] });
+    const cancelPaidSpy = jest.spyOn(service as any, 'cancelPortOnePayment').mockResolvedValue({ ok: true });
+
+    const result = await service.cancelSubscription('user-5');
+
+    expect(result.caseType).toBe('CANCEL_ONLY');
+    expect(cancelScheduleSpy).toHaveBeenCalledTimes(1);
+    expect(cancelScheduleSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        billingKey: 'billing_key_5',
+      }),
+    );
+    expect((cancelScheduleSpy.mock.calls[0][0] as any).scheduleIds).toBeUndefined();
+    expect(cancelPaidSpy).not.toHaveBeenCalled();
   });
 
   it('구독 취소 시 READY 송장이 없어도 활성 billingKey가 있으면 billingKey 기준으로 예약 취소를 시도한다', async () => {
