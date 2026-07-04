@@ -366,7 +366,7 @@ export class SubscriptionsService {
       throw new BadRequestException('취소 가능한 활성 구독이 없습니다.');
     }
 
-    const [scheduledInvoices, wallet] = await Promise.all([
+    const [scheduledInvoices, wallet, activeBillingKeys] = await Promise.all([
       this.prisma.subscriptionInvoice.findMany({
         where: {
           subscriptionId: subscription.id,
@@ -382,7 +382,20 @@ export class SubscriptionsService {
         orderBy: [{ requestedAt: 'desc' }, { createdAt: 'desc' }],
       }),
       this.getCreditWallet(userId),
+      this.prisma.billingKey.findMany({
+        where: {
+          userId,
+          isActive: true,
+        },
+        select: {
+          billingKey: true,
+        },
+      }),
     ]);
+
+    this.logger.debug(
+      `[paymentType=${PAYMENT_TYPE_SUBSCRIPTION}][cancelSubscription] loaded candidates userId=${userId}, subscriptionId=${subscription.id}, scheduledInvoiceCount=${scheduledInvoices.length}, activeBillingKeyCount=${activeBillingKeys.length}`,
+    );
 
     const paidInvoiceWhere: Prisma.SubscriptionInvoiceWhereInput = {
       subscriptionId: subscription.id,
@@ -404,6 +417,7 @@ export class SubscriptionsService {
 
     const scheduleIdsByBillingKey = new Map<string, string[]>();
     const invoiceIdsByBillingKey = new Map<string, string[]>();
+    const billingKeysToCancel = new Set(activeBillingKeys.map((item) => item.billingKey));
     for (const invoice of scheduledInvoices) {
       const billingKey = invoice.billingKey?.billingKey;
       if (!billingKey) {
@@ -417,19 +431,27 @@ export class SubscriptionsService {
         scheduleIdsByBillingKey.set(billingKey, []);
         invoiceIdsByBillingKey.set(billingKey, []);
       }
+      billingKeysToCancel.add(billingKey);
 
       scheduleIdsByBillingKey.get(billingKey)!.push(invoice.portonePaymentId);
       invoiceIdsByBillingKey.get(billingKey)!.push(invoice.id);
     }
 
+    if (billingKeysToCancel.size === 0) {
+      this.logger.warn(
+        `[paymentType=${PAYMENT_TYPE_SUBSCRIPTION}][cancelSubscription] no active billingKey found. schedule cancel skipped userId=${userId}, subscriptionId=${subscription.id}`,
+      );
+    }
+
     const scheduledCancelResults = new Map<string, unknown>();
-    for (const [billingKey, scheduleIds] of scheduleIdsByBillingKey.entries()) {
+    for (const billingKey of billingKeysToCancel.values()) {
+      const scheduleIds = scheduleIdsByBillingKey.get(billingKey) ?? [];
       this.logger.debug(
-        `[paymentType=${PAYMENT_TYPE_SUBSCRIPTION}][cancelSubscription] cancelling schedules userId=${userId}, subscriptionId=${subscription.id}, billingKey=${billingKey}, scheduleCount=${scheduleIds.length}, scheduleIds=${scheduleIds.join(',')}`,
+        `[paymentType=${PAYMENT_TYPE_SUBSCRIPTION}][cancelSubscription] cancelling schedules userId=${userId}, subscriptionId=${subscription.id}, billingKey=${billingKey}, scheduleCount=${scheduleIds.length}, scheduleIds=${scheduleIds.join(',') || 'all-by-billing-key'}`,
       );
       const cancelResult = await this.cancelPortOneSchedules({
         billingKey,
-        scheduleIds,
+        scheduleIds: scheduleIds.length > 0 ? scheduleIds : undefined,
       });
 
       this.logger.debug(
@@ -1014,21 +1036,28 @@ export class SubscriptionsService {
     return result;
   }
 
-  private async cancelPortOneSchedules(input: { billingKey: string; scheduleIds: string[] }) {
+  private async cancelPortOneSchedules(input: { billingKey?: string; scheduleIds?: string[] }) {
     const secret = process.env.PORTONE_API_SECRET;
     if (!secret) {
       throw new InternalServerErrorException('PORTONE_API_SECRET이 설정되지 않았습니다.');
     }
 
-    if (input.scheduleIds.length === 0) {
-      this.logger.debug(
-        `[paymentType=${PAYMENT_TYPE_SUBSCRIPTION}][cancelPortOneSchedules] skipped empty scheduleIds billingKey=${input.billingKey}`,
-      );
-      return { revokedScheduleIds: [] };
+    const hasBillingKey = typeof input.billingKey === 'string' && input.billingKey.trim().length > 0;
+    const normalizedScheduleIds = Array.isArray(input.scheduleIds)
+      ? input.scheduleIds.filter((scheduleId) => !!scheduleId)
+      : [];
+
+    if (!hasBillingKey && normalizedScheduleIds.length === 0) {
+      throw new BadRequestException('예약 결제 취소를 위해 billingKey 또는 scheduleIds가 필요합니다.');
     }
 
+    const requestInput: { billingKey?: string; scheduleIds?: string[] } = {
+      billingKey: hasBillingKey ? input.billingKey : undefined,
+      scheduleIds: normalizedScheduleIds.length > 0 ? normalizedScheduleIds : undefined,
+    };
+
     this.logger.debug(
-      `[paymentType=${PAYMENT_TYPE_SUBSCRIPTION}][cancelPortOneSchedules] request billingKey=${input.billingKey}, scheduleCount=${input.scheduleIds.length}, scheduleIds=${input.scheduleIds.join(',')}`,
+      `[paymentType=${PAYMENT_TYPE_SUBSCRIPTION}][cancelPortOneSchedules] request billingKey=${requestInput.billingKey ?? 'none'}, scheduleCount=${normalizedScheduleIds.length}, scheduleIds=${normalizedScheduleIds.join(',') || 'all-by-billing-key'}`,
     );
 
     try {
@@ -1037,18 +1066,15 @@ export class SubscriptionsService {
         storeId: process.env.PORTONE_STORE_ID,
       });
 
-      const result = await paymentScheduleClient.revokePaymentSchedules({
-        billingKey: input.billingKey,
-        scheduleIds: input.scheduleIds,
-      });
+      const result = await paymentScheduleClient.revokePaymentSchedules(requestInput);
       this.logger.debug(
-        `[paymentType=${PAYMENT_TYPE_SUBSCRIPTION}][cancelPortOneSchedules] success billingKey=${input.billingKey}, scheduleCount=${input.scheduleIds.length}`,
+        `[paymentType=${PAYMENT_TYPE_SUBSCRIPTION}][cancelPortOneSchedules] success billingKey=${requestInput.billingKey ?? 'none'}, scheduleCount=${normalizedScheduleIds.length}`,
       );
       return result;
     } catch (error: any) {
       const message = error?.data ? JSON.stringify(error.data) : (error?.message ?? '알 수 없는 오류');
       this.logger.error(
-        `[paymentType=${PAYMENT_TYPE_SUBSCRIPTION}][cancelPortOneSchedules] failed billingKey=${input.billingKey}, scheduleCount=${input.scheduleIds.length}, reason=${message}`,
+        `[paymentType=${PAYMENT_TYPE_SUBSCRIPTION}][cancelPortOneSchedules] failed billingKey=${requestInput.billingKey ?? 'none'}, scheduleCount=${normalizedScheduleIds.length}, reason=${message}`,
       );
       throw new BadRequestException(`포트원 예약결제 취소 실패: ${message}`);
     }
