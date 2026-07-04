@@ -145,6 +145,9 @@ describe('SubscriptionsService', () => {
       {
         id: 'invoice-ready-1',
         portonePaymentId: 'sub_ready_1',
+        billingKey: {
+          billingKey: 'billing_key_1',
+        },
       },
     ]);
     prismaMock.$queryRaw.mockResolvedValue([
@@ -159,17 +162,22 @@ describe('SubscriptionsService', () => {
       portonePaymentId: 'sub_paid_1',
     });
 
-    const cancelSpy = jest.spyOn(service as any, 'cancelPortOnePayment').mockResolvedValue({ ok: true });
+    const cancelScheduleSpy = jest
+      .spyOn(service as any, 'cancelPortOneSchedules')
+      .mockResolvedValue({ revokedScheduleIds: ['sub_ready_1'] });
+    const cancelPaidSpy = jest.spyOn(service as any, 'cancelPortOnePayment').mockResolvedValue({ ok: true });
 
     const result = await service.cancelSubscription('user-1');
 
     expect(result.caseType).toBe('CANCEL_ONLY');
-    expect(cancelSpy).toHaveBeenCalledTimes(1);
-    expect(cancelSpy).toHaveBeenCalledWith(
+    expect(cancelScheduleSpy).toHaveBeenCalledTimes(1);
+    expect(cancelScheduleSpy).toHaveBeenCalledWith(
       expect.objectContaining({
-        paymentId: 'sub_ready_1',
+        billingKey: 'billing_key_1',
+        scheduleIds: ['sub_ready_1'],
       }),
     );
+    expect(cancelPaidSpy).not.toHaveBeenCalled();
     expect(prismaMock.subscriptionInvoice.update).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: 'invoice-ready-1' },
@@ -195,6 +203,9 @@ describe('SubscriptionsService', () => {
       {
         id: 'invoice-ready-2',
         portonePaymentId: 'sub_ready_2',
+        billingKey: {
+          billingKey: 'billing_key_2',
+        },
       },
     ]);
     prismaMock.$queryRaw.mockResolvedValue([
@@ -209,21 +220,25 @@ describe('SubscriptionsService', () => {
       portonePaymentId: 'sub_paid_2',
     });
 
-    const cancelSpy = jest.spyOn(service as any, 'cancelPortOnePayment').mockResolvedValue({ ok: true });
+    const cancelScheduleSpy = jest
+      .spyOn(service as any, 'cancelPortOneSchedules')
+      .mockResolvedValue({ revokedScheduleIds: ['sub_ready_2'] });
+    const cancelPaidSpy = jest.spyOn(service as any, 'cancelPortOnePayment').mockResolvedValue({ ok: true });
 
     const result = await service.cancelSubscription('user-2');
 
     expect(result.caseType).toBe('REFUND_WITH_ZERO_CREDIT');
     expect(result.refundedPaymentId).toBe('sub_paid_2');
-    expect(cancelSpy).toHaveBeenCalledTimes(2);
-    expect(cancelSpy).toHaveBeenNthCalledWith(
-      1,
+    expect(cancelScheduleSpy).toHaveBeenCalledTimes(1);
+    expect(cancelScheduleSpy).toHaveBeenCalledWith(
       expect.objectContaining({
-        paymentId: 'sub_ready_2',
+        billingKey: 'billing_key_2',
+        scheduleIds: ['sub_ready_2'],
       }),
     );
-    expect(cancelSpy).toHaveBeenNthCalledWith(
-      2,
+    expect(cancelPaidSpy).toHaveBeenCalledTimes(1);
+    expect(cancelPaidSpy).toHaveBeenNthCalledWith(
+      1,
       expect.objectContaining({
         paymentId: 'sub_paid_2',
       }),
@@ -242,5 +257,33 @@ describe('SubscriptionsService', () => {
         data: { role: 'USER' },
       }),
     );
+  });
+
+  it('구독 취소 시 READY 송장에 billingKey가 없으면 예외를 던진다', async () => {
+    prismaMock.userSubscription.findFirst.mockResolvedValue({
+      id: 'sub-3',
+      plan: { code: 'LIGHT_MONTHLY', name: 'Light' },
+      currentPeriodStart: new Date('2026-07-01T00:00:00.000Z'),
+    });
+    prismaMock.subscriptionInvoice.findMany.mockResolvedValue([
+      {
+        id: 'invoice-ready-3',
+        portonePaymentId: 'sub_ready_3',
+        billingKey: null,
+      },
+    ]);
+    prismaMock.$queryRaw.mockResolvedValue([
+      {
+        total_credits: 40,
+        used_credits: 10,
+        updated_at: new Date('2026-07-01T00:00:00.000Z'),
+      },
+    ]);
+    prismaMock.subscriptionInvoice.findFirst.mockResolvedValue(null);
+
+    await expect(service.cancelSubscription('user-3')).rejects.toThrow(
+      '예약 결제 취소에 필요한 billingKey 정보가 없습니다.',
+    );
+    expect(prismaMock.$transaction).not.toHaveBeenCalled();
   });
 });
