@@ -1067,6 +1067,8 @@ export class SubscriptionsService {
       });
 
       const result = await paymentScheduleClient.revokePaymentSchedules(requestInput);
+      this.logger.debug("=====예약취소요청==========================================================================");
+      this.logger.debug(`[paymentType=${PAYMENT_TYPE_SUBSCRIPTION}][cancelPortOneSchedules] result=${JSON.stringify(result)}`);
       this.logger.debug(
         `[paymentType=${PAYMENT_TYPE_SUBSCRIPTION}][cancelPortOneSchedules] success billingKey=${requestInput.billingKey ?? 'none'}, scheduleCount=${normalizedScheduleIds.length}`,
       );
