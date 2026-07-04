@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { SubscriptionsService } from './subscriptions.service';
 import { PrismaService } from '../prisma/prisma.service';
+import * as PortOne from '@portone/server-sdk';
 
 describe('SubscriptionsService', () => {
   let service: SubscriptionsService;
@@ -19,6 +20,11 @@ describe('SubscriptionsService', () => {
         update: jest.fn(),
       },
       user: {
+        update: jest.fn(),
+      },
+      paymentWebhookEvent: {
+        findUnique: jest.fn(),
+        create: jest.fn(),
         update: jest.fn(),
       },
       $executeRaw: jest.fn(),
@@ -40,9 +46,42 @@ describe('SubscriptionsService', () => {
   });
 
   afterEach(() => {
+    jest.restoreAllMocks();
     delete process.env.PORTONE_STORE_ID;
     delete process.env.PORTONE_CHANNEL_KEY_SUBSCRIPTION;
     delete process.env.PORTONE_CHANNEL_KEY_ONETIME;
+    delete process.env.PORTONE_WEBHOOK_SECRET;
+  });
+
+  it('웹훅 payload 문자열이 비어있으면 예외를 던진다', async () => {
+    await expect(service.handleWebhook('', {})).rejects.toThrow('payload가 비어있습니다.');
+  });
+
+  it('웹훅 검증 시 raw payload 문자열을 PortOne verify에 전달한다', async () => {
+    process.env.PORTONE_WEBHOOK_SECRET = 'webhook-secret';
+    const rawPayload = '{"id":"evt_1","data":{"paymentId":"pay_1","status":"PAID"}}';
+    const headers = {
+      'webhook-id': 'evt_1',
+      'webhook-signature': 'signature',
+      'webhook-timestamp': '1720000000',
+    };
+
+    const verifySpy = jest.spyOn(PortOne.Webhook, 'verify').mockResolvedValue({
+      id: 'evt_1',
+      data: { paymentId: 'pay_1', status: 'PAID' },
+    } as any);
+    prismaMock.paymentWebhookEvent.findUnique.mockResolvedValue({ id: 'event-1' });
+
+    const result = await service.handleWebhook(rawPayload, headers);
+
+    expect(verifySpy).toHaveBeenCalledWith('webhook-secret', rawPayload, headers);
+    expect(result).toEqual({ ok: true, duplicated: true });
+  });
+
+  it('웹훅 secret 미설정 시 payload JSON 파싱 실패면 예외를 던진다', async () => {
+    await expect(service.handleWebhook('not-json', {})).rejects.toThrow(
+      '유효하지 않은 webhook payload입니다.',
+    );
   });
 
   it('Store ID는 공통 설정을 사용하고 채널은 정기 전용 설정을 사용한다', () => {

@@ -520,21 +520,28 @@ export class SubscriptionsService {
   }
 
   async handleWebhook(
-    payload: any,
+    rawPayload: string,
     headers: Record<string, string | string[] | undefined>,
   ) {
-    this.logger.debug(
-      `[paymentType=${PAYMENT_TYPE_SUBSCRIPTION}][handleWebhook] received eventId=${payload?.id ?? payload?.eventId ?? 'none'}, paymentId=${payload?.data?.paymentId ?? payload?.paymentId ?? 'none'}, status=${payload?.data?.status ?? payload?.status ?? 'none'}`,
-    );
-
-    if (!payload) {
+    if (typeof rawPayload !== 'string' || rawPayload.trim().length === 0) {
       throw new BadRequestException('payload가 비어있습니다.');
     }
 
     const webhookSecret = process.env.PORTONE_WEBHOOK_SECRET;
+    let payload: any;
     if (webhookSecret) {
-      await PortOne.Webhook.verify(webhookSecret, payload, headers);
+      payload = await PortOne.Webhook.verify(webhookSecret, rawPayload, headers);
+    } else {
+      try {
+        payload = JSON.parse(rawPayload);
+      } catch {
+        throw new BadRequestException('유효하지 않은 webhook payload입니다.');
+      }
     }
+
+    this.logger.debug(
+      `[paymentType=${PAYMENT_TYPE_SUBSCRIPTION}][handleWebhook] received eventId=${payload?.id ?? payload?.eventId ?? 'none'}, paymentId=${payload?.data?.paymentId ?? payload?.paymentId ?? 'none'}, status=${payload?.data?.status ?? payload?.status ?? 'none'}`,
+    );
 
     const eventId = payload.id ?? payload.eventId ?? null;
     const paymentId = payload.data?.paymentId ?? payload.paymentId ?? null;
