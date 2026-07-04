@@ -311,26 +311,7 @@ export class SubscriptionsService {
       },
     });
 
-    let credit: { totalCredits: number; usedCredits: number; availableCredits: number; updatedAt: Date | null } | null = null;
-
-    try {
-      const rows = await this.prisma.$queryRaw<
-        Array<{ total_credits: number; used_credits: number; updated_at: Date | null }>
-      >`SELECT total_credits, used_credits, updated_at FROM user_credit_wallet WHERE user_id = ${userId} LIMIT 1`;
-
-      if (rows.length > 0) {
-        const totalCredits = Number(rows[0].total_credits || 0);
-        const usedCredits = Number(rows[0].used_credits || 0);
-        credit = {
-          totalCredits,
-          usedCredits,
-          availableCredits: Math.max(totalCredits - usedCredits, 0),
-          updatedAt: rows[0].updated_at,
-        };
-      }
-    } catch (error) {
-      this.logger.warn(`[getMyPaidSummary] user_credit_wallet 조회 실패 userId=${userId}`);
-    }
+    const credit = await this.getCreditWallet(userId);
 
     return {
       subscription: subscription
@@ -357,6 +338,140 @@ export class SubscriptionsService {
         planName: invoice.subscription.plan.name,
         planCode: invoice.subscription.plan.code,
       })),
+    };
+  }
+
+  async cancelSubscription(userId: string) {
+    this.logger.debug(`[paymentType=${PAYMENT_TYPE_SUBSCRIPTION}][cancelSubscription] started userId=${userId}`);
+
+    const subscription = await this.prisma.userSubscription.findFirst({
+      where: {
+        userId,
+        status: {
+          in: [SUBSCRIPTION_STATUS.ACTIVE, SUBSCRIPTION_STATUS.PENDING, SUBSCRIPTION_STATUS.PAST_DUE],
+        },
+      },
+      include: {
+        plan: {
+          select: {
+            code: true,
+            name: true,
+          },
+        },
+      },
+      orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }],
+    });
+
+    if (!subscription) {
+      throw new BadRequestException('취소 가능한 활성 구독이 없습니다.');
+    }
+
+    const [scheduledInvoices, wallet] = await Promise.all([
+      this.prisma.subscriptionInvoice.findMany({
+        where: {
+          subscriptionId: subscription.id,
+          status: INVOICE_STATUS.READY,
+        },
+        orderBy: [{ requestedAt: 'desc' }, { createdAt: 'desc' }],
+      }),
+      this.getCreditWallet(userId),
+    ]);
+
+    const paidInvoiceWhere: Prisma.SubscriptionInvoiceWhereInput = {
+      subscriptionId: subscription.id,
+      status: INVOICE_STATUS.PAID,
+    };
+
+    if (subscription.currentPeriodStart) {
+      paidInvoiceWhere.paidAt = {
+        gte: subscription.currentPeriodStart,
+      };
+    }
+
+    const latestPaidInvoice = await this.prisma.subscriptionInvoice.findFirst({
+      where: paidInvoiceWhere,
+      orderBy: [{ paidAt: 'desc' }, { requestedAt: 'desc' }],
+    });
+
+    const shouldRefundCurrentCycle = Number(wallet?.usedCredits ?? 0) === 0 && !!latestPaidInvoice;
+
+    const scheduledCancelResults = new Map<string, unknown>();
+    for (const invoice of scheduledInvoices) {
+      const cancelResult = await this.cancelPortOnePayment({
+        paymentId: invoice.portonePaymentId,
+        reason: '구독 취소로 예약 결제를 취소합니다.',
+      });
+      scheduledCancelResults.set(invoice.id, cancelResult);
+    }
+
+    let paidCancelResult: unknown = null;
+    if (shouldRefundCurrentCycle && latestPaidInvoice) {
+      paidCancelResult = await this.cancelPortOnePayment({
+        paymentId: latestPaidInvoice.portonePaymentId,
+        reason: '구독 갱신 후 크레딧 미사용으로 결제를 환불합니다.',
+      });
+    }
+
+    const cancellationTime = new Date();
+
+    await this.prisma.$transaction(async (tx) => {
+      for (const invoice of scheduledInvoices) {
+        await tx.subscriptionInvoice.update({
+          where: { id: invoice.id },
+          data: {
+            status: INVOICE_STATUS.CANCELLED,
+            failReason: '구독 취소로 예약 결제가 취소되었습니다.',
+            rawPayload: (scheduledCancelResults.get(invoice.id) ?? null) as Prisma.InputJsonValue,
+          },
+        });
+      }
+
+      if (shouldRefundCurrentCycle && latestPaidInvoice) {
+        await tx.subscriptionInvoice.update({
+          where: { id: latestPaidInvoice.id },
+          data: {
+            status: INVOICE_STATUS.CANCELLED,
+            failReason: '구독 갱신 후 크레딧 미사용으로 환불 처리되었습니다.',
+            rawPayload: paidCancelResult as Prisma.InputJsonValue,
+          },
+        });
+
+        await tx.$executeRaw`
+          INSERT INTO user_credit_wallet (user_id, total_credits, used_credits)
+          VALUES (${userId}, 0, 0)
+          ON CONFLICT (user_id)
+          DO UPDATE SET
+            total_credits = 0,
+            used_credits = 0,
+            updated_at = CURRENT_TIMESTAMP
+        `;
+      }
+
+      await tx.userSubscription.update({
+        where: { id: subscription.id },
+        data: {
+          status: SUBSCRIPTION_STATUS.CANCELLED,
+          cancelAtPeriodEnd: false,
+          cancelledAt: cancellationTime,
+          endedAt: cancellationTime,
+        },
+      });
+
+      await this.syncUserRole(tx, userId, subscription.plan.code, SUBSCRIPTION_STATUS.CANCELLED);
+    });
+
+    this.logger.debug(
+      `[paymentType=${PAYMENT_TYPE_SUBSCRIPTION}][cancelSubscription] done userId=${userId}, subscriptionId=${subscription.id}, scheduledCancelled=${scheduledInvoices.length}, refunded=${shouldRefundCurrentCycle}`,
+    );
+
+    return {
+      success: true,
+      caseType: shouldRefundCurrentCycle ? 'REFUND_WITH_ZERO_CREDIT' : 'CANCEL_ONLY',
+      cancelledScheduledPayments: scheduledInvoices.length,
+      refundedPaymentId: shouldRefundCurrentCycle ? latestPaidInvoice?.portonePaymentId ?? null : null,
+      message: shouldRefundCurrentCycle
+        ? '구독이 취소되었고 당월 결제가 환불 처리되었습니다.'
+        : '구독이 취소되었습니다. 현재 이용 기간 내 크레딧은 유지됩니다.',
     };
   }
 
@@ -812,6 +927,31 @@ export class SubscriptionsService {
     return response.json();
   }
 
+  private async cancelPortOnePayment(input: { paymentId: string; reason: string }) {
+    const secret = process.env.PORTONE_API_SECRET;
+    if (!secret) {
+      throw new InternalServerErrorException('PORTONE_API_SECRET이 설정되지 않았습니다.');
+    }
+
+    const response = await fetch(`https://api.portone.io/payments/${input.paymentId}/cancel`, {
+      method: 'POST',
+      headers: {
+        Authorization: `PortOne ${secret}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        reason: input.reason,
+      }),
+    });
+
+    if (!response.ok) {
+      const message = await response.text();
+      throw new BadRequestException(`포트원 결제 취소 실패: ${message}`);
+    }
+
+    return response.json();
+  }
+
   private async emitSubscriptionAlert(
     _client: Prisma.TransactionClient | PrismaService,
     userId: string | null,
@@ -870,6 +1010,31 @@ export class SubscriptionsService {
         used_credits = 0,
         updated_at = CURRENT_TIMESTAMP
     `;
+  }
+
+  private async getCreditWallet(userId: string) {
+    try {
+      const rows = await this.prisma.$queryRaw<
+        Array<{ total_credits: number; used_credits: number; updated_at: Date | null }>
+      >`SELECT total_credits, used_credits, updated_at FROM user_credit_wallet WHERE user_id = ${userId} LIMIT 1`;
+
+      if (rows.length === 0) {
+        return null;
+      }
+
+      const totalCredits = Number(rows[0].total_credits || 0);
+      const usedCredits = Number(rows[0].used_credits || 0);
+
+      return {
+        totalCredits,
+        usedCredits,
+        availableCredits: Math.max(totalCredits - usedCredits, 0),
+        updatedAt: rows[0].updated_at,
+      };
+    } catch (error) {
+      this.logger.warn(`[getCreditWallet] user_credit_wallet 조회 실패 userId=${userId}`);
+      return null;
+    }
   }
 
   private resolveAiCreditPolicy(

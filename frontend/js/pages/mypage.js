@@ -357,11 +357,21 @@ async function fetchMyPaidMembership() {
                     <p style="margin: 0.2rem 0;"><strong>상태:</strong> ${subscription.status || '-'}</p>
                     <p style="margin: 0.2rem 0;"><strong>구독 시작일:</strong> ${formatDateTime(subscription.startAt)}</p>
                     <p style="margin: 0.2rem 0;"><strong>현재 구독 종료일:</strong> ${formatDateTime(subscription.currentPeriodEnd)}</p>
+                    <div style="display:flex; flex-wrap:wrap; gap:0.5rem; justify-content:flex-end; margin-top:0.8rem;">
+                        <a href="/paid-service.html" class="btn btn-outline" style="min-width:120px; padding:0.45rem 0.75rem; font-size:0.85rem; text-align:center;">구독서비스 안내</a>
+                        <button type="button" class="btn btn-outline" style="min-width:120px; padding:0.45rem 0.75rem; font-size:0.85rem;">구독플랜변경</button>
+                        <button type="button" class="btn" data-action="cancel-subscription" style="min-width:120px; padding:0.45rem 0.75rem; font-size:0.85rem; background: var(--danger-color, #e53e3e); color:#fff;">구독취소</button>
+                    </div>
                 </div>
             `
             : `
                 <div style="background: var(--bg-muted); border: 1px dashed var(--border-color); border-radius: var(--radius-md); padding: 1rem; margin-bottom: 1rem; color: var(--text-muted);">
                     활성 구독 정보가 없습니다.
+                    <div style="margin-top:0.7rem; display:flex; flex-wrap:wrap; gap:0.5rem; justify-content:center;">
+                        <a href="/paid-service.html" class="btn btn-outline" style="padding:0.4rem 0.7rem; font-size:0.82rem; text-align:center;">구독서비스 안내</a>
+                        <button type="button" class="btn btn-outline" style="padding:0.4rem 0.7rem; font-size:0.82rem;">구독플랜변경</button>
+                        <button type="button" class="btn" style="padding:0.4rem 0.7rem; font-size:0.82rem; background: var(--danger-color, #e53e3e); color:#fff;">구독취소</button>
+                    </div>
                 </div>
             `;
 
@@ -428,6 +438,37 @@ async function fetchMyPaidMembership() {
             <h4 style="margin-bottom: 0.8rem;">결제 내역</h4>
             ${invoiceHtml}
         `;
+
+        const cancelSubscriptionBtn = tabPaid.querySelector('[data-action="cancel-subscription"]');
+        if (cancelSubscriptionBtn) {
+            cancelSubscriptionBtn.addEventListener('click', async () => {
+                const shouldCancel = window.confirm('구독을 취소하시겠습니까? 조건 충족 시 당월 결제가 환불될 수 있습니다.');
+                if (!shouldCancel) return;
+
+                const originalText = cancelSubscriptionBtn.textContent;
+                cancelSubscriptionBtn.disabled = true;
+                cancelSubscriptionBtn.textContent = '처리중...';
+
+                try {
+                    const res = await fetch(`${CONFIG.API_BASE_URL}/api/v1/subscriptions/cancel`, {
+                        method: 'POST',
+                        credentials: 'include',
+                    });
+                    const result = await res.json();
+                    if (!res.ok) {
+                        throw new Error(result?.message || '구독 취소 처리에 실패했습니다.');
+                    }
+
+                    window.alert(result?.message || '구독 취소가 완료되었습니다.');
+                    await fetchMyPaidMembership();
+                } catch (error) {
+                    console.error('cancel subscription error:', error);
+                    window.alert(error?.message || '구독 취소 처리에 실패했습니다.');
+                    cancelSubscriptionBtn.disabled = false;
+                    cancelSubscriptionBtn.textContent = originalText;
+                }
+            });
+        }
     } catch (err) {
         console.error('fetchMyPaidMembership error:', err);
         tabPaid.innerHTML = `

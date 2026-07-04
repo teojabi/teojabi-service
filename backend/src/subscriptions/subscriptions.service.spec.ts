@@ -10,10 +10,20 @@ describe('SubscriptionsService', () => {
     prismaMock = {
       subscriptionInvoice: {
         findFirst: jest.fn(),
+        findMany: jest.fn(),
         create: jest.fn(),
         update: jest.fn(),
       },
+      userSubscription: {
+        findFirst: jest.fn(),
+        update: jest.fn(),
+      },
+      user: {
+        update: jest.fn(),
+      },
       $executeRaw: jest.fn(),
+      $queryRaw: jest.fn(),
+      $transaction: jest.fn(async (callback) => callback(prismaMock)),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -123,5 +133,114 @@ describe('SubscriptionsService', () => {
       }),
     );
     expect(alertSpy).toHaveBeenCalled();
+  });
+
+  it('구독 취소 case1: 크레딧 사용 이력이 있으면 예약결제만 취소하고 환불하지 않는다', async () => {
+    prismaMock.userSubscription.findFirst.mockResolvedValue({
+      id: 'sub-1',
+      plan: { code: 'LIGHT_MONTHLY', name: 'Light' },
+      currentPeriodStart: new Date('2026-07-01T00:00:00.000Z'),
+    });
+    prismaMock.subscriptionInvoice.findMany.mockResolvedValue([
+      {
+        id: 'invoice-ready-1',
+        portonePaymentId: 'sub_ready_1',
+      },
+    ]);
+    prismaMock.$queryRaw.mockResolvedValue([
+      {
+        total_credits: 40,
+        used_credits: 5,
+        updated_at: new Date('2026-07-01T00:00:00.000Z'),
+      },
+    ]);
+    prismaMock.subscriptionInvoice.findFirst.mockResolvedValue({
+      id: 'invoice-paid-1',
+      portonePaymentId: 'sub_paid_1',
+    });
+
+    const cancelSpy = jest.spyOn(service as any, 'cancelPortOnePayment').mockResolvedValue({ ok: true });
+
+    const result = await service.cancelSubscription('user-1');
+
+    expect(result.caseType).toBe('CANCEL_ONLY');
+    expect(cancelSpy).toHaveBeenCalledTimes(1);
+    expect(cancelSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        paymentId: 'sub_ready_1',
+      }),
+    );
+    expect(prismaMock.subscriptionInvoice.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'invoice-ready-1' },
+        data: expect.objectContaining({
+          status: 'CANCELLED',
+        }),
+      }),
+    );
+    expect(prismaMock.user.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: { role: 'USER' },
+      }),
+    );
+  });
+
+  it('구독 취소 case2: 당월 크레딧 미사용이면 예약결제 취소 + 당월 결제 환불 + 크레딧 0 처리한다', async () => {
+    prismaMock.userSubscription.findFirst.mockResolvedValue({
+      id: 'sub-2',
+      plan: { code: 'PRO_MONTHLY', name: 'Pro' },
+      currentPeriodStart: new Date('2026-07-01T00:00:00.000Z'),
+    });
+    prismaMock.subscriptionInvoice.findMany.mockResolvedValue([
+      {
+        id: 'invoice-ready-2',
+        portonePaymentId: 'sub_ready_2',
+      },
+    ]);
+    prismaMock.$queryRaw.mockResolvedValue([
+      {
+        total_credits: 200,
+        used_credits: 0,
+        updated_at: new Date('2026-07-01T00:00:00.000Z'),
+      },
+    ]);
+    prismaMock.subscriptionInvoice.findFirst.mockResolvedValue({
+      id: 'invoice-paid-2',
+      portonePaymentId: 'sub_paid_2',
+    });
+
+    const cancelSpy = jest.spyOn(service as any, 'cancelPortOnePayment').mockResolvedValue({ ok: true });
+
+    const result = await service.cancelSubscription('user-2');
+
+    expect(result.caseType).toBe('REFUND_WITH_ZERO_CREDIT');
+    expect(result.refundedPaymentId).toBe('sub_paid_2');
+    expect(cancelSpy).toHaveBeenCalledTimes(2);
+    expect(cancelSpy).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        paymentId: 'sub_ready_2',
+      }),
+    );
+    expect(cancelSpy).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        paymentId: 'sub_paid_2',
+      }),
+    );
+    expect(prismaMock.subscriptionInvoice.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'invoice-paid-2' },
+        data: expect.objectContaining({
+          status: 'CANCELLED',
+        }),
+      }),
+    );
+    expect(prismaMock.$executeRaw).toHaveBeenCalled();
+    expect(prismaMock.user.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: { role: 'USER' },
+      }),
+    );
   });
 });

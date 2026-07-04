@@ -62,4 +62,12 @@ export class SubscriptionsController {
     const user = req.user as { id: string };
     return this.subscriptionsService.getMyPaidSummary(user.id);
   }
+
+  @Post('cancel')
+  @UseGuards(JwtAuthGuard)
+  async cancelSubscription(@Req() req: Request) {
+    const user = req.user as { id: string };
+    this.logger.debug(`[cancel-subscription] userId=${user.id}`);
+    return this.subscriptionsService.cancelSubscription(user.id);
+  }
 }
