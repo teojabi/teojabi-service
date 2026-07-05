@@ -165,6 +165,113 @@ window.submitWelcomeProfile = async function () {
     }
 };
 
+function openCenteredConfirmPopup({ title, message, confirmText = '확인', cancelText = '취소' }) {
+    return new Promise(resolve => {
+        if (!document.body) {
+            resolve(window.confirm(`${title}\n\n${message}`));
+            return;
+        }
+
+        const overlay = document.createElement('div');
+        overlay.style.position = 'fixed';
+        overlay.style.inset = '0';
+        overlay.style.background = 'rgba(0, 0, 0, 0.45)';
+        overlay.style.display = 'flex';
+        overlay.style.alignItems = 'center';
+        overlay.style.justifyContent = 'center';
+        overlay.style.padding = '1rem';
+        overlay.style.zIndex = '9999';
+
+        const popup = document.createElement('div');
+        popup.style.width = 'min(92vw, 420px)';
+        popup.style.background = 'var(--card-bg, #ffffff)';
+        popup.style.border = '1px solid var(--border-color, #e5e7eb)';
+        popup.style.borderRadius = '12px';
+        popup.style.boxShadow = '0 18px 48px rgba(0, 0, 0, 0.2)';
+        popup.style.padding = '1.1rem';
+
+        const titleEl = document.createElement('h4');
+        titleEl.textContent = title;
+        titleEl.style.margin = '0 0 0.75rem 0';
+        titleEl.style.fontSize = '1rem';
+        titleEl.style.fontWeight = '700';
+        titleEl.style.color = 'var(--text-color, #111827)';
+
+        const messageWrap = document.createElement('div');
+        messageWrap.style.background = 'var(--bg-muted, #f8fafc)';
+        messageWrap.style.border = '1px solid var(--border-color, #e5e7eb)';
+        messageWrap.style.borderRadius = '8px';
+        messageWrap.style.padding = '0.75rem';
+        messageWrap.style.marginBottom = '1rem';
+
+        const messageEl = document.createElement('p');
+        messageEl.textContent = message;
+        messageEl.style.margin = '0';
+        messageEl.style.whiteSpace = 'pre-line';
+        messageEl.style.lineHeight = '1.45';
+        messageEl.style.fontSize = '0.92rem';
+        messageEl.style.color = 'var(--text-color, #111827)';
+
+        const actionWrap = document.createElement('div');
+        actionWrap.style.display = 'flex';
+        actionWrap.style.justifyContent = 'flex-end';
+        actionWrap.style.gap = '0.5rem';
+
+        const cancelBtn = document.createElement('button');
+        cancelBtn.type = 'button';
+        cancelBtn.textContent = cancelText;
+        cancelBtn.className = 'btn btn-outline';
+        cancelBtn.style.padding = '0.45rem 0.75rem';
+
+        const confirmBtn = document.createElement('button');
+        confirmBtn.type = 'button';
+        confirmBtn.textContent = confirmText;
+        confirmBtn.className = 'btn';
+        confirmBtn.style.padding = '0.45rem 0.75rem';
+        confirmBtn.style.background = 'var(--danger-color, #e53e3e)';
+        confirmBtn.style.color = '#fff';
+
+        let closed = false;
+        const close = (result) => {
+            if (closed) return;
+            closed = true;
+            document.removeEventListener('keydown', handleKeydown);
+            overlay.remove();
+            resolve(result);
+        };
+
+        const handleKeydown = (event) => {
+            if (event.key === 'Escape') {
+                event.preventDefault();
+                close(false);
+            }
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                close(true);
+            }
+        };
+
+        overlay.addEventListener('click', (event) => {
+            if (event.target === overlay) {
+                close(false);
+            }
+        });
+        cancelBtn.addEventListener('click', () => close(false));
+        confirmBtn.addEventListener('click', () => close(true));
+
+        messageWrap.appendChild(messageEl);
+        actionWrap.appendChild(cancelBtn);
+        actionWrap.appendChild(confirmBtn);
+        popup.appendChild(titleEl);
+        popup.appendChild(messageWrap);
+        popup.appendChild(actionWrap);
+        overlay.appendChild(popup);
+        document.body.appendChild(overlay);
+        document.addEventListener('keydown', handleKeydown);
+        confirmBtn.focus();
+    });
+}
+
 // ── 관심 매물 ────────────────────────────────────────────────
 
 async function fetchMyReservations() {
@@ -442,7 +549,17 @@ async function fetchMyPaidMembership() {
         const cancelSubscriptionBtn = tabPaid.querySelector('[data-action="cancel-subscription"]');
         if (cancelSubscriptionBtn) {
             cancelSubscriptionBtn.addEventListener('click', async () => {
-                const shouldCancel = window.confirm('구독을 취소하시겠습니까? 조건 충족 시 당월 결제가 환불될 수 있습니다.');
+                const usedCredits = Number(credit?.usedCredits || 0);
+                const isUnusedCredit = usedCredits === 0;
+                const cancelGuideMessage = isUnusedCredit
+                    ? '※ 중요\n구독 취소는 향후 자동 결제되는 결제예약이 취소됩니다.\n현재 구독의 크레딧이 미사용 상태여서 현재 구독의 결제는 환불되고, 모든 크레딧은 소멸됩니다.'
+                    : '※ 중요\n구독 취소는 향후 자동 결제되는 결제예약이 취소됩니다.\n현재 구독의 크레딧이 사용중입니다. 현재 구독의 크레딧은 현재 구독 종료일까지 유지되며, 중도 환불은 되지 않습니다.';
+                const shouldCancel = await openCenteredConfirmPopup({
+                    title: '구독을 취소하시겠습니까?',
+                    message: cancelGuideMessage,
+                    confirmText: '구독 취소',
+                    cancelText: '닫기',
+                });
                 if (!shouldCancel) return;
 
                 const originalText = cancelSubscriptionBtn.textContent;
