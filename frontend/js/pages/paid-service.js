@@ -13,7 +13,7 @@ const PLAN_TIER_WEIGHT = {
   PRO: 3,
   MASTER: 4,
 };
-const BLOCKED_SUBSCRIPTION_MESSAGE = 'Light/Pro 등급 간에만 구독 플랜 변경이 가능합니다.';
+const BLOCKED_SUBSCRIPTION_MESSAGE = '현재 구독 상태에서는 해당 요금제를 신청할 수 없습니다.';
 
 let currentSubscriptionTier = 'GENERAL';
 
@@ -76,9 +76,18 @@ const resolvePlanTier = (code = '') => {
 
 const isLightOrProTier = (tier) => tier === 'LIGHT' || tier === 'PRO';
 
-const isHigherTierPlan = (planCode) => {
+const isSubscriptionActionAllowed = (planCode) => {
   const planTier = resolvePlanTier(planCode);
-  if (!isLightOrProTier(currentSubscriptionTier) || !isLightOrProTier(planTier)) {
+
+  if (!isLightOrProTier(planTier)) {
+    return false;
+  }
+
+  if (currentSubscriptionTier === 'GENERAL') {
+    return true;
+  }
+
+  if (!isLightOrProTier(currentSubscriptionTier)) {
     return false;
   }
 
@@ -107,7 +116,7 @@ const applyCurrentPlanHighlight = () => {
 
 const applyUpgradeButtonState = () => {
   planButtons.forEach((button) => {
-    const allowed = isHigherTierPlan(button.dataset.planCode);
+    const allowed = isSubscriptionActionAllowed(button.dataset.planCode);
     button.dataset.upgradeAllowed = String(allowed);
     button.disabled = !allowed;
     button.title = allowed ? '' : BLOCKED_SUBSCRIPTION_MESSAGE;
@@ -218,25 +227,27 @@ planButtons.forEach((button) => {
     }
 
     const planLabel = PLAN_LABELS[planCode] || '선택한 요금제';
+    const actionLabel =
+      currentSubscriptionTier === 'GENERAL' ? `${planLabel} 구독 시작` : `${planLabel} 구독 플랜 변경`;
 
-    if (!isHigherTierPlan(planCode)) {
+    if (!isSubscriptionActionAllowed(planCode)) {
       notifyPayment(BLOCKED_SUBSCRIPTION_MESSAGE, true);
       return;
     }
 
-    const shouldProceed = window.confirm(`${planLabel} 구독 플랜 변경을 진행할까요?`);
+    const shouldProceed = window.confirm(`${actionLabel}을 진행할까요?`);
     if (!shouldProceed) {
-      logPayment('구독 플랜 변경을 취소했습니다.');
+      logPayment('구독 신청을 취소했습니다.');
       return;
     }
 
     try {
       setButtonsDisabled(true);
-      logPayment(`${planLabel} 결제를 진행합니다. 잠시만 기다려주세요.`);
+      logPayment(`${actionLabel} 결제를 진행합니다. 잠시만 기다려주세요.`);
 
       const result = await issueBillingKey(planCode);
       if (result.success) {
-        notifyPayment('구독 플랜 변경이 정상적으로 완료되었습니다.');
+        notifyPayment(`${actionLabel}이 정상적으로 완료되었습니다.`);
         await initializeSubscriptionState();
         return;
       }

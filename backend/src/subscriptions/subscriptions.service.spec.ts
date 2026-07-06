@@ -149,7 +149,10 @@ describe('SubscriptionsService', () => {
     );
   });
 
-  it('플랜 변경 준비: canceled 포함 Light/Pro가 아니면 액션 없이 차단한다', async () => {
+  it('신규 구독 준비: 일반 사용자는 Light 신청을 진행할 수 있다', async () => {
+    process.env.PORTONE_STORE_ID = 'common-store';
+    process.env.PORTONE_CHANNEL_KEY_SUBSCRIPTION = 'subscription-channel';
+
     prismaMock.subscriptionPlan.findFirst.mockResolvedValue({
       id: 'plan-light',
       code: 'BASIC_MONTHLY',
@@ -158,11 +161,21 @@ describe('SubscriptionsService', () => {
       name: 'Light',
     });
     prismaMock.userSubscription.findFirst.mockResolvedValue(null);
+    prismaMock.user.findUnique.mockResolvedValue({
+      name: '홍길동',
+      email: 'hong@example.com',
+      phone: '010-1234-5678',
+    });
 
-    await expect(service.prepareBilling('user-prepare-2', 'BASIC_MONTHLY')).rejects.toThrow(
-      '현재 구독이 Light 또는 Pro 등급일 때만 플랜 변경이 가능합니다.',
+    const result = await service.prepareBilling('user-prepare-2', 'BASIC_MONTHLY');
+
+    expect(result.currentSubscription).toEqual(
+      expect.objectContaining({
+        tier: 'GENERAL',
+        requiresPlanChangeCleanup: false,
+      }),
     );
-    expect(prismaMock.user.findUnique).not.toHaveBeenCalled();
+    expect(prismaMock.user.findUnique).toHaveBeenCalledTimes(1);
   });
 
   it('플랜 변경 확정: Light -> Pro 변경 시 기존 구독 취소를 먼저 수행한다', async () => {
@@ -207,6 +220,44 @@ describe('SubscriptionsService', () => {
 
     expect(cancelSpy).toHaveBeenCalledTimes(1);
     expect(cancelSpy).toHaveBeenCalledWith('user-confirm-1');
+    expect(result.success).toBe(true);
+  });
+
+  it('신규 구독 확정: 일반 상태에서는 기존 구독 취소 없이 결제를 진행한다', async () => {
+    process.env.PORTONE_STORE_ID = 'common-store';
+    process.env.PORTONE_CHANNEL_KEY_SUBSCRIPTION = 'subscription-channel';
+
+    prismaMock.subscriptionPlan.findFirst.mockResolvedValue({
+      id: 'plan-light',
+      code: 'BASIC_MONTHLY',
+      amount: 10000,
+      currency: 'KRW',
+      name: 'Light',
+      intervalUnit: 'MONTH',
+      intervalCount: 1,
+    });
+    prismaMock.userSubscription.findFirst.mockResolvedValue(null);
+    prismaMock.user.findUnique.mockResolvedValue({
+      name: '홍길동',
+      email: 'hong@example.com',
+      phone: '010-1111-2222',
+    });
+    prismaMock.billingKey.create.mockResolvedValue({ id: 'bk-new' });
+    prismaMock.userSubscription.create.mockResolvedValue({ id: 'sub-new' });
+    prismaMock.subscriptionInvoice.create.mockResolvedValue({ id: 'invoice-new' });
+
+    const cancelSpy = jest.spyOn(service, 'cancelSubscription').mockResolvedValue({ success: true } as any);
+    const paySpy = jest.spyOn(service as any, 'payWithBillingKey').mockResolvedValue({ txId: 'tx-1' });
+    jest.spyOn(service as any, 'scheduleNextBillingCycle').mockResolvedValue({ scheduled: true });
+
+    const result = await service.confirmBilling('user-confirm-0', {
+      planCode: 'BASIC_MONTHLY',
+      billingKey: 'new-billing-key',
+      customerId: 'user_user-confirm-0',
+    });
+
+    expect(cancelSpy).not.toHaveBeenCalled();
+    expect(paySpy).toHaveBeenCalledTimes(1);
     expect(result.success).toBe(true);
   });
 

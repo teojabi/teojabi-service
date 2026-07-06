@@ -1340,10 +1340,24 @@ export class SubscriptionsService {
     const currentTier = this.resolvePlanTier(subscription?.plan?.code);
     const targetTier = this.resolvePlanTier(targetPlanCode);
 
-    const isCurrentLightOrPro = currentTier === 'LIGHT' || currentTier === 'PRO';
     const isTargetLightOrPro = targetTier === 'LIGHT' || targetTier === 'PRO';
 
-    if (!isCurrentLightOrPro || !isTargetLightOrPro) {
+    if (!isTargetLightOrPro) {
+      throw new BadRequestException('Light/Pro 요금제만 신청할 수 있습니다.');
+    }
+
+    if (!subscription) {
+      return {
+        tier: currentTier,
+        code: null,
+        name: 'General',
+        status: null,
+        requiresPlanChangeCleanup: false,
+      };
+    }
+
+    const isCurrentLightOrPro = currentTier === 'LIGHT' || currentTier === 'PRO';
+    if (!isCurrentLightOrPro) {
       throw new BadRequestException('현재 구독이 Light 또는 Pro 등급일 때만 플랜 변경이 가능합니다.');
     }
 
