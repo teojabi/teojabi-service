@@ -27,6 +27,11 @@ const logPayment = (message, isError = false) => {
   console.info(`${logPrefix} ${message}`);
 };
 
+const notifyPayment = (message, isError = false) => {
+  logPayment(message, isError);
+  window.alert(message);
+};
+
 const setButtonsDisabled = (disabled) => {
   planButtons.forEach((button) => {
     button.disabled = disabled || button.dataset.upgradeAllowed === 'false';
@@ -215,23 +220,30 @@ planButtons.forEach((button) => {
     const planLabel = PLAN_LABELS[planCode] || '선택한 요금제';
 
     if (!isHigherTierPlan(planCode)) {
-      logPayment(BLOCKED_SUBSCRIPTION_MESSAGE, true);
+      notifyPayment(BLOCKED_SUBSCRIPTION_MESSAGE, true);
+      return;
+    }
+
+    const shouldProceed = window.confirm(`${planLabel} 구독 플랜 변경을 진행할까요?`);
+    if (!shouldProceed) {
+      logPayment('구독 플랜 변경을 취소했습니다.');
       return;
     }
 
     try {
       setButtonsDisabled(true);
-      logPayment(`${planLabel} 결제를 진행 중입니다. 잠시만 기다려주세요.`);
+      logPayment(`${planLabel} 결제를 진행합니다. 잠시만 기다려주세요.`);
 
       const result = await issueBillingKey(planCode);
       if (result.success) {
-        logPayment('구독이 정상적으로 시작되었습니다.');
+        notifyPayment('구독 플랜 변경이 정상적으로 완료되었습니다.');
+        await initializeSubscriptionState();
         return;
       }
 
-      logPayment(result.message || '결제에 실패했습니다.', true);
+      notifyPayment(result.message || '결제에 실패했습니다.', true);
     } catch (error) {
-      logPayment(error.message || '구독 처리 중 오류가 발생했습니다.', true);
+      notifyPayment(error.message || '구독 처리 중 오류가 발생했습니다.', true);
     } finally {
       setButtonsDisabled(false);
     }
