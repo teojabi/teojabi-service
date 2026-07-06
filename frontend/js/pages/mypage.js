@@ -552,8 +552,8 @@ async function fetchMyPaidMembership() {
                 const usedCredits = Number(credit?.usedCredits || 0);
                 const isUnusedCredit = usedCredits === 0;
                 const cancelGuideMessage = isUnusedCredit
-                    ? '※ 중요\n구독 취소는 향후 자동 결제되는 결제예약이 취소됩니다.\n현재 구독의 크레딧이 미사용 상태여서 현재 구독의 결제는 환불되고, 모든 크레딧은 소멸됩니다.'
-                    : '※ 중요\n구독 취소는 향후 자동 결제되는 결제예약이 취소됩니다.\n현재 구독의 크레딧이 사용중입니다. 현재 구독의 크레딧은 현재 구독 종료일까지 유지되며, 중도 환불은 되지 않습니다.';
+                    ? '⚠️ 주의\n구독 취소는 향후 자동 결제되는 결제예약이 취소됩니다.\n현재 구독의 크레딧이 미사용 상태여서 현재 구독의 결제는 환불되고, 모든 크레딧은 소멸됩니다.'
+                    : '⚠️ 주의\n구독 취소는 향후 자동 결제되는 결제예약이 취소됩니다.\n현재 구독의 크레딧이 사용중입니다. 현재 구독의 크레딧은 현재 구독 종료일까지 유지되며, 중도 환불은 되지 않습니다.';
                 const shouldCancel = await openCenteredConfirmPopup({
                     title: '구독을 취소하시겠습니까?',
                     message: cancelGuideMessage,
