@@ -108,7 +108,11 @@ export class SubscriptionsService {
       throw new BadRequestException('유효하지 않은 구독 플랜입니다.');
     }
 
-    await this.validateUpgradeEligibility(userId, plan.code);
+    const currentSubscription = await this.validateUpgradeEligibility(userId, plan.code);
+
+    if (currentSubscription.requiresPlanChangeCleanup) {
+      await this.cancelSubscription(userId);
+    }
 
     const { channelKey, storeId } = this.getSubscriptionPortOneConfig();
 
@@ -1336,10 +1340,15 @@ export class SubscriptionsService {
     const currentTier = this.resolvePlanTier(subscription?.plan?.code);
     const targetTier = this.resolvePlanTier(targetPlanCode);
 
-    if (PLAN_TIER_WEIGHT[targetTier] <= PLAN_TIER_WEIGHT[currentTier]) {
-      throw new BadRequestException(
-        `현재 구독 등급(${currentTier})보다 상위 등급만 신청할 수 있습니다.`,
-      );
+    const isCurrentLightOrPro = currentTier === 'LIGHT' || currentTier === 'PRO';
+    const isTargetLightOrPro = targetTier === 'LIGHT' || targetTier === 'PRO';
+
+    if (!isCurrentLightOrPro || !isTargetLightOrPro) {
+      throw new BadRequestException('현재 구독이 Light 또는 Pro 등급일 때만 플랜 변경이 가능합니다.');
+    }
+
+    if (PLAN_TIER_WEIGHT[targetTier] === PLAN_TIER_WEIGHT[currentTier]) {
+      throw new BadRequestException('동일한 등급으로는 구독 플랜을 변경할 수 없습니다.');
     }
 
     return {
@@ -1347,6 +1356,7 @@ export class SubscriptionsService {
       code: subscription?.plan?.code ?? null,
       name: subscription?.plan?.name ?? 'General',
       status: subscription?.status ?? null,
+      requiresPlanChangeCleanup: true,
     };
   }
 }

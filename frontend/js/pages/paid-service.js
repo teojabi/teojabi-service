@@ -13,7 +13,7 @@ const PLAN_TIER_WEIGHT = {
   PRO: 3,
   MASTER: 4,
 };
-const BLOCKED_SUBSCRIPTION_MESSAGE = '현재 구독보다 상위 등급만 신청할 수 있습니다.';
+const BLOCKED_SUBSCRIPTION_MESSAGE = 'Light/Pro 등급 간에만 구독 플랜 변경이 가능합니다.';
 
 let currentSubscriptionTier = 'GENERAL';
 
@@ -69,9 +69,15 @@ const resolvePlanTier = (code = '') => {
   return 'GENERAL';
 };
 
+const isLightOrProTier = (tier) => tier === 'LIGHT' || tier === 'PRO';
+
 const isHigherTierPlan = (planCode) => {
   const planTier = resolvePlanTier(planCode);
-  return PLAN_TIER_WEIGHT[planTier] > PLAN_TIER_WEIGHT[currentSubscriptionTier];
+  if (!isLightOrProTier(currentSubscriptionTier) || !isLightOrProTier(planTier)) {
+    return false;
+  }
+
+  return PLAN_TIER_WEIGHT[planTier] !== PLAN_TIER_WEIGHT[currentSubscriptionTier];
 };
 
 const applyCurrentPlanHighlight = () => {
