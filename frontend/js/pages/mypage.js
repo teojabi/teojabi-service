@@ -466,7 +466,7 @@ async function fetchMyPaidMembership() {
                     <p style="margin: 0.2rem 0;"><strong>현재 구독 종료일:</strong> ${formatDateTime(subscription.currentPeriodEnd)}</p>
                     <div style="display:flex; flex-wrap:wrap; gap:0.5rem; justify-content:flex-end; margin-top:0.8rem;">
                         <a href="/paid-service.html" class="btn btn-outline" style="min-width:120px; padding:0.45rem 0.75rem; font-size:0.85rem; text-align:center;">구독서비스 안내</a>
-                        <button type="button" class="btn btn-outline" style="min-width:120px; padding:0.45rem 0.75rem; font-size:0.85rem;">구독플랜변경</button>
+                        <button type="button" class="btn btn-outline" data-action="change-subscription-plan" style="min-width:120px; padding:0.45rem 0.75rem; font-size:0.85rem;">구독플랜변경</button>
                         <button type="button" class="btn" data-action="cancel-subscription" style="min-width:120px; padding:0.45rem 0.75rem; font-size:0.85rem; background: var(--danger-color, #e53e3e); color:#fff;">구독취소</button>
                     </div>
                 </div>
@@ -476,7 +476,7 @@ async function fetchMyPaidMembership() {
                     활성 구독 정보가 없습니다.
                     <div style="margin-top:0.7rem; display:flex; flex-wrap:wrap; gap:0.5rem; justify-content:center;">
                         <a href="/paid-service.html" class="btn btn-outline" style="padding:0.4rem 0.7rem; font-size:0.82rem; text-align:center;">구독서비스 안내</a>
-                        <button type="button" class="btn btn-outline" style="padding:0.4rem 0.7rem; font-size:0.82rem;">구독플랜변경</button>
+                        <button type="button" class="btn btn-outline" data-action="change-subscription-plan" style="padding:0.4rem 0.7rem; font-size:0.82rem;">구독플랜변경</button>
                         <button type="button" class="btn" style="padding:0.4rem 0.7rem; font-size:0.82rem; background: var(--danger-color, #e53e3e); color:#fff;">구독취소</button>
                     </div>
                 </div>
@@ -545,6 +545,13 @@ async function fetchMyPaidMembership() {
             <h4 style="margin-bottom: 0.8rem;">결제 내역</h4>
             ${invoiceHtml}
         `;
+
+        const changeSubscriptionPlanButtons = tabPaid.querySelectorAll('[data-action="change-subscription-plan"]');
+        changeSubscriptionPlanButtons.forEach((button) => {
+            button.addEventListener('click', () => {
+                window.location.href = '/paid-service.html';
+            });
+        });
 
         const cancelSubscriptionBtn = tabPaid.querySelector('[data-action="cancel-subscription"]');
         if (cancelSubscriptionBtn) {
