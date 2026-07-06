@@ -113,6 +113,12 @@ const fetchCurrentSubscriptionTier = async () => {
   }
 
   const data = await response.json();
+  const subscriptionStatus = String(data?.subscription?.status || '').toUpperCase();
+  if (subscriptionStatus === 'CANCELLED') {
+    currentSubscriptionTier = 'GENERAL';
+    return;
+  }
+
   const currentPlanCode = data?.subscription?.plan?.code || 'GENERAL';
   currentSubscriptionTier = resolvePlanTier(currentPlanCode);
 };
