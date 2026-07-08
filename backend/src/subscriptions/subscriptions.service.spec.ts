@@ -24,6 +24,7 @@ describe('SubscriptionsService', () => {
         update: jest.fn(),
       },
       billingKey: {
+        findFirst: jest.fn(),
         findMany: jest.fn().mockResolvedValue([]),
         updateMany: jest.fn(),
         create: jest.fn(),
@@ -61,6 +62,7 @@ describe('SubscriptionsService', () => {
     delete process.env.PORTONE_CHANNEL_KEY_SUBSCRIPTION;
     delete process.env.PORTONE_CHANNEL_KEY_ONETIME;
     delete process.env.PORTONE_WEBHOOK_SECRET;
+    delete process.env.PORTONE_API_SECRET;
   });
 
   it('웹훅 payload 문자열이 비어있으면 예외를 던진다', async () => {
@@ -609,5 +611,94 @@ describe('SubscriptionsService', () => {
     );
     expect((cancelScheduleSpy.mock.calls[0][0] as any).scheduleIds).toBeUndefined();
     expect(cancelPaidSpy).not.toHaveBeenCalled();
+  });
+
+  it('테스트 예약결제 생성 시 subscriptionId가 없으면 예외를 던진다', async () => {
+    await expect(
+      service.createWebhookTestSchedule({
+        subscriptionId: '',
+      }),
+    ).rejects.toThrow('subscriptionId는 필수입니다.');
+  });
+
+  it('테스트 예약결제 생성 시 minutes가 0 이하이면 예외를 던진다', async () => {
+    await expect(
+      service.createWebhookTestSchedule({
+        subscriptionId: 'sub-1',
+        minutes: 0,
+      }),
+    ).rejects.toThrow('minutes는 0보다 큰 숫자여야 합니다.');
+  });
+
+  it('테스트 예약결제 생성 성공 시 READY 송장을 만들고 예약결제를 등록한다', async () => {
+    process.env.PORTONE_STORE_ID = 'store-id';
+    process.env.PORTONE_CHANNEL_KEY_SUBSCRIPTION = 'channel-key';
+
+    prismaMock.userSubscription.findFirst.mockResolvedValue({
+      id: 'sub-1',
+      userId: 'user-1',
+      plan: {
+        code: 'LIGHT_MONTHLY',
+        name: 'Light Monthly',
+        amount: 9900,
+        currency: 'KRW',
+      },
+      user: {
+        id: 'user-1',
+        name: 'Tester',
+        email: 'tester@example.com',
+        phone: '01012345678',
+      },
+    });
+    prismaMock.billingKey.findFirst.mockResolvedValue({
+      id: 'bk-1',
+      billingKey: 'billing-key-1',
+      portoneCustomerId: 'customer-1',
+    });
+    prismaMock.subscriptionInvoice.create.mockResolvedValue({
+      id: 'invoice-1',
+    });
+
+    const scheduleSpy = jest
+      .spyOn(service as any, 'scheduleWithBillingKey')
+      .mockResolvedValue({ scheduleId: 'schedule-1' });
+
+    const result = await service.createWebhookTestSchedule({
+      subscriptionId: 'sub-1',
+      minutes: 5,
+    });
+
+    expect(prismaMock.subscriptionInvoice.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          subscriptionId: 'sub-1',
+          billingKeyId: 'bk-1',
+          status: 'READY',
+        }),
+      }),
+    );
+    expect(scheduleSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        paymentId: expect.any(String),
+        billingKey: 'billing-key-1',
+        customerId: 'customer-1',
+      }),
+    );
+    expect(prismaMock.subscriptionInvoice.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'invoice-1' },
+        data: {
+          rawPayload: { scheduleId: 'schedule-1' },
+        },
+      }),
+    );
+    expect(result).toEqual(
+      expect.objectContaining({
+        ok: true,
+        subscriptionId: 'sub-1',
+        userId: 'user-1',
+        invoiceId: 'invoice-1',
+      }),
+    );
   });
 });

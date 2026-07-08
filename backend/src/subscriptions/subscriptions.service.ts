@@ -870,6 +870,130 @@ export class SubscriptionsService {
     return { ok: true };
   }
 
+  async createWebhookTestSchedule(input: { subscriptionId: string; minutes?: number }) {
+    const subscriptionId = input.subscriptionId?.trim();
+    if (!subscriptionId) {
+      throw new BadRequestException('subscriptionId는 필수입니다.');
+    }
+
+    const minutes = input.minutes ?? 5;
+    if (!Number.isFinite(minutes) || minutes <= 0) {
+      throw new BadRequestException('minutes는 0보다 큰 숫자여야 합니다.');
+    }
+
+    const subscription = await this.prisma.userSubscription.findFirst({
+      where: { id: subscriptionId },
+      include: {
+        plan: {
+          select: {
+            code: true,
+            name: true,
+            amount: true,
+            currency: true,
+          },
+        },
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            phone: true,
+          },
+        },
+      },
+    });
+
+    if (!subscription) {
+      throw new BadRequestException(`구독을 찾을 수 없습니다. subscriptionId=${subscriptionId}`);
+    }
+
+    const customerName = subscription.user?.name?.trim();
+    if (!customerName) {
+      throw new BadRequestException('예약결제 등록을 위해 사용자 이름이 필요합니다.');
+    }
+
+    const billingKey = await this.prisma.billingKey.findFirst({
+      where: {
+        userId: subscription.userId,
+        isActive: true,
+      },
+      orderBy: {
+        issuedAt: 'desc',
+      },
+    });
+
+    if (!billingKey) {
+      throw new BadRequestException(`활성 billingKey를 찾을 수 없습니다. userId=${subscription.userId}`);
+    }
+
+    const { storeId, channelKey } = this.getSubscriptionPortOneConfig();
+    const nextBillingAt = new Date(Date.now() + minutes * 60 * 1000);
+    const paymentId = this.generatePaymentId();
+
+    const invoice = await this.prisma.subscriptionInvoice.create({
+      data: {
+        subscriptionId: subscription.id,
+        billingKeyId: billingKey.id,
+        portonePaymentId: paymentId,
+        amount: subscription.plan.amount,
+        currency: subscription.plan.currency,
+        status: INVOICE_STATUS.READY,
+      },
+    });
+
+    try {
+      const scheduledResult = await this.scheduleWithBillingKey({
+        paymentId,
+        billingKey: billingKey.billingKey,
+        orderName: `${subscription.plan.name} 구독 결제`,
+        amount: Number(subscription.plan.amount),
+        customerId: billingKey.portoneCustomerId,
+        customerName,
+        customerEmail: subscription.user?.email?.trim() || undefined,
+        customerPhoneNumber: subscription.user?.phone?.trim() || undefined,
+        storeId,
+        channelKey,
+        timeToPay: nextBillingAt.toISOString(),
+      });
+
+      await this.prisma.subscriptionInvoice.update({
+        where: { id: invoice.id },
+        data: {
+          rawPayload: scheduledResult as Prisma.InputJsonValue,
+        },
+      });
+
+      this.logger.debug(
+        `[paymentType=${PAYMENT_TYPE_SUBSCRIPTION}][createWebhookTestSchedule] created subscriptionId=${subscription.id}, paymentId=${paymentId}, timeToPay=${nextBillingAt.toISOString()}`,
+      );
+
+      return {
+        ok: true,
+        subscriptionId: subscription.id,
+        userId: subscription.userId,
+        paymentId,
+        timeToPay: nextBillingAt.toISOString(),
+        invoiceId: invoice.id,
+      };
+    } catch (error: any) {
+      const failReason = `테스트 예약결제 등록 실패: ${error?.message ?? '알 수 없는 오류'}`;
+
+      await this.prisma.subscriptionInvoice.update({
+        where: { id: invoice.id },
+        data: {
+          status: INVOICE_STATUS.FAILED,
+          failReason,
+        },
+      });
+
+      this.logger.error(
+        `[paymentType=${PAYMENT_TYPE_SUBSCRIPTION}][createWebhookTestSchedule] failed subscriptionId=${subscription.id}, paymentId=${paymentId}, reason=${error?.message ?? error}`,
+      );
+
+      throw new BadRequestException(failReason);
+    }
+  }
+
   private async payWithBillingKey(input: {
     paymentId: string;
     billingKey: string;
