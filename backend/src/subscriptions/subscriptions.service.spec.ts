@@ -106,10 +106,14 @@ describe('SubscriptionsService', () => {
       id: 'evt-admin-cancel-1',
       data: {
         paymentId: 'pay-admin-1',
+        cancellationId: 'cancel-admin-1',
+        storeId: 'store-test-1',
         status: 'CANCELLED',
-        message: '관리자페이지취소',
       },
     });
+    const fetchCancellationDetailSpy = jest
+      .spyOn(service as any, 'fetchPortOneCancellationDetail')
+      .mockResolvedValue({ reason: '관리자페이지취소' });
 
     prismaMock.paymentWebhookEvent.findUnique.mockResolvedValue(null);
     prismaMock.paymentWebhookEvent.create.mockResolvedValue({ id: 'webhook-event-1' });
@@ -170,6 +174,11 @@ describe('SubscriptionsService', () => {
     const result = await service.handleWebhook(rawPayload, {});
 
     expect(result).toEqual({ ok: true });
+    expect(fetchCancellationDetailSpy).toHaveBeenCalledWith({
+      paymentId: 'pay-admin-1',
+      cancellationId: 'cancel-admin-1',
+      storeId: 'store-test-1',
+    });
     expect(cancelScheduleSpy).toHaveBeenCalledWith(
       expect.objectContaining({
         billingKey: 'billing-key-1',
@@ -231,6 +240,58 @@ describe('SubscriptionsService', () => {
         data: expect.objectContaining({
           processResult: expect.stringContaining('scope=billingKey'),
         }),
+      }),
+    );
+  });
+
+  it('결제 상세 재조회 실패 시 payload 취소 사유로 관리자페이지취소를 계속 처리한다', async () => {
+    const rawPayload = JSON.stringify({
+      id: 'evt-admin-cancel-fallback-1',
+      data: {
+        paymentId: 'pay-admin-fallback-1',
+        cancellationId: 'cancel-admin-fallback-1',
+        storeId: 'store-test-1',
+        status: 'CANCELLED',
+        message: '관리자페이지취소',
+      },
+    });
+
+    prismaMock.paymentWebhookEvent.findUnique.mockResolvedValue(null);
+    prismaMock.paymentWebhookEvent.create.mockResolvedValue({ id: 'webhook-event-fallback-1' });
+    prismaMock.subscriptionInvoice.findUnique.mockResolvedValue({
+      id: 'invoice-current-fallback-1',
+      subscriptionId: 'sub-fallback-1',
+      billingKeyId: 'bk-fallback-1',
+      billingKey: {
+        billingKey: 'billing-key-fallback-1',
+      },
+      subscription: {
+        userId: 'user-fallback-1',
+        plan: {
+          code: 'LIGHT_MONTHLY',
+        },
+      },
+    });
+
+    const fetchCancellationDetailSpy = jest
+      .spyOn(service as any, 'fetchPortOneCancellationDetail')
+      .mockResolvedValue(null);
+
+    const processSpy = jest
+      .spyOn(service as any, 'processAdminConsoleCancellationByBillingKey')
+      .mockResolvedValue(undefined);
+
+    const result = await service.handleWebhook(rawPayload, {});
+
+    expect(result).toEqual({ ok: true });
+    expect(fetchCancellationDetailSpy).toHaveBeenCalledWith({
+      paymentId: 'pay-admin-fallback-1',
+      cancellationId: 'cancel-admin-fallback-1',
+      storeId: 'store-test-1',
+    });
+    expect(processSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        cancellationReason: '관리자페이지취소',
       }),
     );
   });

@@ -655,12 +655,15 @@ export class SubscriptionsService {
       }
     }
 
-    this.logger.debug(
-      `[paymentType=${PAYMENT_TYPE_SUBSCRIPTION}][handleWebhook] received eventId=${payload?.id ?? payload?.eventId ?? 'none'}, paymentId=${payload?.data?.paymentId ?? payload?.paymentId ?? 'none'}, status=${payload?.data?.status ?? payload?.status ?? 'none'}`,
-    );
-
     const eventId = payload.id ?? payload.eventId ?? null;
     const paymentId = payload.data?.paymentId ?? payload.paymentId ?? null;
+    const cancellationId = payload.data?.cancellationId ?? payload.cancellationId ?? null;
+    const storeId = payload.data?.storeId ?? payload.storeId ?? null;
+    const status = this.normalizeWebhookStatus(payload);
+
+    this.logger.debug(
+      `[paymentType=${PAYMENT_TYPE_SUBSCRIPTION}][handleWebhook] received eventId=${eventId ?? 'none'}, paymentId=${paymentId ?? 'none'}, cancellationId=${cancellationId ?? 'none'}, type=${payload?.type ?? 'none'}, status=${status ?? 'none'}`,
+    );
 
     const existingEvent = eventId
       ? await this.prisma.paymentWebhookEvent.findUnique({ where: { eventId } })
@@ -677,7 +680,7 @@ export class SubscriptionsService {
         eventId,
         paymentId,
         eventType: payload.type ?? null,
-        status: payload.data?.status ?? payload.status ?? null,
+        status: status ?? null,
         payload: payload as Prisma.InputJsonValue,
       },
     });
@@ -729,12 +732,15 @@ export class SubscriptionsService {
       return { ok: true, skipped: true };
     }
 
-    const status = payload.data?.status ?? payload.status;
-    const cancellationReason = this.extractCancellationReason(payload);
+    const cancellationDetail =
+      status === 'CANCELLED'
+        ? await this.fetchPortOneCancellationDetail({ paymentId, cancellationId, storeId })
+        : null;
+    const cancellationReason = this.extractCancellationReason(payload, cancellationDetail?.reason);
 
     if (
       status === 'CANCELLED' &&
-      this.isAdminConsoleCancellation(payload) &&
+      this.isAdminConsoleCancellation(cancellationReason) &&
       invoice.billingKeyId &&
       invoice.billingKey?.billingKey
     ) {
@@ -901,8 +907,103 @@ export class SubscriptionsService {
     return { ok: true };
   }
 
-  private extractCancellationReason(payload: any): string | null {
+  private extractCancellationReason(
+    payload: any,
+    ...extraCandidates: Array<string | null | undefined>
+  ): string | null {
+    return this.extractCancellationReasonWithCandidates(payload, ...extraCandidates);
+  }
+
+  private normalizeWebhookStatus(payload: any): string | null {
+    const status = payload?.data?.status ?? payload?.status;
+    if (typeof status === 'string' && status.trim().length > 0) {
+      return status.trim().toUpperCase();
+    }
+
+    const eventType = payload?.type;
+    if (eventType === 'Transaction.Paid') {
+      return 'PAID';
+    }
+    if (eventType === 'Transaction.Failed') {
+      return 'FAILED';
+    }
+    if (eventType === 'Transaction.Cancelled' || eventType === 'Transaction.PartialCancelled') {
+      return 'CANCELLED';
+    }
+
+    return null;
+  }
+
+  private async fetchPortOneCancellationDetail(input: {
+    paymentId: string | null;
+    cancellationId: string | null;
+    storeId: string | null;
+  }): Promise<{ reason: string | null } | null> {
+    if (!input.paymentId) {
+      this.logger.debug(
+        `[paymentType=${PAYMENT_TYPE_SUBSCRIPTION}][fetchPortOneCancellationDetail] paymentId missing, skip requery cancellationId=${input.cancellationId ?? 'none'}`,
+      );
+      return null;
+    }
+
+    const secret = process.env.PORTONE_API_SECRET;
+    if (!secret) {
+      this.logger.warn(
+        `[paymentType=${PAYMENT_TYPE_SUBSCRIPTION}][fetchPortOneCancellationDetail] PORTONE_API_SECRET missing, fallback payload reason paymentId=${input.paymentId}`,
+      );
+      return null;
+    }
+
+    const storeId =
+      typeof input.storeId === 'string' && input.storeId.trim().length > 0
+        ? input.storeId.trim()
+        : process.env.PORTONE_STORE_ID?.trim();
+    if (!storeId) {
+      this.logger.warn(
+        `[paymentType=${PAYMENT_TYPE_SUBSCRIPTION}][fetchPortOneCancellationDetail] storeId missing, fallback payload reason paymentId=${input.paymentId}`,
+      );
+      return null;
+    }
+
+    try {
+      const paymentClient = PortOne.PaymentClient({ secret });
+      const payment = await paymentClient.getPayment({
+        paymentId: input.paymentId,
+        storeId,
+      });
+
+      const cancellations = Array.isArray((payment as any)?.cancellations)
+        ? ((payment as any).cancellations as Array<Record<string, unknown>>)
+        : [];
+
+      const targetCancellation =
+        input.cancellationId && input.cancellationId.trim().length > 0
+          ?
+            cancellations.find(
+              (item) => typeof item?.id === 'string' && item.id === input.cancellationId,
+            ) ?? cancellations[0] ?? null
+          : cancellations[0] ?? null;
+
+      const reason = this.extractCancellationReasonWithCandidates(
+        payment,
+        typeof targetCancellation?.reason === 'string' ? targetCancellation.reason : null,
+      );
+
+      return { reason };
+    } catch (error: any) {
+      this.logger.warn(
+        `[paymentType=${PAYMENT_TYPE_SUBSCRIPTION}][fetchPortOneCancellationDetail] requery failed paymentId=${input.paymentId}, cancellationId=${input.cancellationId ?? 'none'}, reason=${error?.message ?? error}`,
+      );
+      return null;
+    }
+  }
+
+  private extractCancellationReasonWithCandidates(
+    payload: any,
+    ...extraCandidates: Array<string | null | undefined>
+  ): string | null {
     const candidates: unknown[] = [
+      ...extraCandidates,
       payload?.data?.message,
       payload?.data?.reason,
       payload?.data?.cancellation?.reason,
@@ -920,9 +1021,8 @@ export class SubscriptionsService {
     return null;
   }
 
-  private isAdminConsoleCancellation(payload: any): boolean {
-    const reason = this.extractCancellationReason(payload);
-    return typeof reason === 'string' && reason.includes('관리자페이지취소');
+  private isAdminConsoleCancellation(cancellationReason: string | null): boolean {
+    return typeof cancellationReason === 'string' && cancellationReason.includes('관리자페이지취소');
   }
 
   private async processAdminConsoleCancellationByBillingKey(input: {
