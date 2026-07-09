@@ -14,18 +14,23 @@ describe('SubscriptionsService', () => {
       },
       subscriptionInvoice: {
         findFirst: jest.fn(),
+        findUnique: jest.fn(),
         findMany: jest.fn(),
         create: jest.fn(),
         update: jest.fn(),
+        updateMany: jest.fn(),
       },
       userSubscription: {
         findFirst: jest.fn(),
+        findMany: jest.fn(),
         create: jest.fn(),
         update: jest.fn(),
+        updateMany: jest.fn(),
       },
       billingKey: {
         findFirst: jest.fn(),
         findMany: jest.fn().mockResolvedValue([]),
+        update: jest.fn(),
         updateMany: jest.fn(),
         create: jest.fn(),
       },
@@ -93,6 +98,140 @@ describe('SubscriptionsService', () => {
   it('웹훅 secret 미설정 시 payload JSON 파싱 실패면 예외를 던진다', async () => {
     await expect(service.handleWebhook('not-json', {})).rejects.toThrow(
       '유효하지 않은 webhook payload입니다.',
+    );
+  });
+
+  it('웹훅 관리자페이지취소 수신 시 같은 billingKey 구독을 일괄 취소하고 크레딧/키를 정리한다', async () => {
+    const rawPayload = JSON.stringify({
+      id: 'evt-admin-cancel-1',
+      data: {
+        paymentId: 'pay-admin-1',
+        status: 'CANCELLED',
+        message: '관리자페이지취소',
+      },
+    });
+
+    prismaMock.paymentWebhookEvent.findUnique.mockResolvedValue(null);
+    prismaMock.paymentWebhookEvent.create.mockResolvedValue({ id: 'webhook-event-1' });
+    prismaMock.subscriptionInvoice.findUnique.mockResolvedValue({
+      id: 'invoice-current-1',
+      subscriptionId: 'sub-1',
+      billingKeyId: 'bk-1',
+      billingKey: {
+        billingKey: 'billing-key-1',
+        portoneCustomerId: 'customer-1',
+      },
+      subscription: {
+        userId: 'user-1',
+        plan: {
+          code: 'LIGHT_MONTHLY',
+          name: 'Light',
+          amount: 10000,
+          currency: 'KRW',
+          intervalUnit: 'MONTH',
+          intervalCount: 1,
+        },
+        user: {
+          name: '테스터',
+          email: 'tester@example.com',
+          phone: '01012345678',
+        },
+      },
+    });
+    prismaMock.subscriptionInvoice.findMany.mockResolvedValue([
+      {
+        id: 'invoice-ready-1',
+        portonePaymentId: 'pay-ready-1',
+        rawPayload: {
+          schedule: {
+            id: 'sched-ready-1',
+            paymentId: 'pay-ready-1',
+          },
+        },
+      },
+    ]);
+    prismaMock.userSubscription.findMany.mockResolvedValue([
+      {
+        id: 'sub-1',
+        userId: 'user-1',
+        plan: { code: 'LIGHT_MONTHLY' },
+      },
+      {
+        id: 'sub-2',
+        userId: 'user-1',
+        plan: { code: 'PRO_MONTHLY' },
+      },
+    ]);
+
+    const cancelScheduleSpy = jest
+      .spyOn(service as any, 'cancelPortOneSchedules')
+      .mockResolvedValue({ revokedScheduleIds: ['sched-ready-1'] });
+
+    const result = await service.handleWebhook(rawPayload, {});
+
+    expect(result).toEqual({ ok: true });
+    expect(cancelScheduleSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        billingKey: 'billing-key-1',
+        scheduleIds: ['sched-ready-1'],
+      }),
+    );
+    expect(prismaMock.subscriptionInvoice.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'invoice-current-1' },
+        data: expect.objectContaining({
+          status: 'CANCELLED',
+          failReason: '관리자페이지취소',
+        }),
+      }),
+    );
+    expect(prismaMock.subscriptionInvoice.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          id: {
+            in: ['invoice-ready-1'],
+          },
+        },
+        data: expect.objectContaining({
+          status: 'CANCELLED',
+        }),
+      }),
+    );
+    expect(prismaMock.userSubscription.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          id: {
+            in: ['sub-1', 'sub-2'],
+          },
+        },
+        data: expect.objectContaining({
+          status: 'CANCELLED',
+        }),
+      }),
+    );
+    expect(prismaMock.$executeRaw).toHaveBeenCalled();
+    expect(prismaMock.billingKey.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'bk-1' },
+        data: expect.objectContaining({
+          isActive: false,
+          deletedAt: expect.any(Date),
+        }),
+      }),
+    );
+    expect(prismaMock.user.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'user-1' },
+        data: { role: 'USER' },
+      }),
+    );
+    expect(prismaMock.paymentWebhookEvent.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'webhook-event-1' },
+        data: expect.objectContaining({
+          processResult: expect.stringContaining('scope=billingKey'),
+        }),
+      }),
     );
   });
 

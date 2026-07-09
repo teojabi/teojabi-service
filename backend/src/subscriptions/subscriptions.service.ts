@@ -730,6 +730,37 @@ export class SubscriptionsService {
     }
 
     const status = payload.data?.status ?? payload.status;
+    const cancellationReason = this.extractCancellationReason(payload);
+
+    if (
+      status === 'CANCELLED' &&
+      this.isAdminConsoleCancellation(payload) &&
+      invoice.billingKeyId &&
+      invoice.billingKey?.billingKey
+    ) {
+      const now = new Date();
+      await this.processAdminConsoleCancellationByBillingKey({
+        invoice,
+        payload,
+        now,
+        cancellationReason,
+      });
+
+      await this.prisma.paymentWebhookEvent.update({
+        where: { id: webhookEvent.id },
+        data: {
+          processedAt: now,
+          processResult: `paymentType=${PAYMENT_TYPE_SUBSCRIPTION};status=CANCELLED;scope=billingKey;billingKeyId=${invoice.billingKeyId};reason=admin_console_cancel`,
+        },
+      });
+
+      this.logger.debug(
+        `[paymentType=${PAYMENT_TYPE_SUBSCRIPTION}][handleWebhook] admin console cancellation processed paymentId=${paymentId}, billingKeyId=${invoice.billingKeyId}`,
+      );
+
+      return { ok: true };
+    }
+
     if (status === 'PAID') {
       const now = new Date();
       const periodEnd = this.calculatePeriodEnd(
@@ -815,7 +846,7 @@ export class SubscriptionsService {
         where: { id: invoice.id },
         data: {
           status: status === 'FAILED' ? INVOICE_STATUS.FAILED : INVOICE_STATUS.CANCELLED,
-          failReason: payload.data?.message ?? null,
+          failReason: cancellationReason,
           rawPayload: payload as Prisma.InputJsonValue,
         },
       });
@@ -841,7 +872,7 @@ export class SubscriptionsService {
         this.prisma,
         invoice.subscription.userId,
         invoice.subscriptionId,
-        `정기결제 ${status} 처리됨: ${payload.data?.message ?? '사유 없음'}`,
+        `정기결제 ${status} 처리됨: ${cancellationReason ?? '사유 없음'}`,
       );
 
       await this.prisma.paymentWebhookEvent.update({
@@ -868,6 +899,194 @@ export class SubscriptionsService {
     }
 
     return { ok: true };
+  }
+
+  private extractCancellationReason(payload: any): string | null {
+    const candidates: unknown[] = [
+      payload?.data?.message,
+      payload?.data?.reason,
+      payload?.data?.cancellation?.reason,
+      payload?.data?.cancellation?.memo,
+      payload?.message,
+      payload?.reason,
+    ];
+
+    for (const candidate of candidates) {
+      if (typeof candidate === 'string' && candidate.trim().length > 0) {
+        return candidate.trim();
+      }
+    }
+
+    return null;
+  }
+
+  private isAdminConsoleCancellation(payload: any): boolean {
+    const reason = this.extractCancellationReason(payload);
+    return typeof reason === 'string' && reason.includes('관리자페이지취소');
+  }
+
+  private async processAdminConsoleCancellationByBillingKey(input: {
+    invoice: {
+      id: string;
+      billingKeyId: string | null;
+      subscriptionId: string;
+      billingKey: {
+        billingKey: string;
+      } | null;
+      subscription: {
+        userId: string;
+        plan: {
+          code: string;
+        };
+      };
+    };
+    payload: any;
+    now: Date;
+    cancellationReason: string | null;
+  }) {
+    const billingKeyId = input.invoice.billingKeyId;
+    const billingKey = input.invoice.billingKey?.billingKey;
+
+    if (!billingKeyId || !billingKey) {
+      return;
+    }
+
+    const cancellationReason = input.cancellationReason ?? '관리자페이지취소';
+
+    const readyInvoices = await this.prisma.subscriptionInvoice.findMany({
+      where: {
+        billingKeyId,
+        status: INVOICE_STATUS.READY,
+      },
+      select: {
+        id: true,
+        portonePaymentId: true,
+        rawPayload: true,
+      },
+    });
+
+    const scheduleIds = Array.from(
+      new Set(
+        readyInvoices
+          .map((item) => this.extractScheduleIdFromRawPayload(item.rawPayload, item.portonePaymentId))
+          .filter((value): value is string => !!value),
+      ),
+    );
+
+    let scheduleCancelPayload: Prisma.InputJsonValue | null = null;
+    if (readyInvoices.length > 0) {
+      try {
+        const cancelResult = await this.cancelPortOneSchedules({
+          billingKey,
+          scheduleIds: scheduleIds.length > 0 ? scheduleIds : undefined,
+        });
+        scheduleCancelPayload = cancelResult as Prisma.InputJsonValue;
+      } catch (error: any) {
+        this.logger.error(
+          `[paymentType=${PAYMENT_TYPE_SUBSCRIPTION}][processAdminConsoleCancellationByBillingKey] schedule cancellation failed billingKeyId=${billingKeyId}, reason=${error?.message ?? error}`,
+        );
+      }
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.subscriptionInvoice.update({
+        where: { id: input.invoice.id },
+        data: {
+          status: INVOICE_STATUS.CANCELLED,
+          failReason: cancellationReason,
+          rawPayload: input.payload as Prisma.InputJsonValue,
+        },
+      });
+
+      const readyInvoiceIds = readyInvoices
+        .map((item) => item.id)
+        .filter((invoiceId) => invoiceId !== input.invoice.id);
+      if (readyInvoiceIds.length > 0) {
+        await tx.subscriptionInvoice.updateMany({
+          where: {
+            id: {
+              in: readyInvoiceIds,
+            },
+          },
+          data: {
+            status: INVOICE_STATUS.CANCELLED,
+            failReason: '관리자페이지취소로 예약 결제가 취소되었습니다.',
+            rawPayload: scheduleCancelPayload ?? Prisma.JsonNull,
+          },
+        });
+      }
+
+      const relatedSubscriptions = await tx.userSubscription.findMany({
+        where: {
+          status: {
+            in: [
+              SUBSCRIPTION_STATUS.PENDING,
+              SUBSCRIPTION_STATUS.ACTIVE,
+              SUBSCRIPTION_STATUS.PAST_DUE,
+            ],
+          },
+          invoices: {
+            some: {
+              billingKeyId,
+            },
+          },
+        },
+        include: {
+          plan: {
+            select: {
+              code: true,
+            },
+          },
+        },
+      });
+
+      if (relatedSubscriptions.length > 0) {
+        await tx.userSubscription.updateMany({
+          where: {
+            id: {
+              in: relatedSubscriptions.map((item) => item.id),
+            },
+          },
+          data: {
+            status: SUBSCRIPTION_STATUS.CANCELLED,
+            cancelAtPeriodEnd: false,
+            cancelledAt: input.now,
+            endedAt: input.now,
+          },
+        });
+      }
+
+      const userIds = Array.from(
+        new Set([input.invoice.subscription.userId, ...relatedSubscriptions.map((item) => item.userId)]),
+      );
+
+      for (const userId of userIds) {
+        await tx.$executeRaw`
+          INSERT INTO user_credit_wallet (user_id, total_credits, used_credits)
+          VALUES (${userId}, 0, 0)
+          ON CONFLICT (user_id)
+          DO UPDATE SET
+            total_credits = 0,
+            used_credits = 0,
+            updated_at = CURRENT_TIMESTAMP
+        `;
+
+        await this.syncUserRole(
+          tx,
+          userId,
+          input.invoice.subscription.plan.code,
+          SUBSCRIPTION_STATUS.CANCELLED,
+        );
+      }
+
+      await tx.billingKey.update({
+        where: { id: billingKeyId },
+        data: {
+          isActive: false,
+          deletedAt: input.now,
+        },
+      });
+    });
   }
 
   async createWebhookTestSchedule(input: { subscriptionId: string; minutes?: number }) {
