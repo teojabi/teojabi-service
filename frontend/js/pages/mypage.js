@@ -498,7 +498,7 @@ async function fetchMyPaidMembership() {
                 return '';
             }
 
-            return `<div style="display:flex; flex-wrap:wrap; gap:0.5rem; justify-content:${align}; margin-top:${compact ? '0.7rem' : '0.8rem'};">${actions.join('')}</div>`;
+            return `<div style="display:flex; flex-wrap:nowrap; gap:0.5rem; justify-content:${align}; margin-top:${compact ? '0.7rem' : '0.8rem'}; overflow-x:auto;">${actions.join('')}</div>`;
         };
 
         const subscriptionCard = subscription
