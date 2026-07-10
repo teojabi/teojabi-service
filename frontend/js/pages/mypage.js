@@ -456,6 +456,51 @@ async function fetchMyPaidMembership() {
         const credit = data?.credit;
         const invoices = Array.isArray(data?.invoices) ? data.invoices : [];
 
+        const subscriptionStatus = String(subscription?.status || '').toUpperCase();
+        const subscriptionPlanCode = String(subscription?.plan?.code || '').toUpperCase();
+        const hasSubscriptionInfo = Boolean(subscription);
+        const hasActiveSubscription = subscriptionStatus === 'ACTIVE';
+        const isLightOrProPlan =
+            subscriptionPlanCode.includes('LIGHT') ||
+            subscriptionPlanCode.includes('BASIC') ||
+            subscriptionPlanCode.includes('PRO') ||
+            subscriptionPlanCode.includes('PLUS');
+        const canChangeSubscriptionPlan =
+            hasSubscriptionInfo &&
+            ['ACTIVE', 'PENDING', 'PAST_DUE'].includes(subscriptionStatus) &&
+            isLightOrProPlan;
+        const shouldShowSubscriptionGuide = !hasSubscriptionInfo || subscriptionStatus === 'CANCELLED';
+
+        const createSubscriptionActions = ({ compact = false, align = 'flex-end' } = {}) => {
+            const minWidthStyle = compact ? '' : 'min-width:120px; ';
+            const actionButtonStyle = `${minWidthStyle}padding:${compact ? '0.4rem 0.7rem' : '0.45rem 0.75rem'}; font-size:${compact ? '0.82rem' : '0.85rem'};`;
+            const actions = [];
+
+            if (shouldShowSubscriptionGuide) {
+                actions.push(
+                    `<a href="/paid-service.html" class="btn btn-outline" style="${actionButtonStyle}text-align:center;">구독서비스 안내</a>`,
+                );
+            }
+
+            if (canChangeSubscriptionPlan) {
+                actions.push(
+                    `<button type="button" class="btn btn-outline" data-action="change-subscription-plan" style="${actionButtonStyle}">구독플랜변경</button>`,
+                );
+            }
+
+            if (hasActiveSubscription) {
+                actions.push(
+                    `<button type="button" class="btn" data-action="cancel-subscription" style="${actionButtonStyle}background: var(--danger-color, #e53e3e); color:#fff;">구독취소</button>`,
+                );
+            }
+
+            if (actions.length === 0) {
+                return '';
+            }
+
+            return `<div style="display:flex; flex-wrap:wrap; gap:0.5rem; justify-content:${align}; margin-top:${compact ? '0.7rem' : '0.8rem'};">${actions.join('')}</div>`;
+        };
+
         const subscriptionCard = subscription
             ? `
                 <div style="background: var(--bg-muted); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 1rem; margin-bottom: 1rem;">
@@ -464,21 +509,13 @@ async function fetchMyPaidMembership() {
                     <p style="margin: 0.2rem 0;"><strong>상태:</strong> ${subscription.status || '-'}</p>
                     <p style="margin: 0.2rem 0;"><strong>구독 시작일:</strong> ${formatDateTime(subscription.startAt)}</p>
                     <p style="margin: 0.2rem 0;"><strong>현재 구독 종료일:</strong> ${formatDateTime(subscription.currentPeriodEnd)}</p>
-                    <div style="display:flex; flex-wrap:wrap; gap:0.5rem; justify-content:flex-end; margin-top:0.8rem;">
-                        <a href="/paid-service.html" class="btn btn-outline" style="min-width:120px; padding:0.45rem 0.75rem; font-size:0.85rem; text-align:center;">구독서비스 안내</a>
-                        <button type="button" class="btn btn-outline" data-action="change-subscription-plan" style="min-width:120px; padding:0.45rem 0.75rem; font-size:0.85rem;">구독플랜변경</button>
-                        <button type="button" class="btn" data-action="cancel-subscription" style="min-width:120px; padding:0.45rem 0.75rem; font-size:0.85rem; background: var(--danger-color, #e53e3e); color:#fff;">구독취소</button>
-                    </div>
+                    ${createSubscriptionActions({ align: 'flex-end' })}
                 </div>
             `
             : `
                 <div style="background: var(--bg-muted); border: 1px dashed var(--border-color); border-radius: var(--radius-md); padding: 1rem; margin-bottom: 1rem; color: var(--text-muted);">
                     활성 구독 정보가 없습니다.
-                    <div style="margin-top:0.7rem; display:flex; flex-wrap:wrap; gap:0.5rem; justify-content:center;">
-                        <a href="/paid-service.html" class="btn btn-outline" style="padding:0.4rem 0.7rem; font-size:0.82rem; text-align:center;">구독서비스 안내</a>
-                        <button type="button" class="btn btn-outline" data-action="change-subscription-plan" style="padding:0.4rem 0.7rem; font-size:0.82rem;">구독플랜변경</button>
-                        <button type="button" class="btn" style="padding:0.4rem 0.7rem; font-size:0.82rem; background: var(--danger-color, #e53e3e); color:#fff;">구독취소</button>
-                    </div>
+                    ${createSubscriptionActions({ compact: true, align: 'center' })}
                 </div>
             `;
 
