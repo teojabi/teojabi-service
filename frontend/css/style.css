@@ -1605,6 +1605,20 @@ body.panel-open .map-controls {
         display: none;
     }
 
+    #btn-ctrl-tour-zone i::before,
+    #btn-ctrl-education-safezone i::before {
+        font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
+        font-style: normal;
+    }
+
+    #btn-ctrl-tour-zone i::before {
+        content: "🧳";
+    }
+
+    #btn-ctrl-education-safezone i::before {
+        content: "🏫";
+    }
+
     .panel-info-grid {
         grid-template-columns: 1fr;
     }

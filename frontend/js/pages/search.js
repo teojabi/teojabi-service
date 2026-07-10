@@ -74,6 +74,7 @@ window.initMap = function() {
     // 3. 이벤트 바인딩
     bindEvents();
     addTeojabiEvents();
+    addPublicZoneLayerEvents();
 
     // 4. 컨설팅 매물 마커 표시
     loadPropertyMarkers();
@@ -1259,6 +1260,206 @@ function renderLocationInfo(data) {
     document.getElementById('panel-tab-land').style.display = 'none';
     document.getElementById('panel-tab-floor').style.display = 'none';
 }
+// ────────────────────────────────────────
+// 공공 레이어(GeoJSON)
+// ────────────────────────────────────────
+const publicZoneStates = {
+    education: {
+        key: 'education',
+        buttonId: 'btn-ctrl-education-safezone',
+        endpoint: 'education-safezones-layer',
+        fillColor: '#007AFF',
+        strokeColor: '#007AFF',
+        zIndex: 90,
+        isActive: false,
+        layer: null,
+        abortController: null,
+        requestSeq: 0,
+        listeners: {
+            idle: null,
+            zoomChanged: null,
+            dragStart: null
+        }
+    },
+    tour: {
+        key: 'tour',
+        buttonId: 'btn-ctrl-tour-zone',
+        endpoint: 'tour-zones-layer',
+        fillColor: '#FF9500',
+        strokeColor: '#FF9500',
+        zIndex: 80,
+        isActive: false,
+        layer: null,
+        abortController: null,
+        requestSeq: 0,
+        listeners: {
+            idle: null,
+            zoomChanged: null,
+            dragStart: null
+        }
+    }
+};
+
+function createPublicZoneLayer(layerState) {
+    const layer = new naver.maps.Data();
+    layer.setStyle({
+        fillColor: layerState.fillColor,
+        fillOpacity: 0.4,
+        strokeColor: layerState.strokeColor,
+        strokeOpacity: 0.7,
+        strokeWeight: 1,
+        zIndex: layerState.zIndex,
+        clickable: false
+    });
+    return layer;
+}
+
+function ensurePublicZoneLayer(layerState) {
+    if (!layerState.layer) {
+        layerState.layer = createPublicZoneLayer(layerState);
+    }
+}
+
+function abortPublicZoneRequest(layerState) {
+    if (layerState.abortController) {
+        layerState.abortController.abort();
+        layerState.abortController = null;
+    }
+}
+
+function detachPublicZoneLayer(layerState) {
+    if (layerState.layer) {
+        layerState.layer.setMap(null);
+    }
+}
+
+function swapPublicZoneLayer(layerState, nextLayer) {
+    const prevLayer = layerState.layer;
+    layerState.layer = nextLayer;
+
+    if (layerState.isActive) {
+        layerState.layer.setMap(map);
+    }
+
+    if (prevLayer) {
+        prevLayer.setMap(null);
+    }
+}
+
+function resetPublicZoneLayerEmpty(layerState) {
+    const emptyLayer = createPublicZoneLayer(layerState);
+    swapPublicZoneLayer(layerState, emptyLayer);
+}
+
+function removePublicZoneListeners(layerState) {
+    if (layerState.listeners.idle) {
+        naver.maps.Event.removeListener(layerState.listeners.idle);
+        layerState.listeners.idle = null;
+    }
+    if (layerState.listeners.zoomChanged) {
+        naver.maps.Event.removeListener(layerState.listeners.zoomChanged);
+        layerState.listeners.zoomChanged = null;
+    }
+    if (layerState.listeners.dragStart) {
+        naver.maps.Event.removeListener(layerState.listeners.dragStart);
+        layerState.listeners.dragStart = null;
+    }
+}
+
+async function updatePublicZoneLayer(layerState) {
+    if (!layerState.isActive) return;
+
+    const bounds = map.getBounds();
+    const sw = bounds.getSW();
+    const ne = bounds.getNE();
+
+    abortPublicZoneRequest(layerState);
+    const controller = new AbortController();
+    layerState.abortController = controller;
+    const requestSeq = ++layerState.requestSeq;
+
+    try {
+        const url = `${CONFIG.API_BASE_URL}/api/v1/public-data/${layerState.endpoint}?minLat=${sw.lat()}&minLng=${sw.lng()}&maxLat=${ne.lat()}&maxLng=${ne.lng()}`;
+        const res = await fetch(url, { signal: controller.signal });
+        const json = await res.json();
+
+        if (controller.signal.aborted) return;
+        if (requestSeq !== layerState.requestSeq) return;
+        if (!layerState.isActive) return;
+
+        if (!json.success || !json.data) {
+            console.warn(`[${layerState.key}-layer] Invalid response payload`, json);
+            return;
+        }
+
+        const nextLayer = createPublicZoneLayer(layerState);
+        const features = Array.isArray(json.data.features) ? json.data.features : [];
+
+        if (features.length > 0) {
+            nextLayer.addGeoJson(json.data);
+        }
+
+        if (requestSeq !== layerState.requestSeq) return;
+        if (!layerState.isActive) return;
+
+        swapPublicZoneLayer(layerState, nextLayer);
+    } catch (e) {
+        if (e.name !== 'AbortError') {
+            console.error(`[${layerState.key}-layer] Update failed:`, e);
+        }
+    } finally {
+        if (layerState.abortController === controller) {
+            layerState.abortController = null;
+        }
+    }
+}
+
+function addPublicZoneEvents(layerState) {
+    const button = document.getElementById(layerState.buttonId);
+    if (!button) return;
+
+    ensurePublicZoneLayer(layerState);
+
+    button.addEventListener('click', function() {
+        if (layerState.isActive) {
+            layerState.isActive = false;
+            button.classList.remove('active');
+            abortPublicZoneRequest(layerState);
+            removePublicZoneListeners(layerState);
+            detachPublicZoneLayer(layerState);
+            resetPublicZoneLayerEmpty(layerState);
+            return;
+        }
+
+        layerState.isActive = true;
+        button.classList.add('active');
+
+        ensurePublicZoneLayer(layerState);
+        layerState.layer.setMap(map);
+
+        updatePublicZoneLayer(layerState);
+
+        layerState.listeners.idle = naver.maps.Event.addListener(map, 'idle', function() {
+            updatePublicZoneLayer(layerState);
+        });
+
+        layerState.listeners.zoomChanged = naver.maps.Event.addListener(map, 'zoom_changed', function() {
+            if (!layerState.isActive) return;
+            abortPublicZoneRequest(layerState);
+        });
+
+        layerState.listeners.dragStart = naver.maps.Event.addListener(map, 'dragstart', function() {
+            if (!layerState.isActive) return;
+            abortPublicZoneRequest(layerState);
+        });
+    });
+}
+
+function addPublicZoneLayerEvents() {
+    addPublicZoneEvents(publicZoneStates.education);
+    addPublicZoneEvents(publicZoneStates.tour);
+}
+
 // ────────────────────────────────────────
 // 터잡이 레이어(GeoJSON)
 // ────────────────────────────────────────

@@ -79,4 +79,46 @@ export class PublicDataController {
     );
     return { success: true, data: result };
   }
+
+  // education_safezones 데이터 조회 (GeoJSON)
+  // GET /api/v1/public-data/education-safezones-layer?minLat=...&minLng=...&maxLat=...&maxLng=...
+  @Get('education-safezones-layer')
+  async getEducationSafezonesLayer(
+    @Query('minLat') minLat: string,
+    @Query('minLng') minLng: string,
+    @Query('maxLat') maxLat: string,
+    @Query('maxLng') maxLng: string,
+  ) {
+    if (!minLat || !minLng || !maxLat || !maxLng) {
+      return { success: false, message: 'Bounding box coordinates are required' };
+    }
+    const result = await this.publicDataService.getEducationSafezonesLayer(
+      parseFloat(minLat),
+      parseFloat(minLng),
+      parseFloat(maxLat),
+      parseFloat(maxLng),
+    );
+    return { success: true, data: result };
+  }
+
+  // tour_zones 데이터 조회 (GeoJSON)
+  // GET /api/v1/public-data/tour-zones-layer?minLat=...&minLng=...&maxLat=...&maxLng=...
+  @Get('tour-zones-layer')
+  async getTourZonesLayer(
+    @Query('minLat') minLat: string,
+    @Query('minLng') minLng: string,
+    @Query('maxLat') maxLat: string,
+    @Query('maxLng') maxLng: string,
+  ) {
+    if (!minLat || !minLng || !maxLat || !maxLng) {
+      return { success: false, message: 'Bounding box coordinates are required' };
+    }
+    const result = await this.publicDataService.getTourZonesLayer(
+      parseFloat(minLat),
+      parseFloat(minLng),
+      parseFloat(maxLat),
+      parseFloat(maxLng),
+    );
+    return { success: true, data: result };
+  }
 }

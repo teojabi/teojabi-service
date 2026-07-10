@@ -672,4 +672,66 @@ ${JSON.stringify(inputData)}`;
       })),
     };
   }
+
+  async getEducationSafezonesLayer(
+    minLat: number,
+    minLng: number,
+    maxLat: number,
+    maxLng: number,
+  ) {
+    return this.getPublicZoneLayerByTable(
+      'education_safezones',
+      minLat,
+      minLng,
+      maxLat,
+      maxLng,
+    );
+  }
+
+  async getTourZonesLayer(
+    minLat: number,
+    minLng: number,
+    maxLat: number,
+    maxLng: number,
+  ) {
+    return this.getPublicZoneLayerByTable(
+      'tour_zones',
+      minLat,
+      minLng,
+      maxLat,
+      maxLng,
+    );
+  }
+
+  private async getPublicZoneLayerByTable(
+    tableName: 'education_safezones' | 'tour_zones',
+    minLat: number,
+    minLng: number,
+    maxLat: number,
+    maxLng: number,
+  ) {
+    const result = await this.prisma.$queryRawUnsafe<any[]>(
+      `
+      SELECT
+        ST_AsGeoJSON(ST_Transform(geom, 4326))::json as geometry
+      FROM ${tableName}
+      WHERE geom IS NOT NULL
+        AND geom && ST_Transform(ST_MakeEnvelope($1, $2, $3, $4, 4326), ST_SRID(geom))
+      LIMIT 3000
+    `,
+      minLng,
+      minLat,
+      maxLng,
+      maxLat,
+    );
+
+    return {
+      type: 'FeatureCollection',
+      features: result.map((row) => ({
+        type: 'Feature',
+        geometry: row.geometry,
+        properties: {},
+      })),
+    };
+  }
 }
