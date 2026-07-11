@@ -497,6 +497,16 @@ body.map-page .map-controls {
     font-size: 1rem;
 }
 
+.map-ctrl-btn .map-ctrl-btn-label {
+    display: block;
+    text-align: center;
+    line-height: 1.2;
+}
+
+.map-ctrl-btn .map-ctrl-btn-label-two-line {
+    line-height: 1.05;
+}
+
 /* ────────────────────────────────────────
    좌측 슬라이딩 패널
 ──────────────────────────────────────── */
@@ -1599,24 +1609,6 @@ body.panel-open .map-controls {
     .map-controls {
         bottom: calc(var(--map-footer-height) + 10px);
         right: 10px;
-    }
-
-    .map-ctrl-btn span {
-        display: none;
-    }
-
-    #btn-ctrl-tour-zone i::before,
-    #btn-ctrl-education-safezone i::before {
-        font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
-        font-style: normal;
-    }
-
-    #btn-ctrl-tour-zone i::before {
-        content: "🧳";
-    }
-
-    #btn-ctrl-education-safezone i::before {
-        content: "🏫";
     }
 
     .panel-info-grid {

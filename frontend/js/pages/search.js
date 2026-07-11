@@ -69,6 +69,9 @@ window.initMap = function() {
     // 2. 지적도 레이어 준비
     if (naver.maps.CadastralLayer) {
         cadastralLayer = new naver.maps.CadastralLayer();
+        if (typeof cadastralLayer.setOptions === 'function') {
+            cadastralLayer.setOptions({ zIndex: 80 });
+        }
     }
 
     // 3. 이벤트 바인딩
@@ -1270,7 +1273,7 @@ const publicZoneStates = {
         endpoint: 'education-safezones-layer',
         fillColor: '#007AFF',
         strokeColor: '#007AFF',
-        zIndex: 90,
+        zIndex: 110,
         isActive: false,
         layer: null,
         abortController: null,
@@ -1287,7 +1290,7 @@ const publicZoneStates = {
         endpoint: 'tour-zones-layer',
         fillColor: '#FF9500',
         strokeColor: '#FF9500',
-        zIndex: 80,
+        zIndex: 100,
         isActive: false,
         layer: null,
         abortController: null,
@@ -1485,7 +1488,7 @@ function createTeojabiLayer() {
             fillOpacity: 0.6,
             strokeColor: color,
             strokeWeight: 1,
-            zIndex: 100,
+            zIndex: 90,
             clickable: true
         };
     });
