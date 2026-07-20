@@ -1,0 +1,146 @@
+.business-page-container {
+    max-width: 760px;
+    margin: calc(var(--header-height) + 2rem) auto 4rem;
+    padding: 2rem;
+    background: #fff;
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+}
+
+.business-page-title {
+    margin: 0 0 2rem;
+    padding-bottom: 1rem;
+    border-bottom: 2px solid var(--primary-color);
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--text-main);
+}
+
+.business-page-section + .business-page-section {
+    margin-top: 2rem;
+}
+
+.business-page-section h2 {
+    margin: 0 0 0.9rem;
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #1e40af;
+}
+
+.business-page-intro p {
+    margin: 0 0 0.8rem;
+    color: var(--text-main);
+    line-height: 1.7;
+    word-break: keep-all;
+}
+
+.business-page-intro p:last-child {
+    margin-bottom: 0;
+}
+
+.business-page-company {
+    padding: 1.2rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    background: #f8fafc;
+}
+
+.business-page-info-grid {
+    display: grid;
+    grid-template-columns: 130px 1fr;
+    row-gap: 0.7rem;
+    column-gap: 0.8rem;
+    font-size: 0.95rem;
+}
+
+.business-page-info-label {
+    color: #64748b;
+    font-weight: 600;
+}
+
+.business-page-info-value {
+    color: #1e293b;
+    word-break: keep-all;
+}
+
+.business-page-contact {
+    text-align: center;
+    padding-top: 1.4rem;
+    border-top: 1px solid #e2e8f0;
+}
+
+.business-page-contact p {
+    margin: 0 0 1rem;
+    color: #64748b;
+    line-height: 1.6;
+}
+
+.business-page-kakao-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    max-width: 360px;
+    padding: 0.8rem 1rem;
+    border-radius: 8px;
+    background: #fee500;
+    color: #191919;
+    font-weight: 700;
+    text-decoration: none;
+    transition: background-color 0.2s ease;
+}
+
+.business-page-kakao-btn:hover {
+    background: #e6ce00;
+}
+
+@media (max-width: 768px) {
+    .business-page-container {
+        margin: calc(var(--header-height) + 1.2rem) 12px 2rem;
+        padding: 1.2rem 1rem;
+    }
+
+    .business-page-title {
+        margin-bottom: 1.2rem;
+        padding-bottom: 0.8rem;
+        font-size: 1.35rem;
+    }
+
+    .business-page-section + .business-page-section {
+        margin-top: 1.4rem;
+    }
+
+    .business-page-section h2 {
+        font-size: 1.05rem;
+    }
+
+    .business-page-intro p {
+        font-size: 0.9rem;
+        line-height: 1.6;
+    }
+
+    .business-page-company {
+        padding: 0.9rem;
+    }
+
+    .business-page-info-grid {
+        grid-template-columns: 96px 1fr;
+        row-gap: 0.55rem;
+        font-size: 0.84rem;
+    }
+
+    .business-page-contact {
+        padding-top: 1rem;
+    }
+
+    .business-page-contact p {
+        margin-bottom: 0.8rem;
+        font-size: 0.85rem;
+    }
+
+    .business-page-kakao-btn {
+        max-width: none;
+        font-size: 0.9rem;
+    }
+}
