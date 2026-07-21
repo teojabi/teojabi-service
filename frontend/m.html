@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>터잡이 - AI 기반 빌딩 재건축 및 사업성 분석 솔루션</title>
+    <!-- 검색로봇 수집 허용 (noindex, nofollow 해결) -->
+    <meta name="robots" content="index,follow">
+    <!-- 사이트 제목 및 설명 설정 -->
+    <meta name="description" content="데이터 기반의 정확한 AI 분석으로 '빌딩 매입부터 재건축, 매각까지' 터잡이가 확실하게 함께 합니다. 프롭테크 전문 터잡이에서 최고의 빌딩 재건축 컨설팅을 경험해 보세요.">
+    <!-- 네이버 소유권 확인 태그 -->
+    <meta name="naver-site-verification" content="c3b8877b7a58ba28bef132ab57464d141d992fac" />
+    <!-- 구글 소유권 확인 태그 -->
+    <meta name="google-site-verification" content="5mBTVOuSttvlva9yBRJ2jPwQkCBw4IPIvqHerJog9J8" />
+
+    <!-- 파비콘 설정 -->
+    <link rel="icon" href="https://teojabi.com/favicon.ico?v=2" type="image/x-icon">
+    <link rel="shortcut icon" href="https://teojabi.com/favicon.ico?v=2" type="image/x-icon">
+    <link rel="apple-touch-icon" href="https://teojabi.com/favicon.ico?v=2">
+    <style>
+        body.mobile-page {
+            padding-top: 0;
+            padding-bottom: 0;
+            min-height: 100dvh;
+            overflow-y: auto;
+            background-color: #151d34;
+            color: #ffffff;
+        }
+
+        .mobile-page .landing-main {
+            min-height: 100dvh;
+            overflow: visible;
+            display: flex;
+            flex-direction: column;
+            background: #151d34;
+            padding-bottom: calc(84px + env(safe-area-inset-bottom));
+        }
+
+        .mobile-page .hero-section {
+            min-height: 100dvh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 5.5rem 1rem 2.25rem;
+            text-align: center;
+            position: relative;
+            background: linear-gradient(180deg, rgba(21, 29, 52, 0.84) 0%, rgba(21, 29, 52, 0.93) 100%), url('/img/bg.webp') no-repeat center center / cover;
+        }
+
+        .mobile-page .hero-brand {
+            position: absolute;
+            top: 2.75rem;
+            left: 1.2rem;
+            color: #ffffff;
+            font-size: clamp(2.15rem, 8.6vw, 2.55rem);
+            font-weight: 900;
+            letter-spacing: -0.03em;
+            line-height: 1;
+            text-decoration: none;
+        }
+
+        .mobile-page .hero-content {
+            width: 100%;
+            max-width: 680px;
+            margin: 0 auto;
+        }
+
+        .mobile-page .hero-title {
+            margin-bottom: 1.35rem;
+            color: #ffffff;
+        }
+
+        .mobile-page .hero-title-line {
+            display: block;
+            font-size: clamp(2.1rem, 9vw, 3.2rem);
+            font-weight: 900;
+            line-height: 1.26;
+            letter-spacing: -0.035em;
+        }
+
+        .mobile-page .hero-desc {
+            font-size: clamp(1.2rem, 4.6vw, 1.42rem);
+            font-weight: 600;
+            line-height: 1.55;
+            color: #e2e8f6;
+            margin-bottom: 0.25rem;
+            word-break: keep-all;
+        }
+
+        .mobile-page .hero-subdesc {
+            margin-bottom: 1.5rem;
+            color: #d5def0;
+        }
+
+        .mobile-page .hero-actions {
+            display: flex;
+            flex-direction: column;
+            gap: 0.7rem;
+        }
+
+        .mobile-page .hero-kakao-btn {
+            width: 100%;
+            border: none;
+            border-radius: 14px;
+            padding: 1rem 0.95rem;
+            font-size: 1rem;
+            font-weight: 800;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.6rem;
+            background: #fee500;
+            color: #1b1f2f;
+            box-shadow: 0 12px 24px rgba(0, 0, 0, 0.28);
+        }
+
+        .mobile-page .hero-kakao-btn .kakao-symbol {
+            width: 1.12rem;
+            height: 0.95rem;
+            border-radius: 0.48rem;
+            background: #111827;
+            position: relative;
+            flex-shrink: 0;
+        }
+
+        .mobile-page .hero-kakao-btn .kakao-symbol::after {
+            content: '';
+            position: absolute;
+            left: 0.28rem;
+            bottom: -0.22rem;
+            width: 0.38rem;
+            height: 0.38rem;
+            background: #111827;
+            clip-path: polygon(0 0, 100% 0, 0 100%);
+        }
+
+        .mobile-page .hero-other-auth {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.6rem;
+        }
+
+        .mobile-page .hero-other-auth .auth-provider-btn {
+            margin-bottom: 0;
+            border-radius: 12px;
+            padding: 0.72rem 0.55rem;
+            font-size: 0.88rem;
+            font-weight: 700;
+            border: none;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .mobile-page .hero-other-auth .btn-naver {
+            background: #03c75a;
+            border-color: #03c75a;
+            color: #ffffff;
+        }
+
+        .mobile-page .hero-other-auth .btn-google {
+            background: #f3f4f6;
+            border-color: #f3f4f6;
+            color: #1b2a46;
+        }
+
+        .mobile-page .value-section {
+            padding: 3.4rem 1rem 2.6rem;
+            background: #ffffff;
+            color: #0f172a;
+        }
+
+        .mobile-page .value-title {
+            margin-bottom: 1.95rem;
+            text-align: center;
+            width: 100%;
+            color: #112548;
+            font-size: clamp(1.95rem, 7.8vw, 2.45rem);
+            font-weight: 900;
+            line-height: 1.25;
+            letter-spacing: -0.03em;
+            word-break: keep-all;
+        }
+
+        .mobile-page .value-list {
+            display: grid;
+            gap: 1.1rem;
+            max-width: 520px;
+            margin: 0 auto;
+        }
+
+        .mobile-page .value-item {
+            background: #ffffff;
+            border: 1px solid #d6e0ef;
+            border-radius: 20px;
+            padding: 1.05rem 1rem;
+            min-height: 6.9rem;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            color: #112548;
+            box-shadow: 0 6px 20px rgba(15, 23, 42, 0.04);
+        }
+
+        .mobile-page .value-index {
+            width: 3.5rem;
+            height: 3.5rem;
+            border-radius: 0.95rem;
+            background: #edf3ff;
+            color: #2563eb;
+            font-size: 2.05rem;
+            font-weight: 800;
+            line-height: 1;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            letter-spacing: -0.02em;
+            flex-shrink: 0;
+        }
+
+        .mobile-page .value-text {
+            font-size: clamp(1.42rem, 5.4vw, 1.72rem);
+            font-weight: 800;
+            line-height: 1.42;
+            letter-spacing: -0.02em;
+            color: #112548;
+            flex: 1;
+            min-width: 0;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .mobile-page .final-cta {
+            background: #ecf2fb;
+            color: #0f2547;
+            text-align: center;
+            padding: 2rem 1rem;
+        }
+
+        .mobile-page .final-cta-title {
+            font-size: 1.24rem;
+            line-height: 1.45;
+            margin-bottom: 1rem;
+            word-break: keep-all;
+        }
+
+        .mobile-page .final-cta-btn {
+            width: 100%;
+            max-width: 460px;
+            border: none;
+            border-radius: 14px;
+            padding: 0.95rem 0.9rem;
+            font-size: 1rem;
+            font-weight: 800;
+            margin: 0 auto;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: #13284d;
+            color: #ffffff;
+            box-shadow: 0 10px 22px rgba(19, 40, 77, 0.32);
+        }
+
+        .mobile-page .final-cta-btn:hover {
+            background: #10213f;
+        }
+
+        .mobile-page .mobile-footer {
+            position: fixed;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            width: 100%;
+            z-index: 400;
+        }
+
+        .mobile-page .app-footer.mobile-footer {
+            padding: 0.7rem 0.75rem calc(0.7rem + env(safe-area-inset-bottom));
+            background: rgba(2, 6, 23, 0.92);
+            border-top: 1px solid rgba(148, 163, 184, 0.25);
+            backdrop-filter: blur(8px);
+        }
+
+        .mobile-page .mobile-footer .footer-inner {
+            max-width: 100%;
+            margin: 0 auto;
+            padding: 0;
+        }
+
+        .mobile-page .mobile-footer .footer-bottom {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 0.35rem;
+        }
+
+        .mobile-page .mobile-footer .footer-legal-links {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            align-items: center;
+            gap: 0.45rem;
+            font-size: 0.76rem;
+            line-height: 1.35;
+        }
+
+        .mobile-page .mobile-footer .footer-legal-links a {
+            color: #cbd5e1;
+            text-decoration: none;
+            font-weight: 600;
+        }
+
+        .mobile-page .mobile-footer .footer-legal-links .divider {
+            color: rgba(148, 163, 184, 0.75);
+        }
+
+        .mobile-page .mobile-footer .footer-meta {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .mobile-page .mobile-footer .copyright {
+            margin: 0;
+            font-size: 0.68rem;
+            color: #94a3b8;
+        }
+
+    </style>
+    <!-- Google Tag Manager -->
+    <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+    new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+    j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+    'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+    })(window,document,'script','dataLayer','GTM-MFGQTFGR');</script>
+    <!-- End Google Tag Manager -->
+</head>
+<body class="mobile-page">
+    <!-- Google Tag Manager (noscript) -->
+    <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-MFGQTFGR"
+    height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+    <!-- End Google Tag Manager (noscript) -->
+    <main class="landing-main">
+        <section class="hero-section">
+            <a href="/" class="hero-brand">터잡이</a>
+            <div class="hero-content">
+                <h1 class="hero-title">
+                    <span class="hero-title-line">1초 가입으로</span>
+                    <span class="hero-title-line">재건축 AI 분석 바로 확인하세요</span>
+                </h1>
+                <p class="hero-desc">서울 노후 건물, 선별된 고잠재력 매물</p>
+                <p class="hero-desc hero-subdesc">완성된 신축 시나리오 · ROI · 사업성 분석 무료</p>
+                <div class="hero-actions">
+                    <button class="auth-provider-btn btn-kakao hero-kakao-btn" onclick="window.goSocialLogin('kakao')">
+                        <span class="kakao-symbol" aria-hidden="true"></span>
+                        <span>1초만에 카카오로 가입하기</span>
+                    </button>
+                    <div class="hero-other-auth">
+                        <button class="auth-provider-btn btn-naver" onclick="window.goSocialLogin('naver')">
+                            네이버 로그인
+                        </button>
+                        <button class="auth-provider-btn btn-google" onclick="window.goSocialLogin('google')">
+                            Google 로그인
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="value-section">
+            <h2 class="value-title">기다림 없는 터잡이 핵심 혜택</h2>
+            <ul class="value-list">
+                <li class="value-item">
+                    <span class="value-index">01</span>
+                    <span class="value-text">AI 신축 시나리오 + ROI 계산</span>
+                </li>
+                <li class="value-item">
+                    <span class="value-index">02</span>
+                    <span class="value-text">용적률·보호구역·관광특구 실시간 분석</span>
+                </li>
+                <li class="value-item">
+                    <span class="value-index">03</span>
+                    <span class="value-text">재건축·관광숙박 전환 가능성 점수</span>
+                </li>
+                <li class="value-item">
+                    <span class="value-index">04</span>
+                    <span class="value-text">1초 가입 즉시 전체 분석 오픈</span>
+                </li>
+            </ul>
+        </section>
+
+        <section class="final-cta">
+            <h2 class="final-cta-title">지금 가입하고 재건축 기회를 놓치지 마세요</h2>
+            <button class="final-cta-btn" onclick="window.goSocialLogin('kakao')">1초만에 가입하고 분석 시작하기</button>
+        </section>
+    </main>
+
+    <footer class="app-footer mobile-footer">
+        <div class="footer-inner">
+            <div class="footer-bottom">
+                <div class="footer-legal-links">
+                    <a href="/terms.html">이용약관</a>
+                    <span class="divider">|</span>
+                    <a href="/privacy.html" class="bold" style="font-weight: 800; color: #1e40af;">개인정보처리방침</a>
+                    <span class="divider">|</span>
+                    <a href="/paid-service.html">구독서비스</a>
+                    <span class="divider">|</span>
+                    <a href="/refund.html">환불정책</a>
+                    <span class="divider">|</span>
+                    <a href="/business-info.html">사업자정보</a>
+                </div>
+                <div class="footer-meta">
+                    <p class="copyright">© 2026 Teojabi. All rights reserved.</p>
+                </div>
+            </div>
+        </div>
+    </footer>
+    <script src="/js/config.js"></script>
+    <script>
+        window.goSocialLogin = function (provider) {
+            const baseUrl = typeof CONFIG !== 'undefined' ? CONFIG.API_BASE_URL : '';
+            window.location.href = `${baseUrl}/api/v1/auth/${provider}`;
+        };
+    </script>
+    <!-- 스크립트 모듈 -->
+    <script type="module" src="/js/app.js"></script>
+</body>
+</html>
