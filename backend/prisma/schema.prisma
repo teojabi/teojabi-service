@@ -1,0 +1,371 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  extensions = [postgis(schema: "public")]
+}
+
+model User {
+  id                     String    @id @default(uuid())
+  email                  String?
+  emailVerified          Boolean   @default(false) @map("email_verified")
+  emailVerifiedAt        DateTime? @map("email_verified_at")
+  lastVerificationSentAt DateTime? @map("last_verification_sent_at")
+  name                   String?
+  image                  String?   @db.Text
+  role                   Role      @default(USER)
+  provider               String?
+  providerId             String?   @map("provider_id")
+  phone                  String?
+  phoneVerified          Boolean   @default(false) @map("phone_verified")
+
+  properties              Property[]
+  reservations            Reservation[]
+  favorites               Favorite[]
+  subscriptions           UserSubscription[]
+  billingKeys             BillingKey[]
+  emailVerificationTokens EmailVerificationToken[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([provider, providerId])
+  @@map("user")
+}
+
+model EmailVerificationToken {
+  id        String    @id @default(uuid())
+  userId    String?   @map("user_id")
+  user      User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  email     String
+  tokenHash String    @unique @map("token_hash")
+  purpose   String    @default("REPORT_DELIVERY_VERIFICATION")
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  requestIp String?   @db.Inet @map("request_ip")
+  userAgent String?   @map("user_agent")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  @@index([userId])
+  @@index([email])
+  @@index([expiresAt])
+  @@map("email_verification_token")
+}
+
+enum SubscriptionStatus {
+  PENDING
+  ACTIVE
+  PAST_DUE
+  CANCELLED
+  EXPIRED
+}
+
+enum InvoiceStatus {
+  READY
+  PAID
+  FAILED
+  CANCELLED
+}
+
+enum IntervalUnit {
+  DAY
+  WEEK
+  MONTH
+  YEAR
+}
+
+enum Role {
+  USER
+  PREMIUM_BASIC
+  PREMIUM_PLUS
+  ADMIN
+}
+
+model Property {
+  id          String   @id @default(uuid())
+  title       String
+  description String   @db.Text
+  address     String   @unique
+  beforeImage String?  @map("before_image")
+  afterImage  String?  @map("after_image")
+  price       Decimal? @db.Decimal(15, 2)
+  pnu         String?  @db.Char(19)
+
+  location Unsupported("geometry(Point, 4326)")?
+
+  ownerId      String?       @map("owner_id")
+  owner        User?         @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  reservations Reservation[]
+  favorites    Favorite[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([location], type: Gist)
+  @@map("property")
+}
+
+model Reservation {
+  id            String          @id @default(uuid())
+  type          ReservationType @default(GENERAL)
+  date          DateTime
+  status        ResStatus       @default(PENDING)
+  message       String?         @db.Text
+  adminFeedback String?         @db.Text @map("admin_feedback")
+  pnu           String?         @db.Char(19)
+  address       String?
+
+  userId     String    @map("user_id")
+  user       User      @relation(fields: [userId], references: [id])
+  propertyId String?   @map("property_id")
+  property   Property? @relation(fields: [propertyId], references: [id])
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("reservation")
+}
+
+enum ReservationType {
+  GENERAL
+  PROPERTY
+  REPORT
+}
+
+enum ResStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+}
+
+model Favorite {
+  id         String   @id @default(uuid())
+  userId     String   @map("user_id")
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  propertyId String   @map("property_id")
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([userId, propertyId])
+  @@map("favorite")
+}
+
+model SubscriptionPlan {
+  id            String  @id @default(uuid())
+  code          String  @unique
+  name          String
+  amount        Decimal @db.Decimal(12, 2)
+  currency      String  @default("KRW")
+  intervalUnit  String  @db.Text @map("interval_unit")
+  intervalCount Int     @default(1) @map("interval_count")
+  trialDays     Int     @default(0) @map("trial_days")
+  active        Boolean @default(true)
+
+  subscriptions UserSubscription[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("subscription_plan")
+}
+
+model UserSubscription {
+  id                 String           @id @default(uuid())
+  userId             String           @map("user_id")
+  user               User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  planId             String           @map("plan_id")
+  plan               SubscriptionPlan @relation(fields: [planId], references: [id], onDelete: Restrict)
+  status             String           @db.Text
+  startAt            DateTime?        @map("start_at")
+  currentPeriodStart DateTime?        @map("current_period_start")
+  currentPeriodEnd   DateTime?        @map("current_period_end")
+  cancelAtPeriodEnd  Boolean          @default(false) @map("cancel_at_period_end")
+  cancelledAt        DateTime?        @map("cancelled_at")
+  endedAt            DateTime?        @map("ended_at")
+
+  invoices SubscriptionInvoice[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([userId])
+  @@index([status])
+  @@map("user_subscription")
+}
+
+model BillingKey {
+  id                String    @id @default(uuid())
+  userId            String    @map("user_id")
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  portoneCustomerId String    @map("portone_customer_id")
+  billingKey        String    @unique @map("billing_key")
+  channelKey        String    @map("channel_key")
+  provider          String?
+  cardCompany       String?   @map("card_company")
+  cardLast4         String?   @map("card_last4")
+  cardExpiryYear    String?   @map("card_expiry_year")
+  cardExpiryMonth   String?   @map("card_expiry_month")
+  isActive          Boolean   @default(true) @map("is_active")
+  issuedAt          DateTime  @default(now()) @map("issued_at")
+  deletedAt         DateTime? @map("deleted_at")
+
+  invoices SubscriptionInvoice[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("billing_key")
+}
+
+model SubscriptionInvoice {
+  id               String           @id @default(uuid())
+  subscriptionId   String           @map("subscription_id")
+  subscription     UserSubscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  billingKeyId     String?          @map("billing_key_id")
+  billingKey       BillingKey?      @relation(fields: [billingKeyId], references: [id], onDelete: SetNull)
+  portonePaymentId String           @unique @map("portone_payment_id")
+  portoneTxId      String?          @map("portone_tx_id")
+  amount           Decimal          @db.Decimal(12, 2)
+  currency         String           @default("KRW")
+  status           String           @db.Text
+  failReason       String?          @map("fail_reason")
+  paidAt           DateTime?        @map("paid_at")
+  requestedAt      DateTime         @default(now()) @map("requested_at")
+  rawPayload       Json?            @map("raw_payload")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([subscriptionId])
+  @@index([status])
+  @@map("subscription_invoice")
+}
+
+model PaymentWebhookEvent {
+  id            String    @id @default(uuid())
+  eventId       String?   @unique @map("event_id")
+  paymentId     String?   @map("payment_id")
+  eventType     String?   @map("event_type")
+  status        String?
+  payload       Json
+  receivedAt    DateTime  @default(now()) @map("received_at")
+  processedAt   DateTime? @map("processed_at")
+  processResult String?   @map("process_result")
+
+  @@map("payment_webhook_event")
+}
+
+model BuildingInfo {
+  id             Int      @id @default(autoincrement())
+  pnu            String   @unique @db.Char(19) // 필지고유번호
+  bldNm          String?  @map("bld_nm") // 건물 명칭
+  platArea       Decimal? @map("plat_area") @db.Decimal(15, 2) // 대지면적(m2)
+  archArea       Decimal? @map("arch_area") @db.Decimal(15, 2) // 건축면적(m2)
+  bcRat          Decimal? @map("bc_rat") @db.Decimal(5, 2) // 건폐율(%)
+  vlRat          Decimal? @map("vl_rat") @db.Decimal(7, 2) // 용적률(%)
+  totArea        Decimal? @map("tot_area") @db.Decimal(15, 2) // 연면적(m2)
+  grndFlrCnt     Int?     @map("grnd_flr_cnt") // 지상 층수
+  ugndFlrCnt     Int?     @map("ugnd_flr_cnt") // 지하 층수
+  buildingHeight Decimal? @map("building_height") @db.Decimal(10, 2) // 건물 높이(m)
+  strctCdNm      String?  @map("strct_cd_nm") // 구조 명칭
+  mainPurpsCdNm  String?  @map("main_purps_cd_nm") // 주용도 명칭
+  useAprDay      String?  @map("use_apr_day") // 사용승인일
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  floorStatuses FloorStatus[]
+  stores        StoreInfo[]
+
+  @@map("building_info")
+}
+
+model LandUseInfo {
+  id        Int      @id @default(autoincrement())
+  pnu       String   @db.Char(19)
+  zoneClsCd String?  @map("zone_cls_cd")
+  zoneClsNm String?  @map("zone_cls_nm")
+  note      String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([pnu])
+  @@map("land_use_info")
+}
+
+model OfficialLandPrice {
+  id          Int    @id @default(autoincrement())
+  pnu         String @db.VarChar(19)
+  refYear     Int    @map("ref_year")
+  pricePerSqm BigInt @map("price_per_sqm")
+
+  @@unique([pnu, refYear])
+  @@index([pnu])
+  @@map("official_land_price")
+}
+
+model ZoningRegulation {
+  id           Int     @id @default(autoincrement())
+  zoneName     String  @unique @map("zone_name")
+  bcrLimit     Decimal @map("bcr_limit") @db.Decimal(5, 1)
+  farLimit     Decimal @map("far_limit") @db.Decimal(6, 1)
+  farLimitNote String? @map("far_limit_note")
+
+  @@map("zoning_regulation")
+}
+
+model FloorStatus {
+  id           Int          @id @default(autoincrement())
+  pnu          String       @db.Char(19)
+  building     BuildingInfo @relation(fields: [pnu], references: [pnu])
+  flrNo        Int?         @map("flr_no") // 층 번호
+  flrNoNm      String?      @map("flr_no_nm") // 층 번호 명칭
+  flrSortNo    Int?         @map("flr_sort_no") // 정렬 번호 (옥탑3 > 지상2 > 지하1)
+  flrArea      Decimal?     @map("flr_area") @db.Decimal(15, 2) // 해당 층 면적(m2)
+  flrMainPurps String?      @map("flr_main_purps") // 해당 층 주용도
+  strctCdNm    String?      @map("strct_cd_nm") // 해당 층 구조
+  createdAt    DateTime     @default(now()) @map("created_at")
+
+  @@index([pnu])
+  @@map("floor_status")
+}
+
+model StoreInfo {
+  storeId     String       @id @map("store_id") // 상가업소번호
+  pnu         String       @db.Char(19)
+  building    BuildingInfo @relation(fields: [pnu], references: [pnu])
+  storeNm     String       @map("store_nm") // 상호명
+  cateLargeNm String?      @map("cate_large_nm") // 업종 대분류
+  cateMidNm   String?      @map("cate_mid_nm") // 업종 중분류
+  flrNo       String?      @map("flr_no") // 입점 층
+  hoNo        String?      @map("ho_no") // 입점 호수
+  createdAt   DateTime     @default(now()) @map("created_at")
+
+  @@index([pnu])
+  @@map("store_info")
+}
+
+model Setting {
+  id    Int     @id @default(autoincrement())
+  key   String  @unique
+  value String? @db.Text
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("setting")
+}
+
+model GeomScoreLayer {
+  id         Int                                          @id @default(autoincrement())
+  pnu        String                                       @db.Char(19)
+  geom       Unsupported("geometry(MultiPolygon, 4326)")?
+  scoreGrade Int                                          @map("score_grade")
+  createdAt  DateTime                                     @default(now()) @map("created_at")
+
+  @@index([geom], type: Gist)
+  @@map("geom_score_layer")
+}
