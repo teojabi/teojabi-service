@@ -219,12 +219,12 @@ export class AuthController {
     res.clearCookie('pending_signup_provider', this.getAuthCookieOptions());
 
     this.logger.log(
-      `[social-signup] complete-signup 완료 userId=${user.id}, isNewUser=${Boolean(user.isNewUser)}, redirectUrl=/mypage.html?newUser=1`,
+      `[social-signup] complete-signup 완료 userId=${user.id}, isNewUser=${Boolean(user.isNewUser)}, redirectUrl=/mypage.html?is_new=true`,
     );
 
     return res.json({
       success: true,
-      redirectUrl: '/mypage.html?newUser=1',
+      redirectUrl: '/mypage.html?is_new=true',
     });
   }
 

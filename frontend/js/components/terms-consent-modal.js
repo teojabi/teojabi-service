@@ -99,7 +99,7 @@ async function completeSignup() {
         }
 
         const result = await response.json();
-        window.location.href = result.redirectUrl || '/mypage.html?newUser=1';
+        window.location.href = result.redirectUrl || '/mypage.html?is_new=true';
     } catch (error) {
         setErrorMessage(error instanceof Error ? error.message : '회원가입 처리 중 오류가 발생했습니다.');
         syncButtonState();
