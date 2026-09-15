@@ -125,6 +125,7 @@ function region() {
 function render(focus = true) {
   const version=++renderVersion;
   disposeExplorer?.();disposeExplorer=null;
+  if(state.screen!=='results')document.body.classList.remove('map-results-open');
   if(state.screen==='results') {
     app.innerHTML='<section class="screen-loading" aria-live="polite"><span></span><p>매물과 지도를 불러오고 있어요.</p></section>';
     loadExplorer().then(({mountExplorer})=>{
