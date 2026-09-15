@@ -34,6 +34,7 @@ export class AuthController {
       httpOnly: true,
       secure: isProd,
       sameSite,
+      ...(isProd ? { domain: '.teojabi.com' } : {}),
       maxAge: 1000 * 60 * 60 * 24,
     };
   }
