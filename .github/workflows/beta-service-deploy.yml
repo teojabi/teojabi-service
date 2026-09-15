@@ -71,11 +71,10 @@ jobs:
             set -a
             . ./.env
             set +a
-            if pm2 describe teojabi-data >/dev/null 2>&1; then
-              pm2 reload teojabi-data --update-env
-            else
-              pm2 start serve.mjs --name teojabi-data
-            fi
+            # Recreate the PM2 entry so its script path follows the migrated runtime directory.
+            # A reload keeps the original script path and can silently run stale code.
+            pm2 delete teojabi-data >/dev/null 2>&1 || true
+            pm2 start "$HOME/teojabi-runtime/beta-service/serve.mjs" --name teojabi-data --cwd "$HOME/teojabi-runtime/beta-service"
             pm2 save
 
             sudo mkdir -p /etc/nginx/snippets
