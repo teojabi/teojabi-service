@@ -13,23 +13,53 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Deploy to NCP via SSH
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Build backend on GitHub runner
+        working-directory: backend
+        run: |
+          npm ci --legacy-peer-deps --no-audit --no-fund
+          npx prisma generate
+          npm run build
+
+      - name: Package runtime files
+        run: |
+          mkdir -p deploy-package/node_modules/.prisma
+          cp -R backend/dist deploy-package/dist
+          cp -R backend/node_modules/.prisma/client deploy-package/node_modules/.prisma/client
+          tar -czf backend-deploy.tgz -C deploy-package .
+
+      - name: Upload runtime files to NCP
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.NCP_SSH_HOST }}
+          username: ${{ secrets.NCP_SSH_USER }}
+          password: ${{ secrets.NCP_SSH_PASSWORD }}
+          source: backend-deploy.tgz
+          target: ~/teojabi-service/backend
+          timeout: 2m
+          command_timeout: 5m
+
+      - name: Activate backend on NCP
         uses: appleboy/ssh-action@v1.1.0
         with:
           host: ${{ secrets.NCP_SSH_HOST }}
           username: ${{ secrets.NCP_SSH_USER }}
           password: ${{ secrets.NCP_SSH_PASSWORD }}
-          command_timeout: 30m
+          command_timeout: 10m
           envs: DATABASE_URL,DIRECT_URL,PORT,FRONTEND_URL,JWT_SECRET,NCLOUD_MAIL_BASE_URL,NCLOUD_ACCESS_KEY,NCLOUD_SECRET_KEY,NCLOUD_MAIL_SENDER_ADDRESS,NCLOUD_MAIL_SENDER_NAME,SUPABASE_URL,SUPABASE_ANON_KEY,SUPABASE_SERVICE_ROLE_KEY,SUPABASE_BUCKET,NAVER_CLIENT_ID,NAVER_CLIENT_SECRET,NAVER_CALLBACK_URL,KAKAO_CLIENT_ID,KAKAO_CLIENT_SECRET,KAKAO_CALLBACK_URL,GOOGLE_CLIENT_ID,GOOGLE_CLIENT_SECRET,GOOGLE_CALLBACK_URL,GEMINI_API_KEY,PORTONE_STORE_ID,PORTONE_CHANNEL_KEY_SUBSCRIPTION,PORTONE_CHANNEL_KEY_ONETIME,PORTONE_API_SECRET,PORTONE_WEBHOOK_SECRET
           script: |
             set -e
-            echo "=== Step 1: 디렉토리 이동 ==="
             cd ~/teojabi-service/backend
 
-            BEFORE_PULL=$(git rev-parse HEAD)
-
-            echo "=== Step 2: 운영서버용 .env 파일 생성 ==="
-            # 운영서버용 .env 파일 생성
             cat > .env << ENVEOF
             DATABASE_URL="${DATABASE_URL}"
             DIRECT_URL="${DIRECT_URL}"
@@ -61,27 +91,19 @@ jobs:
             PORTONE_API_SECRET="${PORTONE_API_SECRET}"
             PORTONE_WEBHOOK_SECRET="${PORTONE_WEBHOOK_SECRET}"
             ENVEOF
-            echo "=== .env 생성 완료"
 
-            echo "=== Step 3:  git pull origin main"
-            git pull origin main
-            echo "=== Step 4: 의존성 확인"
-            if [ ! -d node_modules ] || ! git diff --quiet "$BEFORE_PULL" HEAD -- package.json package-lock.json; then
-              npm ci --legacy-peer-deps --no-audit --no-fund
-            else
-              echo "의존성 변경 없음 - 기존 node_modules 재사용"
-            fi
-            echo "=== Step 5:  npx prisma generate"
-            npx prisma generate
-            echo "=== Step 6:  npm run build"
-            NODE_OPTIONS=--max-old-space-size=512 npm run build
-            echo "=== Step 7:  pm2 reload 또는 start"
+            git pull --ff-only origin main
+            tar -xzf backend-deploy.tgz
+            rm -f backend-deploy.tgz
+
             if pm2 describe teojabi-backend >/dev/null 2>&1; then
               pm2 reload teojabi-backend --update-env
             else
               pm2 start dist/src/main.js --name teojabi-backend
             fi
             pm2 save
+            sleep 3
+            pm2 describe teojabi-backend
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           DIRECT_URL: ${{ secrets.DIRECT_URL }}
