@@ -73,7 +73,10 @@ export function browseCatalog(catalog, query) {
   const maxLimit=catalog.mode==='selected-preview'?500:20;
   const limit=Math.min(maxLimit,Math.max(5,Math.floor(Number(query.get('limit')))||5));
   const keyword=text(query.get('q'),100).toLocaleLowerCase('ko-KR');
+  const cohort=query.get('cohort');
+  if(cohort&&!['existing','curated'].includes(cohort))return {status:'invalid'};
   let rows=catalog.rows.filter(row=>!excludedIds.has(row.id)&&(!districts.length||districts.includes(row.district)) &&
+    (!cohort||row.cohort===cohort) &&
     (budget===null || row.priceWon>0 && row.priceWon<=budget) &&
     (minArea===null || row.areaM2!==null&&row.areaM2>=minArea) &&
     (maxArea===null || row.areaM2!==null&&row.areaM2<=maxArea) &&

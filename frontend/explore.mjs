@@ -36,16 +36,16 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
   let criteria={purpose:conditions?.purpose||null,minArea:conditions?.minArea||'',maxArea:conditions?.maxArea||'',areaUnit:conditions?.areaUnit||'pyeong',zones:conditions?.zones||[],minAreaM2:conditions?.minAreaM2??null,maxAreaM2:conditions?.maxAreaM2??null,...BUILD_DEFAULTS,...(validateBuildCriteria(conditions||{}).value||{})};
   const title=conditions?'내 조건으로 살펴보기':'지도에서 매물 살펴보기';
   root.innerHTML=`<section class="explore-page"><div class="result-head"><div><span class="eyebrow">EXPLORE TEOJABI</span><h1>${title}</h1></div><button class="outline" data-explore="edit">검색 조건 바꾸기</button></div>
-    <form class="explore-search" id="explore-filters"><div class="explore-filters"><label><span>정렬</span><select name="sort"><option value="price" ${sort==='price'?'selected':''}>가격 낮은 순</option><option value="price-desc" ${sort==='price-desc'?'selected':''}>가격 높은 순</option></select></label></div></form>
+    <form class="explore-search" id="explore-filters"><div class="explore-filters"><label><span>정렬</span><select name="sort"><option value="price" ${sort==='price'?'selected':''}>가격 낮은 순</option><option value="price-desc" ${sort==='price-desc'?'selected':''}>가격 높은 순</option></select></label><button class="primary" type="submit">이 조건으로 검색하기</button></div></form>
     <p class="purpose-guide" id="purpose-guide" hidden></p>
     <div class="explore-toolbar"><div class="quick-filters"></div><span id="bounds-chip"></span><div class="explore-toggle" role="group" aria-label="결과 보기 방식"><button data-explore="pane" data-value="list" aria-pressed="true">리스트</button><button data-explore="pane" data-value="map" aria-pressed="false">지도</button></div></div>
     <div class="explore-board" data-pane="list"><div class="explore-list"><p id="result-count" aria-live="polite">저장된 매물을 불러오고 있어요.</p><div id="listing-list"></div><button class="outline more-listings" data-explore="more" hidden>매물 더 보기</button></div>
-      <div class="map-frame"><div id="map-host" role="region" aria-label="매물 위치 지도"></div><div class="map-controls"><button class="outline" data-explore="search-map" disabled>이 영역에서 검색</button><button class="outline" data-explore="reset-map" aria-label="현재 매물 전체 위치 보기">전체 위치</button></div><div id="map-status" class="map-status" role="status">네이버 지도를 불러오고 있어요.</div><div class="map-caption">★ 현재 정렬 상위 5개 · 핀 기반 추정 위치</div></div>
+      <div class="map-frame"><div id="map-host" role="region" aria-label="매물 위치 지도"></div><div class="map-controls"><button class="outline" data-explore="all-picks" aria-pressed="false">★ 터잡이픽 전체</button><button class="outline" data-explore="cadastral" aria-pressed="false">지적도</button><button class="outline" data-explore="reset-map" aria-label="현재 매물 전체 위치 보기">전체 위치</button></div><div id="map-status" class="map-status" role="status">네이버 지도를 불러오고 있어요.</div><div class="map-caption">★ 현재 정렬 상위 5개 · 핀 기반 추정 위치</div></div>
       <aside id="listing-detail" class="detail-panel" aria-label="매물 상세" hidden></aside></div><p class="explore-foot" id="explore-foot"></p></section>`;
   const $=selector=>root.querySelector(selector);
   $('#listing-list').before($('#explore-filters'));
   let listScrollTop=0;
-  const compared=new Map();let closeComparison,showPins=true,showTransactions=true,nearby=null,loadTimer=null,quickFilters;
+  const compared=new Map();let closeComparison,showPins=true,showTransactions=true,showAllPicks=false,pickGroups=null,nearby=null,loadTimer=null,quickFilters;
   $('.map-controls').insertAdjacentHTML('beforeend','<button class="outline" data-explore="transactions" aria-pressed="true" hidden>주변 실거래 표시</button><button class="outline return-detail" data-explore="return-detail">매물 상세로 돌아가기</button>');
   $('.explore-toolbar').insertAdjacentHTML('afterend','<div class="discovery-actions"><button class="outline" data-explore="compare-open" disabled>비교할 매물을 골라주세요 (최대 3개)</button><button class="outline" data-explore="compare-clear" hidden>비교 선택 지우기</button><button class="outline" data-explore="pins" aria-pressed="true">지도 매물 표시</button><span class="discovery-notice" role="status"></span></div><div class="search-suggestions" aria-live="polite"></div>');
   function drawCompare(){const n=compared.size,b=$('[data-explore=compare-open]');b.disabled=n<2;b.textContent=n?`선택 ${n}개 비교하기`:'비교할 매물을 골라주세요 (최대 3개)';$('[data-explore=compare-clear]').hidden=!n;}
@@ -86,12 +86,12 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     if(disposed)return;
     $('#map-status').hidden=status==='ready';
     if(status==='error')$('#map-status').innerHTML=`<p>${esc(message)}</p><button class="outline" data-explore="retry-map">지도 다시 연결</button>`;
-    if(status==='ready' && result)map.setGroups(result.groups,selected,true);
+    if(status==='ready' && result)map.setGroups(showAllPicks?(pickGroups||[]):result.groups,selected,true);
     if(status==='ready' && detail)map.select(detail.listing);
     if(status==='ready' && parcel?.status==='ready')map.parcel(parcel.geometry);
     if(status==='ready' && nearby?.status==='ready'){map.setTransactions(nearby.cases);map.setTransactionsVisible(showTransactions);}
     if($('#parcel-status') && parcel?.status==='ready')$('#parcel-status').textContent=parcelMessage();
-    if(status==='error')$('[data-explore="search-map"]').disabled=true;
+    if(status==='error'){const searchMap=$('[data-explore="search-map"]');if(searchMap)searchMap.disabled=true;}
   }});
   areaDisplayEvents.addEventListener('change',()=>{refreshAreaDisplay(root);map.setAreaUnit(getAreaDisplayUnit());},{signal:abort.signal});
   map.mount([],null,false);
@@ -140,7 +140,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
       const response=await apiFetch(`/api/catalog?${params}`,{signal:abort.signal});
       const data=await response.json();if(!response.ok || data.status!=='ready')throw new Error(data.reason||'unavailable');
       if(disposed||current!==version)return;
-      result=data;$('.explore-list').removeAttribute('aria-busy');drawCards();map.setGroups(result.groups,selected,fit);
+      result=data;$('.explore-list').removeAttribute('aria-busy');drawCards();map.setGroups(showAllPicks?(pickGroups||[]):result.groups,selected,fit);
       if(initialId){const id=initialId;initialId=null;openDetail(id);}
     } catch(error) {
       if(disposed||current!==version)return;
@@ -261,6 +261,13 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
       case 'compare-open':closeComparison?.();closeComparison=openComparison([...compared.values()],id=>openDetail(id));break;
       case 'compare-clear':compared.clear();if(result)drawCards();break;
       case 'pins':showPins=!showPins;button.setAttribute('aria-pressed',String(showPins));map.setVisible(showPins);break;
+      case 'cadastral':button.setAttribute('aria-pressed',String(map.toggleCadastral()));break;
+      case 'all-picks':{
+        showAllPicks=!showAllPicks;button.disabled=true;
+        try{if(showAllPicks&&!pickGroups){const response=await apiFetch('/api/catalog?limit=500&cohort=existing',{signal:abort.signal}),data=await response.json();if(!response.ok||data.status!=='ready')throw new Error();pickGroups=data.groups;}
+          button.setAttribute('aria-pressed',String(showAllPicks));button.textContent=showAllPicks?'★ 조건 매물로':'★ 터잡이픽 전체';map.setGroups(showAllPicks?(pickGroups||[]):(result?.groups||[]),selected,true);
+        }catch{showAllPicks=false;$('.discovery-notice').textContent='터잡이픽을 불러오지 못했어요.';}button.disabled=false;break;
+      }
       case 'transactions':showTransactions=!showTransactions;map.setTransactionsVisible(showTransactions);syncTransactionToggle();break;
       case 'retry-transactions':if(selected)loadNearby(selected,detailVersion);break;
       case 'sheet-toggle':setSheet(sheet.classList.contains('collapsed'));break;
