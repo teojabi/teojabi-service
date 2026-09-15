@@ -58,7 +58,7 @@ describe('AuthController', () => {
       for (const name of ['access_token', 'pending_signup_token', 'pending_signup_provider']) {
         expect(res.clearCookie).toHaveBeenCalledWith(
           name,
-          expect.objectContaining({ httpOnly: true, secure: true, sameSite: 'none' }),
+          expect.objectContaining({ httpOnly: true, secure: true, sameSite: 'none', domain: '.teojabi.com' }),
         );
       }
       expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ success: true }));

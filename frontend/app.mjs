@@ -71,8 +71,8 @@ function updateMemberButton(){
   const button=document.querySelector('#member-login');
   if(!button)return;
   const ready=member.status==='ready';
-  button.textContent=ready?(member.user?.name||'내 계정'):'로그인';
-  button.setAttribute('aria-label',ready?'내 계정과 보관함 보기':'로그인');
+  button.textContent=ready?(member.user?.name||'내 계정'):'로그인·회원가입';
+  button.setAttribute('aria-label',ready?'내 계정과 보관함 보기':'로그인 및 회원가입');
   let adminLink=document.querySelector('#member-admin-link');
   if(ready&&member.user?.role==='ADMIN') {
     if(!adminLink){adminLink=document.createElement('a');adminLink.id='member-admin-link';adminLink.href='./curation.html';adminLink.className='outline';adminLink.textContent='관리자';button.after(adminLink);}
