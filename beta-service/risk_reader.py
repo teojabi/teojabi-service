@@ -69,6 +69,11 @@ def read_risk(connection, source_id, include_registers=True, include_context=Tru
         FROM public.seoul_building_register r WHERE '''+register_where+'''
         ORDER BY "건축물대장일련번호" LIMIT 31
     ''', tuple(register_params)) if include_registers and addresses else {'status': 'skipped' if not include_registers else 'missing-address', 'rows': []}
+    building_where = register_where
+    building_params = list(register_params)
+    if remote_mode() and isinstance(listing.get('pnu'), str):
+        building_where = 'pnu=%s OR (' + register_where + ')'
+        building_params.insert(0, listing['pnu'])
     buildings = fetch('''
         SELECT to_jsonb(r) AS "recordFields", "건축물대장일련번호" AS serial, "대지위치" AS address,
                "대장구분코드명" AS category, "대장종류코드명" AS type,
@@ -77,9 +82,9 @@ def read_risk(connection, source_id, include_registers=True, include_context=Tru
                "구조코드명" AS structure, "주용도코드명" AS use,
                "지상층수" AS "aboveFloors", "지하층수" AS "belowFloors",
                "사용승인일자" AS "approvalDate", COUNT(*) OVER() AS total
-        FROM '''+building_relation()+''' r WHERE '''+register_where+'''
+        FROM '''+building_relation()+''' r WHERE '''+building_where+'''
         ORDER BY "건축물대장일련번호" LIMIT 31
-    ''', tuple(register_params)) if include_registers and addresses else {'status': 'skipped' if not include_registers else 'missing-address', 'rows': []}
+    ''', tuple(building_params)) if include_registers and addresses else {'status': 'skipped' if not include_registers else 'missing-address', 'rows': []}
     pnu = listing['pnu']
     if not include_context:
         return {'sourceId': source_id, 'address': address, 'pnu': pnu,
