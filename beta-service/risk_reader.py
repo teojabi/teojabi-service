@@ -44,6 +44,20 @@ def read_risk(connection, source_id, include_registers=True, include_context=Tru
     address = re.sub(r'번지$', '', address).strip()
     # Exact address variants only; never drop a lot suffix or guess an adjoining parcel.
     addresses = list({address, address + '번지', listing['address']}) if address else []
+    address_parts = address.split()
+    district = next((part for part in address_parts if part.endswith(('구', '군'))), '')
+    neighborhood = next((part for part in address_parts if part.endswith(('동', '가', '읍', '면'))), '')
+    structured_lot = None
+    if isinstance(listing.get('pnu'), str) and re.fullmatch(r'11\d{17}', listing['pnu']):
+        main_lot = str(int(listing['pnu'][11:15]))
+        sub_lot = str(int(listing['pnu'][15:19]))
+        lot_text = main_lot if sub_lot == '0' else f'{main_lot}-{sub_lot}'
+        structured_lot = ([lot_text, lot_text + '번지'], [main_lot, main_lot.zfill(4)], [sub_lot, sub_lot.zfill(4)])
+    register_where = '''"대지위치"=ANY(%s)'''
+    register_params = [addresses]
+    if structured_lot and district and neighborhood:
+        register_where += ''' OR ("시군구코드명" IN (%s,%s) AND "법정동코드명"=%s AND ("주지번"=ANY(%s) OR ("주지번"=ANY(%s) AND COALESCE("부지번",'0')=ANY(%s))))'''
+        register_params.extend([district, '서울특별시 ' + district, neighborhood, *structured_lot])
     recap = fetch('''
         SELECT to_jsonb(r) AS "recordFields", "건축물대장일련번호" AS serial, "대지위치" AS address,
                "대장구분코드명" AS category, "대장종류코드명" AS type,
@@ -51,9 +65,9 @@ def read_risk(connection, source_id, include_registers=True, include_context=Tru
                "주건축물수" AS "mainCount", "부속건축물수" AS "accessoryCount",
                "총주차수" AS parking, "주용도코드명" AS use,
                "사용승인일자" AS "approvalDate", COUNT(*) OVER() AS total
-        FROM public.seoul_building_register r WHERE "대지위치"=ANY(%s)
+        FROM public.seoul_building_register r WHERE '''+register_where+'''
         ORDER BY "건축물대장일련번호" LIMIT 31
-    ''', (addresses,)) if include_registers and addresses else {'status': 'skipped' if not include_registers else 'missing-address', 'rows': []}
+    ''', tuple(register_params)) if include_registers and addresses else {'status': 'skipped' if not include_registers else 'missing-address', 'rows': []}
     buildings = fetch('''
         SELECT to_jsonb(r) AS "recordFields", "건축물대장일련번호" AS serial, "대지위치" AS address,
                "대장구분코드명" AS category, "대장종류코드명" AS type,
@@ -62,9 +76,9 @@ def read_risk(connection, source_id, include_registers=True, include_context=Tru
                "구조코드명" AS structure, "주용도코드명" AS use,
                "지상층수" AS "aboveFloors", "지하층수" AS "belowFloors",
                "사용승인일자" AS "approvalDate", COUNT(*) OVER() AS total
-        FROM '''+building_relation()+''' r WHERE "대지위치"=ANY(%s)
+        FROM '''+building_relation()+''' r WHERE '''+register_where+'''
         ORDER BY "건축물대장일련번호" LIMIT 31
-    ''', (addresses,)) if include_registers and addresses else {'status': 'skipped' if not include_registers else 'missing-address', 'rows': []}
+    ''', tuple(register_params)) if include_registers and addresses else {'status': 'skipped' if not include_registers else 'missing-address', 'rows': []}
     pnu = listing['pnu']
     if not include_context:
         return {'sourceId': source_id, 'address': address, 'pnu': pnu,
