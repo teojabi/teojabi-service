@@ -5,7 +5,7 @@
     document.documentElement.dataset.theme=mode;
     document.querySelector('meta[name="theme-color"]')?.setAttribute('content',mode==='dark'?'#080F21':'#F7F8FA');
     const button=document.querySelector('#theme-toggle');
-    if(button){button.textContent=mode==='dark'?'☀ 라이트':'☾ 다크';button.setAttribute('aria-pressed',String(mode==='dark'));button.setAttribute('aria-label',mode==='dark'?'라이트 모드로 전환':'다크 모드로 전환');}
+    if(button){button.textContent=mode==='dark'?'☀':'☾';button.setAttribute('aria-pressed',String(mode==='dark'));button.setAttribute('aria-label',mode==='dark'?'라이트 모드로 전환':'다크 모드로 전환');button.title=mode==='dark'?'라이트 모드로 전환':'다크 모드로 전환';}
     window.dispatchEvent(new CustomEvent('teojabi-theme',{detail:mode}));
   };
   apply();
