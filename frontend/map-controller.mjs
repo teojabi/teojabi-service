@@ -116,9 +116,9 @@ export function transactionLabelOffsets(points,occupied,width,height) {
   });
 }
 export class ListingMap {
-  constructor(container,{onSelect,onTransaction,onMove,onStatus,center,zoom,areaUnit='m2'}={}) {
+  constructor(container,{onSelect,onTransaction,onMapClick,onMove,onStatus,center,zoom,areaUnit='m2'}={}) {
     this.areaUnit=areaUnit==='pyeong'?'pyeong':'m2';
-    this.container=container;this.onSelect=onSelect;this.onMove=onMove;this.onStatus=onStatus;
+    this.container=container;this.onSelect=onSelect;this.onMove=onMove;this.onStatus=onStatus;this.onMapClick=onMapClick;
     this.onTransaction=onTransaction;this.transactionMarkers=[];this.transactions=[];this.transactionsVisible=true;
     this.center=center;this.zoom=zoom;this.markers=[];this.listeners=[];this.dead=false;this.selected=null;
     this.onAuthFailure=event=>{this.ready=false;this.onStatus?.('error',event.detail);};
@@ -134,6 +134,7 @@ export class ListingMap {
       if(authError)throw new Error(authError);
       this.ready=true;
       this.listeners.push(n.Event.addListener(this.map,'idle',()=>{this.layoutTransactions();this.onMove?.(this.view());}));
+      this.listeners.push(n.Event.addListener(this.map,'click',()=>this.onMapClick?.()));
       this.map.data.setStyle({fillColor:'#93c5fd',fillOpacity:.35,strokeColor:'#2563eb',strokeWeight:3});
       this.resizeObserver=new ResizeObserver(()=>{if(this.ready && !this.dead && this.container.clientWidth)n.Event.trigger(this.map,'resize');});
       this.resizeObserver.observe(this.container);
