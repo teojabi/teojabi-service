@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  NotFoundException,
   Body,
   Controller,
   Get,
@@ -38,6 +39,9 @@ export class AuthController {
   }
 
   private buildRedirectUrl(user: any, frontendUrl: string) {
+    if (process.env.TEOJABI_FRONTEND_MODE === 'beta') {
+      return `${frontendUrl}/${user.role === 'ADMIN' ? 'curation.html' : 'index.html'}`;
+    }
     if (user.role === 'ADMIN') {
       return `${frontendUrl}/admin.html`;
     }
@@ -51,6 +55,9 @@ export class AuthController {
 
   @Get('mock-login')
   async mockLogin(@Res() res: Response) {
+    if (process.env.NODE_ENV !== 'test' || process.env.ENABLE_MOCK_LOGIN !== 'true') {
+      throw new NotFoundException();
+    }
     // 테스트 환경용 임시 ADMIN 로그인 (실제 배포 시 제거 필요)
     let testUser = await this.authService.findExistingSocialUser('mock', 'admin');
     if (!testUser) {
@@ -224,7 +231,7 @@ export class AuthController {
 
     return res.json({
       success: true,
-      redirectUrl: '/mypage.html?is_new=true',
+      redirectUrl: process.env.TEOJABI_FRONTEND_MODE === 'beta' ? '/index.html' : '/mypage.html?is_new=true',
     });
   }
 
@@ -279,7 +286,7 @@ export class AuthController {
     this.logger.log(
       `[social-signup] 신규 사용자 약관동의 이동 provider=${provider}, providerId=${socialPayload.providerId}`,
     );
-    const redirectUrl = `${frontendUrl}/`;
+    const redirectUrl = `${frontendUrl}/${process.env.TEOJABI_FRONTEND_MODE === 'beta' ? 'index.html?signup=1' : ''}`;
     this.logger.log(
       `[social-signup] pending-signup 토큰 발급 완료 provider=${provider}, providerId=${socialPayload.providerId}, redirectUrl=${redirectUrl}`,
     );
