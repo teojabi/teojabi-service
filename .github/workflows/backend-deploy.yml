@@ -62,6 +62,7 @@ jobs:
 
             cat > .env << ENVEOF
             NODE_ENV="production"
+            TEOJABI_FRONTEND_MODE="beta"
             DATABASE_URL="${DATABASE_URL}"
             DIRECT_URL="${DIRECT_URL}"
             PORT="${PORT}"
