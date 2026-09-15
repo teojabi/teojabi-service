@@ -61,6 +61,7 @@ jobs:
             cd ~/teojabi-service/backend
 
             cat > .env << ENVEOF
+            NODE_ENV="production"
             DATABASE_URL="${DATABASE_URL}"
             DIRECT_URL="${DIRECT_URL}"
             PORT="${PORT}"
