@@ -1,79 +1,32 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ko">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>터잡이 - AI 기반 빌딩 재건축 및 사업성 분석 솔루션</title>
-    <!-- 검색로봇 수집 허용 (noindex, nofollow 해결) -->
-    <meta name="robots" content="index,follow">
-    <!-- 사이트 제목 및 설명 설정 -->
-    <meta name="description" content="데이터 기반의 정확한 AI 분석으로 '빌딩 매입부터 재건축, 매각까지' 터잡이가 확실하게 함께 합니다. 프롭테크 전문 터잡이에서 최고의 빌딩 재건축 컨설팅을 경험해 보세요.">
-    <!-- 네이버 소유권 확인 태그 -->
-    <meta name="naver-site-verification" content="c3b8877b7a58ba28bef132ab57464d141d992fac" />
-    <!-- 구글 소유권 확인 태그 -->
-    <meta name="google-site-verification" content="5mBTVOuSttvlva9yBRJ2jPwQkCBw4IPIvqHerJog9J8" />
-
-
-    <!-- 파비콘 설정 -->
-    <link rel="icon" href="https://teojabi.com/favicon.ico?v=2" type="image/x-icon">
-    <link rel="shortcut icon" href="https://teojabi.com/favicon.ico?v=2" type="image/x-icon">
-    <link rel="apple-touch-icon" href="https://teojabi.com/favicon.ico?v=2">
-    <!-- 폰트 및 아이콘 -->
-    <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
-    <!-- 영문폰트 Montserrat -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&display=swap" rel="stylesheet">
-    <!-- 한글폰트 SUITE -->
-    <link href="https://cdn.jsdelivr.net/gh/sun-typeface/SUITE@2/fonts/static/woff2/SUITE.css" rel="stylesheet">
-    <!-- 전역 CSS -->
-    <link rel="stylesheet" href="/css/style.css">
-    <link rel="stylesheet" href="/css/components.css">
-    <!-- Google Tag Manager -->
-    <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
-    new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
-    j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
-    'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
-    })(window,document,'script','dataLayer','GTM-MFGQTFGR');</script>
-    <!-- End Google Tag Manager -->
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#F7F8FA">
+  <script src="./theme.js"></script>
+  <title>터잡이 — 웹 설계 v1</title>
+  <link rel="stylesheet" href="./styles.css?v=20260915-site-map">
+  <link rel="stylesheet" href="./theme.css?v=20260915-site-map">
+  <link rel="icon" href="./assets/favicon.ico">
 </head>
-<body class="home-page">
-    <!-- Google Tag Manager (noscript) -->
-    <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-MFGQTFGR"
-    height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
-    <!-- End Google Tag Manager (noscript) -->
-    <div id="header-container"></div>
-
-
-    <main class="landing-main">
-        <div role="status" style="position:fixed;bottom:16px;left:50%;transform:translateX(-50%);z-index:1000;width:max-content;max-width:calc(100% - 32px);box-sizing:border-box;padding:12px 20px;border:1px solid #DBEAFE;border-radius:12px;background:#EFF6FF;color:#0B1736;font-size:14px;line-height:1.5;text-align:center;box-shadow:0 4px 20px #0B17361A;">
-            지금 업데이트 중입니다. 더 편리한 서비스를 준비하고 있어요.
-        </div>
-        <section class="hero-section">
-            <div class="hero-content">
-                <h1 class="hero-title">서울 노후 건물의 미래 가치를 높이는 터잡이</h1>
-                <p class="hero-subtitle">데이터 기반의 정확한 분석으로 '매입부터 재건축, 매각까지' 터잡이가 확실하게 함께 합니다.</p>
-                <div class="hero-actions">
-                    <a href="/search.html" class="btn btn-primary btn-lg">지도에서 찾기</a>
-                    <a href="/gallery.html" class="btn btn-outline btn-lg">컨설팅 매물 보기</a>
-                </div>
-            </div>
-            
-            <div class="hero-symbol">
-                <img src="/img/symbol.webp" alt="터잡이 심볼" class="symbol-img">
-            </div>
-        </section>
-
-
-        <!-- 서비스 안내 섹션 추가 가능 -->
-    </main>
-
-
-    <div id="login-modal-container"></div>
-    <div id="footer-container"></div>
-    <script src="/js/config.js"></script>
-    <!-- 스크립트 모듈 -->
-    <script type="module" src="/js/app.js"></script>
+<body>
+<header class="header">
+    <button class="brand" data-action="home" aria-label="터잡이 시작 화면"><img src="./assets/logo.png" alt="터잡이"><span>BETA</span></button>
+    <nav aria-label="주요 메뉴"><button data-action="find">건물 찾기</button><button data-action="analyze">내 건물·토지</button></nav>
+    <div class="header-actions"><button type="button" data-action="login" id="member-login">로그인</button><button type="button" data-action="saved">내 보관함</button><button id="theme-toggle" type="button" aria-label="다크 모드로 전환" aria-pressed="false">☾ 다크</button></div>
+  </header>
+  <main id="app"></main>
+  <footer class="service-footer">
+    <nav class="footer-policy" aria-label="이용 정책 및 사업자 정보">
+      <a href="./terms.html">이용약관</a>
+      <a class="privacy-link" href="./privacy.html">개인정보처리방침</a>
+      <a href="./paid-service.html">구독서비스</a>
+      <a href="./refund.html">환불정책</a>
+      <a href="./business-info.html">사업자정보</a>
+    </nav>
+    <div class="footer-bottom"><p>매물 정보와 공공자료는 출처·기준일에 따라 차이가 있을 수 있어요. 거래와 개발에 필요한 조건은 원문과 현황을 함께 확인해 주세요.</p><small>© 2026 TEOJABI. All rights reserved.</small></div>
+  </footer>
+  <script type="module" src="./app.mjs?v=20260915-site-map"></script>
 </body>
 </html>
-

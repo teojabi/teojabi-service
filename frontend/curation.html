@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow"><meta name="format-detection" content="telephone=no">
+<title>터잡이 매물 등록 · 터잡이</title><script src="/theme.js"></script>
+<link rel="stylesheet" href="/styles.css"><link rel="stylesheet" href="/theme.css"><link rel="stylesheet" href="/curation.css">
+<link rel="icon" href="/assets/favicon.ico"></head><body>
+<header class="review-header"><a href="/index.html" aria-label="터잡이 홈"><img src="/assets/logo.png" alt="터잡이"></a><span>터잡이 매물 등록</span><a href="#admin-access-panel">관리자 설정</a><a href="/index.html">서비스로 돌아가기 ↗</a><button id="theme-toggle" aria-label="다크 모드로 전환">☾ 다크</button></header>
+<main class="review-main">
+<section class="review-intro"><div><span class="eyebrow">ADMIN WORKSPACE</span><h1>네이버 원자료에서 터잡이 매물을 등록해요.</h1><p>조건으로 후보를 찾고, 매물 설명 한 줄과 터잡이 번호만 정해서 등록합니다. 등록한 매물은 목록에서 다시 수정할 수 있어요.</p></div><div class="review-badge">내부 관리용<br><strong>등록 전 미리보기</strong></div></section>
+<div id="review-message" role="status" aria-live="polite">매물 자료를 불러오고 있어요.</div>
+<section id="review-stats" class="review-stats" aria-label="등록 현황"></section>
+<section id="admin-access-panel" class="admin-access-panel" hidden aria-labelledby="admin-access-title">
+  <div><span class="eyebrow">ADMIN ACCESS</span><h2 id="admin-access-title">관리자 계정</h2><p id="admin-access-status" role="status">권한을 확인하고 있어요.</p></div>
+  <form id="admin-add-form"><label>기존 회원 이메일<input name="email" type="email" autocomplete="off" required placeholder="member@example.com"></label><button type="submit">관리자 추가</button></form>
+  <ul id="admin-member-list"></ul>
+</section>
+<section class="pick-mode-panel" aria-label="관리 보기 전환">
+  <button class="pick-mode" data-pick-mode="source" aria-pressed="false"><strong>네이버 원자료에서 고르기</strong><span>조건 선택 후 등록</span></button>
+  <button class="pick-mode active" data-pick-mode="registered" aria-pressed="true"><strong>등록한 매물 목록</strong><span>터잡이 노출 매물 수정</span></button>
+</section>
+<section class="review-filters curation-source-filters" aria-label="매물 필터">
+<label>주소·동·매물번호·터잡이 번호 검색<input id="review-query" type="search" placeholder="주소, 동, 터잡이 번호"></label>
+<label>유형<select id="review-category"><option value="">전체 유형</option><option value="commercial">상업·근생·숙박</option><option value="residential">단독·다가구</option><option value="office">업무용 건물</option><option value="land">토지</option></select></label>
+<div class="filter-field district-filter"><span>지역</span><details id="review-district-picker"><summary id="review-district-summary">서울 전체</summary><div class="district-popover"><button type="button" id="review-district-clear">서울 전체</button><div id="review-district-options" class="district-options"></div></div></details></div>
+<label>가격<select id="review-price-range"><option value="">전체 가격</option><option value="0:20">20억 미만</option><option value="20:40">20~40억</option><option value="40:70">40~70억</option><option value="70:100">70~100억</option><option value="100:200">100~200억</option><option value="200:">200억 이상</option></select></label>
+<label>대지면적<select id="review-area-range"><option value="">전체 면적</option><option value="0:30">30평 미만</option><option value="30:50">30~50평</option><option value="50:70">50~70평</option><option value="70:100">70~100평</option><option value="100:150">100~150평</option><option value="150:300">150~300평</option><option value="300:">300평 이상</option></select></label>
+<label>지상층<select id="review-floor-range"><option value="">전체 층수</option><option value="0:2">1~2층</option><option value="3:4">3~4층</option><option value="5:7">5~7층</option><option value="8:10">8~10층</option><option value="11:">11층 이상</option></select></label>
+<label>용도지역<select id="review-zone"><option value="">전체 용도지역</option><option value="상업지역">상업지역</option><option value="주거지역">주거지역</option><option value="공업지역">공업지역</option><option value="녹지지역">녹지지역</option><option value="준주거지역">준주거지역</option><option value="일반상업지역">일반상업지역</option><option value="근린상업지역">근린상업지역</option><option value="준공업지역">준공업지역</option></select></label>
+<label>신축 용도<select id="review-build-use"><option value="">용도 상관없음</option><option value="hotel">호텔·숙박시설</option><option value="office">사무실·업무시설</option><option value="retail">상가·근린생활시설</option><option value="residential">주거용 건물</option><option value="mixed">복합용도</option></select></label>
+<label>도로폭<select id="review-road-min"><option value="">도로폭 제한 없음</option><option value="4">4m 이상</option><option value="6">6m 이상</option><option value="8">8m 이상</option><option value="12">12m 이상</option></select></label>
+<label>정렬<select id="review-sort"><option value="price">낮은 가격</option><option value="price-desc">높은 가격</option><option value="area">넓은 대지</option><option value="floor-low">낮은 층수</option><option value="recent">최근 수집</option></select></label>
+<div class="curation-checks" role="group" aria-label="신축 검토 조건"><label><input id="review-tourism" type="checkbox"> 관광숙박특화구역 우선</label><label><input id="review-exclude-education" type="checkbox"> 교육보호구역 제외</label><label><input id="review-exclude-heritage" type="checkbox"> 문화재보존구역 제외</label></div>
+<button id="review-reset">초기화</button><button id="review-unit" aria-pressed="false">면적: ㎡</button>
+</section>
+<div class="review-result-head"><h2 id="review-count">매물 후보</h2><div><a class="review-link" href="/index.html#analyze" target="_blank" rel="noopener">내건물·토지 검토 열기 ↗</a><button id="auto-select-200">자동 선별 200개</button><button id="review-refresh">다시 불러오기</button></div></div>
+<section id="review-bulk" class="review-bulk" aria-label="일괄 등록 도구">
+  <div class="source-bulk"><strong id="bulk-selected-count">선택 0개</strong><button id="auto-selection-clear" hidden>전체 원자료 보기</button><button id="source-registered-toggle" aria-pressed="false">등록된 매물 함께 보기</button><button id="bulk-select-visible" disabled>현재 필터 결과 전체 선택</button><button id="bulk-clear">선택 해제</button><button id="bulk-register" disabled>선택 매물 등록</button></div>
+  <div class="registered-bulk" hidden><button id="pick-only-toggle" aria-pressed="false">터잡이픽만 보기</button><button id="registered-show-all" aria-pressed="false">등록 매물 모두보기</button></div>
+</section>
+<div class="review-workspace"><section id="review-list" class="review-list" aria-label="매물 목록"></section><aside id="review-detail" class="review-detail" aria-label="선택한 매물 상세"><div class="review-empty"><h2>매물을 눌러보세요.</h2><p>네이버 원자료에서 고르거나, 등록한 매물의 설명을 수정할 수 있어요.</p></div></aside></div>
+</main><script type="module" src="/curation.mjs"></script></body></html>
+
