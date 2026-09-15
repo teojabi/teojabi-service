@@ -69,12 +69,20 @@ def read_risk(connection, source_id, include_registers=True, include_context=Tru
         FROM public.seoul_building_register r WHERE pnu=%s OR ('''+register_where+''')
         ORDER BY "건축물대장일련번호" LIMIT 31
     ''', tuple([listing.get('pnu')] + register_params)) if include_registers and addresses else {'status': 'skipped' if not include_registers else 'missing-address', 'rows': []}
-    building_where = register_where
-    building_params = list(register_params)
-    if remote_mode() and isinstance(listing.get('pnu'), str):
-        building_where = 'pnu=%s OR (' + register_where + ')'
-        building_params.insert(0, listing['pnu'])
-    buildings = fetch('''
+    if remote_mode():
+        buildings = fetch('''
+        SELECT to_jsonb(r) AS "recordFields", id::text AS serial, %s::text AS address,
+               '표제부'::text AS category, '건축물 현황'::text AS type,
+               bld_nm AS name, NULL::text AS role,
+               plat_area AS "landArea", tot_area AS "floorArea",
+               strct_cd_nm AS structure, main_purps_cd_nm AS use,
+               grnd_flr_cnt AS "aboveFloors", ugnd_flr_cnt AS "belowFloors",
+               use_apr_day AS "approvalDate", COUNT(*) OVER() AS total
+        FROM public.building_info r WHERE pnu=%s
+        ORDER BY id LIMIT 31
+        ''', (address, listing.get('pnu')))
+    else:
+        buildings = fetch('''
         SELECT to_jsonb(r) AS "recordFields", "건축물대장일련번호" AS serial, "대지위치" AS address,
                "대장구분코드명" AS category, "대장종류코드명" AS type,
                "동명" AS name, "주부속구분코드명" AS role,
@@ -82,9 +90,9 @@ def read_risk(connection, source_id, include_registers=True, include_context=Tru
                "구조코드명" AS structure, "주용도코드명" AS use,
                "지상층수" AS "aboveFloors", "지하층수" AS "belowFloors",
                "사용승인일자" AS "approvalDate", COUNT(*) OVER() AS total
-        FROM '''+building_relation()+''' r WHERE '''+building_where+'''
+        FROM '''+building_relation()+''' r WHERE '''+register_where+'''
         ORDER BY "건축물대장일련번호" LIMIT 31
-    ''', tuple(building_params)) if include_registers and addresses else {'status': 'skipped' if not include_registers else 'missing-address', 'rows': []}
+        ''', tuple(register_params)) if include_registers and addresses else {'status': 'skipped' if not include_registers else 'missing-address', 'rows': []}
     pnu = listing['pnu']
     if not include_context:
         return {'sourceId': source_id, 'address': address, 'pnu': pnu,
