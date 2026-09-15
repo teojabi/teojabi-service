@@ -24,6 +24,8 @@ jobs:
             echo "=== Step 1: 디렉토리 이동 ==="
             cd ~/teojabi-service/backend
 
+            BEFORE_PULL=$(git rev-parse HEAD)
+
             echo "=== Step 2: 운영서버용 .env 파일 생성 ==="
             # 운영서버용 .env 파일 생성
             cat > .env << ENVEOF
@@ -61,16 +63,23 @@ jobs:
 
             echo "=== Step 3:  git pull origin main"
             git pull origin main
-            echo "=== Step 4:  npm install"
-            npm install
+            echo "=== Step 4: 의존성 확인"
+            if [ ! -d node_modules ] || ! git diff --quiet "$BEFORE_PULL" HEAD -- package.json package-lock.json; then
+              npm ci --legacy-peer-deps --no-audit --no-fund
+            else
+              echo "의존성 변경 없음 - 기존 node_modules 재사용"
+            fi
             echo "=== Step 5:  npx prisma generate"
             npx prisma generate
             echo "=== Step 6:  npm run build"
-            npm run build
-            echo "=== Step 7:  pm2 delete teojabi-backend (if exists)"
-            pm2 delete teojabi-backend || true
-            echo "=== Step 8:  pm2 start dist/src/main.js --name teojabi-backend"
-            pm2 start dist/src/main.js --name teojabi-backend
+            NODE_OPTIONS=--max-old-space-size=512 npm run build
+            echo "=== Step 7:  pm2 reload 또는 start"
+            if pm2 describe teojabi-backend >/dev/null 2>&1; then
+              pm2 reload teojabi-backend --update-env
+            else
+              pm2 start dist/src/main.js --name teojabi-backend
+            fi
+            pm2 save
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           DIRECT_URL: ${{ secrets.DIRECT_URL }}
