@@ -70,3 +70,24 @@ jobs:
             curl -sS -H 'Host: api.teojabi.com' 'http://127.0.0.1:4173/api/nearby-transactions/naver:2643920724' >/dev/null || true
             echo 'BETA SAFE ERROR LOG'
             pm2 logs teojabi-data --lines 20 --nostream 2>&1 | grep -E '\[(listing-detail|nearby-transactions)\]' | tail -10 || true
+            echo 'BETA NODE TRANSFORM CHECK'
+            node --input-type=module <<'NODEEOF' || true
+            import {readFile} from 'node:fs/promises';
+            import {execFile} from 'node:child_process';
+            import {promisify} from 'node:util';
+            import {selectedCatalog} from './selected-catalog.mjs';
+            import {buildRiskReview,buildBuildingRecords} from './risk-policy.mjs';
+            import {normalizeLandRecord} from './land-policy.mjs';
+            const read=async name=>JSON.parse(await readFile(`.local/supabase/${name}`,'utf8'));
+            const catalog=selectedCatalog(await read('selected-catalog.json'),await read('selected-zoning.json'),await read('selected-development.json'));
+            const listing=catalog.rows.find(row=>row.id==='naver:2643920724');
+            const execute=promisify(execFile);
+            for(const [operation,transform] of [['risk',buildRiskReview],['registers',buildBuildingRecords],['land-record',normalizeLandRecord]]){
+              try{
+                const payload=JSON.stringify({sourceId:listing.sourceId,pnu:listing.pnu,address:listing.address});
+                const {stdout}=await execute(process.env.TEOJABI_PYTHON,['local-reader.py',`selected-${operation}`,payload],{timeout:25000,maxBuffer:33554432});
+                const result=transform(listing,JSON.parse(stdout));
+                console.log({operation,status:result.status});
+              }catch(error){console.log({operation,type:error.name,message:String(error.message).replace(/postgres(?:ql)?:\/\/\S+/gi,'[database-url]').slice(0,300)});}
+            }
+            NODEEOF
