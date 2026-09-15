@@ -1,18 +1,25 @@
 import { apiFetch } from './api-client.mjs';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+export const GUEST_FAVORITES_KEY='teojabi.guest-favorites.v1';
+const validGuestFavorite=item=>item&&item.kind==='favorite'&&typeof item.key==='string'&&item.key.length<=80&&item.payload?.id===item.key;
 export class MemberStore extends EventTarget {
-  constructor(){super();this.items=[];this.user=null;this.status='idle';this.base='';}
+  constructor(storage=globalThis.localStorage){super();this.items=[];this.user=null;this.status='idle';this.base='';this.storage=storage;}
+  guestItems(){try{const rows=JSON.parse(this.storage?.getItem(GUEST_FAVORITES_KEY)||'[]');return Array.isArray(rows)?rows.filter(validGuestFavorite).slice(0,100):[];}catch{return [];}}
+  writeGuestItems(items){try{this.storage?.setItem(GUEST_FAVORITES_KEY,JSON.stringify(items.filter(validGuestFavorite).slice(0,100)));return true;}catch{return false;}}
   emit(){this.dispatchEvent(new Event('change'));}
   async refresh(){
     this.status='loading';this.items=[];this.user=null;this.emit();
     try {
       const runtime=await apiFetch('/api/runtime').then(r=>r.json());this.base=runtime.accountApiBase||'';
-      if(!this.base){this.status='pending';this.user=null;this.items=[];this.emit();return;}
+      if(!this.base){this.items=this.guestItems();this.status=this.items.length?'guest':'pending';this.user=null;this.emit();return;}
       const me=await this.request('/users/me');this.user=me;
       const result=await this.request('/discovery/me');
       if(!Array.isArray(result.items))throw new Error('invalid-response');
       this.items=result.items;this.status='ready';
-    }catch(error){this.items=[];this.user=null;this.status=error.status===401?'signed-out':'error';}
+      const guests=this.guestItems().filter(item=>!this.get('favorite',item.key));let migrated=true;
+      for(const item of guests){try{await this.request(`/discovery/favorite/${encodeURIComponent(item.key)}`,{method:'PUT',body:JSON.stringify(item.payload)});this.items.unshift(item);}catch{migrated=false;}}
+      if(guests.length&&migrated)this.writeGuestItems([]);
+    }catch(error){this.items=this.guestItems();this.user=null;this.status=this.items.length?'guest':error.status===401?'signed-out':'error';}
     this.emit();
   }
   async request(path,options={}){
@@ -23,13 +30,21 @@ export class MemberStore extends EventTarget {
   get(kind,key){return this.items.find(i=>i.kind===kind&&i.key===key);}
   hiddenIds(){return this.items.filter(i=>i.kind==='feedback'&&i.payload.choice==='hide').map(i=>i.key);}
   async save(kind,key,payload){
-    if(this.status!=='ready'){openMember();return false;}
+    if(this.status!=='ready'){
+      if(kind!=='favorite')return false;
+      this.items=this.guestItems().filter(i=>i.key!==key);this.items.unshift({kind,key,payload,updatedAt:new Date().toISOString()});
+      if(!this.writeGuestItems(this.items))return false;this.status='guest';this.emit();return true;
+    }
     try{await this.request(`/discovery/${kind}/${encodeURIComponent(key)}`,{method:'PUT',body:JSON.stringify(payload)});}
     catch(error){if(error.status===401){this.items=[];this.user=null;this.status='signed-out';this.emit();}throw error;}
     this.items=this.items.filter(i=>!(i.kind===kind&&i.key===key));this.items.unshift({kind,key,payload,updatedAt:new Date().toISOString()});this.emit();return true;
   }
   async remove(kind,key){
-    if(this.status!=='ready'){openMember();return false;}
+    if(this.status!=='ready'){
+      if(kind!=='favorite')return false;
+      this.items=this.guestItems().filter(i=>i.key!==key);if(!this.writeGuestItems(this.items))return false;
+      this.status=this.items.length?'guest':'signed-out';this.emit();return true;
+    }
     try{await this.request(`/discovery/${kind}/${encodeURIComponent(key)}`,{method:'DELETE'});}
     catch(error){if(error.status===401){this.items=[];this.user=null;this.status='signed-out';this.emit();}throw error;}
     this.items=this.items.filter(i=>!(i.kind===kind&&i.key===key));this.emit();return true;
@@ -41,7 +56,7 @@ export class MemberStore extends EventTarget {
     if(!this.base)return false;
     const response=await apiFetch(this.base+'/api/v1/auth/logout',{method:'POST',credentials:'include',signal:AbortSignal.timeout(12000)});
     if(!response.ok)throw new Error('로그아웃하지 못했어요. 잠시 후 다시 시도해 주세요.');
-    this.items=[];this.user=null;this.status='signed-out';this.emit();return true;
+    this.items=this.guestItems();this.user=null;this.status=this.items.length?'guest':'signed-out';this.emit();return true;
   }
 }
 export const member=new MemberStore();
@@ -67,12 +82,12 @@ export function openMember(mode='member'){
   closeCurrent?.();const before=document.activeElement,dialog=document.createElement('dialog');dialog.className='member-dialog';dialog.setAttribute('aria-labelledby','member-title');
   let filter='favorite';
   const render=()=>{
-    const status=member.status;
-    dialog.innerHTML=`<div class="modal-heading"><div><span class="eyebrow">MY TEOJABI</span><h2 id="member-title">${status==='ready'?'내 보관함':'로그인'}</h2></div><button class="outline" data-member="close" aria-label="창 닫기">×</button></div>${status==='ready'?`<p class="case-note">${esc(member.user.name||'회원')}님의 계정에 저장한 내용이에요.</p><div class="member-tabs">${Object.entries(labels).map(([k,v])=>`<button class="outline" data-member="tab" data-kind="${k}" aria-pressed="${filter===k}">${v} ${member.items.filter(i=>i.kind===k).length}</button>`).join('')}</div><div class="member-items">${member.items.filter(i=>i.kind===filter).map(i=>{
+    const available=status==='ready'||status==='guest';
+    dialog.innerHTML=`<div class="modal-heading"><div><span class="eyebrow">MY TEOJABI</span><h2 id="member-title">${available?'내 보관함':'로그인'}</h2></div><button class="outline" data-member="close" aria-label="창 닫기">×</button></div>${available?`<p class="case-note">${status==='ready'?`${esc(member.user.name||'회원')}님의 계정에 저장한 내용이에요.`:'이 브라우저에 임시 저장한 찜 목록이에요. 로그인하면 계정으로 옮겨집니다.'}</p><div class="member-tabs">${Object.entries(labels).filter(([k])=>status==='ready'||k==='favorite').map(([k,v])=>`<button class="outline" data-member="tab" data-kind="${k}" aria-pressed="${filter===k}">${v} ${member.items.filter(i=>i.kind===k).length}</button>`).join('')}</div><div class="member-items">${member.items.filter(i=>i.kind===filter).map(i=>{
       const p=i.payload,title=p.name||p.address||i.key;
       const description=i.kind==='favorite'?`${p.priceWon?Number(p.priceWon/1e8).toLocaleString('ko-KR')+'억원':'가격 미기재'} · 저장 시점 정보`:i.kind==='condition'?`${p.budgetWon?Number(p.budgetWon/1e8).toLocaleString('ko-KR')+'억원 이하':'예산 제한 없음'} · ${p.districts?.join(' · ')||'서울 전체'}`:i.kind==='analysis'?`선택 ${p.pnus?.length||0}개 필지 · 대지 ${p.fields?.landArea||'미입력'}㎡`:({like:'좋아요',dislike:'아쉬워요',hide:'숨김'}[p.choice]||'')+' · '+(p.reasons?.join(', ')||'이유 미선택');
       return `<article><div><h3>${esc(title)}</h3><p>${esc(description)}</p><small>${new Date(i.updatedAt).toLocaleDateString('ko-KR')} 저장</small></div><div>${i.kind!=='feedback'?`<button class="outline" data-member="open" data-key="${esc(i.key)}">다시 보기</button>`:''}<button class="outline" data-member="remove" data-key="${esc(i.key)}">${i.kind==='feedback'?'의견 되돌리기':'저장 해제'}</button></div></article>`;
-    }).join('')||'<div class="empty"><p>아직 저장한 내용이 없어요.</p><small>매물이나 검토 화면에서 저장해 보세요.</small></div>'}</div>`:`<div class="member-empty"><h3>${status==='loading'?'회원 연결을 확인하고 있어요.':status==='signed-out'?'기존 터잡이 계정으로 로그인해 주세요.':'로그인이 필요해요.'}</h3><p>${status==='pending'?'현재 미리보기에서는 회원 API 주소가 아직 연결되지 않았어요. 운영 사이트 로그인 페이지로 이동할 수 있어요.':status==='error'?'회원 서버에 연결하지 못했어요. 잠시 후 다시 확인해 주세요.':'로그인하면 찜한 매물과 검색 조건, 내 땅 검토를 다시 볼 수 있어요.'}</p>${status==='pending'?`<div class="login-provider-grid"><button class="primary" data-member="preview" type="button">보관함 미리보기</button><a class="outline login-provider" href="https://teojabi.com/mypage.html" target="_blank" rel="noopener noreferrer">기존 사이트에서 로그인 ↗</a></div>`:loginChoices()}<p class="login-note">로그인 완료 후 이 화면으로 돌아오면 내 보관함이 자동으로 연결돼요.</p></div>`}<div class="member-bottom"><span role="status" class="member-message"></span><div>${status==='ready'?'<button class="outline" data-member="logout">로그아웃</button>':''}<button class="outline" data-member="refresh" ${status==='loading'?'disabled':''}>연결 다시 확인</button></div></div>`;
+    }).join('')||'<div class="empty"><p>아직 저장한 내용이 없어요.</p><small>매물이나 검토 화면에서 저장해 보세요.</small></div>'}</div>${status==='guest'?`<div class="member-guest-login"><p>로그인하면 찜 목록을 계정에 저장하고 다른 기기에서도 볼 수 있어요.</p>${loginChoices()}</div>`:''}`:`<div class="member-empty"><h3>${status==='loading'?'회원 연결을 확인하고 있어요.':status==='signed-out'?'기존 터잡이 계정으로 로그인해 주세요.':'로그인이 필요해요.'}</h3><p>${status==='pending'?'현재 미리보기에서는 회원 API 주소가 아직 연결되지 않았어요. 운영 사이트 로그인 페이지로 이동할 수 있어요.':status==='error'?'회원 서버에 연결하지 못했어요. 잠시 후 다시 확인해 주세요.':'로그인하면 찜한 매물과 검색 조건, 내 땅 검토를 다시 볼 수 있어요.'}</p>${status==='pending'?`<div class="login-provider-grid"><button class="primary" data-member="preview" type="button">보관함 미리보기</button><a class="outline login-provider" href="https://teojabi.com/mypage.html" target="_blank" rel="noopener noreferrer">기존 사이트에서 로그인 ↗</a></div>`:loginChoices()}<p class="login-note">로그인 완료 후 이 화면으로 돌아오면 내 보관함이 자동으로 연결돼요.</p></div>`}<div class="member-bottom"><span role="status" class="member-message"></span><div>${status==='ready'?'<button class="outline" data-member="logout">로그아웃</button>':''}<button class="outline" data-member="refresh" ${status==='loading'?'disabled':''}>연결 다시 확인</button></div></div>`;
   };
   const close=()=>{member.removeEventListener('change',render);dialog.remove();before?.focus();};closeCurrent=close;
   member.addEventListener('change',render);dialog.addEventListener('close',close);
