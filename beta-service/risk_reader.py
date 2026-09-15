@@ -71,7 +71,14 @@ def read_risk(connection, source_id, include_registers=True, include_context=Tru
     ''', tuple([listing.get('pnu')] + register_params)) if include_registers and addresses else {'status': 'skipped' if not include_registers else 'missing-address', 'rows': []}
     if remote_mode():
         buildings = fetch('''
-        SELECT to_jsonb(r) AS "recordFields", id::text AS serial, %s::text AS address,
+        SELECT jsonb_build_object(
+                 'pnu',pnu,'건축물대장일련번호',id,'동명',bld_nm,
+                 '대지면적',plat_area,'건축면적',arch_area,'건폐율',bc_rat,
+                 '연면적',tot_area,'용적률',vl_rat,'지상층수',grnd_flr_cnt,
+                 '지하층수',ugnd_flr_cnt,'높이',building_height,
+                 '구조코드명',strct_cd_nm,'주용도코드명',main_purps_cd_nm,
+                 '사용승인일자',use_apr_day,'imported_at',created_at
+               ) AS "recordFields", id::text AS serial, %s::text AS address,
                '표제부'::text AS category, '건축물 현황'::text AS type,
                bld_nm AS name, NULL::text AS role,
                plat_area AS "landArea", tot_area AS "floorArea",
