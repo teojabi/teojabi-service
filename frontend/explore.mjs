@@ -59,7 +59,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
   const body=sheet.querySelector('.sheet-body');
   for(const child of [...page.children])if(child!==mapFrame)body.append(child);
   page.append(sheet);page.classList.add('map-first');
-  function setSheet(open){sheet.classList.toggle('collapsed',!open);body.hidden=!open;sheet.querySelector('.sheet-handle').setAttribute('aria-expanded',String(open));sheet.querySelector('.sheet-label').textContent=open?'조건·매물 접기':`조건·매물 보기${result?' · '+result.totalParcels+'개':''}`;sheet.querySelector('.sheet-arrow').textContent=open?'⌄':'⌃';}
+  function setSheet(open){const mobile=matchMedia('(max-width:700px)').matches;sheet.classList.toggle('collapsed',!open);body.hidden=!open;sheet.querySelector('.sheet-handle').setAttribute('aria-expanded',String(open));sheet.querySelector('.sheet-label').textContent=open?'조건·매물 접기':`조건·매물 보기${result?' · '+result.totalParcels+'개':''}`;sheet.querySelector('.sheet-arrow').textContent=mobile?(open?'‹':'›'):(open?'⌄':'⌃');}
   root.addEventListener('change',event=>{if(event.target.matches('[name=sort]')){sort=event.target.value;limit=5;closeDetail();load();}},{signal:abort.signal});
   const updateCriteria=()=>{
     quickFilters?.update();
