@@ -56,8 +56,9 @@ def read_risk(connection, source_id, include_registers=True, include_context=Tru
     register_where = '''"대지위치"=ANY(%s)'''
     register_params = [addresses]
     if structured_lot and district and neighborhood:
-        register_where += ''' OR ("시군구코드명" IN (%s,%s) AND "법정동코드명"=%s AND ("주지번"=ANY(%s) OR ("주지번"=ANY(%s) AND COALESCE("부지번",'0')=ANY(%s))))'''
-        register_params.extend([district, '서울특별시 ' + district, neighborhood, *structured_lot])
+        address_patterns = [f'%{district}%{neighborhood}% {structured_lot[0][0]}', f'%{district}%{neighborhood}% {structured_lot[0][1]}']
+        register_where += ''' OR ("시군구코드명" IN (%s,%s) AND "법정동코드명"=%s AND ("주지번"=ANY(%s) OR ("주지번"=ANY(%s) AND COALESCE("부지번",'0')=ANY(%s)))) OR "대지위치" LIKE ANY(%s)'''
+        register_params.extend([district, '서울특별시 ' + district, neighborhood, *structured_lot, address_patterns])
     recap = fetch('''
         SELECT to_jsonb(r) AS "recordFields", "건축물대장일련번호" AS serial, "대지위치" AS address,
                "대장구분코드명" AS category, "대장종류코드명" AS type,
