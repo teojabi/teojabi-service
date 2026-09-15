@@ -170,7 +170,7 @@ function open(id){
   const s=row.snapshot||{},p=pickOf(row),initialNo=p.pickNo||randomNo(),initialDescription=p.headline||s.description?.split('\n')[0]||'',naverUrl=naverArticleUrl(row);
   const facts=[['가격',money(s.price)],['대지면적',area(s.areaM2)],['연면적',area(s.floorAreaM2)],['용도지역',s.zoning],['주용도',s.mainUse],['층 정보',s.floorInfo||s.aboveFloors&&`지상 ${s.aboveFloors}층`],['사용승인일',s.approvalDate],['수집 상태',s.sourceStatus]];
   $('#review-detail').innerHTML=`<div class="review-detail-head"><span class="eyebrow">${rowIsPick?'터잡이픽 수정':row.registered?'등록 매물 · 터잡이픽 전환':'원자료 매물 등록'}</span><h2>${esc(s.address)}</h2><div class="review-price">${money(s.price)}</div>
-    <div class="review-detail-tools"><button id="candidate-street">네이버 거리뷰</button>${naverUrl?`<a href="${naverUrl}" target="_blank" rel="noopener noreferrer">네이버 매물 보기 ↗</a>`:''}<a href="/index.html#analyze" target="_blank" rel="noopener">내건물·토지로 검토 ↗</a>${s.source_table==='naver'||row.source_table==='naver'?`<a href="/index.html#listing=naver%3A${encodeURIComponent(row.source_id)}" target="_blank" rel="noopener">사용자 상세 보기 ↗</a>`:''}</div></div>
+    <div class="review-detail-tools"><button id="candidate-street">네이버 거리뷰</button>${naverUrl?`<a href="${naverUrl}" target="_blank" rel="noopener noreferrer">네이버 매물 보기 ↗</a>`:''}<a href="/index.html#analyze" target="_blank" rel="noopener">건물·토지로 검토 ↗</a>${s.source_table==='naver'||row.source_table==='naver'?`<a href="/index.html#listing=naver%3A${encodeURIComponent(row.source_id)}" target="_blank" rel="noopener">사용자 상세 보기 ↗</a>`:''}</div></div>
     <div id="candidate-map" class="review-map" role="region" aria-label="매물 위치 지도"></div><p id="candidate-map-status" class="review-map-status">지도를 불러오고 있어요.</p>
     <div class="review-detail-body"><dl class="review-facts">${facts.map(([k,v])=>`<div><dt>${k}</dt><dd>${esc(v||'미기재')}</dd></div>`).join('')}</dl>
     <form id="candidate-register" class="review-form review-section"><h3>${row.registered?(rowIsPick?'터잡이픽 수정':'터잡이픽 등록'):'터잡이 매물 등록'}</h3>
@@ -256,6 +256,7 @@ $('#bulk-register').onclick=async()=>{
 setModeButtons();
 load();
 initAdminAccess();
+
 
 
 

@@ -44,7 +44,7 @@ function faq() {
     ['매물 가격이 적절한지 어떻게 비교하나요?','매물 상세에서 가까운 필지의 실거래를 최대 5곳까지 확인할 수 있어요. 최근 36개월 거래를 반경 500m부터 찾고, 부족하면 1km까지 넓혀요. 거리순으로 보여주므로 면적이나 건물 상태가 비슷한 사례만 모은 것은 아니에요. 거래일·대지면적·연면적을 함께 비교하고, 각 카드의 지도 보기로 위치를 확인해 보세요.'],
     ['직접 방문하기 전에 무엇을 확인할 수 있나요?','지도와 네이버 거리뷰로 주변 환경을 살펴보고, 보유한 토지대장·건축물대장 자료를 펼쳐볼 수 있어요. 매물에 표시된 면적과 대장에 기록된 면적은 각각의 자료 그대로 보여드려요. 대장 보기는 발급 원본 서류가 아니며, 거리뷰도 촬영 시점의 모습이에요.'],
     ['신축할 땅을 찾을 때 어떤 조건을 볼 수 있나요?','신축 목적을 선택하면 계획한 용도와 도로폭, 교육보호구역·문화재보존구역 제외 조건 등을 고를 수 있어요. 호텔·숙박시설은 관광숙박특화구역 우선 조건도 선택할 수 있어요. 상세에서는 해당 구역과 지구단위계획, 보유한 높이제한 자료 등을 확인할 수 있으며, 실제 건축 가능 여부는 별도 검토가 필요해요.'],
-    ['이미 가진 건물이나 여러 필지도 검토할 수 있나요?','내 건물·토지에서 지도를 눌러 필지를 선택하면 주소가 자동으로 입력돼요. 여러 필지를 함께 선택하고, 공부상 면적 합계를 검토에 적용할 수 있어요. 확인되는 용적률·건폐율은 자동으로 채워지며, 필지별 값이 다르거나 자료가 없으면 직접 확인해 입력하도록 안내해요.'],
+    ['이미 가진 건물이나 여러 필지도 검토할 수 있나요?','건물·토지에서 지도를 눌러 필지를 선택하면 주소가 자동으로 입력돼요. 여러 필지를 함께 선택하고, 공부상 면적 합계를 검토에 적용할 수 있어요. 확인되는 용적률·건폐율은 자동으로 채워지며, 필지별 값이 다르거나 자료가 없으면 직접 확인해 입력하도록 안내해요.'],
     ['예상 공사비는 어떻게 계산하나요?','대지면적에 용적률을 적용한 검토 연면적을 기준으로 계산해요. 평당 공사비는 기본 1,000만원이며 원하는 금액으로 바꿀 수 있고, 설계비는 공사비의 5%로 표시해요. 면적은 ㎡·평으로 전환할 수 있어요. 지하층 등 용적률 제외 면적과 토지비·철거비·세금 등을 포함한 총사업비는 아니며, 계산 결과는 검토 내보내기로 보관할 수 있어요.'],
   ];
   return `<section class="faq-section" id="service-faq" aria-labelledby="faq-title"><div class="faq-intro"><span class="eyebrow">WHY TEOJABI</span><h2 id="faq-title" tabindex="-1">찾기부터 검토까지,<br>궁금한 점을 모았어요.</h2><p>내 조건으로 찾고, 자료로 비교하고,<br>내 땅의 가능성을 살펴보세요.</p></div><div class="faq-list">${entries.map(([q,a],i)=>`<details><summary><span class="faq-q">Q.</span><span>${q}</span><span class="faq-plus" aria-hidden="true">+</span></summary><p>${a}</p></details>`).join('')}<p class="faq-preview-note">자료별 기준일과 현황은 다를 수 있어요. 계약이나 설계 전에는 최신 서류와 현장을 함께 확인해 주세요.</p></div></section>`;
@@ -60,8 +60,12 @@ window.addEventListener('teojabi-open-saved',event=>{
 let enteredMember=null;
 let completedThisVisit=false;
 function rememberSearch(next){
-  if(member.status==='ready')writeMemberSearch(member.user,next);
-  return writeRecentSearch(next);
+  const stored=writeRecentSearch(next);
+  if(member.status==='ready'){
+    writeMemberSearch(member.user,next);
+    member.save('condition','primary',next).catch(()=>{});
+  }
+  return stored;
 }
 function updateMemberButton(){
   const button=document.querySelector('#member-login');
@@ -91,7 +95,7 @@ function home() {
   return `<section class="home"><div class="intro"><div><span class="eyebrow">YOUR NEXT PLACE, TEOJABI</span><h1>미래의 건물,<br>찾는 기준부터.</h1></div><div class="intro-brand"><span class="home-symbol" role="img" aria-label="터잡이 로고마크"></span><p class="lead">원하는 공간을 찾는 일도,<br>내 공간을 다시 바라보는 일도.<br>터잡이에서 차근차근 시작하세요.</p></div></div>
     <section class="activity-section" id="market-activity" aria-label="보유 자료 현황" aria-live="polite">${activity()}</section>
     <div class="entry-grid"><button class="entry entry-primary" data-action="find"><span class="entry-tag">FIND YOUR BUILDING</span><h2>마음에 드는<br>건물을 찾고 싶어요.</h2><p>목적과 예산, 원하는 지역부터 알려주세요.</p><span class="entry-cta">건물 찾기 시작 <span class="circle">${arrow}</span></span>${buildingArt}</button>
-    <button class="entry entry-secondary" data-action="analyze"><span class="entry-tag">UNDERSTAND YOUR PLACE</span><h2>내 건물과 토지를<br>살펴보고 싶어요.</h2><p>필지의 현황과 확인할 자료를 함께 봐요.</p><span class="entry-cta">내 공간 살펴보기 <span class="circle">${arrow}</span></span>${parcelArt}</button></div>
+    <button class="entry entry-secondary" data-action="analyze"><span class="entry-tag">UNDERSTAND YOUR PLACE</span><h2>건물과 토지를<br>살펴보고 싶어요.</h2><p>신축할 필지의 현황과 확인할 자료를 함께 봐요.</p><span class="entry-cta">신축 검토 시작 <span class="circle">${arrow}</span></span>${parcelArt}</button></div>
     <div class="home-browse"><p class="home-note"><span>i</span>확인된 정보로 살펴보고, 확인이 필요한 부분은 구분해 알려드려요.</p><button class="outline" data-action="browse">선별 매물 전체 둘러보기 ↗</button><button class="outline" data-action="preview-member">내 보관함 미리보기</button></div>
     ${faq()}</section>`;
 }
@@ -141,7 +145,7 @@ function render(focus = true) {
   app.innerHTML = ({ home, purpose, 'build-use':buildUse, budget, region })[state.screen]();
   if(state.screen==='region'&&state.draft.purpose==='new-build')app.querySelector('.selected-summary').insertAdjacentHTML('afterend',`<p class="build-applied-summary">${escape(buildConditionLabels(state.draft).join(' · ')||'신축 추가 조건 없음')}</p>`);
   }
-  document.title = `${{ home:'터잡이', purpose:'건물 찾는 목적', 'build-use':'신축 용도·부지 조건', budget:'매입 예산', region:'지역 선택', results:'내 조건으로 살펴보기', analyze:'내 공간 살펴보기' }[state.screen]} — 로컬 미리보기 v1.8`;
+  document.title = `${{ home:'터잡이', purpose:'건물 찾는 목적', 'build-use':'신축 용도·부지 조건', budget:'매입 예산', region:'지역 선택', results:'내 조건으로 살펴보기', analyze:'신축 검토 시작' }[state.screen]} — 로컬 미리보기 v1.8`;
   if(state.screen==='home'&&!state.activity&&!state.activityError)loadActivity();
   if (focus) {
     const heading = app.querySelector('h1');
@@ -170,7 +174,11 @@ document.addEventListener('click', event => {
   if (action === 'saved') {openMember();return;}
   if (action === 'home') { state.screen = 'home'; state.editing = false; }
   if (action === 'browse') { state.screen='results';state.applied=null;state.editing=false;history.replaceState(null,'',location.pathname); }
-  if (action === 'find') { state.draft=appliedDraft();state.screen = 'purpose'; state.editing = false; }
+  if (action === 'find') {
+    state.draft=appliedDraft();state.editing=false;
+    if(state.applied){state.screen='results';history.replaceState(null,'',location.pathname+'#search');}
+    else state.screen='purpose';
+  }
   if (action === 'analyze') { state.screen = 'analyze'; state.editing = false; }
   if (action === 'budget') {
     state.draft.budgetEok = button.dataset.value;
@@ -248,3 +256,5 @@ async function loadActivity() {
 // Activity reads a local completed-run summary; it does not query Supabase on each visit.
 setInterval(()=>{if(state.screen==='home'&&!document.hidden)loadActivity();},60000);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&state.screen==='home')loadActivity();});
+
+

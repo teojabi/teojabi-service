@@ -108,3 +108,4 @@ input,textarea,select{color:var(--text);background:var(--card)}button:focus-visi
 @media(max-width:650px){.service-footer{margin-left:12px;margin-right:12px}.footer-policy{justify-content:center;overflow-x:auto}.footer-policy a{padding-left:5px;padding-right:5px}.footer-policy a:first-child{padding-left:0}.footer-policy a:last-child{padding-right:0}}
 @media(max-width:700px){.intro-brand .home-symbol{-webkit-mask-size:140%;mask-size:140%}}
 .member-bottom>div{display:flex;gap:8px;margin-left:auto}
+.member-guest-login{margin-top:20px;padding:16px;border-radius:12px;background:var(--selected);border:1px solid var(--line)}.member-guest-login p{font-size:12px;color:var(--muted);margin:0 0 10px}
