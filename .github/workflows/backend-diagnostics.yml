@@ -24,6 +24,15 @@ jobs:
             free -m
             echo 'DISK'
             df -h .
+            echo 'BETA RUNTIME PREREQUISITES'
+            command -v python3 || true
+            python3 --version || true
+            python3 -c 'import psycopg2; print("psycopg2", psycopg2.__version__)' || true
+            if sudo -n true 2>/dev/null; then echo 'PASSWORDLESS_SUDO yes'; else echo 'PASSWORDLESS_SUDO no'; fi
+            echo 'LISTENING TCP PORTS'
+            ss -ltn | head -30 || true
+            echo 'NGINX ROUTES (VALUES REDACTED TO ROUTING DIRECTIVES)'
+            sudo -n nginx -T 2>/dev/null | grep -E '^[[:space:]]*(listen|server_name|location|proxy_pass)' | head -80 || true
             echo 'NODE PROCESSES (NO ARGUMENTS OR ENVIRONMENT)'
             ps -eo pid,etime,pcpu,pmem,comm | awk '$5 ~ /node|npm/ { print }'
             echo 'NPM LOG SIZES AND RECENT ERROR CODES'
