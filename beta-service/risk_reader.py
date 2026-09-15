@@ -66,9 +66,9 @@ def read_risk(connection, source_id, include_registers=True, include_context=Tru
                "주건축물수" AS "mainCount", "부속건축물수" AS "accessoryCount",
                "총주차수" AS parking, "주용도코드명" AS use,
                "사용승인일자" AS "approvalDate", COUNT(*) OVER() AS total
-        FROM public.seoul_building_register r WHERE '''+register_where+'''
+        FROM public.seoul_building_register r WHERE pnu=%s OR ('''+register_where+''')
         ORDER BY "건축물대장일련번호" LIMIT 31
-    ''', tuple(register_params)) if include_registers and addresses else {'status': 'skipped' if not include_registers else 'missing-address', 'rows': []}
+    ''', tuple([listing.get('pnu')] + register_params)) if include_registers and addresses else {'status': 'skipped' if not include_registers else 'missing-address', 'rows': []}
     building_where = register_where
     building_params = list(register_params)
     if remote_mode() and isinstance(listing.get('pnu'), str):
