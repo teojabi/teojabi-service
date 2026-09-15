@@ -95,6 +95,11 @@ jobs:
             PORTONE_WEBHOOK_SECRET="${PORTONE_WEBHOOK_SECRET}"
             ENVEOF
 
+            # One-time cleanup for the first beta-service deployment, which placed
+            # runtime files inside this checkout before the tracked directory existed.
+            if [ -d "$HOME/teojabi-service/beta-service" ] && ! git ls-files --error-unmatch beta-service/serve.mjs >/dev/null 2>&1; then
+              rm -rf "$HOME/teojabi-service/beta-service"
+            fi
             git pull --ff-only origin main
             tar -xzf backend-deploy.tgz
             rm -f backend-deploy.tgz
