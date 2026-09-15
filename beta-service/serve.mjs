@@ -115,6 +115,11 @@ function send(response,request,result,status=200) {
   response.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});
   response.end(request.method==='HEAD'?undefined:JSON.stringify(result));
 }
+function reportReadError(scope,error) {
+  const name=String(error?.name||'Error').slice(0,80);
+  const message=String(error?.message||'unknown').replace(/postgres(?:ql)?:\/\/\S+/gi,'[database-url]').slice(0,300);
+  console.error(`[${scope}] ${name}: ${message}`);
+}
 function staticHeaders(type,stats) {
   const etag=`W/"${stats.size.toString(16)}-${Math.trunc(stats.mtimeMs).toString(16)}"`;
   return {
@@ -255,7 +260,7 @@ createServer(async (request, response) => {
       const result=(land?normalizeLandRecord:registers?buildBuildingRecords:buildRiskReview)(listing,await riskCache.get(cacheKey));
       if(!['ready','missing','invalid-area'].includes(result.status)||result.road?.status==='error')riskCache.delete(cacheKey);
       send(response,request,compact&&result.status!=='error'?{status:result.road.status==='error'?'partial':result.status,zones:result.zones,road:result.road}:result,result.status==='error'?503:200);
-    } catch {send(response,request,{status:'error',message:'신축 검토 자료를 불러오지 못했습니다.'},503);}
+    } catch (error) {reportReadError('listing-detail',error);send(response,request,{status:'error',message:'신축 검토 자료를 불러오지 못했습니다.'},503);}
     return;
   }
   if(path.startsWith('/api/nearby-transactions/')) {
@@ -276,7 +281,7 @@ createServer(async (request, response) => {
       const result=nearbyTransactions(listing,adapted.records,adapted.context,{matchKind:false,onePerParcel:true});
       for(const item of result.cases)item.address=data.rows.find(row=>row.pnu===item.pnu&&row.address)?.address||null;
       send(response,request,{...result,listingId:id});
-    } catch {send(response,request,{status:'error',cases:[]},503);}
+    } catch (error) {reportReadError('nearby-transactions',error);send(response,request,{status:'error',cases:[]},503);}
     return;
   }
   if (path==='/api/catalog' || path.startsWith('/api/listings/') || path.startsWith('/api/parcels/')) {
