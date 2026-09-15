@@ -130,7 +130,7 @@ export class ListingMap {
       if (this.dead || !this.container.isConnected) return;
       this.n=n;
       this.map=new n.Map(this.container,{center:new n.LatLng(this.center?.lat||37.5665,this.center?.lng||126.978),zoom:this.zoom||12,
-        minZoom:9,maxZoom:20,zoomControl:true,zoomControlOptions:{position:n.Position.TOP_RIGHT},mapDataControl:true,scaleControl:true});
+        minZoom:9,maxZoom:20,zoomControl:false,mapDataControl:false,scaleControl:true});
       if(authError)throw new Error(authError);
       this.ready=true;
       this.listeners.push(n.Event.addListener(this.map,'idle',()=>{this.layoutTransactions();this.onMove?.(this.view());}));
@@ -273,6 +273,7 @@ export class ListingMap {
     }
   }
   resetView() {if(!this.fitTransactions())this.setGroups(this.groups||[],this.selected,true);}
+  toggleCadastral(){if(!this.ready)return false;this.cadastralLayer??=new this.n.CadastralLayer();this.cadastralVisible=!this.cadastralVisible;this.cadastralLayer.setMap(this.cadastralVisible?this.map:null);return this.cadastralVisible;}
   setVisible(value){this.visible=Boolean(value);if(!this.ready)return;for(const {marker} of this.markers)marker.setMap(this.visible?this.map:null);this.extraMarker?.setMap(this.visible?this.map:null);this.layoutTransactions();}
   view() {
     if(!this.map||!this.ready)return null;
