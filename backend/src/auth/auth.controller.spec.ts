@@ -49,6 +49,25 @@ describe('AuthController', () => {
     expect(controller).toBeDefined();
   });
 
+  it('logout clears every authentication cookie with production-compatible options', async () => {
+    const previousEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'production';
+    const res = createResponse();
+    try {
+      await controller.logout(res);
+      for (const name of ['access_token', 'pending_signup_token', 'pending_signup_provider']) {
+        expect(res.clearCookie).toHaveBeenCalledWith(
+          name,
+          expect.objectContaining({ httpOnly: true, secure: true, sameSite: 'none' }),
+        );
+      }
+      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ success: true }));
+    } finally {
+      if (previousEnv === undefined) delete process.env.NODE_ENV;
+      else process.env.NODE_ENV = previousEnv;
+    }
+  });
+
   it('beta mode returns existing members and administrators to the new pages', () => {
     const previous=process.env.TEOJABI_FRONTEND_MODE;
     try {

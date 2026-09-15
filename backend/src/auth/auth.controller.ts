@@ -237,11 +237,10 @@ export class AuthController {
 
   @Post('logout')
   async logout(@Res() res: Response) {
-    res.clearCookie('access_token', {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-    });
+    const cookieOptions = this.getAuthCookieOptions();
+    res.clearCookie('access_token', cookieOptions);
+    res.clearCookie('pending_signup_token', cookieOptions);
+    res.clearCookie('pending_signup_provider', cookieOptions);
     return res.json({ success: true, message: 'Logged out successfully' });
   }
 
