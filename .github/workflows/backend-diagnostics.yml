@@ -47,12 +47,13 @@ jobs:
             . ./.env
             set +a
             .venv/bin/python -X utf8 - <<'PYEOF' || true
-            import importlib.util
+            import importlib.util,re
             spec=importlib.util.spec_from_file_location('reader','local-reader.py')
             reader=importlib.util.module_from_spec(spec);spec.loader.exec_module(reader)
             try:
                 print(reader.read('selected-context','{"sourceId":"2643920724","pnu":"1132010500104140131","address":"서울특별시 도봉구 쌍문동 414-131"}'))
             except Exception as error:
                 diag=getattr(error,'diag',None)
-                print({'type':type(error).__name__,'pgcode':getattr(error,'pgcode',None),'message':getattr(diag,'message_primary',None),'table':getattr(diag,'table_name',None),'column':getattr(diag,'column_name',None)})
+                safe=re.sub(r'postgres(?:ql)?://\S+','[database-url]',str(error))[:500]
+                print({'type':type(error).__name__,'pgcode':getattr(error,'pgcode',None),'message':getattr(diag,'message_primary',None) or safe,'table':getattr(diag,'table_name',None),'column':getattr(diag,'column_name',None)})
             PYEOF
