@@ -25,7 +25,7 @@ jobs:
           username: ${{ secrets.NCP_SSH_USER }}
           password: ${{ secrets.NCP_SSH_PASSWORD }}
           source: beta-service-deploy.tgz
-          target: ~/teojabi-service/beta-service
+          target: ~/teojabi-runtime/beta-service
           timeout: 2m
           command_timeout: 5m
 
@@ -41,7 +41,7 @@ jobs:
           envs: DATABASE_URL
           script: |
             set -e
-            cd ~/teojabi-service/beta-service
+            cd ~/teojabi-runtime/beta-service
             tar -xzf beta-service-deploy.tgz
             rm -f beta-service-deploy.tgz
 
@@ -59,7 +59,7 @@ jobs:
             TEOJABI_SERVICE_MODE=production
             TEOJABI_DATA_SOURCE=supabase
             TEOJABI_DATABASE_URL=${DATABASE_URL}
-            TEOJABI_PYTHON=$HOME/teojabi-service/beta-service/.venv/bin/python
+            TEOJABI_PYTHON=$HOME/teojabi-runtime/beta-service/.venv/bin/python
             TEOJABI_ALLOWED_HOSTS=api.teojabi.com
             TEOJABI_WEB_ORIGINS=https://teojabi.com,https://www.teojabi.com
             DISCOVERY_API_BASE=https://api.teojabi.com
