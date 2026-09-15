@@ -41,3 +41,9 @@ jobs:
               stat -c 'Log bytes: %s; modified: %y' "$latest_log"
               grep -E 'error code |error errno |error syscall |verbose exit |verbose code ' "$latest_log" | tail -10 || true
             fi
+            echo 'BETA SUPABASE READ CHECK'
+            cd ~/teojabi-runtime/beta-service
+            set -a
+            . ./.env
+            set +a
+            .venv/bin/python -X utf8 local-reader.py selected-context '{"sourceId":"2643920724","pnu":"1132010500104140131","address":"서울특별시 도봉구 쌍문동 414-131"}' 2>&1 | tail -60 || true
