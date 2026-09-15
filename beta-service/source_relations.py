@@ -4,7 +4,7 @@ def remote_mode():
     return os.getenv('TEOJABI_DATA_SOURCE','local') in ('supabase','remote')
 
 def building_relation():
-    return 'public.staging_building_info' if remote_mode() else 'public.bldg_register'
+    return 'public.bldg_register'
 
 def ledger_relation():
     if not remote_mode():
