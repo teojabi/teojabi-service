@@ -1,0 +1,96 @@
+name: Deploy Beta Data Service
+
+on:
+  push:
+    branches: [ "main" ]
+    paths:
+      - 'beta-service/**'
+      - '.github/workflows/beta-service-deploy.yml'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Package beta data service
+        run: tar -czf beta-service-deploy.tgz -C beta-service .
+
+      - name: Upload beta data service
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.NCP_SSH_HOST }}
+          username: ${{ secrets.NCP_SSH_USER }}
+          password: ${{ secrets.NCP_SSH_PASSWORD }}
+          source: beta-service-deploy.tgz
+          target: ~/teojabi-service/beta-service
+          timeout: 2m
+          command_timeout: 5m
+
+      - name: Activate beta data service
+        uses: appleboy/ssh-action@v1.1.0
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        with:
+          host: ${{ secrets.NCP_SSH_HOST }}
+          username: ${{ secrets.NCP_SSH_USER }}
+          password: ${{ secrets.NCP_SSH_PASSWORD }}
+          command_timeout: 10m
+          envs: DATABASE_URL
+          script: |
+            set -e
+            cd ~/teojabi-service/beta-service
+            tar -xzf beta-service-deploy.tgz
+            rm -f beta-service-deploy.tgz
+
+            if [ ! -x .venv/bin/python ]; then
+              python3 -m venv .venv
+            fi
+            .venv/bin/pip install --disable-pip-version-check --no-cache-dir psycopg2-binary==2.9.10
+
+            cat > .env << ENVEOF
+            TEOJABI_SERVICE_MODE=production
+            TEOJABI_DATA_SOURCE=supabase
+            TEOJABI_DATABASE_URL=${DATABASE_URL}
+            TEOJABI_PYTHON=$HOME/teojabi-service/beta-service/.venv/bin/python
+            TEOJABI_ALLOWED_HOSTS=api.teojabi.com
+            TEOJABI_WEB_ORIGINS=https://teojabi.com,https://www.teojabi.com
+            DISCOVERY_API_BASE=https://api.teojabi.com
+            NAVER_MAP_CLIENT_ID=f8td9fq8kq
+            PORT=4173
+            ENVEOF
+            chmod 600 .env
+
+            set -a
+            . ./.env
+            set +a
+            if pm2 describe teojabi-data >/dev/null 2>&1; then
+              pm2 reload teojabi-data --update-env
+            else
+              pm2 start serve.mjs --name teojabi-data
+            fi
+            pm2 save
+
+            sudo mkdir -p /etc/nginx/snippets
+            sudo tee /etc/nginx/snippets/teojabi-beta.conf >/dev/null <<'NGINXEOF'
+            location ^~ /beta/ {
+                proxy_pass http://127.0.0.1:4173/;
+                proxy_http_version 1.1;
+                proxy_set_header Host $host;
+                proxy_set_header X-Real-IP $remote_addr;
+                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                proxy_set_header X-Forwarded-Proto $scheme;
+            }
+            NGINXEOF
+            nginx_file=$(sudo grep -RIl 'server_name api.teojabi.com' /etc/nginx/sites-enabled /etc/nginx/conf.d | head -1)
+            test -n "$nginx_file"
+            if ! sudo grep -q 'teojabi-beta.conf' "$nginx_file"; then
+              sudo sed -i '/server_name api\.teojabi\.com;/a\    include /etc/nginx/snippets/teojabi-beta.conf;' "$nginx_file"
+            fi
+            sudo nginx -t
+            sudo systemctl reload nginx
+            sleep 3
+            curl --fail --silent --show-error -H 'Host: api.teojabi.com' 'http://127.0.0.1:4173/api/catalog?limit=1' >/dev/null
+            pm2 describe teojabi-data
