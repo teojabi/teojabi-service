@@ -1,0 +1,34 @@
+name: Inspect Backend Deployment
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/backend-diagnostics.yml']
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Inspect installation without changing the running service
+        uses: appleboy/ssh-action@v1.1.0
+        with:
+          host: ${{ secrets.NCP_SSH_HOST }}
+          username: ${{ secrets.NCP_SSH_USER }}
+          password: ${{ secrets.NCP_SSH_PASSWORD }}
+          command_timeout: 2m
+          script: |
+            set -e
+            cd ~/teojabi-service/backend
+            echo 'MEMORY'
+            free -m
+            echo 'DISK'
+            df -h .
+            echo 'NODE PROCESSES (NO ARGUMENTS OR ENVIRONMENT)'
+            ps -eo pid,etime,pcpu,pmem,comm | awk '$5 ~ /node|npm/ { print }'
+            echo 'NPM LOG SIZES AND RECENT ERROR CODES'
+            latest_log=$(find ~/.npm/_logs -maxdepth 1 -name '*debug*.log' -printf '%T@ %p\n' | sort -nr | head -1 | cut -d' ' -f2-)
+            if [ -n "$latest_log" ]; then
+              stat -c 'Log bytes: %s; modified: %y' "$latest_log"
+              grep -E 'error code |error errno |error syscall |verbose exit |verbose code ' "$latest_log" | tail -10 || true
+            fi
