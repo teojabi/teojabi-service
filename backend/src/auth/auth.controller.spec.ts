@@ -49,6 +49,35 @@ describe('AuthController', () => {
     expect(controller).toBeDefined();
   });
 
+  it('beta mode returns existing members and administrators to the new pages', () => {
+    const previous=process.env.TEOJABI_FRONTEND_MODE;
+    try {
+      process.env.TEOJABI_FRONTEND_MODE='beta';
+      expect((controller as any).buildRedirectUrl({role:'ADMIN'},'https://teojabi.com')).toBe('https://teojabi.com/curation.html');
+      expect((controller as any).buildRedirectUrl({role:'USER'},'https://teojabi.com')).toBe('https://teojabi.com/index.html');
+      delete process.env.TEOJABI_FRONTEND_MODE;
+      expect((controller as any).buildRedirectUrl({role:'ADMIN'},'https://teojabi.com')).toBe('https://teojabi.com/admin.html');
+    }finally{if(previous===undefined)delete process.env.TEOJABI_FRONTEND_MODE;else process.env.TEOJABI_FRONTEND_MODE=previous;}
+  });
+
+  it('production cannot issue mock administrator cookies even if the test flag is set', async () => {
+    const previousEnv = process.env.NODE_ENV;
+    const previousFlag = process.env.ENABLE_MOCK_LOGIN;
+    process.env.NODE_ENV = 'production';
+    process.env.ENABLE_MOCK_LOGIN = 'true';
+    const res = createResponse();
+    try {
+      await expect(controller.mockLogin(res)).rejects.toMatchObject({ status: 404 });
+      expect(authService.findExistingSocialUser).not.toHaveBeenCalled();
+      expect(res.cookie).not.toHaveBeenCalled();
+    } finally {
+      if (previousEnv === undefined) delete process.env.NODE_ENV;
+      else process.env.NODE_ENV = previousEnv;
+      if (previousFlag === undefined) delete process.env.ENABLE_MOCK_LOGIN;
+      else process.env.ENABLE_MOCK_LOGIN = previousFlag;
+    }
+  });
+
   it('기존 소셜 사용자는 콜백에서 즉시 로그인 쿠키를 발급한다', async () => {
     const req = {
       user: {
@@ -196,7 +225,7 @@ describe('AuthController', () => {
       expect.objectContaining({ httpOnly: true }),
     );
     expect(res.json).toHaveBeenCalledWith(
-      expect.objectContaining({ success: true, redirectUrl: '/mypage.html?newUser=1' }),
+      expect.objectContaining({ success: true, redirectUrl: '/mypage.html?is_new=true' }),
     );
   });
 });

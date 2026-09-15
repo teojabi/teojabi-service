@@ -9,8 +9,12 @@ async function bootstrap() {
 
   app.use(cookieParser());
 
+  const allowedOrigins = [process.env.FRONTEND_URL || 'http://localhost:3000', ...(process.env.FRONTEND_URLS || '').split(',')]
+    .map((origin) => origin.trim())
+    .filter((origin, index, origins) => origin && origins.indexOf(origin) === index);
+
   app.enableCors({
-    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+    origin: allowedOrigins,
     credentials: true,
   });
 

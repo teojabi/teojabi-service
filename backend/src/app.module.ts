@@ -14,6 +14,8 @@ import { FavoritesModule } from './favorites/favorites.module';
 import { SettingsModule } from './settings/settings.module';
 import { SubscriptionsModule } from './subscriptions/subscriptions.module';
 import { EmailVerificationModule } from './email-verification/email-verification.module';
+import { DiscoveryModule } from './discovery/discovery.module';
+import { AdminAccessModule } from './admin-access/admin-access.module';
 
 @Module({
   imports: [
@@ -32,6 +34,8 @@ import { EmailVerificationModule } from './email-verification/email-verification
     SettingsModule,
     SubscriptionsModule,
     EmailVerificationModule,
+    DiscoveryModule,
+    AdminAccessModule,
   ],
   controllers: [AppController],
   providers: [AppService],

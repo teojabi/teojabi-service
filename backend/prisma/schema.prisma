@@ -28,12 +28,29 @@ model User {
   subscriptions           UserSubscription[]
   billingKeys             BillingKey[]
   emailVerificationTokens EmailVerificationToken[]
+  adminMembership         AdminMember? @relation("AdminMemberUser")
+  grantedAdmins           AdminMember[] @relation("AdminMemberGranter")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@unique([provider, providerId])
   @@map("user")
+}
+
+model AdminMember {
+  userId       String   @id @map("user_id")
+  user         User     @relation("AdminMemberUser", fields: [userId], references: [id], onDelete: Cascade)
+  accessLevel  String   @map("access_level")
+  previousRole Role     @default(USER) @map("previous_role")
+  grantedById  String?  @map("granted_by")
+  grantedBy    User?    @relation("AdminMemberGranter", fields: [grantedById], references: [id], onDelete: SetNull)
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@index([active, accessLevel])
+  @@map("teojabi_admin_member")
 }
 
 model EmailVerificationToken {
