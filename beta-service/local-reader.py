@@ -6,6 +6,7 @@ import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 import psycopg2
 from psycopg2.extensions import parse_dsn
@@ -27,6 +28,12 @@ def _data_dsn():
         dsn = os.getenv('TEOJABI_DATABASE_URL') or os.getenv('DATABASE_URL')
         if not dsn:
             raise ValueError('Remote database URL required')
+        # Prisma accepts client-only URL options that libpq/psycopg2 rejects.
+        # Remove only those options and preserve the database endpoint and SSL options.
+        parts = urlsplit(dsn)
+        query = [(key, value) for key, value in parse_qsl(parts.query, keep_blank_values=True)
+                 if key not in ('pgbouncer', 'connection_limit')]
+        dsn = urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query), parts.fragment))
         return dsn, 'supabase'
     return _local_dsn(), 'local'
 
