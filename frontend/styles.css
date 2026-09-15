@@ -441,4 +441,4 @@ body.map-results-open{height:100dvh;min-height:0;overflow:hidden;display:flex;fl
 @media(min-width:701px){.results-sheet{top:64px;bottom:34px;height:auto}.results-sheet.collapsed{top:auto;bottom:18px;height:46px}}
 
 @media(max-width:700px){.site-map-wrap,.site-map,.site-map *{touch-action:pan-y!important}}
-@media(max-width:700px){body:not(.map-results-open){height:auto!important;min-height:100%;overflow-y:auto!important;touch-action:pan-y}}
+@media(max-width:700px){body:not(.map-results-open){height:auto!important;min-height:100%;overflow-y:auto!important;overscroll-behavior-y:auto;touch-action:pan-y}.home{overflow:visible;touch-action:pan-y}}
