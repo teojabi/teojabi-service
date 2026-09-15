@@ -189,7 +189,8 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
       const data=await response.json();if(!response.ok||data.status!=='ready')throw new Error('Missing listing');
       if(disposed||current!==detailVersion)return;
       detail=data;renderDetail();
-      $('.detail-content').insertAdjacentHTML('afterbegin','<div class="detail-conversion"><a class="primary" href="https://pf.kakao.com/_qSQxhX/chat" target="_blank" rel="noopener noreferrer">터잡이와 상담하기 ↗</a><button class="outline" data-explore="copy-consult">상담할 매물 정보 복사</button><small>주소와 가격을 복사해서 상담 채널에 보내주세요.</small></div>');
+      const favoriteActive=Boolean(member.get('favorite',data.listing.id));
+      $('.detail-content').insertAdjacentHTML('afterbegin',`<div class="detail-conversion"><a class="primary" href="https://pf.kakao.com/_qSQxhX/chat" target="_blank" rel="noopener noreferrer">터잡이와 상담하기 ↗</a><button class="outline" data-explore="favorite" data-favorite-detail="true" data-id="${esc(data.listing.id)}" aria-pressed="${favoriteActive}">${favoriteActive?'♥ 찜함':'♡ 찜하기'}</button><button class="outline" data-explore="copy-consult">상담할 매물 정보 복사</button><small>주소와 가격을 복사해서 상담 채널에 보내주세요.</small></div>`);
       closeContext=mountInlineContext($('#context-facts'),data.listing);closeRecords=mountBuildingRecords($('#building-records'),$('#building-records-toggle'),data.listing);closeLand=mountLandRecords($('#land-area-comparison'),$('#land-records'),$('#land-records-toggle'),data.listing);map.select(data.listing);$('#detail-title').focus({preventScroll:true});
       $('.detail-shortcuts').insertAdjacentHTML('beforeend','<button data-explore="section" data-section="property-transactions">주변 실거래</button>');
       loadNearby(id,current);
@@ -244,8 +245,12 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     const button=event.target.closest('[data-explore]');if(!button||button.disabled)return;
     switch(button.dataset.explore) {
       case 'favorite':{
-        const row=result?.groups.find(g=>g.representative.id===button.dataset.id)?.representative;if(!row)break;
-        button.disabled=true;try{if(member.get('favorite',row.id))await member.remove('favorite',row.id);else await member.save('favorite',row.id,row);}catch(error){$('.discovery-notice').textContent=error.message;}button.disabled=false;break;
+        const row=result?.groups.find(g=>g.representative.id===button.dataset.id)?.representative||(detail?.listing?.id===button.dataset.id?detail.listing:null);if(!row)break;
+        button.disabled=true;try{
+          if(member.get('favorite',row.id))await member.remove('favorite',row.id);else await member.save('favorite',row.id,row);
+          const active=Boolean(member.get('favorite',row.id));
+          root.querySelectorAll('[data-explore="favorite"]').forEach(item=>{if(item.dataset.id!==row.id)return;item.setAttribute('aria-pressed',String(active));item.textContent=active?'♥ 찜함':(item.dataset.favoriteDetail==='true'?'♡ 찜하기':'♡ 찜');});
+        }catch(error){$('.discovery-notice').textContent=error.message;}button.disabled=false;break;
       }
       case 'feedback':{const row=result?.groups.find(g=>g.representative.id===button.dataset.id)?.representative;if(row)openFeedback(row);break;}
       case 'compare-toggle':{
