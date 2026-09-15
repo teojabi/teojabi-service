@@ -66,3 +66,7 @@ jobs:
                     safe=re.sub(r'postgres(?:ql)?://\S+','[database-url]',str(error))[:500]
                     print({'operation':operation,'type':type(error).__name__,'pgcode':getattr(error,'pgcode',None),'message':getattr(diag,'message_primary',None) or safe,'table':getattr(diag,'table_name',None),'column':getattr(diag,'column_name',None)})
             PYEOF
+            curl -sS -H 'Host: api.teojabi.com' 'http://127.0.0.1:4173/api/risk/naver:2643920724' >/dev/null || true
+            curl -sS -H 'Host: api.teojabi.com' 'http://127.0.0.1:4173/api/nearby-transactions/naver:2643920724' >/dev/null || true
+            echo 'BETA SAFE ERROR LOG'
+            pm2 logs teojabi-data --lines 20 --nostream 2>&1 | grep -E '\[(listing-detail|nearby-transactions)\]' | tail -10 || true
