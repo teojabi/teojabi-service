@@ -471,7 +471,46 @@ def repair_duplicates(conn):
         cur.execute(f"UPDATE {TABLE} SET selection_meta=selection_meta || %s::jsonb",(Json({'duplicateRepair':{'replaced':changed,'retainedReviewedDuplicates':retained_reviewed},'grouping':'주소별 연락 후보. 실제 매매 대상 범위는 확인 필요'}),))
         return {'status':'repaired','replaced':changed,'retainedReviewedDuplicates':retained_reviewed}
 
+def audit_removed(conn):
+    with conn.cursor(cursor_factory=RealDictCursor) as cur:
+        cur.execute("SELECT to_regclass('public.teojabi_naver_sync_state') AS relation")
+        if not cur.fetchone()['relation']:
+            return {'status':'unavailable','rows':[], 'message':'정상 완료된 네이버 전체 동기화 기록이 아직 없습니다.'}
+        cur.execute('SELECT completed_at,deletion_allowed FROM public.teojabi_naver_sync_state WHERE id=1')
+        sync=cur.fetchone()
+        if not sync or not sync['deletion_allowed']:
+            return {'status':'unavailable','rows':[], 'message':'전체 수집·삭제 검증이 완료된 동기화 자료가 필요합니다.'}
+        cur.execute('SELECT "대지위치" AS address FROM public.naver WHERE "상태" IS DISTINCT FROM %s',('삭제',))
+        def address_key(value):
+            value=re.sub(r'^서울(?:특별시|시)?\s*','',str(value or '').strip())
+            return re.sub(r'\s+','',re.sub(r'번지$','',value))
+        active={address_key(r['address']) for r in cur.fetchall() if r['address']}
+        if not active:
+            return {'status':'unavailable','rows':[], 'message':'원자료가 비어 있어 삭제 후보를 판정하지 않습니다.'}
+        cur.execute(f'SELECT source_table,source_id,snapshot FROM {TABLE}')
+        candidates=cur.fetchall()
+        cur.execute('SELECT id::text AS source_id,address,title FROM public.property')
+        candidates += [{'source_table':'premium','source_id':r['source_id'],'snapshot':{'address':r['address'],'description':r['title']}} for r in cur.fetchall()]
+        hidden=read_hidden_ids(); rows=[]
+        for row in candidates:
+            s=row['snapshot']; address=s.get('address'); key=address_key(address)
+            # A dong and lot number are required; vague/partial addresses are never deletion candidates.
+            if not address or not re.search(r'(?:동|가|리)\s+산?\s*\d+(?:-\d+)?(?:번지)?$',address): continue
+            if catalog_id(row['source_table'],row['source_id']) in hidden: continue
+            if key not in active:
+                rows.append({'source_table':row['source_table'],'source_id':row['source_id'],
+                             'address':address,'teojabiNo':s.get('teojabiPick',{}).get('pickNo',''),
+                             'pick':row['source_table']=='premium' or s.get('teojabiPick',{}).get('status')=='published'})
+        return {'status':'checked','rows':rows,'completedAt':sync['completed_at']}
+
 def update(conn,data):
+    if isinstance(data,dict) and data.get('action')=='audit_removed':
+        return audit_removed(conn)
+    if isinstance(data,dict) and data.get('action')=='delete_removed':
+        audit=audit_removed(conn)
+        if audit['status']!='checked' or not any(r['source_table']==data.get('source_table') and r['source_id']==data.get('source_id') for r in audit['rows']):
+            return {'status':'conflict','message':'동일 주소의 매물이 다시 확인됐거나 동기화 검증이 필요합니다.'}
+        result=delete_pick(conn,data); listing(conn); return result
     if isinstance(data,dict) and data.get('action')=='register':
         result=register_pick(conn,data); listing(conn); return result
     if isinstance(data,dict) and data.get('action')=='bulk_register':
