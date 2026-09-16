@@ -17,7 +17,7 @@ let renderVersion=0;
 let explorerModulePromise;
 let siteModulePromise;
 const loadExplorer=()=>explorerModulePromise??=import('./explore.mjs');
-const loadSiteReview=()=>siteModulePromise??=import('./site-view.mjs');
+const loadSiteReview=()=>siteModulePromise??=import('./site-view.mjs?v=20260916-auto-ratios-3');
 const arrow = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M4 12h15M13 6l6 6-6 6"/></svg>';
 const mapIcon = '<svg viewBox="0 0 48 48" aria-hidden="true"><path d="m5 12 12-5 14 5 12-5v29l-12 5-14-5-12 5V12Z"/><path d="M17 7v29M31 12v29"/><circle cx="24" cy="23" r="5"/></svg>';
 const buildingArt = '<svg class="entry-art" viewBox="0 0 240 270" aria-hidden="true"><path d="m45 250 130-45 50 22M66 244V104l82-28v140M148 76l47 25v124M66 104l49 27 80-30M115 131v109M77 126l25 12v30l-25-12v-30Zm0 57 25 12v30l-25-12v-30ZM130 144l18-6v28l-18 6v-28Zm31-10 18-6v28l-18 6v-28Zm-31 60 18-6v28l-18 6v-28Zm31-10 18-6v28l-18 6v-28Z"/><path d="M45 182v64M32 174c0-24 30-24 30 0s-30 22-30 0Z"/></svg>';

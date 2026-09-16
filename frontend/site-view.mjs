@@ -138,11 +138,12 @@ export function mountSiteReview(root,{draft,onBack}) {
       if(seed&&incoming.length===1){selected.set(incoming[0].id,incoming[0]);draft.initialPnu=null;}
       features=[...new Map([...selected.values(),...incoming].map(f=>[f.id,f])).values()];
       $('.site-search-status').textContent=incoming.length?`${incoming.length}개 필지를 찾았어요.${data.truncated?' 가까운 40개까지 표시해요.':''}${data.excluded?' 경계를 확인할 수 없는 자료는 제외했어요.':''}`:'일치하는 필지를 찾지 못했어요. 전체 지번 주소나 필지번호를 확인해 주세요.';
+      if(!seed&&!clickPoint&&incoming.length===1&&!selected.has(incoming[0].id)){toggle(incoming[0].id);return;}
       renderParcels(fit);
       if(clickPoint){
         const ringContains=ring=>{let inside=false;for(let i=0,j=ring.length-1;i<ring.length;j=i++){const [x,y]=ring[i],[a,b]=ring[j];if((y>clickPoint.lat)!==(b>clickPoint.lat)&&clickPoint.lng<(a-x)*(clickPoint.lat-y)/(b-y)+x)inside=!inside;}return inside;};
         const hit=incoming.find(f=>(f.geometry.type==='MultiPolygon'?f.geometry.coordinates:[f.geometry.coordinates]).some(poly=>ringContains(poly[0])&&!poly.slice(1).some(ringContains)));
-        if(hit)toggle(hit.id);
+        if(hit&&!selected.has(hit.id))toggle(hit.id);
         else $('.site-search-status').textContent='이 위치의 필지를 확인하지 못했어요. 표시된 필지 경계를 눌러 주세요.';
       }
     } catch {if(!disposed&&current===version)$('.site-search-status').textContent='필지를 불러오지 못했어요. 다시 시도해 주세요.';}
