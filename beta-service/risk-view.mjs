@@ -36,7 +36,7 @@ export function renderRiskPanels(report) {
 }
 export function mountRiskReview(host,{listing,onClose}) {
   const abort=new AbortController();let disposed=false,version=0,report=null,activeTab='summary';
-  const previousTitle=document.title;document.title='신축 리스크 검토 — 터잡이';
+  const previousTitle=document.title;document.title='필지 주변 조건 | 터잡이';
   host.innerHTML=`<div class="risk-review"><button class="back" data-risk="back">← 매물 상세로 돌아가기</button><header class="risk-heading"><div><span class="eyebrow">NEW BUILD REVIEW</span><h1 tabindex="-1">신축 리스크 검토</h1><p>${esc(listing.address||'매물 주소 확인 필요')}</p></div><span class="risk-stage">신축 가능 여부 검토 전</span></header><div class="risk-review-toolbar"><div role="tablist" aria-label="신축 검토 자료">${Object.entries(tabNames).map(([id,label])=>`<button id="risk-tab-${id}" role="tab" aria-controls="risk-panel-${id}" aria-selected="${id==='summary'}" tabindex="${id==='summary'?0:-1}" data-risk="tab" data-tab="${id}" disabled>${label}</button>`).join('')}</div><button class="outline" data-risk="copy" disabled>검토 내용 복사</button></div><p class="risk-copy-status" role="status"></p><div class="risk-notes"></div><div class="risk-panels" aria-busy="true"></div><p class="risk-observed"></p></div>`;
   const $=s=>host.querySelector(s);
   $('h1').focus({preventScroll:true});window.scrollTo({top:0,behavior:'instant'});
