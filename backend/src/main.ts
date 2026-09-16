@@ -49,7 +49,8 @@ export function validateProductionSecurityConfig(env = process.env) {
   const jwt = env.JWT_SECRET ?? '';
   if (!jwt.trim() || jwt === 'dev-secret-key-1234!') throw new Error('Production requires JWT_SECRET');
   const origins = [env.FRONTEND_URL ?? '', ...(env.FRONTEND_URLS ?? '').split(',')].map(v => v.trim()).filter(Boolean);
-  if (!origins.length || origins.some(origin => !origin.startsWith('https://'))) throw new Error('Production requires HTTPS frontend origins');
+  const validOrigin = (origin: string) => origin.startsWith('https://') || /^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/.test(origin);
+  if (!origins.length || origins.some(origin => !validOrigin(origin))) throw new Error('Production requires HTTPS or loopback frontend origins');
 }
 
 async function bootstrap() {

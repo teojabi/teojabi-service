@@ -67,7 +67,7 @@ jobs:
             DIRECT_URL="${DIRECT_URL}"
             PORT="${PORT}"
             FRONTEND_URL="https://teojabi.com"
-            FRONTEND_URLS="https://teojabi.com,https://www.teojabi.com"
+            FRONTEND_URLS="https://teojabi.com,https://www.teojabi.com,http://127.0.0.1:4173,http://localhost:4173"
             JWT_SECRET="${JWT_SECRET}"
             NCLOUD_MAIL_BASE_URL="${NCLOUD_MAIL_BASE_URL}"
             NCLOUD_ACCESS_KEY="${NCLOUD_ACCESS_KEY}"
