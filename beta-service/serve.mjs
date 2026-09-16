@@ -168,12 +168,15 @@ createServer(async (request, response) => {
         if(snapshot?.status==='ready') {send(response,request,{...snapshot,mode:'snapshot'});return;}
       }
       const result=await runCuration(root,operation,input);
-      if(request.method==='POST'&&['saved','deleted','refreshed'].includes(result.status)&&(process.env.TEOJABI_DATA_SOURCE==='supabase')) {
+      if(request.method==='POST'&&['saved','refreshed'].includes(result.status)&&(process.env.TEOJABI_DATA_SOURCE==='supabase')) {
         const python=process.env.TEOJABI_PYTHON;
         if(!python)throw new Error('Python not configured');
         for(const script of ['automation/assign_service_numbers.py','automation/prepare_selected_preview.py','refresh-zoning.py','refresh-development.py']) {
           await execute(python,['-X','utf8',join(root,script),...(script.startsWith('refresh-')?['--selected']:[])],{windowsHide:true,timeout:180000,maxBuffer:32*1024*1024,encoding:'utf8'});
         }
+        catalogPromise=zoningPromise=developmentPromise=normalizedCatalogPromise=null;catalogVersion=0;
+      }
+      if(request.method==='POST'&&result.status==='deleted') {
         catalogPromise=zoningPromise=developmentPromise=normalizedCatalogPromise=null;catalogVersion=0;
       }
       if(request.method==='POST'&&input?.action==='auto_select_200'&&result.status==='refreshed'&&process.env.TEOJABI_DATA_SOURCE!=='supabase') {
