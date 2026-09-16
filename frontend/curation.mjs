@@ -257,6 +257,37 @@ setModeButtons();
 load();
 initAdminAccess();
 
+const removedPanel=document.createElement('section');
+removedPanel.className='review-section';
+removedPanel.innerHTML='<h2>네이버에서 사라진 매물 확인</h2><p>정상 전체 동기화 기준으로 같은 주소의 광고가 모두 사라진 등록 매물·터잡이픽을 확인합니다. 판매 완료를 뜻하지는 않습니다.</p><button type="button" data-removed-check>삭제 후보 확인</button><p data-removed-status role="status"></p><div data-removed-list></div>';
+$('#review-message').after(removedPanel);
+let removedRows=[];
+removedPanel.addEventListener('click',async event=>{
+  const check=event.target.closest('[data-removed-check]');
+  const remove=event.target.closest('[data-removed-delete]');
+  if(!check&&!remove)return;
+  const button=check||remove;button.disabled=true;
+  const status=removedPanel.querySelector('[data-removed-status]');
+  try{
+    if(check){
+      status.textContent='주소별로 확인하고 있어요.';
+      const response=await apiFetch('/api/curation',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'audit_removed'})});
+      const data=await response.json();if(!response.ok)throw new Error('삭제 후보를 확인하지 못했습니다.');
+      removedRows=data.rows||[];
+      status.textContent=data.status==='checked'?`동기화 기준: ${date(data.completedAt)} · 삭제 후보 ${removedRows.length}개`:data.message||'전체 동기화 검증이 필요합니다.';
+      removedPanel.querySelector('[data-removed-list]').innerHTML=removedRows.map((row,index)=>`<article class="review-section"><b>${esc(row.address)}</b><p>${row.pick?'★ 터잡이픽':'등록 매물'}${row.teojabiNo?' · 매물번호 '+esc(row.teojabiNo):''}</p>${naverArticleUrl(row)?`<a href="${esc(naverArticleUrl(row))}" target="_blank" rel="noopener noreferrer">네이버 매물 보기 ↗</a>`:'<small>네이버 매물번호 미연결</small>'} <button type="button" data-removed-delete="${index}">삭제하시겠습니까?</button></article>`).join('');
+    }else{
+      const row=removedRows[Number(remove.dataset.removedDelete)];if(!row)return;
+      if(!window.confirm(`${row.address}\n홈페이지 등록 목록에서 삭제하시겠습니까?`))return;
+      await postCuration({action:'delete_removed',source_table:row.source_table,source_id:row.source_id});
+      remove.closest('article').remove();
+      registered=registered.filter(r=>!(r.source_table===row.source_table&&r.source_id===row.source_id));
+      draw();status.textContent='홈페이지 노출에서 삭제했습니다. 네이버 원자료는 유지합니다.';
+    }
+  }catch(error){status.textContent=error.message||'처리하지 못했습니다.';}finally{button.disabled=false;}
+});
+
+
 
 
 
