@@ -1,5 +1,5 @@
 
-import { Body, Controller, Logger, Post } from '@nestjs/common';
+import { Body, Controller, Logger, NotFoundException, Post } from '@nestjs/common';
 import { SubscriptionsService } from './subscriptions.service';
 
 type CreateWebhookTestScheduleBody = {
@@ -15,6 +15,10 @@ export class SubscriptionsTestController {
 
   @Post('schedule')
   async createWebhookTestSchedule(@Body() body: CreateWebhookTestScheduleBody) {
+    if (process.env.NODE_ENV !== 'test' || process.env.ENABLE_SUBSCRIPTION_TEST_API !== 'true') {
+      throw new NotFoundException();
+    }
+
     const minutes = body.minutes === undefined ? 5 : Number(body.minutes);
     this.logger.debug(
       `[createWebhookTestSchedule] subscriptionId=${body.subscriptionId ?? 'none'}, minutes=${Number.isFinite(minutes) ? minutes : 'invalid'}`,

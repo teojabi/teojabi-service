@@ -17,6 +17,31 @@ import { serviceConfig, allowedOrigin, authorizeCuration } from './server-access
 const service=serviceConfig();
 
 const root = fileURLToPath(new URL('.', import.meta.url));
+const rateBuckets=new Map();
+const RATE_WINDOW_MS=60_000;
+const RATE_MAX=360;
+const RATE_ADMIN_MAX=90;
+function clientIp(request){return String(request.headers['x-forwarded-for']||request.socket.remoteAddress||'unknown').split(',')[0].trim();}
+function checkRateLimit(request,response){
+  const now=Date.now(),path=request.url?.split('?')[0]||'/',admin=path==='/api/curation';
+  const key=`${clientIp(request)}:${admin?'admin':'global'}`;
+  const limit=admin?RATE_ADMIN_MAX:RATE_MAX;
+  const current=rateBuckets.get(key),bucket=current&&current.resetAt>now?current:{count:0,resetAt:now+RATE_WINDOW_MS};
+  bucket.count+=1;rateBuckets.set(key,bucket);
+  if(bucket.count<=limit)return false;
+  response.setHeader('Retry-After',String(Math.ceil((bucket.resetAt-now)/1000)));
+  response.writeHead(429,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});
+  response.end(JSON.stringify({status:'rate_limited'}));
+  return true;
+}
+setInterval(()=>{const now=Date.now();for(const [key,bucket]of rateBuckets.entries())if(bucket.resetAt<=now)rateBuckets.delete(key);},RATE_WINDOW_MS).unref();
+function applySecurityHeaders(response){
+  response.setHeader('X-Content-Type-Options','nosniff');
+  response.setHeader('X-Frame-Options','DENY');
+  response.setHeader('Referrer-Policy','strict-origin-when-cross-origin');
+  response.setHeader('Permissions-Policy','camera=(), microphone=(), geolocation=()');
+  if(service.production)response.setHeader('Strict-Transport-Security','max-age=31536000; includeSubDomains');
+}
 const cachePath=name=>process.env.TEOJABI_DATA_SOURCE==='supabase'&&/^\.local\/(selected-|curation-)/.test(name)?name.replace('.local/','.local/supabase/'):name;
 const files = new Map([
   ['/api-client.mjs',['api-client.mjs','text/javascript']],
@@ -136,6 +161,8 @@ function staticHeaders(type,stats) {
   };
 }
 createServer(async (request, response) => {
+  applySecurityHeaders(response);
+  if(checkRateLimit(request,response))return;
   if (!service.hosts.includes(request.headers.host||'')) {response.writeHead(403).end();return;}
   if(service.production&&request.url?.startsWith('/api/')) {
     const origin=request.headers.origin;
