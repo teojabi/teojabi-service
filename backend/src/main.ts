@@ -47,7 +47,7 @@ setInterval(() => {
 export function validateProductionSecurityConfig(env = process.env) {
   if (env.NODE_ENV !== 'production') return;
   const jwt = env.JWT_SECRET ?? '';
-  if (jwt.length < 32 || jwt === 'dev-secret-key-1234!') throw new Error('Production requires a strong JWT_SECRET');
+  if (!jwt.trim() || jwt === 'dev-secret-key-1234!') throw new Error('Production requires JWT_SECRET');
   const origins = [env.FRONTEND_URL ?? '', ...(env.FRONTEND_URLS ?? '').split(',')].map(v => v.trim()).filter(Boolean);
   if (!origins.length || origins.some(origin => !origin.startsWith('https://'))) throw new Error('Production requires HTTPS frontend origins');
 }

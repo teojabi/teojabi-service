@@ -66,8 +66,8 @@ jobs:
             DATABASE_URL="${DATABASE_URL}"
             DIRECT_URL="${DIRECT_URL}"
             PORT="${PORT}"
-            FRONTEND_URL="${FRONTEND_URL}"
-            FRONTEND_URLS="${FRONTEND_URL}"
+            FRONTEND_URL="https://teojabi.com"
+            FRONTEND_URLS="https://teojabi.com,https://www.teojabi.com"
             JWT_SECRET="${JWT_SECRET}"
             NCLOUD_MAIL_BASE_URL="${NCLOUD_MAIL_BASE_URL}"
             NCLOUD_ACCESS_KEY="${NCLOUD_ACCESS_KEY}"
@@ -110,8 +110,15 @@ jobs:
               pm2 start dist/src/main.js --name teojabi-backend
             fi
             pm2 save
-            sleep 3
+            sleep 5
             pm2 describe teojabi-backend
+            backend_port="${PORT:-3000}"
+            status_code=$(curl --silent --output /dev/null --write-out '%{http_code}' "http://127.0.0.1:${backend_port}/api/v1/users/me" || true)
+            if [ "$status_code" != "401" ]; then
+              echo "Backend health check failed: expected 401, received ${status_code:-no-response}"
+              pm2 logs teojabi-backend --lines 80 --nostream
+              exit 1
+            fi
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           DIRECT_URL: ${{ secrets.DIRECT_URL }}
