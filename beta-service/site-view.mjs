@@ -206,7 +206,7 @@ export function mountSiteReview(root,{draft,onBack}) {
   root.addEventListener('submit',e=>{
     if(e.target.id==='site-search') {
       e.preventDefault();if(restoring)return;const address=$('#site-address').value.trim();draft.address=address;
-      if(address.length<6){$('.site-search-status').textContent='전체 지번 주소 또는 19자리 필지번호를 입력해 주세요.';return;}
+      if(address.length<3){$('.site-search-status').textContent='동·지번 주소 또는 19자리 필지번호를 입력해 주세요. 예: 시흥동 999-45';return;}
       search(/^\d{19}$/.test(address)?{pnu:address}:{address});
     }
     if(e.target.id==='site-inputs') {
@@ -248,6 +248,7 @@ export function mountSiteReview(root,{draft,onBack}) {
     for(const control of root.querySelectorAll('#site-inputs input,#site-inputs textarea,#site-inputs button'))control.disabled=false;
     syncAreaInput();renderParcels(true);
   }
+  $('#site-address').placeholder='예: 시흥동 999-45 (구·시 이름 생략 가능)';
   renderParcels();startMap();if(draft.restore)restoreSaved();else if(draft.initialPnu)search({pnu:draft.initialPnu},{seed:true});
   return ()=>{disposed=true;abort.abort();observer?.disconnect();for(const l of listeners){try{n.Event.removeListener(l);}catch{}}try{map?.destroy();}catch{}};
 }
