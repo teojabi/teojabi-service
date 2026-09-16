@@ -647,6 +647,8 @@ export class SubscriptionsService {
     let payload: any;
     if (webhookSecret) {
       payload = await PortOne.Webhook.verify(webhookSecret, rawPayload, headers);
+    } else if (process.env.NODE_ENV === 'production') {
+      throw new BadRequestException('웹훅 서명 설정이 없습니다.');
     } else {
       try {
         payload = JSON.parse(rawPayload);
