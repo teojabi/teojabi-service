@@ -64,7 +64,14 @@ export async function openStreetView(position,label) {
     const camera=document.createElement('div');camera.className='street-camera-pin';camera.setAttribute('role','img');
     camera.innerHTML='<svg viewBox="0 0 100 100" aria-hidden="true"><path class="street-camera-cone" d="M50 50 L18 12 A50 50 0 0 1 82 12 Z"/><path class="street-camera-arrow" d="M50 32 L43 46 L57 46 Z"/><circle cx="50" cy="50" r="7"/></svg>';
     cameraMarker=new n.Marker({position:point,zIndex:10,icon:{content:camera,anchor:new n.Point(50,50)}});
-    let cameraPosition=null;
+    let cameraPosition=null,initialDirectionSet=false;
+    const facePropertyInitially=()=>{
+      if(closed||initialDirectionSet||!pano.getPanoId())return;
+      const look=pano.getProjection()?.fromCoordToPov(point);
+      if(!Number.isFinite(look?.pan))return;
+      initialDirectionSet=true;
+      pano.setPov({...pano.getPov(),pan:look.pan,tilt:0});
+    };
     const syncCamera=(follow=false)=>{
       if(closed||!pano.getPanoId())return;
       const actual=pano.getLocation()?.coord||pano.getPosition(),pov=pano.getPov();
@@ -77,7 +84,7 @@ export async function openStreetView(position,label) {
       if(follow)miniMap.setCenter(actual);
     };
     dialog.querySelector('.street-recenter').addEventListener('click',()=>{if(cameraPosition)miniMap.setCenter(cameraPosition);});
-    for(const event of ['init','pano_changed'])listeners.push(n.Event.addListener(pano,event,()=>syncCamera(true)));
+    for(const event of ['init','pano_changed'])listeners.push(n.Event.addListener(pano,event,()=>{facePropertyInitially();syncCamera(true);}));
     listeners.push(n.Event.addListener(pano,'pov_changed',()=>syncCamera(false)));
     const stage=dialog.querySelector('.street-canvas');
     let lastWidth=0,lastHeight=0;

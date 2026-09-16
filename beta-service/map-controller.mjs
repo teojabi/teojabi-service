@@ -64,7 +64,14 @@ export async function openStreetView(position,label) {
     const camera=document.createElement('div');camera.className='street-camera-pin';camera.setAttribute('role','img');
     camera.innerHTML='<svg viewBox="0 0 100 100" aria-hidden="true"><path class="street-camera-cone" d="M50 50 L18 12 A50 50 0 0 1 82 12 Z"/><path class="street-camera-arrow" d="M50 32 L43 46 L57 46 Z"/><circle cx="50" cy="50" r="7"/></svg>';
     cameraMarker=new n.Marker({position:point,zIndex:10,icon:{content:camera,anchor:new n.Point(50,50)}});
-    let cameraPosition=null;
+    let cameraPosition=null,initialDirectionSet=false;
+    const facePropertyInitially=()=>{
+      if(closed||initialDirectionSet||!pano.getPanoId())return;
+      const look=pano.getProjection()?.fromCoordToPov(point);
+      if(!Number.isFinite(look?.pan))return;
+      initialDirectionSet=true;
+      pano.setPov({...pano.getPov(),pan:look.pan,tilt:0});
+    };
     const syncCamera=(follow=false)=>{
       if(closed||!pano.getPanoId())return;
       const actual=pano.getLocation()?.coord||pano.getPosition(),pov=pano.getPov();
@@ -77,7 +84,7 @@ export async function openStreetView(position,label) {
       if(follow)miniMap.setCenter(actual);
     };
     dialog.querySelector('.street-recenter').addEventListener('click',()=>{if(cameraPosition)miniMap.setCenter(cameraPosition);});
-    for(const event of ['init','pano_changed'])listeners.push(n.Event.addListener(pano,event,()=>syncCamera(true)));
+    for(const event of ['init','pano_changed'])listeners.push(n.Event.addListener(pano,event,()=>{facePropertyInitially();syncCamera(true);}));
     listeners.push(n.Event.addListener(pano,'pov_changed',()=>syncCamera(false)));
     const stage=dialog.querySelector('.street-canvas');
     let lastWidth=0,lastHeight=0;
@@ -116,9 +123,9 @@ export function transactionLabelOffsets(points,occupied,width,height) {
   });
 }
 export class ListingMap {
-  constructor(container,{onSelect,onTransaction,onMove,onStatus,center,zoom,areaUnit='m2'}={}) {
+  constructor(container,{onSelect,onTransaction,onMapClick,onMove,onStatus,center,zoom,areaUnit='m2'}={}) {
     this.areaUnit=areaUnit==='pyeong'?'pyeong':'m2';
-    this.container=container;this.onSelect=onSelect;this.onMove=onMove;this.onStatus=onStatus;
+    this.container=container;this.onSelect=onSelect;this.onMove=onMove;this.onStatus=onStatus;this.onMapClick=onMapClick;
     this.onTransaction=onTransaction;this.transactionMarkers=[];this.transactions=[];this.transactionsVisible=true;
     this.center=center;this.zoom=zoom;this.markers=[];this.listeners=[];this.dead=false;this.selected=null;
     this.onAuthFailure=event=>{this.ready=false;this.onStatus?.('error',event.detail);};
@@ -130,10 +137,11 @@ export class ListingMap {
       if (this.dead || !this.container.isConnected) return;
       this.n=n;
       this.map=new n.Map(this.container,{center:new n.LatLng(this.center?.lat||37.5665,this.center?.lng||126.978),zoom:this.zoom||12,
-        minZoom:9,maxZoom:20,zoomControl:true,zoomControlOptions:{position:n.Position.TOP_RIGHT},mapDataControl:true,scaleControl:true});
+        minZoom:9,maxZoom:20,zoomControl:false,mapDataControl:false,scaleControl:true});
       if(authError)throw new Error(authError);
       this.ready=true;
       this.listeners.push(n.Event.addListener(this.map,'idle',()=>{this.layoutTransactions();this.onMove?.(this.view());}));
+      this.listeners.push(n.Event.addListener(this.map,'click',()=>this.onMapClick?.()));
       this.map.data.setStyle({fillColor:'#93c5fd',fillOpacity:.35,strokeColor:'#2563eb',strokeWeight:3});
       this.resizeObserver=new ResizeObserver(()=>{if(this.ready && !this.dead && this.container.clientWidth)n.Event.trigger(this.map,'resize');});
       this.resizeObserver.observe(this.container);
@@ -272,6 +280,7 @@ export class ListingMap {
     }
   }
   resetView() {if(!this.fitTransactions())this.setGroups(this.groups||[],this.selected,true);}
+  toggleCadastral(){if(!this.ready)return false;this.cadastralLayer??=new this.n.CadastralLayer();this.cadastralVisible=!this.cadastralVisible;this.cadastralLayer.setMap(this.cadastralVisible?this.map:null);return this.cadastralVisible;}
   setVisible(value){this.visible=Boolean(value);if(!this.ready)return;for(const {marker} of this.markers)marker.setMap(this.visible?this.map:null);this.extraMarker?.setMap(this.visible?this.map:null);this.layoutTransactions();}
   view() {
     if(!this.map||!this.ready)return null;
