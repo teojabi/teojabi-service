@@ -66,6 +66,7 @@ let registeredSnapshotCache=null;
 let registeredSnapshotCachedAt=0;
 let sourceSnapshotCache=null;
 let sourceSnapshotCachedAt=0;
+let curationRefreshQueue=Promise.resolve();
 async function registeredSnapshot(){
   if(registeredSnapshotCache&&Date.now()-registeredSnapshotCachedAt<5000)return registeredSnapshotCache;
   registeredSnapshotCache=await readOptionalJson('.local/curation-registered.json');
@@ -168,12 +169,20 @@ createServer(async (request, response) => {
         if(snapshot?.status==='ready') {send(response,request,{...snapshot,mode:'snapshot'});return;}
       }
       const result=await runCuration(root,operation,input);
-      if(request.method==='POST'&&['saved','refreshed'].includes(result.status)&&(process.env.TEOJABI_DATA_SOURCE==='supabase')) {
+      if(request.method==='POST'&&result.status==='saved'&&(process.env.TEOJABI_DATA_SOURCE==='supabase')) {
         const python=process.env.TEOJABI_PYTHON;
         if(!python)throw new Error('Python not configured');
-        for(const script of ['automation/assign_service_numbers.py','automation/prepare_selected_preview.py','refresh-zoning.py','refresh-development.py']) {
-          await execute(python,['-X','utf8',join(root,script),...(script.startsWith('refresh-')?['--selected']:[])],{windowsHide:true,timeout:180000,maxBuffer:32*1024*1024,encoding:'utf8'});
-        }
+        curationRefreshQueue=curationRefreshQueue.catch(()=>{}).then(async()=>{
+          for(const script of ['automation/assign_service_numbers.py','automation/prepare_selected_preview.py','refresh-zoning.py','refresh-development.py']) {
+            await execute(python,['-X','utf8',join(root,script),...(script.startsWith('refresh-')?['--selected']:[])],{windowsHide:true,timeout:180000,maxBuffer:32*1024*1024,encoding:'utf8'});
+          }
+          catalogPromise=zoningPromise=developmentPromise=normalizedCatalogPromise=null;catalogVersion=0;
+          registeredSnapshotCache=null;registeredSnapshotCachedAt=0;
+        });
+      }
+      if(request.method==='POST'&&result.status==='refreshed'&&(process.env.TEOJABI_DATA_SOURCE==='supabase')) {
+        const python=process.env.TEOJABI_PYTHON;if(!python)throw new Error('Python not configured');
+        for(const script of ['automation/assign_service_numbers.py','automation/prepare_selected_preview.py','refresh-zoning.py','refresh-development.py'])await execute(python,['-X','utf8',join(root,script),...(script.startsWith('refresh-')?['--selected']:[])],{windowsHide:true,timeout:180000,maxBuffer:32*1024*1024,encoding:'utf8'});
         catalogPromise=zoningPromise=developmentPromise=normalizedCatalogPromise=null;catalogVersion=0;
       }
       if(request.method==='POST'&&result.status==='deleted') {
