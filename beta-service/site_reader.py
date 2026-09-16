@@ -9,13 +9,18 @@ def read_site_parcels(connection, query):
     if set(query) == {'pnu'} and re.fullmatch(r'11\d{17}', str(query['pnu'])):
         source = 'SELECT pnu,"대지위치" AS address FROM public.master_land WHERE pnu=%s LIMIT 2'
         params = (query['pnu'],)
-    elif set(query) == {'address'} and isinstance(query['address'], str) and 6 <= len(query['address']) <= 150:
+    elif set(query) == {'address'} and isinstance(query['address'], str) and 3 <= len(query['address']) <= 150:
         address = re.sub(r'\s+', ' ', query['address']).strip()
         address = re.sub(r'^서울(?:시)? ', '서울특별시 ', address)
         address = re.sub(r'번지$', '', address).strip()
+        address = re.sub(r'([가-힣])(?=산?\d)', r'\1 ', address)
         variants = [address, address+'번지', address.replace('서울특별시 ', '서울시 ', 1)]
-        source = 'SELECT pnu,"대지위치" AS address FROM public.master_land WHERE "대지위치"=ANY(%s) LIMIT 41'
-        params = (variants,)
+        # Match a complete trailing address component, never an arbitrary lot-number substring.
+        suffix = address.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
+        source = '''SELECT pnu,"대지위치" AS address FROM public.master_land
+                    WHERE "대지위치"=ANY(%s) OR "대지위치" LIKE %s OR "대지위치" LIKE %s
+                    ORDER BY "대지위치",pnu LIMIT 41'''
+        params = (variants, '% '+suffix, '% '+suffix+'번지')
     elif set(query) == {'lat', 'lng'} and all(type(query[k]) in (int, float) for k in query) and 37.3 <= query['lat'] <= 37.9 and 126.6 <= query['lng'] <= 127.4:
         prefix = 'center AS (SELECT ST_Transform(ST_SetSRID(ST_Point(%s,%s),4326),5174) AS geom),'
         source = '''SELECT m.pnu,m."대지위치" AS address FROM public.master_land m,center c
