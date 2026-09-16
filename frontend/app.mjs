@@ -241,8 +241,8 @@ app.addEventListener('change',event=>{
   state.draft[input.dataset.buildControl]=input.type==='checkbox'?input.checked:input.value?Number(input.value):null;
 });
 render(false);
-if(new URLSearchParams(location.hash.slice(1)).has('listing')||location.hash==='#search') {state.screen='results';render(false);}
-else if(location.hash==='#analyze'){state.screen='analyze';render(false);}
+if(new URLSearchParams(location.hash.slice(1)).has('listing')||location.hash==='#search'||location.pathname.endsWith('/search.html')) {state.screen='results';render(false);}
+else if(location.hash==='#analyze'||location.pathname.endsWith('/analyze.html')){state.screen='analyze';render(false);}
 
 async function loadActivity() {
   try {
