@@ -5,11 +5,49 @@ import { ValidationPipe } from '@nestjs/common';
 import cookieParser from 'cookie-parser';
 import { NextFunction, Request, Response } from 'express';
 
+type RateLimitBucket = { count: number; resetAt: number };
+
+const rateLimitBuckets = new Map<string, RateLimitBucket>();
+const RATE_LIMIT_WINDOW_MS = 60_000;
+const RATE_LIMIT_MAX_REQUESTS = 300;
+const AUTH_RATE_LIMIT_MAX_REQUESTS = 60;
+
+function clientIp(req: Request) {
+  const forwardedFor = req.headers['x-forwarded-for'];
+  const value = Array.isArray(forwardedFor) ? forwardedFor[0] : forwardedFor;
+  return (value?.split(',')[0] || req.ip || req.socket.remoteAddress || 'unknown').trim();
+}
+
+function rateLimit(req: Request, res: Response, next: NextFunction) {
+  const now = Date.now();
+  const isAuthRoute = req.path.startsWith('/api/v1/auth/');
+  const limit = isAuthRoute ? AUTH_RATE_LIMIT_MAX_REQUESTS : RATE_LIMIT_MAX_REQUESTS;
+  const key = `${clientIp(req)}:${isAuthRoute ? 'auth' : 'global'}`;
+  const current = rateLimitBuckets.get(key);
+  const bucket = current && current.resetAt > now ? current : { count: 0, resetAt: now + RATE_LIMIT_WINDOW_MS };
+  bucket.count += 1;
+  rateLimitBuckets.set(key, bucket);
+
+  if (bucket.count > limit) {
+    res.setHeader('Retry-After', String(Math.ceil((bucket.resetAt - now) / 1000)));
+    res.status(429).json({ message: 'Too many requests' });
+    return;
+  }
+
+  next();
+}
+
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, bucket] of rateLimitBuckets.entries()) {
+    if (bucket.resetAt <= now) rateLimitBuckets.delete(key);
+  }
+}, RATE_LIMIT_WINDOW_MS).unref();
+
 export function validateProductionSecurityConfig(env = process.env) {
   if (env.NODE_ENV !== 'production') return;
   const jwt = env.JWT_SECRET ?? '';
   if (jwt.length < 32 || jwt === 'dev-secret-key-1234!') throw new Error('Production requires a strong JWT_SECRET');
-  if (!(env.PORTONE_WEBHOOK_SECRET ?? '').trim()) throw new Error('Production requires PORTONE_WEBHOOK_SECRET');
   const origins = [env.FRONTEND_URL ?? '', ...(env.FRONTEND_URLS ?? '').split(',')].map(v => v.trim()).filter(Boolean);
   if (!origins.length || origins.some(origin => !origin.startsWith('https://'))) throw new Error('Production requires HTTPS frontend origins');
 }
@@ -17,8 +55,10 @@ export function validateProductionSecurityConfig(env = process.env) {
 async function bootstrap() {
   validateProductionSecurityConfig();
   const app = await NestFactory.create(AppModule, { rawBody: true });
+  app.getHttpAdapter().getInstance().set('trust proxy', 1);
 
   app.use(cookieParser());
+  app.use(rateLimit);
   app.use((_req: Request, res: Response, next: NextFunction) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('X-Frame-Options', 'DENY');
