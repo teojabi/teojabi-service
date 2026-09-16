@@ -145,7 +145,8 @@ function render(focus = true) {
   app.innerHTML = ({ home, purpose, 'build-use':buildUse, budget, region })[state.screen]();
   if(state.screen==='region'&&state.draft.purpose==='new-build')app.querySelector('.selected-summary').insertAdjacentHTML('afterend',`<p class="build-applied-summary">${escape(buildConditionLabels(state.draft).join(' · ')||'신축 추가 조건 없음')}</p>`);
   }
-  document.title = `${{ home:'터잡이', purpose:'건물 찾는 목적', 'build-use':'신축 용도·부지 조건', budget:'매입 예산', region:'지역 선택', results:'내 조건으로 살펴보기', analyze:'신축 검토 시작' }[state.screen]} — 로컬 미리보기 v1.8`;
+  document.title = ({home:'터잡이 | 건물·토지 매물 찾기와 개발 검토',purpose:'건물 찾는 목적 | 터잡이','build-use':'개발 용도·부지 조건 | 터잡이',budget:'매입 예산 선택 | 터잡이',region:'관심 지역 선택 | 터잡이',results:'조건에 맞는 매물 찾기 | 터잡이',analyze:'필지 개발 검토 | 터잡이'})[state.screen] || '터잡이';
+  for(const selector of ['meta[property="og:title"]','meta[name="twitter:title"]'])document.querySelector(selector)?.setAttribute('content',document.title);
   if(state.screen==='home'&&!state.activity&&!state.activityError)loadActivity();
   if (focus) {
     const heading = app.querySelector('h1');
