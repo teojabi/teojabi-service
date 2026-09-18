@@ -111,8 +111,18 @@ export function mountAssistant({ onResults, onAnalyze } = {}) {
   let lastFilters = null;
   let selectedListing = null;
   const scroll = () => { log.scrollTop = log.scrollHeight; };
-  const add = (html, cls = 'bot') => { const div = document.createElement('div'); div.className = `assistant-msg ${cls}`; div.innerHTML = html; log.append(div); scroll(); return div; };
+  // 결과처럼 긴 메시지는 그 메시지의 맨 위부터 보이게 하고, 짧은 대화는 맨 아래로 내린다.
+  const add = (html, cls = 'bot', anchorTop = false) => {
+    const div = document.createElement('div');
+    div.className = `assistant-msg ${cls}`;
+    div.innerHTML = html;
+    log.append(div);
+    if (anchorTop) div.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    else scroll();
+    return div;
+  };
   const addBot = html => add(html, 'bot');
+  const addResultBot = html => add(html, 'bot', true);
   const addUser = text => add(esc(text), 'user');
   const signedIn = () => member.status === 'ready';
 
@@ -187,7 +197,7 @@ export function mountAssistant({ onResults, onAnalyze } = {}) {
       } else html = '알 수 없는 요청이에요.';
       await settle();
       scan.remove();
-      const bubble = addBot(html + `<div class="assistant-chiprow"><button type="button" class="assistant-chip" data-ask-back="1">↩ 다른 항목 물어보기</button></div>`);
+      const bubble = addResultBot(html + `<div class="assistant-chiprow"><button type="button" class="assistant-chip" data-ask-back="1">↩ 다른 항목 물어보기</button></div>`);
       bubble.querySelector('[data-ask-back]')?.addEventListener('click', () => openAskMenu(listing));
       bubble.querySelector('[data-ask-nav="detail"]')?.addEventListener('click', () => openDetailFor(listing));
     } catch {
@@ -230,7 +240,7 @@ export function mountAssistant({ onResults, onAnalyze } = {}) {
     (data.suggestions || []).forEach(s => chips.push(`<button type="button" class="assistant-chip" data-send="${esc(s.message)}">${esc(s.label)}</button>`));
     if (chips.length) reply += `<div class="assistant-chiprow">${chips.join('')}</div>`;
     reply += `<div class="assistant-editor-slot" hidden></div>`;
-    const bubble = addBot(reply);
+    const bubble = addResultBot(reply);
 
     const relax = Array.isArray(data.relaxations) ? data.relaxations : [];
     if (!groups.length && relax.length) {
