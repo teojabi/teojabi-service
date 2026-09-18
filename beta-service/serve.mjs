@@ -96,7 +96,7 @@ async function naverListing(sourceId) {
     return {id:`naver:${raw.sourceId}`,source:'naver',sourceId:raw.sourceId,district:raw.district||'',neighborhood:raw.neighborhood||'',
       address:raw.address||'',pnu:raw.pnu||null,position:raw.position||null,priceWon:raw.priceWon||null,
       areaM2:raw.areaM2||null,floorAreaM2:raw.floorAreaM2||null,description:raw.description||'',floorInfo:raw.floorInfo||'',
-      zoning:{status:'missing',groups:[],entries:[]},development:null,kind:raw.kind||'building',kindConfirmed:true,
+      zoning:raw.zoning||{status:'missing',groups:[],entries:[]},development:null,kind:raw.kind||'building',kindConfirmed:true,
       areaSource:'listing',floorAreaSource:'listing',locationStatus:'pin-estimated',nearbyTransactions:{status:'unavailable',cases:[]}};
   } catch {return null;}
 }
