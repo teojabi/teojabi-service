@@ -44,7 +44,27 @@ function cardMarkup(listing) {
     <div class="assistant-card-top"><span class="assistant-origin origin-${esc(listing.origin)}">${esc(originLabel(listing.origin))}</span><b>${money(listing.priceWon)}</b></div>
     <p class="assistant-card-address">${esc(listing.district)} ${esc(listing.neighborhood || '')} · ${esc(listing.address)}</p>
     <div class="assistant-card-meta"><span>대지 ${area(listing.areaM2)}</span><span>${esc(listing.kind === 'land' ? '토지' : listing.mainUse || '건물')}</span></div>${station}
+    <button type="button" class="assistant-card-ask" data-ask="${esc(listing.id)}">이 매물 물어보기</button>
   </article>`;
+}
+
+// 선택한 매물에 대해 확인할 수 있는 고정 메뉴. 데이터가 없는 항목은 비활성으로 표시한다.
+function askMenuMarkup(listing) {
+  const hasPnu = /^\d{19}$/.test(String(listing.pnu || ''));
+  const item = (key, label, enabled, note) => `<button type="button" class="assistant-chip" data-ask-menu="${key}" ${enabled ? '' : 'disabled title="' + esc(note) + '"'}>${label}</button>`;
+  return `<div class="assistant-askmenu">
+    <div class="assistant-askmenu-head"><span class="assistant-origin origin-${esc(listing.origin)}">${esc(originLabel(listing.origin))}</span><b>${money(listing.priceWon)}</b><span>${esc(listing.district)} ${esc(listing.neighborhood || '')}</span></div>
+    <p class="assistant-card-address">${esc(listing.address)}</p>
+    <div class="assistant-chiprow">
+      ${item('station', '📍 역까지 거리', Boolean(listing.station), '역 거리를 확인할 수 없어요')}
+      ${item('nearby', '📊 주변 실거래', true, '')}
+      ${item('zoning', '🗺️ 용도지역·규제', hasPnu, '필지 정보가 없어 확인할 수 없어요')}
+      ${item('documents', '📄 건축물대장·토지대장', hasPnu, '필지 정보가 없어 확인할 수 없어요')}
+      ${item('similar', '🔎 비슷한 매물 찾기', true, '')}
+      ${item('analyze', '🏗️ 신축 검토하기', true, '')}
+    </div>
+    ${hasPnu ? '' : '<p class="assistant-note">이 매물은 필지 고유번호가 없어 용도지역·규제와 대장 자료를 확인할 수 없어요. 신축 검토에서 필지를 직접 선택할 수 있어요.</p>'}
+  </div>`;
 }
 
 // Editable condition chips let the user fix the search without leaving the chat.
@@ -73,7 +93,7 @@ function editorMarkup(filters) {
   </form>`;
 }
 
-export function mountAssistant({ onResults } = {}) {
+export function mountAssistant({ onResults, onAnalyze } = {}) {
   if (document.querySelector('#assistant-fab')) return () => {};
   const fab = document.createElement('button');
   fab.id = 'assistant-fab'; fab.className = 'assistant-fab'; fab.type = 'button';
@@ -91,10 +111,88 @@ export function mountAssistant({ onResults } = {}) {
   const input = panel.querySelector('input');
   let busy = false;
   let lastFilters = null;
+  let selectedListing = null;
   const scroll = () => { log.scrollTop = log.scrollHeight; };
   const add = (html, cls = 'bot') => { const div = document.createElement('div'); div.className = `assistant-msg ${cls}`; div.innerHTML = html; log.append(div); scroll(); return div; };
   const addBot = html => add(html, 'bot');
   const addUser = text => add(esc(text), 'user');
+
+  // 조회 실패를 0건처럼 보여주지 않는다.
+  async function readJson(path) {
+    try {
+      const response = await apiFetch(path);
+      const data = await response.json();
+      return response.ok && data?.status === 'ready' ? data : null;
+    } catch { return null; }
+  }
+
+  // 선택한 매물의 고정 메뉴 답변. 검증된 기존 조회 API만 사용한다.
+  async function askAbout(key, listing) {
+    if (busy) return;
+    busy = true;
+    const scan = addBot(`<div class="assistant-scan"><span class="assistant-spinner"></span><b>확인하고 있어요…</b></div>`);
+    const started = Date.now();
+    const settle = async () => { const wait = Math.max(0, 500 - (Date.now() - started)); if (wait) await new Promise(r => setTimeout(r, wait)); };
+    try {
+      if (key === 'analyze') {
+        scan.remove(); busy = false;
+        onAnalyze?.(listing);
+        addBot(`🏗️ <b>${esc(listing.address)}</b> 기준으로 신축 검토를 열었어요. 주소와 대지면적이 자동으로 입력돼요.`);
+        return;
+      }
+      if (key === 'similar') {
+        scan.remove(); busy = false;
+        const filters = { districts: listing.district ? [listing.district] : undefined, kind: listing.kind, limit: 60 };
+        if (listing.areaM2 > 0) { filters.minAreaM2 = Math.round(listing.areaM2 * 0.8); filters.maxAreaM2 = Math.round(listing.areaM2 * 1.2); }
+        await runSearch(null, filters);
+        return;
+      }
+      let html;
+      if (key === 'station') {
+        const s = listing.station;
+        html = s ? `📍 <b>${esc(s.name)}역</b>까지 직선거리 <b>${s.distM}m</b>, 도보 약 <b>${s.walkMin}분</b>이에요.<br><small>실제 보행 경로와 다를 수 있어요.</small>` : '역 거리 자료를 확인할 수 없어요.';
+      } else if (key === 'nearby') {
+        const data = await readJson(`/api/nearby-transactions/${encodeURIComponent(listing.id)}`);
+        if (!data) html = '주변 실거래를 확인할 수 없어요.';
+        else if (!data.cases?.length) html = '반경 1km 안에서 최근 36개월 토지·건물 거래를 찾지 못했어요.';
+        else html = `📊 <b>주변 실거래 ${data.cases.length}곳</b><div class="assistant-facts">${data.cases.map(c => `<div class="assistant-fact"><span>${Math.round(c.distanceMeters)}m · ${esc(c.dealDate)}</span><b>${money(c.priceWon)}</b><span>대지 ${area(c.areaM2)}</span></div>`).join('')}</div><small>매물 핀 기준 직선거리이며 현재 시세를 보증하지 않아요.</small>`;
+      } else if (key === 'zoning') {
+        const data = await readJson(`/api/site-context/${encodeURIComponent(listing.id)}`);
+        if (!data) html = '용도지역·규제 자료를 확인할 수 없어요.';
+        else {
+          const zones = (data.zones || []).map(z => `<li>${esc(z.name || z.code || '구역')}${z.relation ? ` · ${esc(z.relation)}` : ''}</li>`).join('');
+          const road = data.road?.status === 'ready' && data.road.widthM ? `<li>도로폭 ${data.road.widthM}m</li>` : '';
+          html = `🗺️ <b>용도지역·규제</b><ul class="assistant-list">${zones || '<li>확인된 용도지역 자료가 없어요.</li>'}${road}</ul><small>보유 공공데이터 기준이에요.</small>`;
+        }
+      } else if (key === 'documents') {
+        const [building, land] = await Promise.all([
+          readJson(`/api/building-records/${encodeURIComponent(listing.id)}`),
+          readJson(`/api/land-record/${encodeURIComponent(listing.id)}`),
+        ]);
+        const parts = [];
+        if (building) {
+          const names = (building.items || building.records || []).slice(0, 4).map(r => `<li>${esc(r.kind || r.name || '건축물대장')} · 연면적 ${area(r.floorAreaM2)}</li>`).join('');
+          parts.push(`📄 <b>건축물대장</b><ul class="assistant-list">${names || '<li>보유한 건축물대장 자료가 없어요.</li>'}</ul>`);
+        } else parts.push('📄 건축물대장 자료를 확인할 수 없어요.');
+        if (land) parts.push(`🗂️ <b>토지대장</b><ul class="assistant-list"><li>공부상 면적 ${area(land.areaM2)}</li><li>지목 ${esc(land.jimok || '미기재')}</li></ul>`);
+        else parts.push('🗂️ 토지대장 자료를 확인할 수 없어요.');
+        html = parts.join('');
+      } else html = '알 수 없는 요청이에요.';
+      await settle();
+      scan.remove();
+      const bubble = addBot(html + `<div class="assistant-chiprow"><button type="button" class="assistant-chip" data-ask-back="1">↩ 다른 항목 물어보기</button></div>`);
+      bubble.querySelector('[data-ask-back]')?.addEventListener('click', () => openAskMenu(listing));
+    } catch {
+      scan.remove();
+      addBot('자료를 확인하지 못했어요. 잠시 후 다시 시도해 주세요.');
+    } finally { busy = false; }
+  }
+
+  function openAskMenu(listing) {
+    selectedListing = listing;
+    const bubble = addBot(askMenuMarkup(listing));
+    bubble.querySelectorAll('[data-ask-menu]').forEach(button => button.addEventListener('click', () => askAbout(button.dataset.askMenu, listing)));
+  }
 
   const welcome = () => {
     const condition = savedCondition();
@@ -128,7 +226,16 @@ export function mountAssistant({ onResults } = {}) {
     }
     if (groups.length) {
       bubble.querySelector('[data-map]')?.addEventListener('click', () => onResults?.(data));
-      bubble.querySelectorAll('.assistant-card').forEach(card => card.addEventListener('click', () => onResults?.(data, card.dataset.open)));
+      const byId = new Map(groups.map(g => [g.representative.id, g.representative]));
+      bubble.querySelectorAll('[data-ask]').forEach(button => button.addEventListener('click', event => {
+        event.stopPropagation();
+        const listing = byId.get(button.dataset.ask);
+        if (listing) openAskMenu(listing);
+      }));
+      bubble.querySelectorAll('.assistant-card').forEach(card => card.addEventListener('click', event => {
+        if (event.target.closest('[data-ask]')) return;
+        onResults?.(data, card.dataset.open);
+      }));
     }
     const slot = bubble.querySelector('.assistant-editor-slot');
     const openEditorUi = () => {
