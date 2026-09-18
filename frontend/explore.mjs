@@ -235,11 +235,14 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
   function renderDetail() {
     if(!detail)return;
     const row=detail.listing;
+    const origin=row.origin||(row.cohort==='existing'?'premium':'naver');
+    const originBadge=origin==='premium'?'<em class="pick-badge detail-pick-badge">★ 터잡이 추천</em>':origin==='registered'?'<em class="pick-badge detail-pick-badge">터잡이 등록</em>':'<em class="pick-badge detail-pick-badge origin-naver">네이버 매물</em>';
+    const naverUrl=/^\d+$/.test(String(row.sourceId||''))?`https://fin.land.naver.com/articles/${row.sourceId}`:'';
     $('#listing-detail').innerHTML=`<div class="detail-top"><button type="button" class="detail-back" data-explore="back-list">← 매물 목록</button><button class="detail-close" data-explore="close" aria-label="매물 상세 닫기">×</button></div>
-      <div class="detail-content"><p class="detail-location">${esc(rowTitle(row))}${row.cohort==='existing'?'<em class="pick-badge detail-pick-badge">★ 터잡이 추천</em>':''}</p><h2 tabindex="-1" id="detail-title">${money(row.priceWon)}</h2>
+      <div class="detail-content"><p class="detail-location">${esc(rowTitle(row))}${originBadge}</p><h2 tabindex="-1" id="detail-title">${money(row.priceWon)}</h2>
       ${row.teojabiNo?`<p class="detail-listing-number">매물번호 ${esc(row.teojabiNo)}</p>`:''}
       ${areaUnitControls()}<div class="detail-areas"><div><span>대지면적</span><strong>${area(row.areaM2)}</strong></div><div><span>연면적</span><strong>${area(row.floorAreaM2)}</strong></div></div>
-      <div id="land-area-comparison" aria-live="polite"></div><button class="street-open" data-explore="street">네이버 거리뷰 보기 <span aria-hidden="true">↗</span></button><nav class="detail-shortcuts" aria-label="상세 내용 이동"><button data-explore="section" data-section="property-description">매물 설명</button><button data-explore="section" data-section="property-parcel">필지 위치</button><button data-explore="section" data-section="property-documents">서류 확인</button><button data-explore="section" data-section="property-context">주변 조건</button></nav>
+      <div id="land-area-comparison" aria-live="polite"></div><div class="detail-links">${naverUrl?`<a class="outline" href="${naverUrl}" target="_blank" rel="noopener noreferrer">네이버에서 보기 ↗</a>`:''}<button class="street-open" data-explore="street">네이버 거리뷰 보기 <span aria-hidden="true">↗</span></button></div>${origin==='naver'?'<p class="case-note">네이버에서 수집한 매물이에요. 건축물대장·토지대장은 보유 자료가 있을 때만 표시돼요.</p>':''}<nav class="detail-shortcuts" aria-label="상세 내용 이동"><button data-explore="section" data-section="property-description">매물 설명</button><button data-explore="section" data-section="property-parcel">필지 위치</button><button data-explore="section" data-section="property-documents">서류 확인</button><button data-explore="section" data-section="property-context">주변 조건</button></nav>
       <section class="detail-section" id="property-description"><h3>매물 설명</h3>${row.description?`<p class="listing-description">${esc(row.description)}</p>`:''}${detailFacts(row)||(!row.description?'<p class="listing-description">등록된 설명이 없습니다.</p>':'')}</section>
       <section class="detail-section" id="property-parcel"><h3>필지 위치</h3><p>${esc(row.address||`${rowTitle(row)} · 상세 주소 미확인`)}</p></section>
       <section class="detail-section"><h3>용도지역</h3>${row.zoning?.status==='matched'?`<p>${row.zoning.entries.map(e=>esc(e.name)).join('<br>')}</p><p class="case-note">공공데이터 기준</p>`:'<p class="case-note">용도지역을 확인하지 못했습니다.</p>'}</section>
@@ -259,7 +262,15 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     map.parcel(null);if(result)drawCards();
     try {
       const response=await apiFetch(`/api/listings/${encodeURIComponent(id)}`,{signal:abort.signal});
-      const data=await response.json();if(!response.ok||data.status!=='ready')throw new Error('Missing listing');
+      let data=await response.json();
+      if(response.status===404||data.status==='missing'){
+        // Assistant results can be plain naver listings that are not in the curated catalog.
+        const fromAssistant=assistantResult?.groups?.find(group=>group.representative.id===id)?.representative;
+        if(fromAssistant)data={status:'ready',mode:'assistant-listing',listing:fromAssistant,observedAt:assistantResult.searchedAt||null,
+          documents:{building:{status:'source-only',delivery:'in-site'},land:{status:'source-only',delivery:'in-site'},registry:{status:'external',url:DOCUMENT_LINKS.registry}}};
+      }
+      if(!response.ok&&data.status!=='ready')throw new Error('Missing listing');
+      if(!data||data.status!=='ready')throw new Error('Missing listing');
       if(disposed||current!==detailVersion)return;
       detail=data;renderDetail();
       const favoriteActive=Boolean(member.get('favorite',data.listing.id));

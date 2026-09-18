@@ -1,18 +1,27 @@
 import { apiFetch } from './api-client.mjs';
 import { member } from './member.mjs';
+import { DISTRICTS } from './policy.mjs';
 import { formatArea, getAreaDisplayUnit } from './area-display.mjs';
 
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const money = won => won > 0 ? `${(won / 1e8).toLocaleString('ko-KR', { maximumFractionDigits: 2 })}억` : '가격 미기재';
 const area = value => value > 0 ? formatArea(value, getAreaDisplayUnit()) : '면적 미기재';
+const originLabel = origin => ({ premium: '★ 터잡이 추천', registered: '터잡이 등록', naver: '네이버 매물' }[origin] || '네이버 매물');
 const ROBOT = '<svg viewBox="0 0 48 48" aria-hidden="true"><rect x="12" y="16" width="24" height="20" rx="7" fill="#bfe3ff" stroke="currentColor" stroke-width="2.4"/><circle cx="24" cy="9" r="2.6" fill="currentColor"/><path d="M24 12v4" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/><circle cx="19" cy="25" r="2.4" fill="currentColor"/><circle cx="29" cy="25" r="2.4" fill="currentColor"/><path d="M19 31c2.4 2 7.6 2 10 0" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" fill="none"/><path d="M9 24v6M39 24v6" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>';
-
+const SCAN_MS = 8000;
 const STEPS = [
-  '요청을 이해하고 있어요…',
-  '서울 매물 2만여 건을 살펴보는 중…',
-  '가까운 지하철역까지 거리를 계산하는 중…',
-  '조건에 맞는 매물을 정리하는 중…',
+  '터잡이 등록·추천 매물을 찾는 중이에요…',
+  '네이버 매물을 찾는 중이에요…',
+  '대지위치를 검색하고 있어요…',
+  '면적과 용도지역을 맞춰보는 중이에요…',
+  '가까운 지하철역까지 거리를 계산하는 중이에요…',
+  '도로폭 등 주변 조건을 확인하는 중이에요…',
+  '조건에 맞는 매물을 정리하고 있어요…',
 ];
+const BUDGET_PRESETS = [10, 20, 30, 50, 100, 200];
+const AREA_PRESETS = [50, 100, 200, 300, 500];
+const ROAD_PRESETS = [4, 6, 8, 12];
+const DISTANCE_PRESETS = [100, 200, 300, 500, 1000];
 
 function savedCondition() {
   if (member.status !== 'ready') return null;
@@ -31,11 +40,37 @@ function conditionLabel(payload) {
 
 function cardMarkup(listing) {
   const station = listing.station ? `<span class="assistant-station">📍 ${esc(listing.station.name)}역 · 도보 약 ${listing.station.walkMin}분 · ${listing.station.distM}m</span>` : '';
-  return `<article class="assistant-card" data-open="${esc(listing.id)}">
-    <div class="assistant-card-top"><b>${money(listing.priceWon)}</b><span>${esc(listing.district)} ${esc(listing.neighborhood || '')}</span></div>
-    <p class="assistant-card-address">${esc(listing.address)}</p>
+  return `<article class="assistant-card" data-open="${esc(listing.id)}" data-origin="${esc(listing.origin)}">
+    <div class="assistant-card-top"><span class="assistant-origin origin-${esc(listing.origin)}">${esc(originLabel(listing.origin))}</span><b>${money(listing.priceWon)}</b></div>
+    <p class="assistant-card-address">${esc(listing.district)} ${esc(listing.neighborhood || '')} · ${esc(listing.address)}</p>
     <div class="assistant-card-meta"><span>대지 ${area(listing.areaM2)}</span><span>${esc(listing.kind === 'land' ? '토지' : listing.mainUse || '건물')}</span></div>${station}
   </article>`;
+}
+
+// Editable condition chips let the user fix the search without leaving the chat.
+function chipMarkup(chips) {
+  if (!chips.length) return '';
+  return `<div class="assistant-chiprow assistant-filterrow">${chips.map(chip =>
+    `<button type="button" class="assistant-filter" data-filter-key="${esc(chip.key)}" data-filter-value="${esc(chip.value)}">${esc(chip.label)}<span aria-hidden="true">×</span></button>`).join('')}<button type="button" class="assistant-filter assistant-filter-add" data-filter-add="1">＋ 조건</button></div>`;
+}
+
+function editorMarkup(filters) {
+  const value = filters || {};
+  const budget = value.budgetWon ? Math.round(value.budgetWon / 1e8) : '';
+  const minArea = value.minAreaM2 ? Math.round(value.minAreaM2 / 3.305785) : '';
+  const distance = value.maxDistanceM || '';
+  const road = value.minRoadWidthM || '';
+  const kindLabel = { land: '토지', building: '건물' };
+  return `<form class="assistant-editor">
+    <div class="assistant-editor-row"><span>지역</span><div class="assistant-opts" data-group="districts">${DISTRICTS.map(d => `<button type="button" data-pick="districts" data-value="${esc(d)}" aria-pressed="${(value.districts || []).includes(d)}">${esc(d)}</button>`).join('')}</div></div>
+    <div class="assistant-editor-row"><span>유형</span><div class="assistant-opts" data-group="kind">${Object.entries(kindLabel).map(([k, l]) => `<button type="button" data-pick="kind" data-value="${k}" aria-pressed="${value.kind === k}">${l}</button>`).join('')}</div></div>
+    <div class="assistant-editor-row"><span>용도지역</span><div class="assistant-opts" data-group="zones">${['주거지역', '상업지역', '공업지역', '녹지지역'].map(z => `<button type="button" data-pick="zones" data-value="${z}" aria-pressed="${(value.zones || []).includes(z)}">${z}</button>`).join('')}</div></div>
+    <div class="assistant-editor-row"><span>예산</span><div class="assistant-opts">${BUDGET_PRESETS.map(v => `<button type="button" data-num="budgetWon" data-value="${v}" aria-pressed="${budget === v}">${v}억 이하</button>`).join('')}<input type="number" data-num-input="budgetWon" min="1" placeholder="직접(억)" value="${esc(budget)}"></div></div>
+    <div class="assistant-editor-row"><span>대지</span><div class="assistant-opts">${AREA_PRESETS.map(v => `<button type="button" data-num="minAreaM2" data-value="${v}" aria-pressed="${minArea === v}">${v}평 이상</button>`).join('')}<input type="number" data-num-input="minAreaM2" min="1" placeholder="직접(평)" value="${esc(minArea)}"></div></div>
+    <div class="assistant-editor-row"><span>역 거리</span><div class="assistant-opts">${DISTANCE_PRESETS.map(v => `<button type="button" data-num="maxDistanceM" data-value="${v}" aria-pressed="${distance === v}">${v}m</button>`).join('')}</div></div>
+    <div class="assistant-editor-row"><span>도로폭</span><div class="assistant-opts">${ROAD_PRESETS.map(v => `<button type="button" data-num="minRoadWidthM" data-value="${v}" aria-pressed="${road === v}">${v}m 이상</button>`).join('')}</div></div>
+    <div class="assistant-editor-actions"><button type="button" class="outline" data-editor-cancel>닫기</button><button type="submit" class="primary">이 조건으로 다시 찾기</button></div>
+  </form>`;
 }
 
 export function mountAssistant({ onResults } = {}) {
@@ -49,12 +84,13 @@ export function mountAssistant({ onResults } = {}) {
   panel.setAttribute('aria-label', 'AI 부동산 비서');
   panel.innerHTML = `<header class="assistant-head"><span class="assistant-avatar">${ROBOT}</span><div><b>AI 부동산 비서</b><small>조건을 말하면 매물을 찾아드려요</small></div><button type="button" class="assistant-close" aria-label="비서 닫기">×</button></header>
     <div class="assistant-log" aria-live="polite"></div>
-    <form class="assistant-form"><input name="message" type="text" autocomplete="off" maxlength="200" placeholder="예: 마포구 30억 이하 건물" aria-label="조건 입력"><button type="submit">전송</button></form>`;
+    <form class="assistant-form"><input name="message" type="text" autocomplete="off" maxlength="200" placeholder="예: 종로구 상업지역 100억 이하 도로 6m" aria-label="조건 입력"><button type="submit">전송</button></form>`;
   document.body.append(fab, panel);
 
   const log = panel.querySelector('.assistant-log');
   const input = panel.querySelector('input');
   let busy = false;
+  let lastFilters = null;
   const scroll = () => { log.scrollTop = log.scrollHeight; };
   const add = (html, cls = 'bot') => { const div = document.createElement('div'); div.className = `assistant-msg ${cls}`; div.innerHTML = html; log.append(div); scroll(); return div; };
   const addBot = html => add(html, 'bot');
@@ -62,48 +98,122 @@ export function mountAssistant({ onResults } = {}) {
 
   const welcome = () => {
     const condition = savedCondition();
-    addBot(`안녕하세요, AI 부동산 비서예요. 원하는 조건을 편하게 말해주세요.<br><small>예: "홍대입구역 도보 3분 30억 이하", "강남구 상업지역 토지"</small>`);
-    if (condition) {
-      addBot(`저장하신 조건이 있어요: <b>${esc(conditionLabel(condition))}</b><br><button type="button" class="assistant-chip" data-send="저장한 조건으로 찾아줘">이 조건으로 찾기</button>`);
-    }
+    addBot(`안녕하세요, AI 부동산 비서예요. 원하는 조건을 편하게 말해주세요.<br><small>예: "종로구 상업지역 100억 이하 50평 이상 도로 6m", "홍대입구역 도보 3분"</small>`);
+    if (condition) addBot(`저장하신 조건이 있어요: <b>${esc(conditionLabel(condition))}</b><br><small>말씀하신 조건이 있으면 그 조건으로 먼저 찾아드려요.</small><button type="button" class="assistant-chip" data-send="저장한 조건으로 찾아줘">이 조건으로 찾기</button>`);
   };
 
-  async function search(message) {
+  function renderResult(body, data, openEditor) {
+    const groups = Array.isArray(data.groups) ? data.groups : [];
+    const cards = groups.map(group => cardMarkup(group.representative)).join('');
+    let reply = `<p>${esc(data.reply || '결과를 가져왔어요.').replace(/\n/g, '<br>')}</p>`;
+    if (data.conditionNote) reply += `<p class="assistant-note">${esc(data.conditionNote)}</p>`;
+    if (cards) reply += `<div class="assistant-cards">${cards}</div>`;
+    reply += chipMarkup(data.chips || []);
+    if (data.unsupported) reply += `<p class="assistant-note">${esc(data.unsupported)}</p>`;
+    const chips = [];
+    if (groups.length) chips.push(`<button type="button" class="assistant-chip" data-map="1">지도에서 보기</button>`);
+    chips.push(`<button type="button" class="assistant-chip" data-editor="1">조건 바꾸기</button>`);
+    if (data.conditionNote) chips.push(`<button type="button" class="assistant-chip" data-send="저장한 조건으로 찾아줘">저장 조건으로 찾기</button>`);
+    (data.suggestions || []).forEach(s => chips.push(`<button type="button" class="assistant-chip" data-send="${esc(s.message)}">${esc(s.label)}</button>`));
+    if (chips.length) reply += `<div class="assistant-chiprow">${chips.join('')}</div>`;
+    reply += `<div class="assistant-editor-slot" hidden></div>`;
+    const bubble = addBot(reply);
+
+    const relax = Array.isArray(data.relaxations) ? data.relaxations : [];
+    if (!groups.length && relax.length) {
+      const row = document.createElement('div');
+      row.className = 'assistant-chiprow assistant-relax';
+      row.innerHTML = relax.slice(0, 4).map(r => `<button type="button" class="assistant-chip" data-relax="${esc(JSON.stringify(r.patch))}">${esc(r.label)} (${r.count}건)</button>`).join('');
+      bubble.append(row);
+    }
+    if (groups.length) {
+      bubble.querySelector('[data-map]')?.addEventListener('click', () => onResults?.(data));
+      bubble.querySelectorAll('.assistant-card').forEach(card => card.addEventListener('click', () => onResults?.(data, card.dataset.open)));
+    }
+    const slot = bubble.querySelector('.assistant-editor-slot');
+    const openEditorUi = () => {
+      slot.hidden = false;
+      slot.innerHTML = editorMarkup(lastFilters || {});
+    };
+    bubble.querySelector('[data-editor]')?.addEventListener('click', () => { slot.hidden ? openEditorUi() : (slot.hidden = true); slot.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); });
+    if (openEditor) openEditorUi();
+    slot.addEventListener('click', event => {
+      if (event.target.closest('[data-editor-cancel]')) { slot.hidden = true; slot.innerHTML = ''; return; }
+      const pick = event.target.closest('[data-pick]');
+      if (pick) {
+        const list = lastFilters[pick.dataset.pick];
+        const value = pick.dataset.value;
+        const next = Array.isArray(list) ? (list.includes(value) ? list.filter(v => v !== value) : [...list, value]) : value;
+        lastFilters[pick.dataset.pick] = Array.isArray(next) && next.length ? next : undefined;
+        openEditorUi();
+      }
+      const num = event.target.closest('[data-num]');
+      if (num) {
+        const key = num.dataset.num, value = Number(num.dataset.value);
+        if (key === 'budgetWon') lastFilters.budgetWon = value * 1e8;
+        else if (key === 'minAreaM2') lastFilters.minAreaM2 = Math.round(value * 3.305785);
+        else lastFilters[key] = value;
+        openEditorUi();
+      }
+      const relaxChip = event.target.closest('[data-relax]');
+      if (relaxChip) {
+        const patch = JSON.parse(relaxChip.dataset.relax);
+        lastFilters = { ...(lastFilters || {}), ...patch };
+        for (const key of Object.keys(patch)) if (patch[key] === null) delete lastFilters[key];
+        runSearch(null, lastFilters);
+      }
+    });
+    slot.addEventListener('input', event => {
+      const field = event.target.closest('[data-num-input]');
+      if (!field) return;
+      const key = field.dataset.numInput, value = Number(field.value);
+      if (!Number.isFinite(value) || value <= 0) { delete lastFilters[key]; return; }
+      if (key === 'budgetWon') lastFilters.budgetWon = Math.round(value) * 1e8;
+      else if (key === 'minAreaM2') lastFilters.minAreaM2 = Math.round(value * 3.305785);
+      else lastFilters[key] = value;
+    });
+    slot.addEventListener('submit', event => {
+      event.preventDefault();
+      runSearch(null, lastFilters || {});
+    });
+    slot.addEventListener('click', event => {
+      const remove = event.target.closest('[data-filter-key]');
+      if (!remove) return;
+      const key = remove.dataset.filterKey, value = remove.dataset.filterValue;
+      const list = lastFilters?.[key];
+      if (Array.isArray(list)) {
+        lastFilters[key] = list.filter(v => String(v) !== value);
+        if (!lastFilters[key].length) delete lastFilters[key];
+      } else delete lastFilters[key];
+      runSearch(null, lastFilters || {});
+    });
+  }
+
+  async function runSearch(message, editedFilters) {
     if (busy) return;
     busy = true;
-    addUser(message);
+    if (message) addUser(message);
     const scan = addBot(`<div class="assistant-scan"><span class="assistant-spinner"></span><b>AI 공간 분석 중…</b><ul class="assistant-steps"></ul><div class="assistant-bar"><i></i></div></div>`);
     const stepsEl = scan.querySelector('.assistant-steps');
     const bar = scan.querySelector('.assistant-bar i');
     const started = Date.now();
+    const interval = Math.floor(SCAN_MS * 0.9 / STEPS.length);
     const timers = STEPS.map((text, i) => setTimeout(() => {
       stepsEl.insertAdjacentHTML('beforeend', `<li>${esc(text)}</li>`); scroll();
-      if (bar) bar.style.width = `${Math.round(((i + 1) / STEPS.length) * 80)}%`;
-    }, 350 + i * 420));
+      if (bar) bar.style.width = `${Math.round(((i + 1) / STEPS.length) * 92)}%`;
+    }, 250 + i * interval));
     const condition = savedCondition();
+    const payload = { message: message || '', condition, filters: editedFilters || undefined };
     try {
-      const response = await apiFetch('/api/assistant', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message, condition }) });
+      const response = await apiFetch('/api/assistant', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
       const data = await response.json();
-      const wait = Math.max(0, 2200 - (Date.now() - started));
+      const wait = Math.max(0, SCAN_MS - (Date.now() - started));
       await new Promise(resolve => setTimeout(resolve, wait));
       if (bar) bar.style.width = '100%';
       timers.forEach(clearTimeout);
       scan.remove();
-      const groups = Array.isArray(data.groups) ? data.groups : [];
-      const cards = groups.map(group => cardMarkup(group.representative)).join('');
-      let reply = `<p>${esc(data.reply || '결과를 가져왔어요.')}</p>`;
-      if (cards) reply += `<div class="assistant-cards">${cards}</div>`;
-      if (data.unsupported) reply += `<p class="assistant-note">${esc(data.unsupported)}</p>`;
-      const chips = [];
-      if (groups.length) chips.push(`<button type="button" class="assistant-chip" data-map="1">지도에서 보기</button>`);
-      (data.suggestions || []).forEach(s => chips.push(`<button type="button" class="assistant-chip" data-send="${esc(s.message)}">${esc(s.label)}</button>`));
-      if (!groups.length) chips.push(`<button type="button" class="assistant-chip" data-send="서울 전체">서울 전체 보기</button>`);
-      if (chips.length) reply += `<div class="assistant-chiprow">${chips.join('')}</div>`;
-      const bubble = addBot(reply);
-      if (groups.length) {
-        bubble.querySelector('[data-map]')?.addEventListener('click', () => onResults?.(data));
-        bubble.querySelectorAll('.assistant-card').forEach(card => card.addEventListener('click', () => onResults?.(data, card.dataset.open)));
-      }
+      lastFilters = { ...(data.filters || {}) };
+      renderResult(null, data, !message && Boolean(editedFilters));
     } catch {
       timers.forEach(clearTimeout); scan.remove();
       addBot('매물 자료를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.');
@@ -112,9 +222,8 @@ export function mountAssistant({ onResults } = {}) {
 
   panel.addEventListener('click', event => {
     const chip = event.target.closest('[data-send]');
-    if (chip) { search(chip.dataset.send); return; }
+    if (chip) { runSearch(chip.dataset.send); return; }
     if (event.target.closest('.assistant-close')) { panel.hidden = true; fab.classList.add('active'); return; }
-    if (event.target === fab || event.target.closest('#assistant-fab')) return;
   });
   fab.addEventListener('click', () => {
     panel.hidden = !panel.hidden;
@@ -125,7 +234,7 @@ export function mountAssistant({ onResults } = {}) {
     const value = input.value.trim();
     if (!value) return;
     input.value = '';
-    search(value);
+    runSearch(value);
   });
   return () => { fab.remove(); panel.remove(); };
 }
