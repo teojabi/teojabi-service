@@ -445,12 +445,13 @@ body.map-results-open{height:100dvh;min-height:0;overflow:hidden;display:flex;fl
 /* Lift the desktop result sheet while preserving the mobile sheet position. */
 @media(min-width:701px){.results-sheet{top:64px;bottom:34px;height:auto}.results-sheet.collapsed{top:auto;bottom:18px;height:46px}}
 .assistant-fab{position:fixed;right:18px;bottom:18px;z-index:60;display:inline-flex;align-items:center;gap:8px;padding:10px 15px 10px 12px;border-radius:999px;border:1px solid var(--primary);background:var(--card);color:var(--primary);box-shadow:0 6px 20px var(--shadow);cursor:pointer;font-weight:800;font-size:14px}
+.assistant-fab-icon{color:#f0b400}
 .assistant-fab-icon svg{width:26px;height:26px;display:block}
 .assistant-fab.active{background:var(--selected)}
 .assistant-panel{position:fixed;right:18px;bottom:76px;z-index:61;width:min(380px,calc(100% - 24px));max-height:min(560px,calc(100dvh - 110px));display:flex;flex-direction:column;background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:0 12px 40px var(--shadow);overflow:hidden}
 .assistant-panel[hidden]{display:none}
 .assistant-head{display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid var(--line)}
-.assistant-avatar{color:var(--primary)}.assistant-avatar svg{width:28px;height:28px;display:block}
+.assistant-avatar{color:#f0b400}.assistant-avatar svg{width:28px;height:28px;display:block}
 .assistant-head b{display:block;font-size:15px}.assistant-head small{font-size:12px;color:var(--muted)}
 .assistant-close{margin-left:auto;background:none;border:0;font-size:20px;line-height:1;color:var(--muted);cursor:pointer}
 .assistant-log{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;padding:14px;display:flex;flex-direction:column;gap:10px}
@@ -511,20 +512,23 @@ body.map-results-open{height:100dvh;min-height:0;overflow:hidden;display:flex;fl
 /* 홈 화면 AI 비서 유입 배너 */
 .assistant-banner{display:flex;align-items:center;gap:14px;width:100%;margin:0 0 22px;padding:16px 18px;border:1px solid var(--primary);border-radius:16px;background:var(--selected);color:var(--ink);text-align:left;cursor:pointer}
 .assistant-banner:hover{border-color:var(--primary);box-shadow:0 6px 18px var(--shadow)}
-.assistant-banner-icon{flex:0 0 44px;width:44px;height:44px;border-radius:12px;background:var(--card);border:1px solid var(--line);display:grid;place-items:center;position:relative}
-.assistant-banner-icon::before{content:"";width:22px;height:18px;border-radius:6px;background:var(--primary);box-shadow:0 -8px 0 -5px var(--primary)}
+.assistant-banner-icon{flex:0 0 46px;width:46px;height:46px;border-radius:12px;background:var(--card);border:1px solid var(--line);display:grid;place-items:center;color:#f0b400}
+.assistant-banner-icon svg{width:28px;height:28px;display:block}
 .assistant-banner-text{flex:1;min-width:0;display:grid;gap:3px}
-.assistant-banner-text b{font-size:17px}
+.assistant-banner-text b{font-size:17px;line-height:1.4}
 .assistant-banner-text small{font-size:13px;color:var(--muted);line-height:1.6}
 .assistant-banner-cta{flex:0 0 auto;display:inline-flex;align-items:center;gap:7px;background:var(--primary);color:#fff;border-radius:999px;padding:11px 16px;font-size:14px;font-weight:800}
 .assistant-banner-cta .circle{width:22px;height:22px;border-radius:50%;background:#ffffff2e;display:grid;place-items:center}
 .assistant-banner-cta .circle svg{width:14px;height:14px}
-.header nav .nav-assistant{color:var(--primary);font-weight:800;border:1px solid var(--primary);border-radius:999px;padding:0 12px;background:var(--selected)}
-.header nav .nav-assistant::before{content:"🤖 ";font-size:12px}
+.assistant-saved-condition{margin:4px 0;padding:8px 10px;border-radius:9px;background:var(--card);border:1px solid var(--line);font-size:13px;line-height:1.6;overflow-wrap:anywhere;word-break:break-word}
 @media(max-width:700px){
-  .assistant-banner{flex-wrap:wrap;gap:10px;padding:14px}
+  .assistant-banner{flex-wrap:wrap;gap:10px;padding:13px 14px}
+  .assistant-banner-icon{flex:0 0 40px;width:40px;height:40px}
+  .assistant-banner-icon svg{width:24px;height:24px}
   .assistant-banner-text{flex:1 1 100%;order:2}
-  .assistant-banner-cta{order:3;width:100%;justify-content:center}
+  .assistant-banner-text b{font-size:15px}
+  .assistant-banner-text small{font-size:12.5px}
+  .assistant-banner-cta{order:3;width:100%;justify-content:center;font-size:13px;padding:10px 14px}
   .assistant-banner-icon{order:1}
 }
 .assistant-filter{border:1px solid var(--primary);background:var(--selected);color:var(--primary);border-radius:999px;padding:5px 9px;font-size:12px;cursor:pointer}
