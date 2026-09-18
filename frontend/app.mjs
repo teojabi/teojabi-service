@@ -57,6 +57,11 @@ window.addEventListener('teojabi-open-saved',event=>{
   if(kind==='analysis'){state.siteDraft={...createSiteDraft(),restore:{pnus:p.pnus,fields:p.fields},memo:p.memo,name:p.name};state.screen='analyze';history.replaceState(null,'',location.pathname);}
   render();
 });
+window.addEventListener('teojabi-open-favorites',()=>{
+  state.screen='results';
+  history.replaceState(null,'',location.pathname+'#favorites');
+  render();
+});
 let enteredMember=null;
 let completedThisVisit=false;
 function rememberSearch(next){
@@ -131,7 +136,7 @@ function render(focus = true) {
     app.innerHTML='<section class="screen-loading" aria-live="polite"><span></span><p>매물과 지도를 불러오고 있어요.</p></section>';
     loadExplorer().then(({mountExplorer})=>{
       if(version!==renderVersion||state.screen!=='results')return;
-      disposeExplorer=mountExplorer(app,{conditions:state.applied,initialId:new URLSearchParams(location.hash.slice(1)).get('listing'),onAnalyze:listing=>{if(state.siteDraft?.listingId!==listing.id)state.siteDraft=createSiteDraft(listing);state.screen='analyze';history.replaceState(null,'',location.pathname);render();},onConditionsChange:next=>{state.applied=next;if(!new URLSearchParams(location.hash.slice(1)).has('listing'))history.replaceState(null,'',location.pathname+'#search');return rememberSearch(next);},onEdit:()=>{
+      disposeExplorer=mountExplorer(app,{conditions:state.applied,initialSource:location.hash==='#favorites'?'favorites':undefined,initialId:new URLSearchParams(location.hash.slice(1)).get('listing'),onAnalyze:listing=>{if(state.siteDraft?.listingId!==listing.id)state.siteDraft=createSiteDraft(listing);state.screen='analyze';history.replaceState(null,'',location.pathname);render();},onConditionsChange:next=>{state.applied=next;if(!new URLSearchParams(location.hash.slice(1)).has('listing'))history.replaceState(null,'',location.pathname+'#search');return rememberSearch(next);},onEdit:()=>{
         state.draft=appliedDraft();
         state.editing=Boolean(state.applied);state.screen='purpose';render();
       }});
@@ -241,7 +246,7 @@ app.addEventListener('change',event=>{
   state.draft[input.dataset.buildControl]=input.type==='checkbox'?input.checked:input.value?Number(input.value):null;
 });
 render(false);
-if(new URLSearchParams(location.hash.slice(1)).has('listing')||location.hash==='#search'||location.pathname.endsWith('/search.html')) {state.screen='results';render(false);}
+if(new URLSearchParams(location.hash.slice(1)).has('listing')||location.hash==='#search'||location.hash==='#favorites'||location.pathname.endsWith('/search.html')) {state.screen='results';render(false);}
 else if(location.hash==='#analyze'||location.pathname.endsWith('/analyze.html')){state.screen='analyze';render(false);}
 
 async function loadActivity() {
