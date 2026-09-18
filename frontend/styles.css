@@ -429,6 +429,11 @@ body.map-results-open{height:100dvh;min-height:0;overflow:hidden;display:flex;fl
 }
 .detail-listing-number{display:inline-flex;margin:8px 0 0;padding:5px 9px;border:1px solid var(--line);border-radius:999px;background:var(--selected);color:var(--primary);font-size:11px;font-weight:700}
 .pick-badge{display:inline-flex;align-items:center;gap:3px;margin-left:auto;padding:3px 7px;border:1px solid var(--line);border-radius:999px;background:var(--selected);color:var(--primary);font-style:normal;font-size:10px;font-weight:800;white-space:nowrap}
+.pick-badge.favorite-badge{color:var(--danger);border-color:var(--danger)}
+.explore-page.favorites-mode .quick-filters,.explore-page.favorites-mode #explore-filters .primary,.explore-page.favorites-mode .purpose-guide,.explore-page.favorites-mode .search-suggestions{display:none}
+.map-controls [data-explore=favorites][aria-pressed=true]{background:var(--selected);border-color:var(--primary);color:var(--primary)}
+.member-favorites-actions{display:flex;margin:0 0 14px}
+.member-favorites-actions .primary{padding:10px 16px;font-size:12px}
 .detail-pick-badge{margin-left:8px;vertical-align:middle}
 .document-actions{display:flex;gap:7px;margin-left:auto;flex-wrap:wrap;justify-content:flex-end}
 .document-list .document-actions .outline{margin:0}

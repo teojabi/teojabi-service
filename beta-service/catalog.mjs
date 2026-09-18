@@ -53,6 +53,13 @@ export function browseCatalog(catalog, query) {
   const excluded=query.getAll('exclude');
   if(excluded.length>500||excluded.some(id=>!/^(?:(?:naver|naver-land):\d{1,30}|premium:[a-f0-9-]{36})$/.test(id)))return {status:'invalid'};
   const excludedIds=new Set(excluded);
+  // A favorites request asks for exact saved listing ids; other filters are ignored for it.
+  const idsParam=query.get('ids');
+  let requestedIds=null;
+  if(idsParam!==null){
+    requestedIds=idsParam.split(',').filter(Boolean);
+    if(!requestedIds.length||requestedIds.length>100||requestedIds.some(id=>!/^(?:(?:naver|naver-land):\d{1,30}|premium:[a-f0-9-]{36})$/.test(id)))return {status:'invalid'};
+  }
   const districts=query.getAll('district');
   if (districts.some(d=>!DISTRICTS.includes(d))) return {status:'invalid'};
   const budget=query.has('budgetWon')?Number(query.get('budgetWon')):null;
@@ -70,12 +77,13 @@ export function browseCatalog(catalog, query) {
   try {bounds=parseBounds(query.get('bounds'));} catch {return {status:'invalid'};}
   const sort=query.get('sort')||'price';
   if (!['price','price-desc','area'].includes(sort)) return {status:'invalid'};
-  const maxLimit=catalog.mode==='selected-preview'?500:20;
-  const limit=Math.min(maxLimit,Math.max(5,Math.floor(Number(query.get('limit')))||5));
+  const maxLimit=requestedIds?100:catalog.mode==='selected-preview'?500:20;
+  const limit=requestedIds?maxLimit:Math.min(maxLimit,Math.max(5,Math.floor(Number(query.get('limit')))||5));
   const keyword=text(query.get('q'),100).toLocaleLowerCase('ko-KR');
   const cohort=query.get('cohort');
   if(cohort&&!['existing','curated'].includes(cohort))return {status:'invalid'};
-  let rows=catalog.rows.filter(row=>!excludedIds.has(row.id)&&(!districts.length||districts.includes(row.district)) &&
+  const wanted=requestedIds?new Set(requestedIds):null;
+  let rows=(wanted?catalog.rows.filter(row=>wanted.has(row.id)):catalog.rows.filter(row=>!excludedIds.has(row.id)&&(!districts.length||districts.includes(row.district)) &&
     (!cohort||row.cohort===cohort) &&
     (budget===null || row.priceWon>0 && row.priceWon<=budget) &&
     (minArea===null || row.areaM2!==null&&row.areaM2>=minArea) &&
@@ -83,12 +91,13 @@ export function browseCatalog(catalog, query) {
     (!zones.length || row.zoning?.status==='matched'&&row.zoning.groups.some(z=>zones.includes(z))) &&
     (sort!=='area'||row.areaM2!==null) &&
     (!bounds || row.position.lng>=bounds.west && row.position.lng<=bounds.east && row.position.lat>=bounds.south && row.position.lat<=bounds.north) &&
-    (!keyword || `${row.address} ${row.neighborhood} ${row.sourceId}`.toLocaleLowerCase('ko-KR').includes(keyword)) && matchesDevelopment(row,build));
+    (!keyword || `${row.address} ${row.neighborhood} ${row.sourceId}`.toLocaleLowerCase('ko-KR').includes(keyword)) && matchesDevelopment(row,build)));
   // Choose the cheapest matching listing per parcel before sorting the visible representatives.
   rows.sort((a,b)=>(a.priceWon??Infinity)-(b.priceWon??Infinity) || a.id.localeCompare(b.id));
   const groups=new Map();
   for (const row of rows) {
-    const key=row.groupKey||row.pnu||row.id;
+    // A favorites request keeps one card per saved listing instead of merging a parcel.
+    const key=wanted?row.id:(row.groupKey||row.pnu||row.id);
     if (!groups.has(key)) groups.set(key,{key,pnu:row.pnu,representative:row,listings:[]});
     groups.get(key).listings.push(row);
   }
