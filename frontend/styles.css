@@ -572,3 +572,14 @@ body.map-results-open{height:100dvh;min-height:0;overflow:hidden;display:flex;fl
 
 @media(max-width:700px){.site-map-wrap,.site-map,.site-map *{touch-action:pan-y!important}}
 @media(max-width:700px){body:not(.map-results-open){height:auto!important;min-height:100%;overflow-y:auto!important;overscroll-behavior-y:auto;touch-action:pan-y}.home{overflow:visible;touch-action:pan-y}}
+/* 매물 목록 가독성: 작은 글씨 최소 크기 상향 (가격·제목 제외) */
+.explore-list>p{font-size:13px}
+.property-location,.property-description,.property-link,.area-pair{font-size:13px}
+.property-zoning{font-size:12.5px}
+.pick-badge{font-size:12px}
+.explore-foot{font-size:12px}
+.map-price{font-size:13px}
+.map-pin-area{font-size:11.5px}
+.explore-filters label span{font-size:13px}
+.explore-filters input,.explore-filters select{font-size:13px}
+.more-listings{font-size:13px}
