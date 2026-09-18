@@ -29,13 +29,14 @@ const detailFacts=row=>{
   if(facts.approvalDate)items.push(['사용승인',esc(facts.approvalDate)]);
   return items.length?`<ul class="listing-facts">${items.map(([label,value])=>`<li><b>${label}:</b> ${value}</li>`).join('')}</ul>`:'';
 };
-export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnalyze,initialId,initialSource}={}) {
+export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnalyze,initialId,initialSource,assistant}={}) {
   document.body.classList.add('map-results-open');
   const abort=new AbortController();let disposed=false,version=0,detailVersion=0,closeStreet,closeContext,closeRecords,closeLand;
   let result=null,selected=null,detail=null,parcel=null,limit=5,bounds=conditions?.bounds||null,query='',sort=conditions?.sort==='price-desc'?'price-desc':'price',mapView=null;
-  let source=initialSource==='favorites'?'favorites':'conditions';
+  let assistantResult=assistant&&Array.isArray(assistant.groups)?assistant:null;
+  let source=assistantResult?'assistant':initialSource==='favorites'?'favorites':'conditions';
   let criteria={purpose:conditions?.purpose||null,minArea:conditions?.minArea||'',maxArea:conditions?.maxArea||'',areaUnit:conditions?.areaUnit||'pyeong',zones:conditions?.zones||[],minAreaM2:conditions?.minAreaM2??null,maxAreaM2:conditions?.maxAreaM2??null,...BUILD_DEFAULTS,...(validateBuildCriteria(conditions||{}).value||{})};
-  const defaultTitle=()=>source==='favorites'?'찜한 매물':conditions?'내 조건으로 살펴보기':'지도에서 매물 살펴보기';
+  const defaultTitle=()=>source==='assistant'?'AI 비서 결과':source==='favorites'?'찜한 매물':conditions?'내 조건으로 살펴보기':'지도에서 매물 살펴보기';
   const title=defaultTitle();
   root.innerHTML=`<section class="explore-page"><div class="result-head"><div><span class="eyebrow">EXPLORE TEOJABI</span><h1>${title}</h1></div><button class="outline" data-explore="back-conditions" hidden>내 조건으로 보기</button><button class="outline" data-explore="edit">검색 조건 바꾸기</button></div>
     <form class="explore-search" id="explore-filters"><div class="explore-filters"><label><span>정렬</span><select name="sort"><option value="price" ${sort==='price'?'selected':''}>가격 낮은 순</option><option value="price-desc" ${sort==='price-desc'?'selected':''}>가격 높은 순</option></select></label><button class="primary" type="submit">이 조건으로 검색하기</button></div></form>
@@ -53,10 +54,11 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
   $('.explore-toolbar').insertAdjacentHTML('afterend','<div class="discovery-actions"><button class="outline" data-explore="compare-open" disabled>비교할 매물을 골라주세요 (최대 3개)</button><button class="outline" data-explore="compare-clear" hidden>비교 선택 지우기</button><button class="outline" data-explore="pins" aria-pressed="true">지도 매물 표시</button><span class="discovery-notice" role="status"></span></div><div class="search-suggestions" aria-live="polite"></div>');
   function drawCompare(){const n=compared.size,b=$('[data-explore=compare-open]');b.disabled=n<2;b.textContent=n?`선택 ${n}개 비교하기`:'비교할 매물을 골라주세요 (최대 3개)';$('[data-explore=compare-clear]').hidden=!n;}
   function applySourceUi(){
-    const favoritesMode=source==='favorites';
-    page.classList.toggle('favorites-mode',favoritesMode);
+    const simpleMode=source==='favorites'||source==='assistant';
+    page.classList.toggle('favorites-mode',simpleMode);
+    page.classList.toggle('assistant-mode',source==='assistant');
     const back=$('[data-explore="back-conditions"]'),edit=$('[data-explore="edit"]'),fav=$('[data-explore="favorites"]');
-    if(back)back.hidden=!favoritesMode;if(edit)edit.hidden=favoritesMode;if(fav)fav.setAttribute('aria-pressed',String(favoritesMode));
+    if(back)back.hidden=!simpleMode;if(edit)edit.hidden=simpleMode;if(fav)fav.setAttribute('aria-pressed',String(source==='favorites'));
     const heading=$('.result-head h1');if(heading)heading.textContent=defaultTitle();
   }
   function setSource(next){
@@ -118,7 +120,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     return `<article class="property-card${group.listings.some(r=>r.id===selected)?' selected':''}" data-card-id="${esc(row.id)}"><button class="property-select" data-explore="detail" data-id="${esc(row.id)}" aria-label="${esc(rowTitle(row))} ${money(row.priceWon)} 상세 보기"><div class="property-location"><span>${esc(rowTitle(row))}</span>${row.cohort==='existing'?'<em class="pick-badge">★ 터잡이 추천</em>':''}${member.get('favorite',row.id)?'<em class="pick-badge favorite-badge">♥ 찜한 물건</em>':''}</div><h2>${money(row.priceWon)}</h2><div class="area-pair"><span>대지 <b>${area(row.areaM2)}</b></span><span>연면적 <b>${area(row.floorAreaM2)}</b></span></div><p class="property-zoning">${esc(row.zoning?.groups?.length?row.zoning.groups.join(' · '):'용도지역 미확인')}</p><p class="property-description">${esc(row.description||'매물 설명이 기재되지 않았어요.')}</p><span class="property-link">상세 보기 <span aria-hidden="true">↗</span></span></button></article>`;
   }
   function drawCards() {
-    const favoritesMode=source==='favorites';
+    const favoritesMode=source==='favorites',assistantMode=source==='assistant';
     $('#listing-list').innerHTML=result.groups.map(card).join('')||(favoritesMode?'<div class="empty"><h2>찜한 매물이 없어요.</h2><p>마음에 드는 매물을 ♡ 찜하면 여기에서 한 번에 볼 수 있어요.</p></div>':'<div class="empty"><h2>조건에 맞는 매물이 없어요.</h2><p>주소·면적·지도 범위를 바꾸거나 예산과 지역을 다시 선택해 주세요.</p></div>');
     if(favoritesMode){
       const missing=result.missingFavorites?.length||0;
@@ -126,6 +128,13 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
       $('[data-explore="more"]').hidden=true;
       $('.map-caption').textContent=`찜한 매물 ${result.groups.length}개 · 핀 기반 추정 위치`;
       $('#explore-foot').textContent='내 보관함에 저장한 찜 매물입니다. 면적은 매물 기재 기준 · 용도지역은 연결 필지의 보유 토지자료 기준입니다.';
+      $('#bounds-chip').innerHTML='';
+    } else if(assistantMode){
+      const shown=result.groups.length;
+      $('#result-count').textContent=`AI 비서 결과 · 조건 매칭 ${result.totalParcels.toLocaleString('ko-KR')}건 중 상위 ${shown}건`;
+      $('[data-explore="more"]').hidden=true;
+      $('.map-caption').textContent=`AI 비서 추천 ${shown}개 · 핀 기반 추정 위치`;
+      $('#explore-foot').textContent=result.station?`${result.station.name}역 직선거리 기준입니다. 실제 보행 경로·시간과 다를 수 있어요.`:'AI 비서가 조건을 해석해 찾은 결과입니다. 실제와 다를 수 있어요.';
       $('#bounds-chip').innerHTML='';
     } else {
       $('#result-count').textContent=`${result.totalParcels.toLocaleString('ko-KR')}개 매물 · ${result.groups.length}개 표시`;
@@ -138,7 +147,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     }
     for(const card of root.querySelectorAll('[data-card-id]')){
       const id=card.dataset.cardId;card.insertAdjacentHTML('beforeend',`<div class="property-actions"><button class="outline" data-explore="compare-toggle" data-id="${esc(id)}" aria-pressed="${compared.has(id)}">${compared.has(id)?'✓ 비교 선택됨':'＋ 비교'}</button><button class="outline" data-explore="favorite" data-id="${esc(id)}" aria-pressed="${Boolean(member.get('favorite',id))}">${member.get('favorite',id)?'♥ 찜함':'♡ 찜'}</button><button class="outline" data-explore="feedback" data-id="${esc(id)}">내 의견</button></div>`);
-      if(!favoritesMode&&criteria.purpose==='new-build'){
+      if(!favoritesMode&&!assistantMode&&criteria.purpose==='new-build'){
         const facts=result.groups.find(group=>group.representative.id===id)?.representative.development,labels=[];
         if(criteria.preferTourism&&['contained','overlap'].includes(facts?.tourism))labels.push(facts.tourism==='contained'?'관광숙박특화구역 포함':'관광숙박특화구역 일부 걸침');
         if(criteria.minRoadWidthM&&facts?.roadWidthM)labels.push(`도로 ${facts.roadWidthM}m`);
@@ -147,7 +156,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
       }
     }
     drawCompare();
-    if(favoritesMode){$('.search-suggestions').replaceChildren();return;}
+    if(favoritesMode||assistantMode){$('.search-suggestions').replaceChildren();return;}
     $('.search-suggestions').innerHTML=result.suggestions?.length?`<b>${result.totalParcels>20?`${result.totalParcels.toLocaleString('ko-KR')}개 · 좁혀보기`:result.totalParcels===0?'0개 · 넓혀보기':`${result.totalParcels}개 · 넓혀보기`}</b><div class="suggestion-chip-row">${result.suggestions.map((s,i)=>`<button class="outline suggestion-chip" data-explore="suggestion" data-index="${i}" title="${esc(s.label)}" ${$('.explore-list').getAttribute('aria-busy')==='true'?'disabled':''}><span>${esc(compactSuggestionLabel(s.label))}</span><strong>${s.count.toLocaleString('ko-KR')}개</strong></button>`).join('')}</div>`:'';
     if(!result.suggestions?.length&&(result.totalParcels>20||result.totalParcels<5))$('.search-suggestions').innerHTML=`<b>${result.totalParcels>20?'매물이 많아요':'조건이 좁아요'}</b><div class="suggestion-chip-row"><button class="outline suggestion-chip" data-explore="edit"><span>조건 직접 조정</span></button></div>`;
     const suggestions=$('.search-suggestions');
@@ -155,6 +164,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
   }
   async function load({fit=true}={}) {
     clearTimeout(loadTimer);
+    if(source==='assistant')return loadAssistant();
     if(source==='favorites')return loadFavorites({fit});
     quickFilters.setRemembered(onConditionsChange?.(currentConditions())!==false);
     const current=++version;const params=new URLSearchParams({limit,sort});
@@ -179,6 +189,13 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
       $('#listing-list').innerHTML=`<div class="empty"><h2>${error.message==='PRICE_UNIT_UNCONFIRMED'?'가격 단위를 확인하고 있어요.':error.message==='ZONING_UNAVAILABLE'?'용도지역 자료 연결을 확인해 주세요.':error.message==='DEVELOPMENT_UNAVAILABLE'?'신축 조건에 사용할 도로·구역 자료를 확인해 주세요.':'로컬 매물 연결을 확인해 주세요.'}</h2><p>연결 실패를 검색 결과 0건으로 표시하지 않습니다.</p><button class="outline" data-explore="retry">다시 불러오기</button></div>`;
       $('[data-explore="more"]').hidden=true;
     } finally {if(!disposed&&current===version)$('.explore-list').removeAttribute('aria-busy');}
+  }
+  function loadAssistant() {
+    if(!assistantResult){source='conditions';return load();}
+    const data=assistantResult;
+    result={status:'ready',groups:data.groups||[],totalParcels:Number(data.total||0),totalListings:Number(data.total||0),hasMore:false,observedAt:data.searchedAt||null,station:data.station||null,reply:data.reply||''};
+    $('.explore-list').removeAttribute('aria-busy');drawCards();map.setGroups(result.groups,selected,true);
+    if(initialId){const id=initialId;initialId=null;openDetail(id);}
   }
   async function loadFavorites({fit=true}={}) {
     const current=++version;

@@ -444,6 +444,42 @@ body.map-results-open{height:100dvh;min-height:0;overflow:hidden;display:flex;fl
 .listing-facts b{font-weight:700;color:var(--ink)}
 /* Lift the desktop result sheet while preserving the mobile sheet position. */
 @media(min-width:701px){.results-sheet{top:64px;bottom:34px;height:auto}.results-sheet.collapsed{top:auto;bottom:18px;height:46px}}
+.assistant-fab{position:fixed;right:18px;bottom:18px;z-index:60;display:inline-flex;align-items:center;gap:8px;padding:10px 15px 10px 12px;border-radius:999px;border:1px solid var(--primary);background:var(--card);color:var(--primary);box-shadow:0 6px 20px var(--shadow);cursor:pointer;font-weight:800;font-size:13px}
+.assistant-fab-icon svg{width:26px;height:26px;display:block}
+.assistant-fab.active{background:var(--selected)}
+.assistant-panel{position:fixed;right:18px;bottom:76px;z-index:61;width:min(380px,calc(100% - 24px));max-height:min(560px,calc(100dvh - 110px));display:flex;flex-direction:column;background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:0 12px 40px var(--shadow);overflow:hidden}
+.assistant-panel[hidden]{display:none}
+.assistant-head{display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid var(--line)}
+.assistant-avatar{color:var(--primary)}.assistant-avatar svg{width:28px;height:28px;display:block}
+.assistant-head b{display:block;font-size:14px}.assistant-head small{font-size:11px;color:var(--muted)}
+.assistant-close{margin-left:auto;background:none;border:0;font-size:20px;line-height:1;color:var(--muted);cursor:pointer}
+.assistant-log{flex:1;min-height:0;overflow:auto;padding:14px;display:flex;flex-direction:column;gap:10px}
+.assistant-msg{font-size:12.5px;line-height:1.7;border-radius:12px;padding:10px 12px;max-width:92%}
+.assistant-msg.bot{background:var(--selected);color:var(--ink);align-self:flex-start}
+.assistant-msg.user{background:var(--primary);color:#fff;align-self:flex-end}
+.assistant-msg small{color:var(--muted)}
+.assistant-cards{display:flex;flex-direction:column;gap:8px;margin:10px 0}
+.assistant-card{border:1px solid var(--line);border-radius:10px;padding:9px 10px;background:var(--card);cursor:pointer}
+.assistant-card:hover{border-color:var(--primary)}
+.assistant-card-top{display:flex;justify-content:space-between;gap:8px;align-items:baseline}
+.assistant-card-top b{font-size:14px}.assistant-card-top span{font-size:11px;color:var(--muted)}
+.assistant-card-address{margin:4px 0;font-size:12px;overflow-wrap:anywhere}
+.assistant-card-meta{display:flex;gap:10px;font-size:11px;color:var(--muted)}
+.assistant-station{display:block;margin-top:4px;font-size:11px;color:var(--primary)}
+.assistant-chiprow{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.assistant-chip{border:1px solid var(--line);background:var(--card);color:var(--primary);border-radius:999px;padding:6px 10px;font-size:11px;cursor:pointer}
+.assistant-chip:hover{border-color:var(--primary)}
+.assistant-form{display:flex;gap:6px;padding:10px;border-top:1px solid var(--line)}
+.assistant-form input{flex:1;min-width:0;border:1px solid var(--line);border-radius:9px;padding:9px 11px;font-size:12px;background:var(--card);color:var(--ink)}
+.assistant-form button{border:0;border-radius:9px;background:var(--primary);color:#fff;font-weight:800;padding:0 14px;cursor:pointer}
+.assistant-scan b{display:block;margin-bottom:6px}
+.assistant-scan ul{margin:0;padding-left:16px;color:var(--muted);font-size:11.5px}
+.assistant-scan li{margin:2px 0}
+.assistant-spinner{width:10px;height:10px;border-radius:50%;background:var(--primary);display:inline-block;margin-right:6px;animation:assistant-pulse 1s infinite}
+.assistant-bar{height:5px;border-radius:4px;background:var(--line);margin-top:8px;overflow:hidden}
+.assistant-bar i{display:block;height:100%;width:0;background:var(--primary);transition:width .4s}
+@keyframes assistant-pulse{0%,100%{opacity:.3}50%{opacity:1}}
+@media(max-width:700px){.assistant-fab-label{display:none}.assistant-panel{right:8px;left:8px;width:auto;bottom:70px}}
 
 @media(max-width:700px){.site-map-wrap,.site-map,.site-map *{touch-action:pan-y!important}}
 @media(max-width:700px){body:not(.map-results-open){height:auto!important;min-height:100%;overflow-y:auto!important;overscroll-behavior-y:auto;touch-action:pan-y}.home{overflow:visible;touch-action:pan-y}}
