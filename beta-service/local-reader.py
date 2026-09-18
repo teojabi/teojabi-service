@@ -69,16 +69,22 @@ def read(operation, value=None):
             with connection.cursor(cursor_factory=RealDictCursor) as cursor:
                 cursor.execute('''SELECT "매물번호" AS "sourceId", "대지위치" AS address, "구" AS district, "동" AS neighborhood,
                                          pnu, lat, lng, "거래가격" AS price, "대지면적" AS landArea, "연면적" AS floorArea,
-                                         "층정보" AS floorInfo, "주용도코드명" AS mainUse, "매물특징" AS description
+                                         "층정보" AS floorInfo, "주용도코드명" AS mainUse, "매물특징" AS description,
+                                         "용도지역" AS zoning, "도로폭_m" AS roadWidth, "사용승인일자" AS approvalDate
                                   FROM public.naver WHERE "매물번호"=%s LIMIT 1''', (value,))
                 row = cursor.fetchone()
             if not row:
                 return {'status': 'missing'}
             # RealDictCursor lowercases unquoted aliases like landArea; read positionally to stay exact.
             keys = ['sourceId', 'address', 'district', 'neighborhood', 'pnu', 'lat', 'lng', 'price',
-                    'landArea', 'floorArea', 'floorInfo', 'mainUse', 'description']
+                    'landArea', 'floorArea', 'floorInfo', 'mainUse', 'description', 'zoning', 'roadWidth', 'approvalDate']
             data = dict(zip(keys, list(row.values())))
             price = data['price']
+            zoning_text = str(data['zoning'] or '').strip()
+            broad = None
+            for label, key in (('주거지역', '주거'), ('상업지역', '상업'), ('공업지역', '공업'), ('녹지지역', '녹지')):
+                if key in zoning_text:
+                    broad = label; break
             return {'status': 'ready', 'sourceId': str(data['sourceId']), 'address': data['address'] or '',
                     'district': data['district'] or '', 'neighborhood': data['neighborhood'] or '',
                     'pnu': data['pnu'] if data['pnu'] and re.fullmatch(r'\d{19}', str(data['pnu'])) else None,
@@ -87,6 +93,8 @@ def read(operation, value=None):
                     'areaM2': float(data['landArea']) if data['landArea'] else None,
                     'floorAreaM2': float(data['floorArea']) if data['floorArea'] else None,
                     'floorInfo': data['floorInfo'] or '', 'description': data['description'] or '',
+                    'approvalDate': data['approvalDate'] or '', 'roadWidthM': float(data['roadWidth']) if data['roadWidth'] else None,
+                    'zoning': {'status': 'matched', 'groups': [broad] if broad else [], 'entries': [{'name': zoning_text}]} if zoning_text else {'status': 'missing', 'groups': [], 'entries': []},
                     'kind': 'land' if data['mainUse'] == '토지' else 'building'}
         if operation.startswith('selected-'):
             reference=json.loads(value)
