@@ -458,7 +458,7 @@ body.map-results-open{height:100dvh;min-height:0;overflow:hidden;display:flex;fl
 .assistant-panel{position:fixed;right:18px;bottom:76px;z-index:61;width:min(380px,calc(100% - 24px));max-height:min(560px,calc(100dvh - 110px));display:flex;flex-direction:column;background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:0 12px 40px var(--shadow);overflow:hidden;
   transform-origin:100% 100%;opacity:1;transform:translateY(0) scale(1);visibility:visible;
   transition:opacity .28s cubic-bezier(.22,1,.36,1),transform .34s cubic-bezier(.22,1,.36,1),visibility 0s linear 0s;will-change:opacity,transform}
-.assistant-panel[hidden]{display:flex;pointer-events:none;opacity:0;transform:translateY(14px) scale(.94);visibility:hidden;
+.assistant-panel.is-closed{display:flex;pointer-events:none;opacity:0;transform:translateY(14px) scale(.94);visibility:hidden;
   transition:opacity .24s cubic-bezier(.4,0,1,1),transform .3s cubic-bezier(.4,0,1,1),visibility 0s linear .3s}
 @media(prefers-reduced-motion:reduce){.assistant-panel{transition:none}}
 .assistant-head{display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid var(--line)}

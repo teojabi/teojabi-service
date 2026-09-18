@@ -97,7 +97,7 @@ export function mountAssistant({ onResults, onAnalyze } = {}) {
   fab.setAttribute('aria-label', 'AI 부동산 비서 열기');
   fab.innerHTML = `<span class="assistant-fab-icon">${ROBOT}</span><span class="assistant-fab-label">AI 부동산 비서</span>`;
   const panel = document.createElement('section');
-  panel.id = 'assistant-panel'; panel.className = 'assistant-panel'; panel.hidden = true;
+  panel.id = 'assistant-panel'; panel.className = 'assistant-panel is-closed';
   panel.setAttribute('aria-label', 'AI 부동산 비서');
   panel.innerHTML = `<header class="assistant-head"><span class="assistant-avatar">${ROBOT}</span><div><b>AI 부동산 비서</b><small>조건을 말하면 매물을 찾아드려요</small></div><button type="button" class="assistant-close" aria-label="비서 닫기">×</button></header>
     <div class="assistant-log" aria-live="polite"></div>
@@ -338,19 +338,21 @@ export function mountAssistant({ onResults, onAnalyze } = {}) {
   panel.addEventListener('click', event => {
     const chip = event.target.closest('[data-send]');
     if (chip) { runSearch(chip.dataset.send); return; }
-    if (event.target.closest('.assistant-close')) { panel.hidden = true; fab.classList.add('active'); return; }
+    if (event.target.closest('.assistant-close')) { closePanel(); return; }
   });
   // 모바일에서 지도를 누르면 비서 창을 닫아 지도·목록을 온전히 본다.
-  const onMapClick = () => { if (!panel.hidden && matchMedia('(max-width:700px)').matches) { panel.hidden = true; fab.classList.add('active'); } };
+  const onMapClick = () => { if (!isClosed() && matchMedia('(max-width:700px)').matches) closePanel(); };
   window.addEventListener('teojabi-map-click', onMapClick);
   function openPanel() {
-    panel.hidden = false;
+    panel.classList.remove('is-closed');
     if (!signedIn()) renderLocked();
     else if (!log.childElementCount) welcome();
     // 자동으로 키보드를 띄우지 않는다. 입력창을 눌렀을 때만 키보드가 열린다.
   }
+  const closePanel = () => { panel.classList.add('is-closed'); fab.classList.add('active'); };
+  const isClosed = () => panel.classList.contains('is-closed');
   fab.addEventListener('click', () => {
-    if (panel.hidden) openPanel(); else { panel.hidden = true; fab.classList.add('active'); }
+    if (isClosed()) openPanel(); else closePanel();
   });
   // 로그인·가입을 마치면 잠금을 풀고 다시 시작한다.
   member.addEventListener('change', () => {
@@ -365,5 +367,5 @@ export function mountAssistant({ onResults, onAnalyze } = {}) {
     input.value = '';
     runSearch(value);
   });
-  return { open: openPanel, close: () => { panel.hidden = true; fab.classList.add('active'); }, destroy: () => { window.removeEventListener('teojabi-map-click', onMapClick); fab.remove(); panel.remove(); } };
+  return { open: openPanel, close: closePanel, destroy: () => { window.removeEventListener('teojabi-map-click', onMapClick); fab.remove(); panel.remove(); } };
 }
