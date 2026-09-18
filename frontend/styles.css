@@ -487,7 +487,10 @@ body.map-results-open{height:100dvh;min-height:0;overflow:hidden;display:flex;fl
 .assistant-origin.origin-premium{color:var(--primary);border-color:var(--primary)}
 .assistant-origin.origin-registered{color:var(--ink)}
 .assistant-origin.origin-naver{color:var(--muted)}
-.assistant-filterrow{margin-top:10px}
+.assistant-chiprow{margin-top:8px}
+.assistant-conditions{margin:8px 0 0;font-size:11.5px;color:var(--muted);overflow-wrap:anywhere}
+.assistant-chip-primary{background:var(--primary);color:#fff;border-color:var(--primary);font-weight:800;padding:8px 14px}
+.assistant-chip-primary:hover{opacity:.92}
 .assistant-filter{border:1px solid var(--primary);background:var(--selected);color:var(--primary);border-radius:999px;padding:5px 9px;font-size:11px;cursor:pointer}
 .assistant-filter span{margin-left:5px;font-weight:800}
 .assistant-filter-add{border-style:dashed;background:var(--card)}

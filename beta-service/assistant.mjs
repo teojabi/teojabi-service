@@ -1,5 +1,5 @@
 import { apiFetch } from './api-client.mjs';
-import { member } from './member.mjs';
+import { member, openLogin } from './member.mjs';
 import { DISTRICTS } from './policy.mjs';
 import { formatArea, getAreaDisplayUnit } from './area-display.mjs';
 
@@ -68,13 +68,7 @@ function askMenuMarkup(listing) {
   </div>`;
 }
 
-// Editable condition chips let the user fix the search without leaving the chat.
-function chipMarkup(chips) {
-  if (!chips.length) return '';
-  return `<div class="assistant-chiprow assistant-filterrow">${chips.map(chip =>
-    `<button type="button" class="assistant-filter" data-filter-key="${esc(chip.key)}" data-filter-value="${esc(chip.value)}">${esc(chip.label)}<span aria-hidden="true">×</span></button>`).join('')}<button type="button" class="assistant-filter assistant-filter-add" data-filter-add="1">＋ 조건</button></div>`;
-}
-
+// 조건은 텍스트로만 보여주고, 수정은 '조건 바꾸기' 편집기에서 한 번에 한다.
 function editorMarkup(filters) {
   const value = filters || {};
   const budget = value.budgetWon ? Math.round(value.budgetWon / 1e8) : '';
@@ -110,6 +104,7 @@ export function mountAssistant({ onResults, onAnalyze } = {}) {
 
   const log = panel.querySelector('.assistant-log');
   const input = panel.querySelector('input');
+  const form = panel.querySelector('.assistant-form');
   let busy = false;
   let lastFilters = null;
   let selectedListing = null;
@@ -117,6 +112,25 @@ export function mountAssistant({ onResults, onAnalyze } = {}) {
   const add = (html, cls = 'bot') => { const div = document.createElement('div'); div.className = `assistant-msg ${cls}`; div.innerHTML = html; log.append(div); scroll(); return div; };
   const addBot = html => add(html, 'bot');
   const addUser = text => add(esc(text), 'user');
+  const signedIn = () => member.status === 'ready';
+
+  // AI 비서는 회원(간편가입 포함) 전용이다. 비회원에게는 가입 안내만 보여준다.
+  function lockedMarkup() {
+    return `<div class="assistant-locked"><b>AI 부동산 비서는 회원 전용이에요</b>
+      <p>로그인하거나 간편가입하면 자연어로 매물을 찾고, 찜한 매물과 저장 조건을 이어서 볼 수 있어요.</p>
+      <button type="button" class="primary" data-assistant-login>3초 만에 시작하기</button></div>`;
+  }
+  function renderLocked() {
+    log.replaceChildren();
+    const bubble = addBot(lockedMarkup());
+    bubble.querySelector('[data-assistant-login]')?.addEventListener('click', () => openLogin());
+  }
+  function refreshGate() {
+    const locked = !signedIn();
+    if (input) { input.disabled = locked; input.placeholder = locked ? '로그인 후 이용할 수 있어요' : '예: 종로구 상업지역 100억 이하 도로 6m'; }
+    form?.querySelector('button')?.toggleAttribute('disabled', locked);
+    if (locked) renderLocked();
+  }
 
   // 조회 실패를 0건처럼 보여주지 않는다.
   async function readJson(path) {
@@ -129,6 +143,7 @@ export function mountAssistant({ onResults, onAnalyze } = {}) {
 
   // 선택한 매물의 고정 메뉴 답변. 검증된 기존 조회 API만 사용한다.
   async function askAbout(key, listing) {
+    if (!signedIn()) { renderLocked(); return; }
     if (busy) return;
     busy = true;
     const scan = addBot(`<div class="assistant-scan"><span class="assistant-spinner"></span><b>확인하고 있어요…</b></div>`);
@@ -189,6 +204,7 @@ export function mountAssistant({ onResults, onAnalyze } = {}) {
   }
 
   const welcome = () => {
+    if (!signedIn()) { renderLocked(); return; }
     const condition = savedCondition();
     addBot(`안녕하세요, AI 부동산 비서예요. 원하는 조건을 편하게 말해주세요.<br><small>예: "종로구 상업지역 100억 이하 50평 이상 도로 6m", "홍대입구역 도보 3분"</small>`);
     if (condition) addBot(`저장하신 조건이 있어요: <b>${esc(conditionLabel(condition))}</b><br><small>말씀하신 조건이 있으면 그 조건으로 먼저 찾아드려요.</small><button type="button" class="assistant-chip" data-send="저장한 조건으로 찾아줘">이 조건으로 찾기</button>`);
@@ -200,10 +216,10 @@ export function mountAssistant({ onResults, onAnalyze } = {}) {
     let reply = `<p>${esc(data.reply || '결과를 가져왔어요.').replace(/\n/g, '<br>')}</p>`;
     if (data.conditionNote) reply += `<p class="assistant-note">${esc(data.conditionNote)}</p>`;
     if (cards) reply += `<div class="assistant-cards">${cards}</div>`;
-    reply += chipMarkup(data.chips || []);
+    if (data.chips?.length) reply += `<p class="assistant-conditions">조건 · ${data.chips.map(c => esc(c.label)).join(' / ')}</p>`;
     if (data.unsupported) reply += `<p class="assistant-note">${esc(data.unsupported)}</p>`;
     const chips = [];
-    if (groups.length) chips.push(`<button type="button" class="assistant-chip" data-map="1">지도에서 보기</button>`);
+    if (groups.length) chips.push(`<button type="button" class="assistant-chip assistant-chip-primary" data-map="1">지도에서 보기</button>`);
     chips.push(`<button type="button" class="assistant-chip" data-editor="1">조건 바꾸기</button>`);
     if (data.conditionNote) chips.push(`<button type="button" class="assistant-chip" data-send="저장한 조건으로 찾아줘">저장 조건으로 찾기</button>`);
     (data.suggestions || []).forEach(s => chips.push(`<button type="button" class="assistant-chip" data-send="${esc(s.message)}">${esc(s.label)}</button>`));
@@ -241,17 +257,6 @@ export function mountAssistant({ onResults, onAnalyze } = {}) {
     // 슬롯 내용이 매번 교체되므로 이벤트는 슬롯 한 곳에서 위임해 처리한다.
     slot.addEventListener('click', event => {
       if (event.target.closest('[data-editor-cancel]')) { slot.hidden = true; slot.innerHTML = ''; return; }
-      const filter = event.target.closest('[data-filter-key]');
-      if (filter) {
-        const key = filter.dataset.filterKey, value = filter.dataset.filterValue;
-        const list = lastFilters?.[key];
-        if (Array.isArray(list)) {
-          const next = list.filter(v => String(v) !== value);
-          if (next.length) lastFilters[key] = next; else delete lastFilters[key];
-        } else delete lastFilters[key];
-        runSearch(null, lastFilters || {});
-        return;
-      }
       const pick = event.target.closest('[data-pick]');
       if (pick) {
         const key = pick.dataset.pick, value = pick.dataset.value;
@@ -294,6 +299,7 @@ export function mountAssistant({ onResults, onAnalyze } = {}) {
   }
 
   async function runSearch(message, editedFilters) {
+    if (!signedIn()) { renderLocked(); return; }
     if (busy) return;
     busy = true;
     if (message) addUser(message);
@@ -331,8 +337,18 @@ export function mountAssistant({ onResults, onAnalyze } = {}) {
   });
   fab.addEventListener('click', () => {
     panel.hidden = !panel.hidden;
-    if (!panel.hidden) { if (!log.childElementCount) welcome(); input.focus(); }
+    if (!panel.hidden) {
+      if (!signedIn()) renderLocked();
+      else if (!log.childElementCount) welcome();
+      input.focus();
+    }
   });
+  // 로그인·가입을 마치면 잠금을 풀고 다시 시작한다.
+  member.addEventListener('change', () => {
+    refreshGate();
+    if (signedIn() && log.querySelector('.assistant-locked')) { log.replaceChildren(); welcome(); }
+  });
+  refreshGate();
   panel.querySelector('.assistant-form').addEventListener('submit', event => {
     event.preventDefault();
     const value = input.value.trim();
