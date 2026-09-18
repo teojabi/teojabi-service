@@ -289,7 +289,7 @@ def source_listing(conn):
         rows=[];scanned={};seen=set()
         for table in ('naver','naver_land'):
             try:
-                cur.execute(f'''SELECT to_jsonb(n)-'geom' AS row FROM public.{table} n WHERE "상태" IN ('신규','유지') AND "거래가격">=10 ORDER BY "거래가격" ASC LIMIT 2500''')
+                cur.execute(f'''SELECT to_jsonb(n)-'geom' AS row FROM public.{table} n WHERE "상태" IN ('신규','유지') AND "거래가격">=10''')
             except Exception:
                 scanned[table]='missing'; continue
             source=cur.fetchall(); scanned[table]=len(source)
