@@ -12,6 +12,8 @@ import { buildRiskReview, buildBuildingRecords, buildParcelContext } from './ris
 import { normalizeSiteParcels } from './site-policy.mjs';
 import { normalizeLandRecord } from './land-policy.mjs';
 import { allowedReviewWrite, runCuration, readReviewBody } from './curation-api.mjs';
+import { parseAssistant, buildResult } from './assistant-parse.mjs';
+import { runAssistant } from './assistant-api.mjs';
 import { selectedCatalog, validListingId } from './selected-catalog.mjs';
 import { serviceConfig, allowedOrigin, authorizeCuration } from './server-access.mjs';
 const service=serviceConfig();
@@ -79,6 +81,7 @@ const files = new Map([
   ['/site-inputs.mjs',['site-inputs.mjs','text/javascript']],
   ['/site-context.mjs',['site-context.mjs','text/javascript']],
   ['/risk-policy.mjs',['risk-policy.mjs','text/javascript']],
+  ['/assistant.mjs',['assistant.mjs','text/javascript']],
 ]);
 async function readOptionalJson(name) {
   try { return JSON.parse((await readFile(join(root, cachePath(name)), 'utf8')).replace(/^\uFEFF/,'')); }
@@ -224,6 +227,26 @@ createServer(async (request, response) => {
       if(operation==='sources'){sourceSnapshotCache=null;sourceSnapshotCachedAt=0;}
       send(response,request,result,result.status==='conflict'?409:result.status==='invalid'?400:200);
     } catch {send(response,request,{status:'error',message:'로컬 후보 테이블을 불러오지 못했습니다.'},503);}
+    return;
+  }
+  if (request.url?.split('?')[0]==='/api/assistant') {
+    if(request.method!=='POST'){send(response,request,{status:'invalid'},405);return;}
+    let body;
+    try{body=await readReviewBody(request);}catch{send(response,request,{status:'invalid'},400);return;}
+    const message=String(body?.message||'').slice(0,500);
+    const condition=body?.condition&&typeof body.condition==='object'?body.condition:null;
+    try {
+      const parsed=await parseAssistant(message,condition,process.env.GEMINI_API_KEY);
+      const meaningful=Object.keys(parsed.filters).filter(key=>!['limit','fromCondition'].includes(key));
+      if(!meaningful.length){
+        send(response,request,{status:'ready',
+          reply:parsed.unsupported?`죄송해요, ${parsed.unsupported} 정보는 아직 확인할 수 없어요. 예) "마포구 30억 이하 건물", "홍대입구역 도보 3분"처럼 알려주세요.`:'조건을 이해하지 못했어요. 예) "마포구 30억 이하 건물", "강남구 상업지역 토지"처럼 알려주세요.',
+          filters:parsed.filters,total:0,groups:[],station:null,districts:[],suggestions:[],unsupported:parsed.unsupported||null,searchedAt:null});
+        return;
+      }
+      const search=await runAssistant(root,parsed.filters);
+      send(response,request,buildResult(parsed.filters,search,parsed.unsupported));
+    } catch {send(response,request,{status:'error'},503);}
     return;
   }
   if (!['GET','HEAD'].includes(request.method)) { response.writeHead(405).end(); return; }
