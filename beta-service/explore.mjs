@@ -43,7 +43,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     <p class="purpose-guide" id="purpose-guide" hidden></p>
     <div class="explore-toolbar"><div class="quick-filters"></div><span id="bounds-chip"></span><div class="explore-toggle" role="group" aria-label="결과 보기 방식"><button data-explore="pane" data-value="list" aria-pressed="true">리스트</button><button data-explore="pane" data-value="map" aria-pressed="false">지도</button></div></div>
     <div class="explore-board" data-pane="list"><div class="explore-list"><p id="result-count" aria-live="polite">저장된 매물을 불러오고 있어요.</p><div id="listing-list"></div><button class="outline more-listings" data-explore="more" hidden>매물 더 보기</button></div>
-      <div class="map-frame"><div id="map-host" role="region" aria-label="매물 위치 지도"></div><div class="map-controls"><button class="outline" data-explore="favorites" aria-pressed="false">♥ 찜한 매물</button><button class="outline" data-explore="all-picks" aria-pressed="false">★ 터잡이 추천</button><button class="outline" data-explore="cadastral" aria-pressed="false">지적도</button><button class="outline" data-explore="reset-map" aria-label="현재 매물 전체 위치 보기">전체 위치</button></div><div id="map-status" class="map-status" role="status">네이버 지도를 불러오고 있어요.</div><div class="map-caption">★ 현재 정렬 상위 5개 · 핀 기반 추정 위치</div></div>
+      <div class="map-frame"><div id="map-host" role="region" aria-label="매물 위치 지도"></div><div class="map-controls"><button class="outline" data-explore="favorites" aria-pressed="false">♥ 찜한 매물</button><button class="outline" data-explore="all-picks" aria-pressed="false">★ 터잡이 추천</button><button class="outline" data-explore="cadastral" aria-pressed="false">지적도</button><button class="outline" data-explore="reset-map" aria-label="현재 매물 전체 위치 보기">전체 위치</button></div><div id="map-status" class="map-status" role="status">네이버 지도를 불러오고 있어요.</div></div>
       <aside id="listing-detail" class="detail-panel" aria-label="매물 상세" hidden></aside></div><p class="explore-foot" id="explore-foot"></p></section>`;
   const $=selector=>root.querySelector(selector);
   const favoriteItems=()=>member.items.filter(item=>item.kind==='favorite');
@@ -126,21 +126,18 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
       const missing=result.missingFavorites?.length||0;
       $('#result-count').textContent=`찜한 매물 ${result.totalParcels.toLocaleString('ko-KR')}개${missing?` · 제공 종료 ${missing}개`:''}`;
       $('[data-explore="more"]').hidden=true;
-      $('.map-caption').textContent=`찜한 매물 ${result.groups.length}개 · 핀 기반 추정 위치`;
       $('#explore-foot').textContent='내 보관함에 저장한 찜 매물입니다. 면적은 매물 기재 기준 · 용도지역은 연결 필지의 보유 토지자료 기준입니다.';
       $('#bounds-chip').innerHTML='';
     } else if(assistantMode){
       const shown=result.groups.length;
       $('#result-count').textContent=`AI 비서 결과 · 조건 매칭 ${result.totalParcels.toLocaleString('ko-KR')}건 중 상위 ${shown}건`;
       $('[data-explore="more"]').hidden=true;
-      $('.map-caption').textContent=`AI 비서 추천 ${shown}개 · 핀 기반 추정 위치`;
       $('#explore-foot').textContent=result.station?`${result.station.name}역 직선거리 기준입니다. 실제 보행 경로·시간과 다를 수 있어요.`:'AI 비서가 조건을 해석해 찾은 결과입니다. 실제와 다를 수 있어요.';
       $('#bounds-chip').innerHTML='';
     } else {
       $('#result-count').textContent=`${result.totalParcels.toLocaleString('ko-KR')}개 매물 · ${result.groups.length}개 표시`;
       if(criteria.preferTourism)$('#result-count').textContent+=result.tourismPreferredCount?` · 특화구역 ${result.tourismPreferredCount}개 우선`:' · 특화구역 우선대상 없음';
       $('[data-explore="more"]').hidden=!result.hasMore;
-      $('.map-caption').textContent=`현재 표시 ${result.groups.length}개 · 핀 기반 추정 위치`;
       $('#explore-foot').textContent=`선별 매물 미리보기 · ${date(result.observedAt)} 구성 · 면적은 매물 기재 기준 · 용도지역은 연결 필지의 보유 토지자료 기준입니다.`;
       if(criteria.purpose==='new-build')$('#explore-foot').textContent+=' 신축 용도는 계획한 용도이며 건축 가능 판정이 아닙니다. 도로폭·보호구역 제외 조건은 연결 필지의 저장 자료 기준으로, 해당 항목 미확인 매물은 제외됩니다.';
       $('#bounds-chip').innerHTML=bounds?'<button class="pill clear-bounds" data-explore="clear-bounds">지도 범위 해제 ×</button>':'';
