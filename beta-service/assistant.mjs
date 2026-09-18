@@ -2,6 +2,7 @@ import { apiFetch } from './api-client.mjs';
 import { member, openLogin } from './member.mjs';
 import { DISTRICTS } from './policy.mjs';
 import { formatArea, getAreaDisplayUnit } from './area-display.mjs';
+import { renderInlineContext } from './inline-context.mjs';
 
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const money = won => won > 0 ? `${(won / 1e8).toLocaleString('ko-KR', { maximumFractionDigits: 2 })}억` : '가격 미기재';
@@ -158,8 +159,7 @@ export function mountAssistant({ onResults, onAnalyze } = {}) {
       }
       if (key === 'detail') {
         scan.remove(); busy = false;
-        addBot(`📋 <b>${esc(listing.address)}</b> 상세페이지를 열었어요. 그 안에서 건축물대장·토지대장도 확인할 수 있어요.`);
-        onResults?.({ groups: [{ key: listing.id, pnu: listing.pnu, representative: listing, listings: [listing] }], total: 1, reply: `📋 ${listing.address} 상세페이지를 열었어요.` }, listing.id);
+        openDetailFor(listing);
         return;
       }
       if (key === 'similar') {
@@ -179,22 +179,26 @@ export function mountAssistant({ onResults, onAnalyze } = {}) {
         else if (!data.cases?.length) html = '반경 1km 안에서 최근 36개월 토지·건물 거래를 찾지 못했어요.';
         else html = `📊 <b>주변 실거래 ${data.cases.length}곳</b><div class="assistant-facts">${data.cases.map(c => `<div class="assistant-fact"><span>${Math.round(c.distanceMeters)}m · ${esc(c.dealDate)}</span><b>${money(c.priceWon)}</b><span>대지 ${area(c.areaM2)}</span></div>`).join('')}</div><small>매물 핀 기준 직선거리이며 현재 시세를 보증하지 않아요.</small>`;
       } else if (key === 'zoning') {
+        // 상세페이지와 같은 렌더러를 써서 구역·도로·지구단위계획 문장을 그대로 보여준다.
         const data = await readJson(`/api/site-context/${encodeURIComponent(listing.id)}`);
-        if (!data) html = '용도지역·규제 자료를 확인할 수 없어요.';
-        else {
-          const zones = (data.zones || []).map(z => `<li>${esc(z.name || z.code || '구역')}${z.relation ? ` · ${esc(z.relation)}` : ''}</li>`).join('');
-          const road = data.road?.status === 'ready' && data.road.widthM ? `<li>도로폭 ${data.road.widthM}m</li>` : '';
-          html = `🗺️ <b>용도지역·규제</b><ul class="assistant-list">${zones || '<li>확인된 용도지역 자료가 없어요.</li>'}${road}</ul><small>보유 공공데이터 기준이에요. 대장 자료는 상세페이지에서 볼 수 있어요.</small>`;
-        }
+        if (!data) html = '구역과 도로 자료를 불러오지 못했어요.';
+        else html = renderInlineContext(data) + `<div class="assistant-chiprow"><button type="button" class="assistant-chip assistant-chip-primary" data-ask-nav="detail">상세페이지에서 보기</button></div>`;
       } else html = '알 수 없는 요청이에요.';
       await settle();
       scan.remove();
       const bubble = addBot(html + `<div class="assistant-chiprow"><button type="button" class="assistant-chip" data-ask-back="1">↩ 다른 항목 물어보기</button></div>`);
       bubble.querySelector('[data-ask-back]')?.addEventListener('click', () => openAskMenu(listing));
+      bubble.querySelector('[data-ask-nav="detail"]')?.addEventListener('click', () => openDetailFor(listing));
     } catch {
       scan.remove();
       addBot('자료를 확인하지 못했어요. 잠시 후 다시 시도해 주세요.');
     } finally { busy = false; }
+  }
+
+  // 비서 결과를 그대로 상세 화면 소스로 넘겨 상세페이지를 연다.
+  function openDetailFor(listing) {
+    addBot(`📋 <b>${esc(listing.address)}</b> 상세페이지를 열었어요.`);
+    onResults?.({ groups: [{ key: listing.id, pnu: listing.pnu, representative: listing, listings: [listing] }], total: 1, reply: `${listing.address} 상세페이지를 열었어요.` }, listing.id);
   }
 
   function openAskMenu(listing) {
