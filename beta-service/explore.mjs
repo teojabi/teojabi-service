@@ -19,6 +19,7 @@ const rowTitle=row=>`${row.district} ${row.neighborhood||''}`.trim();
 const date=value=>value?new Date(value).toLocaleString('ko-KR',{timeZone:'Asia/Seoul'}):'미확인';
 const compactSuggestionLabel=label=>String(label).replace(/볼까요\??/g,'').replace(/으로 넓혀/g,'').replace(/까지 높여/g,'까지').replace(/이하로 줄여/g,'이하').replace(/만 /g,'').replace(/부터 살펴/g,'부터').replace(/조건을 /g,'').replace(/제한 /g,'').replace(/을 풀어/g,' 해제').trim();
 const percent=value=>Number.isFinite(Number(value))&&Number(value)>0?`${Number(value).toLocaleString('ko-KR',{maximumFractionDigits:2})}%`:'';
+const DOCUMENT_LINKS=Object.freeze({registry:'https://www.iros.go.kr/'});
 const detailFacts=row=>{
   const facts=row.buildingFacts||{},items=[];
   if(facts.landAreaM2)items.push(['대지면적',area(facts.landAreaM2)]);
