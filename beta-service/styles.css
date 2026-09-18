@@ -508,6 +508,25 @@ body.map-results-open{height:100dvh;min-height:0;overflow:hidden;display:flex;fl
 .assistant-conditions{margin:8px 0 0;font-size:12.5px;color:var(--muted);overflow-wrap:anywhere}
 .assistant-chip-primary{background:var(--primary);color:#fff;border-color:var(--primary);font-weight:800;padding:8px 14px}
 .assistant-chip-primary:hover{opacity:.92}
+/* 홈 화면 AI 비서 유입 배너 */
+.assistant-banner{display:flex;align-items:center;gap:14px;width:100%;margin:0 0 22px;padding:16px 18px;border:1px solid var(--primary);border-radius:16px;background:var(--selected);color:var(--ink);text-align:left;cursor:pointer}
+.assistant-banner:hover{border-color:var(--primary);box-shadow:0 6px 18px var(--shadow)}
+.assistant-banner-icon{flex:0 0 44px;width:44px;height:44px;border-radius:12px;background:var(--card);border:1px solid var(--line);display:grid;place-items:center;position:relative}
+.assistant-banner-icon::before{content:"";width:22px;height:18px;border-radius:6px;background:var(--primary);box-shadow:0 -8px 0 -5px var(--primary)}
+.assistant-banner-text{flex:1;min-width:0;display:grid;gap:3px}
+.assistant-banner-text b{font-size:17px}
+.assistant-banner-text small{font-size:13px;color:var(--muted);line-height:1.6}
+.assistant-banner-cta{flex:0 0 auto;display:inline-flex;align-items:center;gap:7px;background:var(--primary);color:#fff;border-radius:999px;padding:11px 16px;font-size:14px;font-weight:800}
+.assistant-banner-cta .circle{width:22px;height:22px;border-radius:50%;background:#ffffff2e;display:grid;place-items:center}
+.assistant-banner-cta .circle svg{width:14px;height:14px}
+.header nav .nav-assistant{color:var(--primary);font-weight:800;border:1px solid var(--primary);border-radius:999px;padding:0 12px;background:var(--selected)}
+.header nav .nav-assistant::before{content:"🤖 ";font-size:12px}
+@media(max-width:700px){
+  .assistant-banner{flex-wrap:wrap;gap:10px;padding:14px}
+  .assistant-banner-text{flex:1 1 100%;order:2}
+  .assistant-banner-cta{order:3;width:100%;justify-content:center}
+  .assistant-banner-icon{order:1}
+}
 .assistant-filter{border:1px solid var(--primary);background:var(--selected);color:var(--primary);border-radius:999px;padding:5px 9px;font-size:12px;cursor:pointer}
 .assistant-filter span{margin-left:5px;font-weight:800}
 .assistant-filter-add{border-style:dashed;background:var(--card)}

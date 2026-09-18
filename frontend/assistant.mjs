@@ -342,13 +342,14 @@ export function mountAssistant({ onResults, onAnalyze } = {}) {
   // 모바일에서 지도를 누르면 비서 창을 닫아 지도·목록을 온전히 본다.
   const onMapClick = () => { if (!panel.hidden && matchMedia('(max-width:700px)').matches) { panel.hidden = true; fab.classList.add('active'); } };
   window.addEventListener('teojabi-map-click', onMapClick);
+  function openPanel() {
+    panel.hidden = false;
+    if (!signedIn()) renderLocked();
+    else if (!log.childElementCount) welcome();
+    input.focus();
+  }
   fab.addEventListener('click', () => {
-    panel.hidden = !panel.hidden;
-    if (!panel.hidden) {
-      if (!signedIn()) renderLocked();
-      else if (!log.childElementCount) welcome();
-      input.focus();
-    }
+    if (panel.hidden) openPanel(); else { panel.hidden = true; fab.classList.add('active'); }
   });
   // 로그인·가입을 마치면 잠금을 풀고 다시 시작한다.
   member.addEventListener('change', () => {
@@ -363,5 +364,5 @@ export function mountAssistant({ onResults, onAnalyze } = {}) {
     input.value = '';
     runSearch(value);
   });
-  return () => { window.removeEventListener('teojabi-map-click', onMapClick); fab.remove(); panel.remove(); };
+  return { open: openPanel, close: () => { panel.hidden = true; fab.classList.add('active'); }, destroy: () => { window.removeEventListener('teojabi-map-click', onMapClick); fab.remove(); panel.remove(); } };
 }
