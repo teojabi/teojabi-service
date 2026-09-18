@@ -10,6 +10,7 @@ No writes. Never returns broker contacts or review fields.
 """
 import json
 import math
+import os
 import re
 import sys
 from datetime import datetime, timezone
@@ -37,10 +38,14 @@ def clean(value, max_len=60):
 
 
 def origin_expression():
-    """Classify each naver row using the curation candidate table when it exists."""
+    """터잡이 매물 판정은 매물번호 보관 테이블(teojabi_listing_number)을 기준으로 한다.
+
+    여기에 매물번호가 있으면 터잡이 등록·추천 매물이고, 없으면 네이버 수집 매물이다.
+    터잡이 추천(픽)만 후보 테이블의 published 상태로 따로 구분한다.
+    """
     return '''CASE
         WHEN c.snapshot->'teojabiPick'->>'status' = 'published' THEN 'premium'
-        WHEN c.source_id IS NOT NULL THEN 'registered'
+        WHEN ln.listing_id IS NOT NULL THEN 'registered'
         ELSE 'naver' END'''
 
 
@@ -54,6 +59,52 @@ def resolve_station(cur, name):
                    WHERE replace(station_name,' ','') LIKE %s AND lat IS NOT NULL
                    ORDER BY length(station_name) LIMIT 1''', ('%' + token + '%',))
     return cur.fetchone()
+
+
+def zone_overlap_sql(key):
+    """기존 검색기(refresh-development.py)와 같은 구역 판정. 매물 PNU 필지가 구역과 겹치면 제외한다.
+
+    - education: 운영 education_safezones.geom(4326) / 로컬 education_protection.geom_5174
+    - heritage: heritage_layers.the_geom(4326), layer_name 제한
+    - tourism: 운영 tour_zones.geom(4326) / 로컬 tourist_accommodation_zone.geom
+    필지 geom은 seoul_parcel_map(5174)을 쓰고, 레이어 SRID에 맞춰 변환한다.
+    """
+    remote = os.getenv('TEOJABI_DATA_SOURCE') in ('supabase', 'remote')
+    if key == 'education':
+        table, column, srid = ('education_safezones', 'geom', 4326) if remote else ('education_protection', 'geom_5174', 5174)
+        restriction = 'true'
+    elif key == 'heritage':
+        table, column, srid = ('heritage_layers', 'the_geom', 4326)
+        restriction = "s.layer_name IN ('CHL_PMPG_AS_1','CHL_PMPG_AS_23')"
+    else:  # tourism
+        table, column, srid = ('tour_zones', 'geom', 4326) if remote else ('tourist_accommodation_zone', 'geom', 4326)
+        restriction = 'true'
+    parcel_geom = 'p.geom' if srid == 5174 else 'ST_Transform(p.geom,4326)'
+    return ('''NOT EXISTS (
+        SELECT 1 FROM public.seoul_parcel_map p
+        JOIN public.''' + table + ''' s ON s.''' + column + ''' && ''' + parcel_geom + '''
+        WHERE p.pnu = n.pnu AND s.''' + column + ''' IS NOT NULL
+          AND ST_SRID(s.''' + column + ''') = ''' + str(srid) + '''
+          AND GeometryType(s.''' + column + ''') IN ('POLYGON','MULTIPOLYGON')
+          AND ST_IsValid(s.''' + column + ''') AND NOT ST_IsEmpty(s.''' + column + ''')
+          AND ''' + restriction + '''
+          AND ST_Intersects(s.''' + column + ''', ''' + parcel_geom + ''')
+    )''')
+
+
+def tourism_rank_sql():
+    """관광숙박특화구역 포함·걸침이면 0, 아니면 1. 정렬 전용이라 행을 제외하지 않는다."""
+    remote = os.getenv('TEOJABI_DATA_SOURCE') in ('supabase', 'remote')
+    table = 'tour_zones' if remote else 'tourist_accommodation_zone'
+    parcel_geom = 'ST_Transform(p.geom,4326)'
+    return ('''CASE WHEN EXISTS (
+        SELECT 1 FROM public.seoul_parcel_map p
+        JOIN public.''' + table + ''' s ON s.geom && ''' + parcel_geom + '''
+        WHERE p.pnu = n.pnu AND s.geom IS NOT NULL AND ST_SRID(s.geom) = 4326
+          AND GeometryType(s.geom) IN ('POLYGON','MULTIPOLYGON')
+          AND ST_IsValid(s.geom) AND NOT ST_IsEmpty(s.geom)
+          AND ST_Intersects(s.geom, ''' + parcel_geom + ''')
+    ) THEN 0 ELSE 1 END''')
 
 
 def build_where(filters, station):
@@ -103,6 +154,11 @@ def build_where(filters, station):
         if max_distance:
             where.append('ST_Distance(ST_SetSRID(ST_MakePoint(n.lng,n.lat),4326)::geography, ST_SetSRID(ST_MakePoint(%s,%s),4326)::geography) <= %s')
             params += [station['lng'], station['lat'], max_distance]
+    # 신축 구역 조건은 기존 검색기와 같은 판정을 쓴다: 매물 PNU의 필지 폴리곤과 보유 레이어가 겹치면 제외.
+    if filters.get('excludeEducation'):
+        where.append(zone_overlap_sql('education'))
+    if filters.get('excludeHeritage'):
+        where.append(zone_overlap_sql('heritage'))
     return where, params
 
 
@@ -206,16 +262,22 @@ def search(conn, filters):
         total = count(cur, where, params)
         cur.execute('SELECT "구", count(*) AS n FROM public.naver n WHERE ' + where_sql + ' GROUP BY "구" ORDER BY n DESC LIMIT 6', params)
         districts = [{'name': r['구'], 'count': int(r['n'])} for r in cur.fetchall() if r['구']]
-        has_curation = bool(cur.execute("SELECT to_regclass('public.teojabi_curation_candidates') AS name") or cur.fetchone()['name'])
-        join = '' if not has_curation else 'LEFT JOIN public.teojabi_curation_candidates c ON c.source_id=n."매물번호" AND c.source_table IN (\'naver\',\'naver_land\')'
+        cur.execute("SELECT to_regclass('public.teojabi_curation_candidates') AS a, to_regclass('public.teojabi_listing_number') AS b")
+        rel = cur.fetchone()
+        has_curation = bool(rel['a'] and rel['b'])
+        join = '' if not has_curation else ('LEFT JOIN public.teojabi_curation_candidates c ON c.source_id=n."매물번호" AND c.source_table IN (\'naver\',\'naver_land\') '
+            'LEFT JOIN public.teojabi_listing_number ln ON ln.listing_id = \'naver:\' || n."매물번호"')
         origin = "'naver'" if not has_curation else origin_expression()
-        pick_no = "NULL" if not has_curation else "c.snapshot->'teojabiPick'->>'pickNo'"
+        pick_no = "NULL" if not has_curation else "COALESCE(c.snapshot->'teojabiPick'->>'pickNo', ln.teojabi_no)"
         select_point = ''
         if station:
             # 요청한 역까지의 거리를 결과에 실어 보낸다. ORDER BY와 같은 좌표를 두 번 쓰지 않는다.
             select_point = ''', ST_Distance(ST_SetSRID(ST_MakePoint(n.lng,n.lat),4326)::geography,
                           ST_SetSRID(ST_MakePoint(%s,%s),4326)::geography) AS requested_dist_m'''
         order = 'CASE WHEN ' + origin + "='naver' THEN 1 ELSE 0 END, n.\"거래가격\""
+        if filters.get('preferTourism'):
+            # 관광숙박특화구역에 포함·걸친 매물을 먼저 보여준다. 조건이 아니라 정렬 우선순위다.
+            order = tourism_rank_sql() + ', ' + order
         if station:
             order = 'ST_Distance(ST_SetSRID(ST_MakePoint(n.lng,n.lat),4326)::geography, ST_SetSRID(ST_MakePoint(%s,%s),4326)::geography), ' + order
         # SQL 파라미터 순서는 SELECT(요청 역 거리) → WHERE → ORDER BY(역 기준 정렬) → LIMIT 이다.
@@ -251,13 +313,16 @@ def search(conn, filters):
         counts = {k: len(v) for k, v in grouped.items()}
         origin_totals = {}
         for key, clause in (('premium', "c.snapshot->'teojabiPick'->>'status'='published'"),
-                            ('registered', "c.source_id IS NOT NULL AND COALESCE(c.snapshot->'teojabiPick'->>'status','')<>'published'")):
+                            ('registered', "ln.listing_id IS NOT NULL AND COALESCE(c.snapshot->'teojabiPick'->>'status','')<>'published'")):
             if not has_curation:
                 origin_totals[key] = 0; continue
             trial_where = where + [clause]
             trial_params = params + []
             try:
-                cur.execute('SELECT count(*) AS total FROM public.naver n LEFT JOIN public.teojabi_curation_candidates c ON c.source_id=n."매물번호" AND c.source_table IN (\'naver\',\'naver_land\') WHERE ' + ' AND '.join(trial_where), trial_params)
+                cur.execute('SELECT count(*) AS total FROM public.naver n '
+                            'LEFT JOIN public.teojabi_curation_candidates c ON c.source_id=n."매물번호" AND c.source_table IN (\'naver\',\'naver_land\') '
+                            'LEFT JOIN public.teojabi_listing_number ln ON ln.listing_id = \'naver:\' || n."매물번호" '
+                            'WHERE ' + ' AND '.join(trial_where), trial_params)
                 origin_totals[key] = int(cur.fetchone()['total'])
             except Exception:
                 conn.rollback(); origin_totals[key] = 0

@@ -36,6 +36,9 @@ export function ruleFilters(text) {
   const zones = BROAD_ZONE.map(z => z[0]).filter(z => t.includes(z));
   if (zones.length) filters.zones = zones;
   if (/신축|새로\s*짓|헐고/.test(t)) filters.purpose = 'new-build';
+  if (/교육보호구역|교육환경보호구역|학교\s*보호/.test(t) && /제외|빼|피해/.test(t)) filters.excludeEducation = true;
+  if (/문화재|보존구역/.test(t) && /제외|빼|피해/.test(t)) filters.excludeHeritage = true;
+  if (/특화구역|관광숙박/.test(t) && /우선|먼저/.test(t)) filters.preferTourism = true;
   const dong = t.match(/([가-힣]{1,4}동)(?=[\s,.]|이|에|은|는|쪽|근처|$)/);
   if (dong && !filters.districts?.length) filters.q = dong[1];
   return filters;
@@ -112,6 +115,10 @@ export function sanitize(raw) {
   }
   if (raw.kind === 'land' || raw.kind === 'building') out.kind = raw.kind;
   if (raw.purpose === 'new-build') out.purpose = 'new-build';
+  // 신축 구역 조건은 기존 검색기와 같은 플래그 이름을 쓴다.
+  for (const key of ['preferTourism', 'excludeEducation', 'excludeHeritage']) {
+    if (raw[key] === true) out[key] = true;
+  }
   if (Array.isArray(raw.zones)) {
     const list = BROAD_ZONE.map(z => z[0]).filter(z => raw.zones.includes(z));
     if (list.length) out.zones = list;
@@ -149,6 +156,9 @@ export function describe(filters) {
   if (filters.minAreaM2) parts.push(`대지 ${Math.round(filters.minAreaM2)}㎡ 이상`);
   if (filters.maxAreaM2) parts.push(`대지 ${Math.round(filters.maxAreaM2)}㎡ 이하`);
   if (filters.purpose === 'new-build') parts.push('신축 검토');
+  if (filters.preferTourism) parts.push('관광숙박특화구역 먼저');
+  if (filters.excludeEducation) parts.push('교육보호구역 제외');
+  if (filters.excludeHeritage) parts.push('문화재보존구역 제외');
   return parts;
 }
 
@@ -165,6 +175,9 @@ export function chipList(filters) {
   if (filters.kind) chips.push({ key: 'kind', value: filters.kind, label: filters.kind === 'land' ? '토지' : '건물', kind: 'value' });
   if (filters.q) chips.push({ key: 'q', value: filters.q, label: filters.q, kind: 'value' });
   if (filters.purpose) chips.push({ key: 'purpose', value: filters.purpose, label: '신축 검토', kind: 'value' });
+  if (filters.preferTourism) chips.push({ key: 'preferTourism', value: true, label: '관광숙박특화구역 먼저', kind: 'value' });
+  if (filters.excludeEducation) chips.push({ key: 'excludeEducation', value: true, label: '교육보호구역 제외', kind: 'value' });
+  if (filters.excludeHeritage) chips.push({ key: 'excludeHeritage', value: true, label: '문화재보존구역 제외', kind: 'value' });
   return chips;
 }
 
