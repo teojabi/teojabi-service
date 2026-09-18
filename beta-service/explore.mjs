@@ -260,15 +260,18 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     $('#listing-detail').innerHTML='<div class="detail-top"><button type="button" class="detail-back" data-explore="back-list">← 매물 목록</button><span>불러오는 중</span><button class="detail-close" data-explore="close" aria-label="매물 상세 닫기">×</button></div>';
     map.parcel(null);if(result)drawCards();
     try {
+      // 비서가 찾은 매물은 비서 결과의 정보(용도지역 포함)를 우선 사용한다.
+      const fromAssistant=assistantResult?.groups?.find(group=>group.representative.id===id)?.representative;
       const response=await apiFetch(`/api/listings/${encodeURIComponent(id)}`,{signal:abort.signal});
       let data=await response.json();
-      if(response.status===404||data.status==='missing'){
-        // Assistant results can be plain naver listings that are not in the curated catalog.
-        const fromAssistant=assistantResult?.groups?.find(group=>group.representative.id===id)?.representative;
-        if(fromAssistant)data={status:'ready',mode:'assistant-listing',listing:fromAssistant,observedAt:assistantResult.searchedAt||null,
+      const catalogZoning=data?.listing?.zoning?.status==='matched'?data.listing.zoning:null;
+      if(fromAssistant){
+        data={status:'ready',mode:'assistant-listing',observedAt:assistantResult.searchedAt||null,
+          listing:{...fromAssistant,zoning:catalogZoning||fromAssistant.zoning},
           documents:{building:{status:'source-only',delivery:'in-site'},land:{status:'source-only',delivery:'in-site'},registry:{status:'external',url:DOCUMENT_LINKS.registry}}};
+      } else if(response.status===404||data.status==='missing') {
+        throw new Error('Missing listing');
       }
-      if(!response.ok&&data.status!=='ready')throw new Error('Missing listing');
       if(!data||data.status!=='ready')throw new Error('Missing listing');
       if(disposed||current!==detailVersion)return;
       detail=data;renderDetail();
