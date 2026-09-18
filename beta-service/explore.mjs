@@ -232,7 +232,8 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
   function renderDetail() {
     if(!detail)return;
     const row=detail.listing;
-    const origin=row.origin||(row.cohort==='existing'?'premium':'naver');
+    // 비서 결과는 origin을 직접 갖고, 선별 카탈로그는 매물번호(teojabiNo)로 터잡이 매물을 구분한다.
+    const origin=row.origin||(row.teojabiNo||row.cohort==='existing'?(row.cohort==='existing'?'premium':'registered'):'naver');
     const originBadge=origin==='premium'?'<em class="pick-badge detail-pick-badge">★ 터잡이 추천</em>':origin==='registered'?'<em class="pick-badge detail-pick-badge">터잡이 등록</em>':'<em class="pick-badge detail-pick-badge origin-naver">네이버 매물</em>';
     // 공동중개로 등록·추천된 터잡이 매물은 네이버 원문 링크를 노출하지 않는다.
     const naverUrl=origin==='naver'&&/^\d+$/.test(String(row.sourceId||''))?`https://fin.land.naver.com/articles/${row.sourceId}`:'';
