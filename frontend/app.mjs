@@ -99,9 +99,10 @@ updateMemberButton();
 member.refresh();
 resumeSignup(member);
 let assistantPayload=null,assistantOpenId=null;
-mountAssistant({onResults:(data,openId)=>{assistantPayload=data;assistantOpenId=openId||null;state.screen='results';history.replaceState(null,'',location.pathname+(openId?'#listing='+encodeURIComponent(openId):'#assistant'));render();},onAnalyze:listing=>{if(state.siteDraft?.listingId!==listing.id)state.siteDraft=createSiteDraft(listing);state.screen='analyze';history.replaceState(null,'',location.pathname);render();}});
+const assistantControls=mountAssistant({onResults:(data,openId)=>{assistantPayload=data;assistantOpenId=openId||null;state.screen='results';history.replaceState(null,'',location.pathname+(openId?'#listing='+encodeURIComponent(openId):'#assistant'));render();},onAnalyze:listing=>{if(state.siteDraft?.listingId!==listing.id)state.siteDraft=createSiteDraft(listing);state.screen='analyze';history.replaceState(null,'',location.pathname);render();}});
 function home() {
   return `<section class="home"><div class="intro"><div><span class="eyebrow">YOUR NEXT PLACE, TEOJABI</span><h1>미래의 건물,<br>찾는 기준부터.</h1></div><div class="intro-brand"><span class="home-symbol" role="img" aria-label="터잡이 로고마크"></span><p class="lead">원하는 공간을 찾는 일도,<br> 내 공간을 다시 바라보는 일도.<br> 터잡이에서 차근차근 시작하세요.</p></div></div>
+    <button type="button" class="assistant-banner" data-action="assistant" aria-label="AI 부동산 비서 열기"><span class="assistant-banner-icon" aria-hidden="true"></span><span class="assistant-banner-text"><b>말로 물어보면, 매물이 나와요.</b><small>"종로구 상업지역 100억 이하 도로 6m" 처럼 편하게 물어보세요. AI 부동산 비서가 조건을 해석해 매물을 찾아 지도에 표시해 드려요.</small></span><span class="assistant-banner-cta">무료로 시작하기 <span class="circle">${arrow}</span></span></button>
     <section class="activity-section" id="market-activity" aria-label="보유 자료 현황" aria-live="polite">${activity()}</section>
     <div class="entry-grid"><button class="entry entry-primary" data-action="find"><span class="entry-tag">FIND YOUR BUILDING</span><h2>마음에 드는<br>건물을 찾고 싶어요.</h2><p>목적과 예산, 원하는 지역부터 알려주세요.</p><span class="entry-cta">건물 찾기 시작 <span class="circle">${arrow}</span></span>${buildingArt}</button>
     <button class="entry entry-secondary" data-action="analyze"><span class="entry-tag">UNDERSTAND YOUR PLACE</span><h2>건물과 토지를<br>살펴보고 싶어요.</h2><p>신축할 필지의 현황과 확인할 자료를 함께 봐요.</p><span class="entry-cta">신축 검토 시작 <span class="circle">${arrow}</span></span>${parcelArt}</button></div>
@@ -182,6 +183,7 @@ document.addEventListener('click', event => {
   if (['home','find','analyze','faq'].includes(action)) history.replaceState(null,'',location.pathname);
   if (action === 'faq') { state.screen='home'; render(false); app.querySelector('#faq-title').focus({preventScroll:true}); app.querySelector('#service-faq').scrollIntoView({behavior:'smooth'}); return; }
   if (action === 'login') {member.status==='ready'?openMember():openLogin();return;}
+  if (action === 'assistant') {assistantControls?.open();return;}
   if (action === 'preview-member') {previewMember();return;}
   if (action === 'saved') {openMember();return;}
   if (action === 'home') { state.screen = 'home'; state.editing = false; }
