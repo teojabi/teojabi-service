@@ -339,6 +339,9 @@ export function mountAssistant({ onResults, onAnalyze } = {}) {
     if (chip) { runSearch(chip.dataset.send); return; }
     if (event.target.closest('.assistant-close')) { panel.hidden = true; fab.classList.add('active'); return; }
   });
+  // 모바일에서 지도를 누르면 비서 창을 닫아 지도·목록을 온전히 본다.
+  const onMapClick = () => { if (!panel.hidden && matchMedia('(max-width:700px)').matches) { panel.hidden = true; fab.classList.add('active'); } };
+  window.addEventListener('teojabi-map-click', onMapClick);
   fab.addEventListener('click', () => {
     panel.hidden = !panel.hidden;
     if (!panel.hidden) {
@@ -360,5 +363,5 @@ export function mountAssistant({ onResults, onAnalyze } = {}) {
     input.value = '';
     runSearch(value);
   });
-  return () => { fab.remove(); panel.remove(); };
+  return () => { window.removeEventListener('teojabi-map-click', onMapClick); fab.remove(); panel.remove(); };
 }
