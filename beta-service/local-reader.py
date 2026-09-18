@@ -57,12 +57,37 @@ def connect():
 
 
 def read(operation, value=None):
-    if operation not in ('catalog', 'parcel', 'risk', 'context', 'registers', 'site-parcels', 'parcel-context', 'parcel-documents', 'land-record', 'nearby-transactions', 'selected-risk', 'selected-context', 'selected-registers', 'selected-land-record'):
+    if operation not in ('catalog', 'parcel', 'risk', 'context', 'registers', 'site-parcels', 'parcel-context', 'parcel-documents', 'land-record', 'nearby-transactions', 'selected-risk', 'selected-context', 'selected-registers', 'selected-land-record', 'naver-listing'):
         raise ValueError('Unsupported operation')
     if operation == 'parcel' and not re.fullmatch(r'\d{19}', value or ''):
         raise ValueError('Invalid parcel')
     connection = connect()
     try:
+        if operation == 'naver-listing':
+            if not re.fullmatch(r'\d{1,30}', value or ''):
+                raise ValueError('Invalid listing number')
+            with connection.cursor(cursor_factory=RealDictCursor) as cursor:
+                cursor.execute('''SELECT "매물번호" AS "sourceId", "대지위치" AS address, "구" AS district, "동" AS neighborhood,
+                                         pnu, lat, lng, "거래가격" AS price, "대지면적" AS landArea, "연면적" AS floorArea,
+                                         "층정보" AS floorInfo, "주용도코드명" AS mainUse, "매물특징" AS description
+                                  FROM public.naver WHERE "매물번호"=%s LIMIT 1''', (value,))
+                row = cursor.fetchone()
+            if not row:
+                return {'status': 'missing'}
+            # RealDictCursor lowercases unquoted aliases like landArea; read positionally to stay exact.
+            keys = ['sourceId', 'address', 'district', 'neighborhood', 'pnu', 'lat', 'lng', 'price',
+                    'landArea', 'floorArea', 'floorInfo', 'mainUse', 'description']
+            data = dict(zip(keys, list(row.values())))
+            price = data['price']
+            return {'status': 'ready', 'sourceId': str(data['sourceId']), 'address': data['address'] or '',
+                    'district': data['district'] or '', 'neighborhood': data['neighborhood'] or '',
+                    'pnu': data['pnu'] if data['pnu'] and re.fullmatch(r'\d{19}', str(data['pnu'])) else None,
+                    'position': {'lat': float(data['lat']), 'lng': float(data['lng'])} if data['lat'] and data['lng'] else None,
+                    'priceWon': int(round(float(price) * 100000000)) if price is not None else None,
+                    'areaM2': float(data['landArea']) if data['landArea'] else None,
+                    'floorAreaM2': float(data['floorArea']) if data['floorArea'] else None,
+                    'floorInfo': data['floorInfo'] or '', 'description': data['description'] or '',
+                    'kind': 'land' if data['mainUse'] == '토지' else 'building'}
         if operation.startswith('selected-'):
             reference=json.loads(value)
             if not isinstance(reference,dict) or not re.fullmatch(r'(?:\d{1,30}|[a-f0-9-]{36})',reference.get('sourceId','')):
