@@ -347,7 +347,7 @@ export function mountAssistant({ onResults, onAnalyze } = {}) {
     panel.hidden = false;
     if (!signedIn()) renderLocked();
     else if (!log.childElementCount) welcome();
-    input.focus();
+    // 자동으로 키보드를 띄우지 않는다. 입력창을 눌렀을 때만 키보드가 열린다.
   }
   fab.addEventListener('click', () => {
     if (panel.hidden) openPanel(); else { panel.hidden = true; fab.classList.add('active'); }

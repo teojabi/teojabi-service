@@ -43,14 +43,14 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     <p class="purpose-guide" id="purpose-guide" hidden></p>
     <div class="explore-toolbar"><div class="quick-filters"></div><span id="bounds-chip"></span><div class="explore-toggle" role="group" aria-label="결과 보기 방식"><button data-explore="pane" data-value="list" aria-pressed="true">리스트</button><button data-explore="pane" data-value="map" aria-pressed="false">지도</button></div></div>
     <div class="explore-board" data-pane="list"><div class="explore-list"><p id="result-count" aria-live="polite">저장된 매물을 불러오고 있어요.</p><div id="listing-list"></div><button class="outline more-listings" data-explore="more" hidden>매물 더 보기</button></div>
-      <div class="map-frame"><div id="map-host" role="region" aria-label="매물 위치 지도"></div><div class="map-controls"><button class="outline" data-explore="favorites" aria-pressed="false">♥ 찜한 매물</button><button class="outline" data-explore="all-picks" aria-pressed="false">★ 터잡이 추천 전체</button><button class="outline" data-explore="cadastral" aria-pressed="false">지적도</button><button class="outline" data-explore="reset-map" aria-label="현재 매물 전체 위치 보기">전체 위치</button></div><div id="map-status" class="map-status" role="status">네이버 지도를 불러오고 있어요.</div><div class="map-caption">★ 현재 정렬 상위 5개 · 핀 기반 추정 위치</div></div>
+      <div class="map-frame"><div id="map-host" role="region" aria-label="매물 위치 지도"></div><div class="map-controls"><button class="outline" data-explore="favorites" aria-pressed="false">♥ 찜한 매물</button><button class="outline" data-explore="all-picks" aria-pressed="false">★ 터잡이 추천</button><button class="outline" data-explore="cadastral" aria-pressed="false">지적도</button><button class="outline" data-explore="reset-map" aria-label="현재 매물 전체 위치 보기">전체 위치</button></div><div id="map-status" class="map-status" role="status">네이버 지도를 불러오고 있어요.</div><div class="map-caption">★ 현재 정렬 상위 5개 · 핀 기반 추정 위치</div></div>
       <aside id="listing-detail" class="detail-panel" aria-label="매물 상세" hidden></aside></div><p class="explore-foot" id="explore-foot"></p></section>`;
   const $=selector=>root.querySelector(selector);
   const favoriteItems=()=>member.items.filter(item=>item.kind==='favorite');
   $('#listing-list').before($('#explore-filters'));
   let listScrollTop=0;
   const compared=new Map();let closeComparison,showPins=true,showTransactions=true,showAllPicks=false,pickGroups=null,nearby=null,loadTimer=null,quickFilters;
-  $('.map-controls').insertAdjacentHTML('beforeend','<button class="outline" data-explore="transactions" aria-pressed="true" hidden>주변 실거래 표시</button><button class="outline return-detail" data-explore="return-detail">매물 상세로 돌아가기</button>');
+  $('.map-controls').insertAdjacentHTML('beforeend','<button class="outline" data-explore="transactions" aria-pressed="true" hidden>실거래</button><button class="outline return-detail" data-explore="return-detail">매물 상세로 돌아가기</button>');
   $('.explore-toolbar').insertAdjacentHTML('afterend','<div class="discovery-actions"><button class="outline" data-explore="compare-open" disabled>비교할 매물을 골라주세요 (최대 3개)</button><button class="outline" data-explore="compare-clear" hidden>비교 선택 지우기</button><button class="outline" data-explore="pins" aria-pressed="true">지도 매물 표시</button><span class="discovery-notice" role="status"></span></div><div class="search-suggestions" aria-live="polite"></div>');
   function drawCompare(){const n=compared.size,b=$('[data-explore=compare-open]');b.disabled=n<2;b.textContent=n?`선택 ${n}개 비교하기`:'비교할 매물을 골라주세요 (최대 3개)';$('[data-explore=compare-clear]').hidden=!n;}
   function applySourceUi(){
@@ -242,7 +242,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
       <div class="detail-content"><p class="detail-location">${esc(rowTitle(row))}${originBadge}</p><h2 tabindex="-1" id="detail-title">${money(row.priceWon)}</h2>
       ${row.teojabiNo?`<p class="detail-listing-number">매물번호 ${esc(row.teojabiNo)}</p>`:''}
       ${areaUnitControls()}<div class="detail-areas"><div><span>대지면적</span><strong>${area(row.areaM2)}</strong></div><div><span>연면적</span><strong>${area(row.floorAreaM2)}</strong></div></div>
-      <div id="land-area-comparison" aria-live="polite"></div><div class="detail-links">${naverUrl?`<a class="outline" href="${naverUrl}" target="_blank" rel="noopener noreferrer">네이버에서 보기 ↗</a>`:''}<button class="street-open" data-explore="street">네이버 거리뷰 보기 <span aria-hidden="true">↗</span></button></div>${origin==='naver'?'<p class="case-note">네이버에서 수집한 매물이에요. 건축물대장·토지대장은 보유 자료가 있을 때만 표시돼요.</p>':''}<nav class="detail-shortcuts" aria-label="상세 내용 이동"><button data-explore="section" data-section="property-description">매물 설명</button><button data-explore="section" data-section="property-parcel">필지 위치</button><button data-explore="section" data-section="property-documents">서류 확인</button><button data-explore="section" data-section="property-context">주변 조건</button></nav>
+      <div id="land-area-comparison" aria-live="polite"></div><div class="detail-links">${naverUrl?`<a class="outline" href="${naverUrl}" target="_blank" rel="noopener noreferrer">네이버에서 보기 ↗</a>`:''}<button class="street-open" data-explore="street">네이버 거리뷰 보기 <span aria-hidden="true">↗</span></button></div>${origin==='naver'?'<p class="case-note">네이버에서 찾은 매물이에요. 찜하기를 눌러 저장하세요.</p>':''}<nav class="detail-shortcuts" aria-label="상세 내용 이동"><button data-explore="section" data-section="property-description">매물 설명</button><button data-explore="section" data-section="property-parcel">필지 위치</button><button data-explore="section" data-section="property-documents">서류 확인</button><button data-explore="section" data-section="property-context">주변 조건</button></nav>
       <section class="detail-section" id="property-description"><h3>매물 설명</h3>${row.description?`<p class="listing-description">${esc(row.description)}</p>`:''}${detailFacts(row)||(!row.description?'<p class="listing-description">등록된 설명이 없습니다.</p>':'')}</section>
       <section class="detail-section" id="property-parcel"><h3>필지 위치</h3><p>${esc(row.address||`${rowTitle(row)} · 상세 주소 미확인`)}</p></section>
       <section class="detail-section"><h3>용도지역</h3>${row.zoning?.status==='matched'?`<p>${row.zoning.entries.map(e=>esc(e.name)).join('<br>')}</p><p class="case-note">공공데이터 기준</p>`:'<p class="case-note">용도지역을 확인하지 못했습니다.</p>'}</section>
@@ -297,7 +297,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     for(const button of root.querySelectorAll('[data-explore="transactions"]')) {
       button.hidden=!selected;button.disabled=!nearby?.cases?.length;
       button.setAttribute('aria-pressed',String(showTransactions));
-      button.textContent=`실거래 ${showTransactions?'표시 켜짐':'표시 꺼짐'}${nearby?.cases?.length?` (${nearby.cases.length})`:''}`;
+      button.textContent=`실거래${nearby?.cases?.length?` (${nearby.cases.length})`:''}`;
     }
   }
   function renderNearby() {
@@ -349,7 +349,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
       case 'all-picks':{
         showAllPicks=!showAllPicks;button.disabled=true;
         try{if(showAllPicks&&!pickGroups){const response=await apiFetch('/api/catalog?limit=500&cohort=existing',{signal:abort.signal}),data=await response.json();if(!response.ok||data.status!=='ready')throw new Error();pickGroups=data.groups;}
-          button.setAttribute('aria-pressed',String(showAllPicks));button.textContent=showAllPicks?'★ 조건 매물로':'★ 터잡이 추천 전체';map.setGroups(showAllPicks?(pickGroups||[]):(result?.groups||[]),selected,true);
+          button.setAttribute('aria-pressed',String(showAllPicks));button.textContent=showAllPicks?'★ 터잡이 추천':'★ 터잡이 추천';map.setGroups(showAllPicks?(pickGroups||[]):(result?.groups||[]),selected,true);
         }catch{showAllPicks=false;$('.discovery-notice').textContent='터잡이 추천을 불러오지 못했어요.';}button.disabled=false;break;
       }
       case 'transactions':showTransactions=!showTransactions;map.setTransactionsVisible(showTransactions);syncTransactionToggle();break;
