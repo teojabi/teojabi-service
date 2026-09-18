@@ -48,7 +48,7 @@ function cardMarkup(listing) {
   </article>`;
 }
 
-// 선택한 매물에 대해 확인할 수 있는 고정 메뉴. 데이터가 없는 항목은 비활성으로 표시한다.
+// 선택한 매물에 대해 확인할 수 있는 고정 메뉴. 대장 자료는 상세페이지 안에서 연다.
 function askMenuMarkup(listing) {
   const hasPnu = /^\d{19}$/.test(String(listing.pnu || ''));
   const item = (key, label, enabled, note) => `<button type="button" class="assistant-chip" data-ask-menu="${key}" ${enabled ? '' : 'disabled title="' + esc(note) + '"'}>${label}</button>`;
@@ -56,14 +56,15 @@ function askMenuMarkup(listing) {
     <div class="assistant-askmenu-head"><span class="assistant-origin origin-${esc(listing.origin)}">${esc(originLabel(listing.origin))}</span><b>${money(listing.priceWon)}</b><span>${esc(listing.district)} ${esc(listing.neighborhood || '')}</span></div>
     <p class="assistant-card-address">${esc(listing.address)}</p>
     <div class="assistant-chiprow">
+      ${item('detail', '📋 상세페이지 보기', true, '')}
       ${item('station', '📍 역까지 거리', Boolean(listing.station), '역 거리를 확인할 수 없어요')}
       ${item('nearby', '📊 주변 실거래', true, '')}
       ${item('zoning', '🗺️ 용도지역·규제', hasPnu, '필지 정보가 없어 확인할 수 없어요')}
-      ${item('documents', '📄 건축물대장·토지대장', hasPnu, '필지 정보가 없어 확인할 수 없어요')}
       ${item('similar', '🔎 비슷한 매물 찾기', true, '')}
       ${item('analyze', '🏗️ 신축 검토하기', true, '')}
     </div>
-    ${hasPnu ? '' : '<p class="assistant-note">이 매물은 필지 고유번호가 없어 용도지역·규제와 대장 자료를 확인할 수 없어요. 신축 검토에서 필지를 직접 선택할 수 있어요.</p>'}
+    <p class="assistant-note">건축물대장·토지대장은 상세페이지에서 열 수 있어요.</p>
+    ${hasPnu ? '' : '<p class="assistant-note">이 매물은 필지 고유번호가 없어 용도지역·규제를 확인할 수 없어요. 신축 검토에서 필지를 직접 선택할 수 있어요.</p>'}
   </div>`;
 }
 
@@ -140,6 +141,12 @@ export function mountAssistant({ onResults, onAnalyze } = {}) {
         addBot(`🏗️ <b>${esc(listing.address)}</b> 기준으로 신축 검토를 열었어요. 주소와 대지면적이 자동으로 입력돼요.`);
         return;
       }
+      if (key === 'detail') {
+        scan.remove(); busy = false;
+        addBot(`📋 <b>${esc(listing.address)}</b> 상세페이지를 열었어요. 그 안에서 건축물대장·토지대장도 확인할 수 있어요.`);
+        onResults?.({ groups: [{ key: listing.id, pnu: listing.pnu, representative: listing, listings: [listing] }], total: 1, reply: `📋 ${listing.address} 상세페이지를 열었어요.` }, listing.id);
+        return;
+      }
       if (key === 'similar') {
         scan.remove(); busy = false;
         const filters = { districts: listing.district ? [listing.district] : undefined, kind: listing.kind, limit: 60 };
@@ -162,21 +169,8 @@ export function mountAssistant({ onResults, onAnalyze } = {}) {
         else {
           const zones = (data.zones || []).map(z => `<li>${esc(z.name || z.code || '구역')}${z.relation ? ` · ${esc(z.relation)}` : ''}</li>`).join('');
           const road = data.road?.status === 'ready' && data.road.widthM ? `<li>도로폭 ${data.road.widthM}m</li>` : '';
-          html = `🗺️ <b>용도지역·규제</b><ul class="assistant-list">${zones || '<li>확인된 용도지역 자료가 없어요.</li>'}${road}</ul><small>보유 공공데이터 기준이에요.</small>`;
+          html = `🗺️ <b>용도지역·규제</b><ul class="assistant-list">${zones || '<li>확인된 용도지역 자료가 없어요.</li>'}${road}</ul><small>보유 공공데이터 기준이에요. 대장 자료는 상세페이지에서 볼 수 있어요.</small>`;
         }
-      } else if (key === 'documents') {
-        const [building, land] = await Promise.all([
-          readJson(`/api/building-records/${encodeURIComponent(listing.id)}`),
-          readJson(`/api/land-record/${encodeURIComponent(listing.id)}`),
-        ]);
-        const parts = [];
-        if (building) {
-          const names = (building.items || building.records || []).slice(0, 4).map(r => `<li>${esc(r.kind || r.name || '건축물대장')} · 연면적 ${area(r.floorAreaM2)}</li>`).join('');
-          parts.push(`📄 <b>건축물대장</b><ul class="assistant-list">${names || '<li>보유한 건축물대장 자료가 없어요.</li>'}</ul>`);
-        } else parts.push('📄 건축물대장 자료를 확인할 수 없어요.');
-        if (land) parts.push(`🗂️ <b>토지대장</b><ul class="assistant-list"><li>공부상 면적 ${area(land.areaM2)}</li><li>지목 ${esc(land.jimok || '미기재')}</li></ul>`);
-        else parts.push('🗂️ 토지대장 자료를 확인할 수 없어요.');
-        html = parts.join('');
       } else html = '알 수 없는 요청이에요.';
       await settle();
       scan.remove();
@@ -244,15 +238,28 @@ export function mountAssistant({ onResults, onAnalyze } = {}) {
     };
     bubble.querySelector('[data-editor]')?.addEventListener('click', () => { slot.hidden ? openEditorUi() : (slot.hidden = true); slot.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); });
     if (openEditor) openEditorUi();
+    // 슬롯 내용이 매번 교체되므로 이벤트는 슬롯 한 곳에서 위임해 처리한다.
     slot.addEventListener('click', event => {
       if (event.target.closest('[data-editor-cancel]')) { slot.hidden = true; slot.innerHTML = ''; return; }
+      const filter = event.target.closest('[data-filter-key]');
+      if (filter) {
+        const key = filter.dataset.filterKey, value = filter.dataset.filterValue;
+        const list = lastFilters?.[key];
+        if (Array.isArray(list)) {
+          const next = list.filter(v => String(v) !== value);
+          if (next.length) lastFilters[key] = next; else delete lastFilters[key];
+        } else delete lastFilters[key];
+        runSearch(null, lastFilters || {});
+        return;
+      }
       const pick = event.target.closest('[data-pick]');
       if (pick) {
-        const list = lastFilters[pick.dataset.pick];
-        const value = pick.dataset.value;
-        const next = Array.isArray(list) ? (list.includes(value) ? list.filter(v => v !== value) : [...list, value]) : value;
-        lastFilters[pick.dataset.pick] = Array.isArray(next) && next.length ? next : undefined;
+        const key = pick.dataset.pick, value = pick.dataset.value;
+        const list = Array.isArray(lastFilters[key]) ? lastFilters[key] : (lastFilters[key] ? [lastFilters[key]] : []);
+        const next = list.includes(value) ? list.filter(v => v !== value) : [...list, value];
+        if (next.length) lastFilters[key] = next; else delete lastFilters[key];
         openEditorUi();
+        return;
       }
       const num = event.target.closest('[data-num]');
       if (num) {
@@ -261,6 +268,7 @@ export function mountAssistant({ onResults, onAnalyze } = {}) {
         else if (key === 'minAreaM2') lastFilters.minAreaM2 = Math.round(value * 3.305785);
         else lastFilters[key] = value;
         openEditorUi();
+        return;
       }
       const relaxChip = event.target.closest('[data-relax]');
       if (relaxChip) {
@@ -281,17 +289,6 @@ export function mountAssistant({ onResults, onAnalyze } = {}) {
     });
     slot.addEventListener('submit', event => {
       event.preventDefault();
-      runSearch(null, lastFilters || {});
-    });
-    slot.addEventListener('click', event => {
-      const remove = event.target.closest('[data-filter-key]');
-      if (!remove) return;
-      const key = remove.dataset.filterKey, value = remove.dataset.filterValue;
-      const list = lastFilters?.[key];
-      if (Array.isArray(list)) {
-        lastFilters[key] = list.filter(v => String(v) !== value);
-        if (!lastFilters[key].length) delete lastFilters[key];
-      } else delete lastFilters[key];
       runSearch(null, lastFilters || {});
     });
   }

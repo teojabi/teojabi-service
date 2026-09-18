@@ -1,4 +1,4 @@
-import { createServer } from 'node:http';
+﻿import { createServer } from 'node:http';
 import { readFile, stat } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
@@ -19,31 +19,6 @@ import { serviceConfig, allowedOrigin, authorizeCuration } from './server-access
 const service=serviceConfig();
 
 const root = fileURLToPath(new URL('.', import.meta.url));
-const rateBuckets=new Map();
-const RATE_WINDOW_MS=60_000;
-const RATE_MAX=360;
-const RATE_ADMIN_MAX=90;
-function clientIp(request){return String(request.headers['x-forwarded-for']||request.socket.remoteAddress||'unknown').split(',')[0].trim();}
-function checkRateLimit(request,response){
-  const now=Date.now(),path=request.url?.split('?')[0]||'/',admin=path==='/api/curation';
-  const key=`${clientIp(request)}:${admin?'admin':'global'}`;
-  const limit=admin?RATE_ADMIN_MAX:RATE_MAX;
-  const current=rateBuckets.get(key),bucket=current&&current.resetAt>now?current:{count:0,resetAt:now+RATE_WINDOW_MS};
-  bucket.count+=1;rateBuckets.set(key,bucket);
-  if(bucket.count<=limit)return false;
-  response.setHeader('Retry-After',String(Math.ceil((bucket.resetAt-now)/1000)));
-  response.writeHead(429,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});
-  response.end(JSON.stringify({status:'rate_limited'}));
-  return true;
-}
-setInterval(()=>{const now=Date.now();for(const [key,bucket]of rateBuckets.entries())if(bucket.resetAt<=now)rateBuckets.delete(key);},RATE_WINDOW_MS).unref();
-function applySecurityHeaders(response){
-  response.setHeader('X-Content-Type-Options','nosniff');
-  response.setHeader('X-Frame-Options','DENY');
-  response.setHeader('Referrer-Policy','strict-origin-when-cross-origin');
-  response.setHeader('Permissions-Policy','camera=(), microphone=(), geolocation=()');
-  if(service.production)response.setHeader('Strict-Transport-Security','max-age=31536000; includeSubDomains');
-}
 const cachePath=name=>process.env.TEOJABI_DATA_SOURCE==='supabase'&&/^\.local\/(selected-|curation-)/.test(name)?name.replace('.local/','.local/supabase/'):name;
 const files = new Map([
   ['/api-client.mjs',['api-client.mjs','text/javascript']],
@@ -63,6 +38,7 @@ const files = new Map([
   ['/assets/logo.png',['assets/logo.png','image/png']],['/assets/favicon.ico',['assets/favicon.ico','image/x-icon']],
   ['/assets/symbol.webp',['assets/symbol.webp','image/webp']],
   ['/compare.mjs',['compare.mjs','text/javascript']], ['/member.mjs',['member.mjs','text/javascript']],
+  ['/assistant.mjs',['assistant.mjs','text/javascript']],
   ['/policy.mjs',['policy.mjs','text/javascript']], ['/설계기준_v1.md',['설계기준_v1.md','text/plain']],
   ['/map-controller.mjs',['map-controller.mjs','text/javascript']],
   ['/explore.mjs',['explore.mjs','text/javascript']],
@@ -81,7 +57,6 @@ const files = new Map([
   ['/site-inputs.mjs',['site-inputs.mjs','text/javascript']],
   ['/site-context.mjs',['site-context.mjs','text/javascript']],
   ['/risk-policy.mjs',['risk-policy.mjs','text/javascript']],
-  ['/assistant.mjs',['assistant.mjs','text/javascript']],
 ]);
 async function readOptionalJson(name) {
   try { return JSON.parse((await readFile(join(root, cachePath(name)), 'utf8')).replace(/^\uFEFF/,'')); }
@@ -111,6 +86,23 @@ async function localRead(operation,value) {
   const {stdout}=await execute(process.env.TEOJABI_PYTHON || 'C:/Users/yoon/AppData/Local/Programs/Python/Python310/python.exe',
     [join(root,'local-reader.py'),operation,...(value?[value]:[])],{windowsHide:true,timeout:25000,maxBuffer:32*1024*1024,encoding:'utf8'});
   return JSON.parse(stdout);
+}
+// 비서가 찾은 일반 네이버 매물은 선별 카탈로그에 없다. DB에서 같은 id로 다시 구성해 상세·대장 조회에 쓴다.
+async function naverListing(sourceId) {
+  if(!/^\d{1,30}$/.test(String(sourceId||'')))return null;
+  try {
+    const raw=await localRead('naver-listing',String(sourceId));
+    if(!raw||raw.status!=='ready')return null;
+    return {id:`naver:${raw.sourceId}`,source:'naver',sourceId:raw.sourceId,district:raw.district||'',neighborhood:raw.neighborhood||'',
+      address:raw.address||'',pnu:raw.pnu||null,position:raw.position||null,priceWon:raw.priceWon||null,
+      areaM2:raw.areaM2||null,floorAreaM2:raw.floorAreaM2||null,description:raw.description||'',floorInfo:raw.floorInfo||'',
+      zoning:{status:'missing',groups:[],entries:[]},development:null,kind:raw.kind||'building',kindConfirmed:true,
+      areaSource:'listing',floorAreaSource:'listing',locationStatus:'pin-estimated',nearbyTransactions:{status:'unavailable',cases:[]}};
+  } catch {return null;}
+}
+async function findListing(id) {
+  const data=await catalog();
+  return data.rows.find(row=>row.id===id)||await naverListing(String(id).split(':').slice(1).join(':'));
 }
 async function catalog() {
   const catalogFileVersion=await stat(join(root,cachePath('.local/selected-catalog.json'))).then(s=>s.mtimeMs).catch(error=>{if(error.code==='ENOENT')return 0;throw error;});
@@ -144,11 +136,6 @@ function send(response,request,result,status=200) {
   response.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});
   response.end(request.method==='HEAD'?undefined:JSON.stringify(result));
 }
-function reportReadError(scope,error) {
-  const name=String(error?.name||'Error').slice(0,80);
-  const message=String(error?.message||'unknown').replace(/postgres(?:ql)?:\/\/\S+/gi,'[database-url]').slice(0,300);
-  console.error(`[${scope}] ${name}: ${message}`);
-}
 function staticHeaders(type,stats) {
   const etag=`W/"${stats.size.toString(16)}-${Math.trunc(stats.mtimeMs).toString(16)}"`;
   return {
@@ -164,8 +151,6 @@ function staticHeaders(type,stats) {
   };
 }
 createServer(async (request, response) => {
-  applySecurityHeaders(response);
-  if(checkRateLimit(request,response))return;
   if (!service.hosts.includes(request.headers.host||'')) {response.writeHead(403).end();return;}
   if(service.production&&request.url?.startsWith('/api/')) {
     const origin=request.headers.origin;
@@ -315,7 +300,7 @@ createServer(async (request, response) => {
     const id=path.slice(land?'/api/land-record/'.length:registers?'/api/building-records/'.length:compact?'/api/site-context/'.length:'/api/risk/'.length),cacheKey=`${operation}:${id}`;
     if(!validListingId(id)){send(response,request,{status:'missing'},404);return;}
     try {
-      const data=await catalog(),listing=data.rows.find(row=>row.id===id);
+      const data=await catalog(),listing=await findListing(id);
       if(!listing){send(response,request,{status:'missing'},404);return;}
       if(!riskCache.has(cacheKey)) {
         if(riskCache.size>=100)riskCache.delete(riskCache.keys().next().value);
@@ -324,7 +309,7 @@ createServer(async (request, response) => {
       const result=(land?normalizeLandRecord:registers?buildBuildingRecords:buildRiskReview)(listing,await riskCache.get(cacheKey));
       if(!['ready','missing','invalid-area'].includes(result.status)||result.road?.status==='error')riskCache.delete(cacheKey);
       send(response,request,compact&&result.status!=='error'?{status:result.road.status==='error'?'partial':result.status,zones:result.zones,road:result.road}:result,result.status==='error'?503:200);
-    } catch (error) {reportReadError('listing-detail',error);send(response,request,{status:'error',message:'신축 검토 자료를 불러오지 못했습니다.'},503);}
+    } catch {send(response,request,{status:'error',message:'신축 검토 자료를 불러오지 못했습니다.'},503);}
     return;
   }
   if(path.startsWith('/api/nearby-transactions/')) {
@@ -332,7 +317,7 @@ createServer(async (request, response) => {
     const id=path.slice('/api/nearby-transactions/'.length);
     if(!validListingId(id)){send(response,request,{status:'missing',cases:[]},404);return;}
     try {
-      const data=await catalog(),listing=data.rows.find(row=>row.id===id);
+      const data=await catalog(),listing=await findListing(id);
       if(!listing){send(response,request,{status:'missing',cases:[]},404);return;}
       if(!transactionCache.has(id)) {
         if(transactionCache.size>=100)transactionCache.delete(transactionCache.keys().next().value);
@@ -345,7 +330,7 @@ createServer(async (request, response) => {
       const result=nearbyTransactions(listing,adapted.records,adapted.context,{matchKind:false,onePerParcel:true});
       for(const item of result.cases)item.address=data.rows.find(row=>row.pnu===item.pnu&&row.address)?.address||null;
       send(response,request,{...result,listingId:id});
-    } catch (error) {reportReadError('nearby-transactions',error);send(response,request,{status:'error',cases:[]},503);}
+    } catch {send(response,request,{status:'error',cases:[]},503);}
     return;
   }
   if (path==='/api/catalog' || path.startsWith('/api/listings/') || path.startsWith('/api/parcels/')) {
@@ -357,7 +342,7 @@ createServer(async (request, response) => {
       }
       else if (path.startsWith('/api/listings/')) {
         const id=path.slice('/api/listings/'.length);
-        const listing=data.rows.find(row=>row.id===id);
+        const listing=data.rows.find(row=>row.id===id)||await naverListing(String(id).split(':').slice(1).join(':'));
         send(response,request,listing?{status:'ready',mode:'local-snapshot',listing,observedAt:data.observedAt,
           documents:{building:{status:'stored-records',delivery:'in-site'},land:{status:'stored-records',delivery:'in-site'},registry:{status:'external',url:DOCUMENT_LINKS.registry}}}:{status:'missing'},listing?200:404);
       } else {
