@@ -1,6 +1,7 @@
 import { apiFetch } from './api-client.mjs';
 import {resumeSignup} from './signup.mjs';
 import { member,openMember,openLogin,previewMember } from './member.mjs';
+import { mountAssistant } from './assistant.mjs';
 import { createSiteDraft } from './site-inputs.mjs';
 import { DISTRICTS, toWon } from './policy.mjs';
 import { PURPOSES, purposeLabel, parseAreaRange } from './search-options.mjs';
@@ -57,6 +58,11 @@ window.addEventListener('teojabi-open-saved',event=>{
   if(kind==='analysis'){state.siteDraft={...createSiteDraft(),restore:{pnus:p.pnus,fields:p.fields},memo:p.memo,name:p.name};state.screen='analyze';history.replaceState(null,'',location.pathname);}
   render();
 });
+window.addEventListener('teojabi-open-favorites',()=>{
+  state.screen='results';
+  history.replaceState(null,'',location.pathname+'#favorites');
+  render();
+});
 let enteredMember=null;
 let completedThisVisit=false;
 function rememberSearch(next){
@@ -71,8 +77,9 @@ function updateMemberButton(){
   const button=document.querySelector('#member-login');
   if(!button)return;
   const ready=member.status==='ready';
-  button.textContent=ready?(member.user?.name||'내 계정'):'로그인';
-  button.setAttribute('aria-label',ready?'내 계정과 보관함 보기':'로그인');
+  button.hidden=ready;
+  button.textContent='로그인·회원가입';
+  button.setAttribute('aria-label','로그인 및 회원가입');
   let adminLink=document.querySelector('#member-admin-link');
   if(ready&&member.user?.role==='ADMIN') {
     if(!adminLink){adminLink=document.createElement('a');adminLink.id='member-admin-link';adminLink.href='./curation.html';adminLink.className='outline';adminLink.textContent='관리자';button.after(adminLink);}
@@ -91,6 +98,8 @@ member.addEventListener('change',()=>{
 updateMemberButton();
 member.refresh();
 resumeSignup(member);
+let assistantPayload=null,assistantOpenId=null;
+mountAssistant({onResults:(data,openId)=>{assistantPayload=data;assistantOpenId=openId||null;state.screen='results';history.replaceState(null,'',location.pathname+(openId?'#listing='+encodeURIComponent(openId):'#assistant'));render();},onAnalyze:listing=>{if(state.siteDraft?.listingId!==listing.id)state.siteDraft=createSiteDraft(listing);state.screen='analyze';history.replaceState(null,'',location.pathname);render();}});
 function home() {
   return `<section class="home"><div class="intro"><div><span class="eyebrow">YOUR NEXT PLACE, TEOJABI</span><h1>미래의 건물,<br>찾는 기준부터.</h1></div><div class="intro-brand"><span class="home-symbol" role="img" aria-label="터잡이 로고마크"></span><p class="lead">원하는 공간을 찾는 일도,<br> 내 공간을 다시 바라보는 일도.<br> 터잡이에서 차근차근 시작하세요.</p></div></div>
     <section class="activity-section" id="market-activity" aria-label="보유 자료 현황" aria-live="polite">${activity()}</section>
@@ -125,11 +134,13 @@ function region() {
 function render(focus = true) {
   const version=++renderVersion;
   disposeExplorer?.();disposeExplorer=null;
+  document.body.classList.toggle('map-results-open',state.screen==='results');
   if(state.screen==='results') {
     app.innerHTML='<section class="screen-loading" aria-live="polite"><span></span><p>매물과 지도를 불러오고 있어요.</p></section>';
     loadExplorer().then(({mountExplorer})=>{
       if(version!==renderVersion||state.screen!=='results')return;
-      disposeExplorer=mountExplorer(app,{conditions:state.applied,initialId:new URLSearchParams(location.hash.slice(1)).get('listing'),onAnalyze:listing=>{if(state.siteDraft?.listingId!==listing.id)state.siteDraft=createSiteDraft(listing);state.screen='analyze';history.replaceState(null,'',location.pathname);render();},onConditionsChange:next=>{state.applied=next;if(!new URLSearchParams(location.hash.slice(1)).has('listing'))history.replaceState(null,'',location.pathname+'#search');return rememberSearch(next);},onEdit:()=>{
+      const assistant=assistantPayload,openId=assistantOpenId;assistantPayload=null;assistantOpenId=null;
+      disposeExplorer=mountExplorer(app,{conditions:state.applied,assistant:assistant||undefined,initialSource:location.hash==='#favorites'?'favorites':undefined,initialId:openId||new URLSearchParams(location.hash.slice(1)).get('listing'),onAnalyze:listing=>{if(state.siteDraft?.listingId!==listing.id)state.siteDraft=createSiteDraft(listing);state.screen='analyze';history.replaceState(null,'',location.pathname);render();},onConditionsChange:next=>{state.applied=next;if(!new URLSearchParams(location.hash.slice(1)).has('listing'))history.replaceState(null,'',location.pathname+'#search');return rememberSearch(next);},onEdit:()=>{
         state.draft=appliedDraft();
         state.editing=Boolean(state.applied);state.screen='purpose';render();
       }});
@@ -239,7 +250,7 @@ app.addEventListener('change',event=>{
   state.draft[input.dataset.buildControl]=input.type==='checkbox'?input.checked:input.value?Number(input.value):null;
 });
 render(false);
-if(new URLSearchParams(location.hash.slice(1)).has('listing')||location.hash==='#search') {state.screen='results';render(false);}
+if(new URLSearchParams(location.hash.slice(1)).has('listing')||location.hash==='#search'||location.hash==='#favorites'||location.hash==='#assistant') {state.screen='results';render(false);}
 else if(location.hash==='#analyze'){state.screen='analyze';render(false);}
 
 async function loadActivity() {

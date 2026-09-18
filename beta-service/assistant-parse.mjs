@@ -187,7 +187,11 @@ function groupByOrigin(rows) {
 
 export function buildResult(filters, search, unsupported) {
   const total = Number(search.total || 0);
-  const rows = (search.rows || []).map(viewRow);
+  // assistant.py는 groups[].representative에 row DTO를 담아 돌려준다.
+  const sourceRows = Array.isArray(search.rows) && search.rows.length
+    ? search.rows
+    : (search.groups || []).map(group => group.representative).filter(Boolean);
+  const rows = sourceRows.map(viewRow);
   const buckets = groupByOrigin(rows);
   const shown = [...buckets.premium, ...buckets.registered, ...buckets.naver].slice(0, 5);
   const groups = shown.map(listing => ({ key: listing.id, pnu: listing.pnu, representative: listing, listings: [listing] }));
@@ -202,8 +206,10 @@ export function buildResult(filters, search, unsupported) {
       : '조건을 이해하지 못했어요. 예) "종로구 상업지역 100억 이하 50평 이상 도로 6m"처럼 알려주세요.';
   } else if (total <= 5) {
     reply = `${described.join(' · ') || '요청하신'} 조건에 맞는 매물 ${total}건을 찾았어요${stationNote}.`;
+  } else if (total <= 30) {
+    reply = `${described.join(' · ') || '요청하신'} 조건에 맞는 매물 ${total}건을 찾았어요${stationNote}. 아래 ${shown.length}건을 먼저 보여드려요. 더 좁혀볼까요?`;
   } else {
-    reply = `${described.join(' · ') || '요청하신'} 조건에 맞는 매물이 너무 많아요(${total.toLocaleString('ko-KR')}건). 아래에서 지역이나 예산을 좁혀볼까요?`;
+    reply = `${described.join(' · ') || '요청하신'} 조건에 맞는 매물이 많아요(${total.toLocaleString('ko-KR')}건). 아래 ${shown.length}건을 먼저 보여드려요. 좁혀서 볼까요?`;
   }
   if (total > 0 && (premium || registered)) {
     const lines = [];
@@ -218,7 +224,7 @@ export function buildResult(filters, search, unsupported) {
     status: 'ready', reply, filters, chips: chipList(filters), total, groups,
     originTotals: { premium, registered, naver },
     station: search.station || null, districts: search.districts || [],
-    suggestions: total > 5 ? suggestions(filters, search) : [],
+    suggestions: total > 30 ? suggestions(filters, search) : total > 5 ? suggestions(filters, search).slice(0, 3) : [],
     relaxations: Array.isArray(search.relaxations) ? search.relaxations : [],
     unsupported: unsupported || null, searchedAt: search.searchedAt || null,
   };

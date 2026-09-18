@@ -99,7 +99,7 @@ updateMemberButton();
 member.refresh();
 resumeSignup(member);
 let assistantPayload=null,assistantOpenId=null;
-mountAssistant({onResults:(data,openId)=>{assistantPayload=data;assistantOpenId=openId||null;state.screen='results';history.replaceState(null,'',location.pathname+(openId?'#listing='+encodeURIComponent(openId):'#assistant'));render();}});
+mountAssistant({onResults:(data,openId)=>{assistantPayload=data;assistantOpenId=openId||null;state.screen='results';history.replaceState(null,'',location.pathname+(openId?'#listing='+encodeURIComponent(openId):'#assistant'));render();},onAnalyze:listing=>{if(state.siteDraft?.listingId!==listing.id)state.siteDraft=createSiteDraft(listing);state.screen='analyze';history.replaceState(null,'',location.pathname);render();}});
 function home() {
   return `<section class="home"><div class="intro"><div><span class="eyebrow">YOUR NEXT PLACE, TEOJABI</span><h1>미래의 건물,<br>찾는 기준부터.</h1></div><div class="intro-brand"><span class="home-symbol" role="img" aria-label="터잡이 로고마크"></span><p class="lead">원하는 공간을 찾는 일도,<br> 내 공간을 다시 바라보는 일도.<br> 터잡이에서 차근차근 시작하세요.</p></div></div>
     <section class="activity-section" id="market-activity" aria-label="보유 자료 현황" aria-live="polite">${activity()}</section>
