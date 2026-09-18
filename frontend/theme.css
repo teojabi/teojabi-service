@@ -109,3 +109,6 @@ input,textarea,select{color:var(--text);background:var(--card)}button:focus-visi
 @media(max-width:700px){.intro-brand .home-symbol{-webkit-mask-size:140%;mask-size:140%}}
 .member-bottom>div{display:flex;gap:8px;margin-left:auto}
 .member-guest-login{margin-top:20px;padding:16px;border-radius:12px;background:var(--selected);border:1px solid var(--line)}.member-guest-login p{font-size:12px;color:var(--muted);margin:0 0 10px}
+
+/* iOS Safari 자동 확대 방지: 모바일 입력창은 16px 이상으로 둔다. */
+@media(max-width:700px){.assistant-form input,.assistant-opts input[type=number],.save-dialog input,.member-dialog input,.assistant-panel input,input[type=text],input[type=number],input[type=search],select,textarea{font-size:16px}}

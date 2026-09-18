@@ -515,6 +515,11 @@ body.map-results-open{height:100dvh;min-height:0;overflow:hidden;display:flex;fl
 .assistant-list{margin:6px 0;padding-left:16px;font-size:11.5px}
 .assistant-list li{margin:2px 0}
 .assistant-opts button:disabled{opacity:.45;cursor:not-allowed}
+/* iOS Safari는 16px 미만 입력창에 포커스하면 화면을 확대한다. 모바일에서만 16px로 키운다. */
+@media(max-width:700px){
+  .assistant-form input,.assistant-opts input[type=number],input[type=text],input[type=number],input[type=search],select,textarea{font-size:16px}
+  .save-dialog input,.member-dialog input,.assistant-panel input{font-size:16px}
+}
 
 @media(max-width:700px){.site-map-wrap,.site-map,.site-map *{touch-action:pan-y!important}}
 @media(max-width:700px){body:not(.map-results-open){height:auto!important;min-height:100%;overflow-y:auto!important;overscroll-behavior-y:auto;touch-action:pan-y}.home{overflow:visible;touch-action:pan-y}}
