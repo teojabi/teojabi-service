@@ -45,3 +45,5 @@
 .architect-review-actions{display:flex;flex-wrap:wrap;gap:6px;margin-top:14px}
 .architect-review-actions button{padding:8px 11px;font-size:12px;border-radius:9px}
 @media(max-width:760px){.architect-review-list{grid-template-columns:1fr}}
+
+.architect-review-diag{color:var(--green)}.architect-review-diag.warn{color:var(--danger)}
