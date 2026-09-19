@@ -139,28 +139,37 @@ jobs:
             git reset --hard origin/main
             git clean -fd -e .env -e '*.log'
 
-            # 파일을 교체하기 전에 반드시 프로세스를 멈춘다. (npm/런타임이 잡은 node_modules로 인한 ENOTEMPTY 방지)
-            if pm2 describe teojabi-backend >/dev/null 2>&1; then
-              pm2 stop teojabi-backend || true
-            fi
-
-            # 러너에서 만든 운영 node_modules와 최신 dist로 통째 교체한다. 서버에서는 npm을 실행하지 않는다.
-            rm -rf node_modules dist
-            cp -R /tmp/teojabi-payload/node_modules node_modules
-            cp -R /tmp/teojabi-payload/dist dist
+            # 새 런타임을 별도 디렉터리에 미리 준비한다. (이 동안 기존 앱은 계속 서비스한다)
+            rm -rf node_modules.new dist.new
+            cp -R /tmp/teojabi-payload/node_modules node_modules.new
+            cp -R /tmp/teojabi-payload/dist dist.new
             rm -rf /tmp/teojabi-payload
 
             echo '--- SERVER ENV ---'
             uname -m
             node --version
 
+            # 교체 직전까지 앱을 살려 두고, 디렉터리 이름만 맞바꿔 다운타임을 최소화한다.
+            # npm/런타임이 파일을 잡고 rename하는 상황(ENOTEMPTY)을 피하려면 교체 전에 반드시 멈춘다.
+            had_pm2=0
+            if pm2 describe teojabi-backend >/dev/null 2>&1; then
+              had_pm2=1
+              pm2 stop teojabi-backend || true
+            fi
+
+            rm -rf node_modules.old dist.old
+            if [ -d node_modules ]; then mv node_modules node_modules.old; fi
+            if [ -d dist ]; then mv dist dist.old; fi
+            mv node_modules.new node_modules
+            mv dist.new dist
+
             echo '--- SHARP LOAD ---'
-            node -e "require('sharp'); console.log('sharp ok')" 2>&1 || {
-              # 아키텍처가 러너와 달라 prebuilt가 맞지 않는 경우에만 해당 플랫폼 바이너리를 받는다.
+            # 아키텍처가 러너와 달라 prebuilt가 맞지 않는 경우에만 해당 플랫폼 바이너리를 받는다.
+            if ! node -e "require('sharp')" 2>/dev/null; then
               echo 'sharp load failed; installing platform binary for this server'
               npm install --omit=dev --no-save --legacy-peer-deps --no-audit --no-fund sharp@0.35.4
-              node -e "require('sharp'); console.log('sharp ok after install')"
-            }
+            fi
+            node -e "require('sharp'); console.log('sharp ok')"
 
             echo '--- DEPLOYED main.ts marker ---'
             grep -o "Production requires[^']*" dist/src/main.js | head -1 || true
@@ -168,7 +177,7 @@ jobs:
             # 이전 크래시 루프의 오래된 로그가 진단을 가리지 않도록 비운다.
             pm2 flush teojabi-backend >/dev/null 2>&1 || true
 
-            if pm2 describe teojabi-backend >/dev/null 2>&1; then
+            if [ "$had_pm2" = "1" ]; then
               pm2 restart teojabi-backend --update-env
             else
               pm2 start dist/src/main.js --name teojabi-backend
@@ -201,8 +210,18 @@ jobs:
             echo "Local /api/v1/users/me responded ${local_code}"
 
             if [ -z "$backend_pid" ]; then
+              # 새 버전이 뜨지 않으면 즉시 이전 버전으로 되돌려 서비스가 죽지 않게 한다.
+              echo 'New version did not stay online; rolling back to the previous build'
+              rm -rf node_modules dist
+              if [ -d node_modules.old ]; then mv node_modules.old node_modules; fi
+              if [ -d dist.old ]; then mv dist.old dist; fi
+              if [ "$had_pm2" = "1" ]; then
+                pm2 restart teojabi-backend --update-env || true
+              else
+                pm2 start dist/src/main.js --name teojabi-backend || true
+              fi
               {
-                echo "Backend process did not stay online after restarts"
+                echo "Backend process did not stay online after restarts (rolled back)"
                 echo '--- NODE ---'
                 node --version
                 echo '--- ARCH ---'
@@ -220,6 +239,10 @@ jobs:
               } | tee "$HOME/teojabi-service/backend/deploy-diagnostics.txt"
               exit 1
             fi
+
+            # 성공: 이전 버전 백업과 지난 진단 파일을 정리한다.
+            rm -rf node_modules.old dist.old
+            rm -f "$HOME/teojabi-service/backend/deploy-diagnostics.txt"
 
       - name: Verify public API
         run: |
