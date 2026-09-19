@@ -123,6 +123,12 @@ jobs:
             PORTONE_WEBHOOK_SECRET="${PORTONE_WEBHOOK_SECRET}"
             ENVEOF
 
+            # 시크릿 누락을 배포 로그에서 즉시 확인한다. (값은 절대 출력하지 않고 설정 여부만 남긴다)
+            for name in DATABASE_URL DIRECT_URL JWT_SECRET NTS_SERVICE_KEY GEMINI_API_KEY PORTONE_API_SECRET SUPABASE_SERVICE_ROLE_KEY; do
+              eval "value=\${$name:-}"
+              if [ -z "$value" ]; then echo "WARN missing secret: $name"; else echo "secret set: $name"; fi
+            done
+
             # One-time cleanup for the first beta-service deployment, which placed
             # runtime files inside this checkout before the tracked directory existed.
             if [ -d "$HOME/teojabi-service/beta-service" ] && ! git ls-files --error-unmatch beta-service/serve.mjs >/dev/null 2>&1; then
