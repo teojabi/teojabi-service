@@ -597,9 +597,11 @@ body.map-results-open{height:100dvh;min-height:0;overflow:hidden;display:flex;fl
 .site-architect-card h2>span{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:999px;background:var(--selected);color:var(--primary);font-size:12px;font-weight:700}
 .site-architect-card>.case-note{font-size:13px;color:var(--muted);margin:0}
 .site-architect-list{display:grid;gap:10px;margin-top:14px}
-.site-architect-item{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);gap:12px;padding:12px;border:1px solid var(--line);border-radius:14px;background:var(--selected);align-items:start}
+.site-architect-item{display:block;padding:12px;border:1px solid var(--line);border-radius:14px;background:var(--selected)}
+.site-architect-head{display:flex;align-items:center;gap:8px;margin:0 0 10px}
+.site-architect-name{flex:1 1 auto;min-width:0;font-size:15px}
 .site-architect-media{min-width:0}
-.site-architect-gallery{position:relative;width:100%;aspect-ratio:4/3;border-radius:12px;overflow:hidden;background:var(--card);border:1px solid var(--line)}
+.site-architect-gallery{position:relative;width:100%;aspect-ratio:3/2;border-radius:12px;overflow:hidden;background:var(--card);border:1px solid var(--line)}
 .site-architect-gallery-empty{display:grid;place-items:center}
 .site-architect-gallery-empty .site-architect-logo{width:56px;height:56px;border:0;background:transparent}
 .site-architect-slides{position:absolute;inset:0}
@@ -608,18 +610,15 @@ body.map-results-open{height:100dvh;min-height:0;overflow:hidden;display:flex;fl
 .site-architect-dots{position:absolute;left:0;right:0;bottom:8px;display:flex;justify-content:center;gap:6px;z-index:2}
 .site-architect-dot{width:7px;height:7px;border-radius:50%;border:0;padding:0;background:#ffffff9e;box-shadow:0 0 0 1px #0003;cursor:pointer}
 .site-architect-dot.is-active{background:#fff;width:18px;border-radius:999px}
-.site-architect-head{display:flex;align-items:center;gap:8px}
 .site-architect-logo-badge{flex:0 0 auto}
 .site-architect-logo-badge img,.site-architect-logo-img{width:44px;height:44px;border-radius:10px;object-fit:contain;background:var(--card);border:1px solid var(--line)}
-@media(max-width:520px){.site-architect-item{grid-template-columns:1fr}}
 .site-architect-logo{width:44px;height:44px;border-radius:12px;object-fit:cover;background:var(--card);border:1px solid var(--line);display:grid;place-items:center;font-weight:800;color:var(--primary)}
-.site-architect-body{min-width:0}
-.site-architect-body b{font-size:15px}
-.site-architect-name{flex:1 1 auto;min-width:0}
-.site-architect-row{display:grid;grid-template-columns:42px minmax(0,1fr);gap:6px;align-items:start;margin-top:4px;font-size:12.5px;line-height:1.45}
+.site-architect-footline{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;margin-top:8px}
+.site-architect-rows{margin-top:6px}
+.site-architect-row{display:grid;grid-template-columns:40px minmax(0,1fr);gap:6px;align-items:start;margin-top:2px;font-size:11.5px;line-height:1.4}
 .site-architect-row>span{color:var(--muted);font-weight:600}
 .site-architect-row>b{color:var(--text);font-weight:500;word-break:break-word}
-.site-architect-links{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
+.site-architect-links{display:inline-flex;flex-wrap:wrap;gap:8px}
 .site-architect-links a{font-size:12px;font-weight:700;padding:4px 10px;border:1px solid var(--line);border-radius:999px;background:var(--card);text-decoration:none}
 .site-architect-empty{margin:0;padding:16px;border:1px dashed var(--line);border-radius:14px;background:var(--selected);font-size:13px;color:var(--muted);line-height:1.7}
 .site-architect-card>.primary{width:100%;margin-top:12px}
@@ -627,7 +626,7 @@ body.map-results-open{height:100dvh;min-height:0;overflow:hidden;display:flex;fl
 .link-button{background:none;border:0;padding:4px 2px;color:var(--primary);font-size:12px;font-weight:800;text-decoration:underline;min-height:auto;cursor:pointer}
 .site-architect-status{margin:8px 0 0;font-size:12px;color:var(--muted);min-height:16px}
 @media(max-width:850px){.site-layout>.site-architect-card{margin-top:14px}}
-.site-architect-tags{margin-top:5px;font-size:12px;color:var(--primary);font-weight:600}
+.site-architect-tags{font-size:12px;color:var(--primary);font-weight:600}
 .architect-contact-list{display:grid;gap:8px;margin:12px 0;max-height:240px;overflow:auto}
 .architect-contact{display:flex;justify-content:space-between;gap:10px;align-items:center;border:1px solid var(--line);border-radius:12px;padding:10px 12px;background:var(--selected)}
 .architect-contact b{font-size:14px}
