@@ -12,6 +12,7 @@ const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&
 const panel = document.getElementById('architect-panel');
 const adminHost = document.getElementById('architect-admin');
 const fieldValue = (form, name) => String(new FormData(form).get(name) ?? '').trim();
+const fmtDate = (value) => (/^\d{8}$/.test(String(value || '')) ? `${value.slice(0, 4)}-${value.slice(4, 6)}-${value.slice(6, 8)}` : value || '');
 
 const state = { mine: null, loaded: false, logoUrl: '', message: '', error: false, saving: false, applications: null, appsLoading: false };
 
@@ -23,8 +24,11 @@ function formMarkup() {
   const mine = state.mine || {};
   const logo = state.logoUrl || mine.logoUrl || './assets/symbol.webp';
   const status = mine.status ? `<span class="architect-status-badge">${esc(ARCHITECT_STATUS_LABEL[mine.status] || mine.status)}</span>` : '';
+  const businessNote = mine.businessNumber
+    ? `<p class="case-note architect-business-note">사업자등록 확인: ${mine.businessVerified ? '<b>국세청 인증됨</b>' : esc(mine.businessStatusText || '확인 필요')}</p>`
+    : '';
   return `<h2>건축사 사무소 정보</h2>
-    <p class="case-note">${mine.status ? `현재 상태 ${status} · 수정한 뒤 다시 검토를 요청할 수 있어요.` : '등록하면 터잡이 관리자 검토 후 신축 검토 화면에 공개돼요.'}</p>
+    <p class="case-note">${mine.status ? `현재 상태 ${status} · 수정한 뒤 다시 검토를 요청할 수 있어요.` : '등록하면 터잡이 관리자 검토 후 신축 검토 화면에 공개돼요.'}</p>${businessNote}
     <form class="architect-form" id="architect-form" novalidate>
       <div class="architect-logo-row">
         <img src="${esc(logo)}" alt="사무소 로고 미리보기" id="architect-logo-preview">
@@ -32,6 +36,9 @@ function formMarkup() {
       </div>
       <label>사무소명 <input name="officeName" maxlength="120" required value="${esc(mine.officeName || '')}" placeholder="예: 터잡이건축사사무소"></label>
       <label>대표 건축사명 <input name="representativeName" maxlength="80" required value="${esc(mine.representativeName || '')}" placeholder="예: 홍길동"></label>
+      <label>사업자등록번호 <small>선택 · 국세청 진위확인</small><input name="businessNumber" maxlength="12" inputmode="numeric" value="${esc(mine.businessNumber || '')}" placeholder="예: 123-45-67890"></label>
+      <label>개업연월일 <small>사업자등록증 기준</small><input name="businessStartDate" maxlength="10" inputmode="numeric" value="${esc(fmtDate(mine.businessStartDate))}" placeholder="예: 2015-03-01"></label>
+      <label class="architect-wide">사업자 상호 <small>선택</small><input name="businessName" maxlength="120" value="${esc(mine.businessName || '')}" placeholder="예: 터잡이건축사사무소"></label>
       <label>전화 <input name="phone" maxlength="40" inputmode="tel" value="${esc(mine.phone || '')}" placeholder="예: 02-1234-5678"></label>
       <label>이메일 <input name="email" maxlength="254" inputmode="email" value="${esc(mine.email || '')}" placeholder="예: help@example.com"></label>
       <label>회사 사이트 <input name="websiteUrl" maxlength="500" value="${esc(mine.websiteUrl || '')}" placeholder="예: https://office.example.com"></label>
@@ -102,6 +109,9 @@ async function onSubmit(event) {
   const payload = {
     officeName: fieldValue(form, 'officeName'),
     representativeName: fieldValue(form, 'representativeName'),
+    businessNumber: fieldValue(form, 'businessNumber'),
+    businessStartDate: fieldValue(form, 'businessStartDate'),
+    businessName: fieldValue(form, 'businessName'),
     phone: fieldValue(form, 'phone'),
     email: fieldValue(form, 'email'),
     websiteUrl: fieldValue(form, 'websiteUrl'),
@@ -123,7 +133,12 @@ async function onSubmit(event) {
   try {
     state.mine = await saveMyArchitect(payload);
     state.logoUrl = state.mine.logoUrl || state.logoUrl;
-    state.message = state.mine.status === 'APPROVED' ? '저장했어요. 신축 검토 화면에 공개 중이에요.' : '저장했어요. 관리자 검토 후 공개돼요.';
+    const v = state.mine.verification || {};
+    if (v.status === 'verified') state.message = '저장했어요. 사업자등록이 국세청에서 확인됐어요. 관리자 검토 후 공개돼요.';
+    else if (v.status === 'inactive') state.message = '저장했어요. 다만 휴업·폐업 사업자로 확인돼요. 사무소 정보를 확인해 주세요.';
+    else if (v.status === 'not-found') state.message = '저장했어요. 사업자등록 정보가 국세청 조회와 일치하지 않아요. 번호·개업일·대표자명을 확인해 주세요.';
+    else if (v.status === 'unavailable') state.message = '저장했어요. 사업자등록 자동 확인에 연결하지 못해 관리자가 직접 확인해요.';
+    else state.message = state.mine.status === 'APPROVED' ? '저장했어요. 신축 검토 화면에 공개 중이에요.' : '저장했어요. 관리자 검토 후 공개돼요.';
   } catch (error) {
     state.message = error.message;
     state.error = true;

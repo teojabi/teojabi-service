@@ -23,6 +23,13 @@ type ArchitectRow = {
   kakaoUrl: string | null;
   regions: string | null;
   specialties: string | null;
+  businessNumber: string | null;
+  businessStartDate: string | null;
+  businessName: string | null;
+  businessVerified: boolean;
+  businessStatus: string | null;
+  businessStatusText: string | null;
+  businessCheckedAt: Date | null;
   status: string;
   featured: boolean;
   sortOrder: number;
@@ -30,6 +37,16 @@ type ArchitectRow = {
   createdAt: Date;
   updatedAt: Date;
 };
+
+type BusinessVerification = {
+  status: 'verified' | 'inactive' | 'not-found' | 'unavailable' | 'invalid-input' | 'skipped';
+  businessStatus?: string | null;
+  businessStatusText?: string | null;
+  taxType?: string | null;
+  endDate?: string | null;
+};
+
+const digits = (value?: string | null) => String(value ?? '').replace(/[^0-9]/g, '');
 
 @Injectable()
 export class ArchitectsService implements OnModuleInit {
@@ -65,6 +82,13 @@ export class ArchitectsService implements OnModuleInit {
         kakao_url text,
         regions text,
         specialties text,
+        business_number text,
+        business_start_date text,
+        business_name text,
+        business_verified boolean NOT NULL DEFAULT false,
+        business_status text,
+        business_status_text text,
+        business_checked_at timestamptz,
         status text NOT NULL DEFAULT 'PENDING',
         featured boolean NOT NULL DEFAULT false,
         sort_order integer NOT NULL DEFAULT 0,
@@ -72,6 +96,16 @@ export class ArchitectsService implements OnModuleInit {
         created_at timestamptz NOT NULL DEFAULT now(),
         updated_at timestamptz NOT NULL DEFAULT now()
       )
+    `);
+    await this.prisma.$executeRawUnsafe(`
+      ALTER TABLE public.architect_profile
+        ADD COLUMN IF NOT EXISTS business_number text,
+        ADD COLUMN IF NOT EXISTS business_start_date text,
+        ADD COLUMN IF NOT EXISTS business_name text,
+        ADD COLUMN IF NOT EXISTS business_verified boolean NOT NULL DEFAULT false,
+        ADD COLUMN IF NOT EXISTS business_status text,
+        ADD COLUMN IF NOT EXISTS business_status_text text,
+        ADD COLUMN IF NOT EXISTS business_checked_at timestamptz
     `);
     await this.prisma.$executeRawUnsafe(
       'CREATE INDEX IF NOT EXISTS architect_profile_status_idx ON public.architect_profile(status, sort_order)',
@@ -91,8 +125,56 @@ export class ArchitectsService implements OnModuleInit {
     return trimmed ? trimmed.slice(0, max) : null;
   }
 
-  private shape(row: ArchitectRow) {
-    return {
+  // 국세청 사업자등록정보 진위확인 + 상태조회. NTS_SERVICE_KEY가 없으면 건너뛴다.
+  async verifyBusiness(input: {
+    businessNumber?: string | null;
+    businessStartDate?: string | null;
+    representativeName?: string | null;
+    businessName?: string | null;
+  }): Promise<BusinessVerification> {
+    const key = process.env.NTS_SERVICE_KEY || '';
+    const bNo = digits(input.businessNumber);
+    const startDt = digits(input.businessStartDate);
+    const pNm = String(input.representativeName ?? '').trim();
+    if (!bNo || !startDt || !pNm) return { status: 'invalid-input' };
+    if (bNo.length !== 10 || startDt.length !== 8) return { status: 'invalid-input' };
+    if (!key) return { status: 'unavailable', businessStatusText: '검증 키가 설정되지 않았어요.' };
+    try {
+      const response = await fetch(
+        `https://api.odcloud.kr/api/nts-businessman/v1/validate?serviceKey=${encodeURIComponent(key)}&returnType=JSON`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+          body: JSON.stringify({
+            businesses: [{ b_no: bNo, start_dt: startDt, p_nm: pNm, b_nm: this.text(input.businessName, 120) ?? '' }],
+          }),
+          signal: AbortSignal.timeout(10000),
+        },
+      );
+      const data: any = await response.json().catch(() => null);
+      const item = data?.data?.[0];
+      if (!response.ok || data?.status_code !== 'OK' || !item) {
+        return { status: 'unavailable', businessStatusText: '국세청 검증에 연결하지 못했어요.' };
+      }
+      if (item.valid !== '01') {
+        return { status: 'not-found', businessStatusText: '국세청에 등록되지 않았거나 정보가 일치하지 않아요.' };
+      }
+      const st = item.status || {};
+      return {
+        status: st.b_stt_cd === '01' ? 'verified' : 'inactive',
+        businessStatus: st.b_stt_cd ?? null,
+        businessStatusText: st.b_stt ?? null,
+        taxType: st.tax_type ?? null,
+        endDate: st.end_dt ?? null,
+      };
+    } catch (error) {
+      this.logger.warn(`사업자 진위확인 호출 실패: ${(error as Error).message}`);
+      return { status: 'unavailable', businessStatusText: '국세청 검증에 연결하지 못했어요.' };
+    }
+  }
+
+  private shape(row: ArchitectRow, { sensitive = false } = {}) {
+    const base = {
       id: row.id,
       officeName: row.officeName,
       representativeName: row.representativeName,
@@ -105,12 +187,23 @@ export class ArchitectsService implements OnModuleInit {
       kakaoUrl: row.kakaoUrl ?? null,
       regions: row.regions ?? '',
       specialties: row.specialties ?? '',
+      businessVerified: row.businessVerified,
       status: row.status,
       featured: row.featured,
       sortOrder: row.sortOrder,
       approvedAt: row.approvedAt ? row.approvedAt.toISOString() : null,
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
+    };
+    if (!sensitive) return base;
+    return {
+      ...base,
+      businessNumber: row.businessNumber ?? null,
+      businessStartDate: row.businessStartDate ?? null,
+      businessName: row.businessName ?? null,
+      businessStatus: row.businessStatus ?? null,
+      businessStatusText: row.businessStatusText ?? null,
+      businessCheckedAt: row.businessCheckedAt ? row.businessCheckedAt.toISOString() : null,
     };
   }
 
@@ -125,7 +218,7 @@ export class ArchitectsService implements OnModuleInit {
 
   async getMine(userId: string) {
     const row = await this.prisma.architectProfile.findUnique({ where: { userId } });
-    return row ? this.shape(row as ArchitectRow) : null;
+    return row ? this.shape(row as ArchitectRow, { sensitive: true }) : null;
   }
 
   async upsertMine(userId: string, dto: UpsertArchitectDto) {
@@ -134,6 +227,15 @@ export class ArchitectsService implements OnModuleInit {
     if (!officeName || !representativeName) {
       throw new BadRequestException('사무소명과 대표 건축사명을 입력해 주세요.');
     }
+    const businessNumber = digits(dto.businessNumber).slice(0, 10) || null;
+    const businessStartDate = digits(dto.businessStartDate).slice(0, 8) || null;
+    const businessName = this.text(dto.businessName, 120);
+
+    const verification =
+      businessNumber && businessStartDate
+        ? await this.verifyBusiness({ businessNumber, businessStartDate, representativeName, businessName })
+        : ({ status: 'skipped' } as BusinessVerification);
+
     const existing = await this.prisma.architectProfile.findUnique({ where: { userId } });
     // 이미 승인된 프로필은 수정해도 공개를 유지하고, 신규·보류 건은 다시 검토 대기로 둔다.
     const status = existing?.status === 'APPROVED' ? 'APPROVED' : 'PENDING';
@@ -149,6 +251,13 @@ export class ArchitectsService implements OnModuleInit {
       kakaoUrl: this.url(dto.kakaoUrl),
       regions: this.text(dto.regions, 300),
       specialties: this.text(dto.specialties, 300),
+      businessNumber,
+      businessStartDate,
+      businessName,
+      businessVerified: verification.status === 'verified',
+      businessStatus: verification.businessStatus ?? null,
+      businessStatusText: verification.businessStatusText ?? null,
+      businessCheckedAt: verification.status === 'skipped' || verification.status === 'invalid-input' ? null : new Date(),
       status,
     };
     const row = await this.prisma.architectProfile.upsert({
@@ -156,7 +265,7 @@ export class ArchitectsService implements OnModuleInit {
       create: { userId, ...data },
       update: data,
     });
-    return this.shape(row as ArchitectRow);
+    return { ...this.shape(row as ArchitectRow, { sensitive: true }), verification };
   }
 
   async uploadLogo(userId: string, file: any) {
@@ -174,7 +283,7 @@ export class ArchitectsService implements OnModuleInit {
       orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
       take: 200,
     });
-    return rows.map((row) => this.shape(row as ArchitectRow));
+    return rows.map((row) => this.shape(row as ArchitectRow, { sensitive: true }));
   }
 
   async setStatus(id: string, dto: UpdateArchitectStatusDto) {
@@ -189,6 +298,6 @@ export class ArchitectsService implements OnModuleInit {
     if (typeof dto.sortOrder === 'number') data.sortOrder = dto.sortOrder;
     if (!Object.keys(data).length) throw new BadRequestException('변경할 값이 없습니다.');
     const row = await this.prisma.architectProfile.update({ where: { id }, data });
-    return this.shape(row as ArchitectRow);
+    return this.shape(row as ArchitectRow, { sensitive: true });
   }
 }
