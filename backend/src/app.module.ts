@@ -16,6 +16,7 @@ import { SubscriptionsModule } from './subscriptions/subscriptions.module';
 import { EmailVerificationModule } from './email-verification/email-verification.module';
 import { DiscoveryModule } from './discovery/discovery.module';
 import { AdminAccessModule } from './admin-access/admin-access.module';
+import { ArchitectsModule } from './architects/architects.module';
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { AdminAccessModule } from './admin-access/admin-access.module';
     EmailVerificationModule,
     DiscoveryModule,
     AdminAccessModule,
+    ArchitectsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -583,3 +583,78 @@ body.map-results-open{height:100dvh;min-height:0;overflow:hidden;display:flex;fl
 .explore-filters label span{font-size:13px}
 .explore-filters input,.explore-filters select{font-size:13px}
 .more-listings{font-size:13px}
+/* 건물·토지 검토: 데스크톱은 01 아래 03, 02 아래 입점 건축사로 2단 배치한다. */
+@media(min-width:851px){
+  .site-layout{grid-template-columns:minmax(0,1.42fr) minmax(340px,.92fr);grid-template-areas:"picker input" "context architects";align-items:start}
+  .site-layout>.site-picker{grid-area:picker}
+  .site-layout>.site-input-card{grid-area:input;position:static}
+  .site-layout>.site-context-card{grid-area:context;margin-top:0}
+  .site-layout>.site-architect-card{grid-area:architects;margin-top:0}
+}
+.site-context-card.is-active{border-color:var(--primary);box-shadow:0 14px 38px rgba(37,99,235,.12)}
+.site-architect-card{border:1px solid var(--line);border-radius:18px;background:var(--card);padding:20px;box-shadow:0 14px 38px rgba(11,23,54,.06)}
+.site-architect-card h2{display:flex;align-items:center;gap:8px;margin:0 0 14px;font-size:18px}
+.site-architect-card h2>span{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:999px;background:var(--selected);color:var(--primary);font-size:12px;font-weight:700}
+.site-architect-card>.case-note{font-size:13px;color:var(--muted);margin:0}
+.site-architect-list{display:grid;gap:10px;margin-top:14px}
+.site-architect-item{display:grid;grid-template-columns:auto minmax(0,1fr);gap:12px;padding:13px;border:1px solid var(--line);border-radius:14px;background:var(--selected)}
+.site-architect-item img,.site-architect-logo{width:46px;height:46px;border-radius:12px;object-fit:cover;background:var(--card);border:1px solid var(--line);display:grid;place-items:center;font-weight:800;color:var(--primary)}
+.site-architect-body{min-width:0}
+.site-architect-body b{font-size:15px}
+.site-architect-body small{display:block;font-size:12px;color:var(--muted);margin-top:2px}
+.site-architect-body p{margin:6px 0 0;font-size:13px;color:var(--text);line-height:1.6}
+.site-architect-links{display:flex;flex-wrap:wrap;gap:10px;margin-top:8px}
+.site-architect-links a{font-size:12px;font-weight:700}
+.site-architect-empty{margin:0;padding:16px;border:1px dashed var(--line);border-radius:14px;background:var(--selected);font-size:13px;color:var(--muted);line-height:1.7}
+.site-architect-card>.primary{width:100%;margin-top:12px}
+.site-architect-foot{display:flex;align-items:center;gap:6px;justify-content:center;margin-top:10px;font-size:12px;color:var(--muted)}
+.link-button{background:none;border:0;padding:4px 2px;color:var(--primary);font-size:12px;font-weight:800;text-decoration:underline;min-height:auto;cursor:pointer}
+.site-architect-status{margin:8px 0 0;font-size:12px;color:var(--muted);min-height:16px}
+@media(max-width:850px){.site-layout>.site-architect-card{margin-top:14px}}
+.site-architect-tags{margin-top:6px;font-size:12px;color:var(--primary);font-weight:600}
+.architect-contact-list{display:grid;gap:8px;margin:12px 0;max-height:240px;overflow:auto}
+.architect-contact{display:flex;justify-content:space-between;gap:10px;align-items:center;border:1px solid var(--line);border-radius:12px;padding:10px 12px;background:var(--selected)}
+.architect-contact b{font-size:14px}
+.architect-contact small{display:block;font-size:12px;color:var(--muted);margin-top:2px}
+.architect-contact-links{display:flex;gap:8px;flex-wrap:wrap}
+.architect-contact-links a{font-size:12px;font-weight:700}
+/* 건축사 입점 페이지 */
+.architect-page{max-width:1000px;margin:0 auto;padding:26px 18px 70px}
+.architect-hero{border:1px solid var(--line);border-radius:20px;padding:30px;background:linear-gradient(135deg,var(--card),var(--selected));margin:14px 0 24px}
+.architect-hero .eyebrow{color:var(--primary);font-weight:800;letter-spacing:.08em}
+.architect-hero h1{font-size:32px;margin:8px 0 10px}
+.architect-hero p{max-width:640px;color:var(--muted);font-size:15px;line-height:1.75}
+.architect-benefits{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:22px 0 28px}
+.architect-benefit{border:1px solid var(--line);border-radius:16px;padding:18px;background:var(--card)}
+.architect-benefit b{display:block;font-size:15px;margin-bottom:6px}
+.architect-benefit p{font-size:13px;color:var(--muted);line-height:1.7}
+.architect-panel{border:1px solid var(--line);border-radius:18px;background:var(--card);padding:22px;box-shadow:0 14px 38px rgba(11,23,54,.06)}
+.architect-panel h2{font-size:20px;margin:0 0 14px}
+.architect-status-badge{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:4px 10px;font-size:12px;font-weight:800;border:1px solid var(--line);background:var(--selected);color:var(--primary)}
+.architect-form{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:6px}
+.architect-form label{display:grid;gap:6px;font-size:13px;font-weight:600}
+.architect-form label small{font-size:11px;color:var(--muted);font-weight:400}
+.architect-form input,.architect-form textarea{width:100%;min-width:0;padding:11px 12px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--text);font:inherit}
+.architect-form textarea{min-height:88px;resize:vertical}
+.architect-form .architect-wide{grid-column:1/-1}
+.architect-logo-row{grid-column:1/-1;display:flex;align-items:center;gap:14px}
+.architect-logo-row img{width:64px;height:64px;border-radius:14px;object-fit:cover;border:1px solid var(--line);background:var(--selected)}
+.architect-actions{grid-column:1/-1;display:flex;gap:8px;flex-wrap:wrap;margin-top:4px}
+.architect-actions .primary{min-width:160px}
+.architect-message{grid-column:1/-1;font-size:13px;min-height:20px;color:var(--green)}
+.architect-message.error{color:var(--danger)}
+.architect-admin-list{display:grid;gap:10px;margin-top:14px}
+.architect-admin-item{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:12px;align-items:center;border:1px solid var(--line);border-radius:14px;padding:12px;background:var(--selected)}
+.architect-admin-item .site-architect-logo,.architect-admin-item img{width:44px;height:44px;border-radius:12px}
+.architect-admin-item b{font-size:14px}
+.architect-admin-item small{display:block;font-size:12px;color:var(--muted);margin-top:2px}
+.architect-admin-actions{display:flex;gap:6px;flex-wrap:wrap}
+.architect-admin-actions button{padding:7px 10px;font-size:12px;border-radius:9px}
+@media(max-width:760px){
+  .architect-benefits{grid-template-columns:1fr}
+  .architect-form{grid-template-columns:1fr}
+  .architect-admin-item{grid-template-columns:auto 1fr;align-items:start}
+  .architect-admin-actions{grid-column:1/-1;justify-content:flex-end}
+}
+.header nav a{display:inline-flex;align-items:center;color:var(--text);text-decoration:none;font-size:14px;min-height:44px;padding:0 2px}
+@media(max-width:700px){.header nav a{font-size:12px}}
