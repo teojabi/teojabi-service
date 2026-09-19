@@ -29,12 +29,15 @@ jobs:
           npm ci --legacy-peer-deps --no-audit --no-fund
           npx prisma generate
           npm run build
+          # sharp 등 네이티브 모듈을 서버에서 재설치하지 않도록 함께 배포한다.
+          npm prune --omit=dev --legacy-peer-deps
 
       - name: Package runtime files
         run: |
-          mkdir -p deploy-package/node_modules/.prisma
+          mkdir -p deploy-package
           cp -R backend/dist deploy-package/dist
-          cp -R backend/node_modules/.prisma/client deploy-package/node_modules/.prisma/client
+          cp -R backend/node_modules deploy-package/node_modules
+          cp backend/package.json deploy-package/package.json
           tar -czf backend-deploy.tgz -C deploy-package .
 
       - name: Upload runtime files to NCP
@@ -101,7 +104,10 @@ jobs:
             if [ -d "$HOME/teojabi-service/beta-service" ] && ! git ls-files --error-unmatch beta-service/serve.mjs >/dev/null 2>&1; then
               rm -rf "$HOME/teojabi-service/beta-service"
             fi
-            git pull --ff-only origin main
+            # 서버 체크아웃이 과거 시점에 멈춰 있을 수 있어, 로컬 변경을 버리고 origin/main과 강제로 맞춘다.
+            git fetch --prune origin main
+            git reset --hard origin/main
+            git clean -fd -e .env -e '*.log'
             tar -xzf backend-deploy.tgz
             rm -f backend-deploy.tgz
 
