@@ -102,12 +102,13 @@ jobs:
             if [ -d "$HOME/teojabi-service/beta-service" ] && ! git ls-files --error-unmatch beta-service/serve.mjs >/dev/null 2>&1; then
               rm -rf "$HOME/teojabi-service/beta-service"
             fi
+            # 배포 패키지를 먼저 풀어 둔다. git clean이 tarball을 지우지 않도록 순서를 지킨다.
+            tar -xzf backend-deploy.tgz
+            rm -f backend-deploy.tgz
             # 서버 체크아웃이 과거 시점에 멈춰 있을 수 있어, 로컬 변경을 버리고 origin/main과 강제로 맞춘다.
             git fetch --prune origin main
             git reset --hard origin/main
             git clean -fd -e .env -e '*.log'
-            tar -xzf backend-deploy.tgz
-            rm -f backend-deploy.tgz
 
             # sharp 등 네이티브 모듈과 prisma CLI는 서버(Linux)에서 직접 설치한다.
             if [ ! -d node_modules ] || [ package-lock.json -nt node_modules/.package-lock.json ]; then
