@@ -35,8 +35,8 @@ function businessResultText(v) {
   if (v.status === 'verified') return `국세청 인증됨 · ${v.businessStatusText || '계속사업자'}${v.taxType ? ` (${v.taxType})` : ''}`;
   if (v.status === 'inactive') return `${v.businessStatusText || '휴업·폐업'} 상태로 확인돼요.`;
   if (v.status === 'not-found') return '국세청 정보와 일치하지 않아요. 번호·개업일·대표자명·상호를 확인해 주세요.';
-  if (v.status === 'invalid-input') return '입력 형식을 확인해 주세요.';
-  return '국세청에 연결하지 못했어요. 잠시 후 다시 시도해 주세요.';
+  if (v.status === 'invalid-input') return v.businessStatusText || '입력 형식을 확인해 주세요.';
+  return v.businessStatusText || '국세청에 연결하지 못했어요. 잠시 후 다시 시도해 주세요.';
 }
 
 function loginPanel() {

@@ -33,9 +33,13 @@ async function initArchitectReview(request,canManage){
   panel.hidden=false;
   const load=async()=>{
     try{
-      const items=await request('/architects/admin/list');
+      const [items,diag]=await Promise.all([
+        request('/admin/list'),
+        request('/admin/diagnose').catch(()=>null),
+      ]);
       const pending=items.filter(item=>item.status==='PENDING').length;
-      status.textContent=`신청 ${items.length}건 · 검토 대기 ${pending}건. 승인하면 신축 검토 화면에 공개돼요.`;
+      const diagText=diag?(diag.keyConfigured?`국세청 키 설정됨(${diag.keyLength}자) · ${diag.message}`:'⚠ 국세청 키(NTS_SERVICE_KEY)가 서버에 설정되지 않았어요'):'';
+      status.innerHTML=`신청 ${items.length}건 · 검토 대기 ${pending}건. 승인하면 신축 검토 화면에 공개돼요.${diagText?`<br><small class="architect-review-diag${diag?.keyConfigured&&diag?.reachable?'':' warn'}">${escapeHtml(diagText)}</small>`:''}`;
       list.innerHTML=items.length?items.map(architectCard).join(''):'<p class="case-note">아직 입점 신청이 없어요.</p>';
     }catch(error){status.textContent=error.message;list.innerHTML='';}
   };
@@ -46,7 +50,7 @@ async function initArchitectReview(request,canManage){
     if(!id)return;
     const body=button.dataset.architectStatus?{status:button.dataset.architectStatus}:{featured:button.dataset.architectFeatured==='1'};
     button.disabled=true;
-    try{await request(`/architects/admin/${encodeURIComponent(id)}`,{method:'PATCH',body:JSON.stringify(body)});await load();}
+    try{await request(`/admin/${encodeURIComponent(id)}`,{method:'PATCH',body:JSON.stringify(body)});await load();}
     catch(error){status.textContent=error.message;button.disabled=false;}
   });
   await load();
@@ -72,9 +76,15 @@ export async function initAdminAccess(){
       if(!response.ok)throw new Error(data.message||'관리자 권한 정보를 불러오지 못했습니다.');
       return data;
     };
+    const architectRequest=async(path,options={})=>{
+      const response=await apiFetch(`${base}/api/v1/architects${path}`,{...options,credentials:'include',headers:options.body?{'Content-Type':'application/json'}:undefined,signal:AbortSignal.timeout(12000)});
+      const data=await response.json().catch(()=>({}));
+      if(!response.ok)throw new Error(data.message||'건축사 신청 정보를 불러오지 못했습니다.');
+      return data;
+    };
     const me=await request('/me');
     panel.hidden=false;
-    if(!me.canManageAdmins){status.textContent='관리자 계정으로 연결되었습니다.';form.hidden=true;list.innerHTML='';await initArchitectReview(request,true);return;}
+    if(!me.canManageAdmins){status.textContent='관리자 계정으로 연결되었습니다.';form.hidden=true;list.innerHTML='';await initArchitectReview(architectRequest,true);return;}
     const load=async()=>{
       const members=await request('/members');
       status.textContent='마스터 계정 · 관리자를 추가하거나 권한을 해제할 수 있어요.';
@@ -84,6 +94,6 @@ export async function initAdminAccess(){
     form.addEventListener('submit',async event=>{event.preventDefault();const button=form.querySelector('button'),email=form.email.value.trim();if(!email)return;button.disabled=true;status.textContent='관리자 권한을 추가하고 있어요.';try{await request('/members',{method:'POST',body:JSON.stringify({email})});form.reset();await load();}catch(error){status.textContent=error.message;}finally{button.disabled=false;}});
     await load();
     form.hidden=false;
-    await initArchitectReview(request,true);
+    await initArchitectReview(architectRequest,true);
   }catch(error){status.textContent=error.message;}
 }

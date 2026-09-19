@@ -67,6 +67,13 @@ export class ArchitectsController {
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN')
+  @Get('admin/diagnose')
+  diagnose() {
+    return this.architectsService.diagnoseBusiness();
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
   @Get('admin/list')
   adminList() {
     return this.architectsService.listAll();
