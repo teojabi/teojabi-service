@@ -658,3 +658,5 @@ body.map-results-open{height:100dvh;min-height:0;overflow:hidden;display:flex;fl
 }
 .header nav a{display:inline-flex;align-items:center;color:var(--text);text-decoration:none;font-size:14px;min-height:44px;padding:0 2px}
 @media(max-width:700px){.header nav a{font-size:12px}}
+.member-architect-link{margin-top:10px}
+.member-architect-link a{font-weight:800;color:var(--primary)}
