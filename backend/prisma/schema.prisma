@@ -397,6 +397,7 @@ model ArchitectProfile {
   representativeName String    @map("representative_name")
   bio                String?   @db.Text
   logoUrl            String?   @map("logo_url") @db.Text
+  galleryUrls        String?   @map("gallery_urls") @db.Text
   websiteUrl         String?   @map("website_url")
   phone              String?
   email              String?

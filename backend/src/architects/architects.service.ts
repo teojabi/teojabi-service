@@ -16,6 +16,7 @@ type ArchitectRow = {
   representativeName: string;
   bio: string | null;
   logoUrl: string | null;
+  galleryUrls: string | null;
   websiteUrl: string | null;
   phone: string | null;
   email: string | null;
@@ -75,6 +76,7 @@ export class ArchitectsService implements OnModuleInit {
         representative_name text NOT NULL,
         bio text,
         logo_url text,
+        gallery_urls text,
         website_url text,
         phone text,
         email text,
@@ -99,6 +101,7 @@ export class ArchitectsService implements OnModuleInit {
     `);
     await this.prisma.$executeRawUnsafe(`
       ALTER TABLE public.architect_profile
+        ADD COLUMN IF NOT EXISTS gallery_urls text,
         ADD COLUMN IF NOT EXISTS business_number text,
         ADD COLUMN IF NOT EXISTS business_start_date text,
         ADD COLUMN IF NOT EXISTS business_name text,
@@ -187,6 +190,7 @@ export class ArchitectsService implements OnModuleInit {
       representativeName: row.representativeName,
       bio: row.bio ?? '',
       logoUrl: row.logoUrl ?? null,
+      galleryUrls: (row.galleryUrls || '').split('\n').map(v => v.trim()).filter(Boolean).slice(0, 8),
       websiteUrl: row.websiteUrl ?? null,
       phone: row.phone ?? null,
       email: row.email ?? null,
@@ -251,11 +255,15 @@ export class ArchitectsService implements OnModuleInit {
     const existing = await this.prisma.architectProfile.findUnique({ where: { userId } });
     // 이미 승인된 프로필은 수정해도 공개를 유지하고, 신규·보류 건은 다시 검토 대기로 둔다.
     const status = existing?.status === 'APPROVED' ? 'APPROVED' : 'PENDING';
+    const galleryUrls = Array.isArray(dto.galleryUrls)
+      ? dto.galleryUrls.map(v => this.url(v)).filter(Boolean).slice(0, 8).join('\n')
+      : existing?.galleryUrls ?? null;
     const data = {
       officeName,
       representativeName,
       bio: this.text(dto.bio, 2000),
       logoUrl: this.url(dto.logoUrl),
+      galleryUrls,
       websiteUrl: this.url(dto.websiteUrl),
       phone: this.text(dto.phone, 40),
       email: this.text(dto.email, 254),
@@ -288,6 +296,32 @@ export class ArchitectsService implements OnModuleInit {
       await this.prisma.architectProfile.update({ where: { userId }, data: { logoUrl } });
     }
     return { logoUrl };
+  }
+
+  // 대표 이미지(4:3)를 최대 8장까지 올린다. 업로드한 URL 목록을 그대로 돌려준다.
+  async uploadGallery(userId: string, files: any[]) {
+    const list = (files || []).filter(file => file?.buffer).slice(0, 8);
+    if (!list.length) throw new BadRequestException('대표 이미지를 선택해 주세요.');
+    const existing = await this.prisma.architectProfile.findUnique({ where: { userId } });
+    const current = (existing?.galleryUrls || '').split('\n').map(v => v.trim()).filter(Boolean);
+    const urls: string[] = [];
+    for (const file of list) {
+      urls.push(await this.supabaseService.uploadImage(file, { maxWidth: 1600, aspect: '4:3' }));
+    }
+    const merged = [...current, ...urls].slice(0, 8);
+    const galleryUrls = merged.join('\n');
+    if (existing) {
+      await this.prisma.architectProfile.update({ where: { userId }, data: { galleryUrls } });
+    }
+    return { galleryUrls: merged, added: urls };
+  }
+
+  async removeGalleryImage(userId: string, url: string) {
+    const existing = await this.prisma.architectProfile.findUnique({ where: { userId } });
+    if (!existing) throw new NotFoundException('건축사 프로필을 찾지 못했습니다.');
+    const next = (existing.galleryUrls || '').split('\n').map(v => v.trim()).filter(Boolean).filter(v => v !== url);
+    await this.prisma.architectProfile.update({ where: { userId }, data: { galleryUrls: next.join('\n') || null } });
+    return { galleryUrls: next };
   }
 
   async listAll() {

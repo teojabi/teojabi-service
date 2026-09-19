@@ -1,9 +1,11 @@
-import { Injectable, InternalServerErrorException } from '@nestjs/common';
+import { Injectable, InternalServerErrorException, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import sharp from 'sharp';
 
 @Injectable()
 export class SupabaseService {
+  private readonly logger = new Logger(SupabaseService.name);
   private client: SupabaseClient;
 
   constructor(private configService: ConfigService) {
@@ -20,11 +22,39 @@ export class SupabaseService {
   }
 
   /**
+   * 큰 이미지를 자동으로 리사이즈·압축한다. 실패하면 원본을 그대로 쓴다.
+   * @param file Express.Multer.File object
+   * @param maxWidth 가로 최대 픽셀
+   */
+  private async compressImage(file: any, maxWidth = 1600, aspect?: string): Promise<{ buffer: Buffer; contentType: string; ext: string }> {
+    if (!file?.buffer) return { buffer: file?.buffer ?? Buffer.alloc(0), contentType: file?.mimetype ?? 'application/octet-stream', ext: 'bin' };
+    try {
+      const image = sharp(file.buffer, { failOn: 'none' });
+      const meta = await image.metadata();
+      const needsResize = (meta.width ?? 0) > maxWidth;
+      let pipeline = needsResize ? image.resize({ width: maxWidth, withoutEnlargement: true }) : image;
+      // 대표 이미지는 지정 비율(예: 4:3)로 잘라 채운다.
+      if (aspect === '4:3') pipeline = pipeline.resize({ width: maxWidth, height: Math.round(maxWidth * 3 / 4), fit: 'cover', position: 'centre' });
+      // 투명도가 없는 사진은 JPEG로, PNG 투명 이미지는 WebP로 압축한다.
+      if (meta.hasAlpha) {
+        const buffer = await pipeline.webp({ quality: 82 }).toBuffer();
+        return { buffer, contentType: 'image/webp', ext: 'webp' };
+      }
+      const buffer = await pipeline.jpeg({ quality: 82, mozjpeg: true }).toBuffer();
+      return { buffer, contentType: 'image/jpeg', ext: 'jpg' };
+    } catch (error) {
+      this.logger.warn(`이미지 압축을 건너뜁니다: ${(error as Error).message}`);
+      return { buffer: file.buffer, contentType: file.mimetype, ext: (file.originalname?.split('.').pop() || 'bin').toLowerCase() };
+    }
+  }
+
+  /**
    * Upload an image buffer to Supabase Storage and return its public URL.
    * @param file Express.Multer.File object
+   * @param options.maxWidth 가로 최대 픽셀, options.aspect 자를 비율(예: '4:3')
    * @returns Public URL string of the uploaded image
    */
-  async uploadImage(file: any): Promise<string> {
+  async uploadImage(file: any, options: { maxWidth?: number; aspect?: string } = {}): Promise<string> {
     const bucketName =
       this.configService.get<string>('SUPABASE_BUCKET') || 'post-images';
 
@@ -58,14 +88,13 @@ export class SupabaseService {
 
     // Generate a unique filename using timestamp
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-    // Replace spaces and special characters from original name for safe url encoding
-    const safeOriginalName = file.originalname.replace(/[^a-zA-Z0-9.]/g, '_');
-    const filePath = `images/${uniqueSuffix}_${safeOriginalName}`;
+    const compressed = await this.compressImage(file, options.maxWidth ?? 1600, options.aspect);
+    const filePath = `images/${uniqueSuffix}.${compressed.ext}`;
 
     const { data, error } = await this.client.storage
       .from(bucketName)
-      .upload(filePath, file.buffer, {
-        contentType: file.mimetype,
+      .upload(filePath, compressed.buffer, {
+        contentType: compressed.contentType,
         upsert: false,
       });
 

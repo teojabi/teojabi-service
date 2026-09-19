@@ -7,12 +7,12 @@ import { selectedLedgerArea } from './land-policy.mjs';
 import { selectionKey, syncSiteRatios, renderSiteContext } from './site-context.mjs';
 import { renderBuildingRecords } from './building-records.mjs';
 import { renderLandRecord } from './land-records.mjs';
-import { fetchArchitects, architectCardMarkup, architectLinks } from './architect.mjs';
+import { fetchArchitects, architectCardMarkup, architectLinks, initArchitectGalleries } from './architect.mjs';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
 export function mountSiteReview(root,{draft,onBack}) {
   const abort=new AbortController(),selected=new Map(draft.selected.map(f=>[f.id,f])),cache=new Map();
-  let disposed=false,restoring=false,version=0,n,map,observer,features=[...selected.values()],architects=[],architectQuery='';const listeners=[];
+  let disposed=false,restoring=false,version=0,n,map,observer,features=[...selected.values()],architects=[],architectQuery='',galleryTimers;const listeners=[];
   const $=s=>root.querySelector(s);
   draft.areaUnit??='m2';draft.unitCost??='1000';
   root.innerHTML=`<section class="site-review"><button class="back" data-site="back">← ${draft.listingId?'매물 상세로 돌아가기':'처음으로'}</button><header class="site-heading"><span class="eyebrow">BUILDING & LAND</span><h1>건물·토지</h1><p>지도에서 땅을 눌러 선택하고, 검토 조건을 입력해 보세요.</p></header><div class="site-layout"><section class="site-picker"><h2><span>01</span> 검토할 필지 선택</h2><form id="site-search"><label for="site-address">선택한 주소 · 직접 검색도 가능해요</label><div><input id="site-address" value="${esc(draft.address)}" placeholder="예: 서울특별시 금천구 시흥동 999-45" maxlength="150" autocomplete="off"><button class="outline" type="submit">필지 찾기</button></div></form><div class="site-map-wrap"><div class="site-map" role="region" aria-label="검토 필지 선택 지도"></div><button class="outline" data-site="nearby" disabled>필지 선택</button></div><p class="site-map-status" role="status">지도를 불러오고 있어요.</p><p class="site-search-status" role="status"></p><div class="site-parcel-list" aria-label="검색한 필지"></div><p class="site-selection-count" aria-live="polite"></p><p class="case-note">지도 경계나 목록에서 필지를 선택·해제하세요. 여러 필지를 함께 선택할 수 있어요.</p></section><section class="site-input-card"><h2><span>02</span> 검토 조건 입력</h2><div class="site-ledger-summary" aria-live="polite"></div><form id="site-inputs" novalidate><div class="site-input-grid">${[['landArea','대지면적','㎡',draft.fields.landArea],['far','용적률','%',draft.fields.far],['bcr','건폐율','%',draft.fields.bcr],['height','높이','m',draft.fields.height],['unitCost','평당 공사비','만원',draft.unitCost]].map(([key,label,unit,value])=>`<label for="site-${key}">${label}${['landArea','unitCost'].includes(key)?'':' <small>선택</small>'}<div><input id="site-${key}" name="${key}" value="${esc(value)}" type="text" inputmode="decimal" autocomplete="off" placeholder="직접 입력"><span>${unit}</span></div></label>`).join('')}</div><p class="site-area-source">${esc(draft.areaSource)} · 선택한 전체 대지의 면적인지 확인해 주세요.</p><label class="site-memo-label" for="site-memo">계획하는 용도·메모 <small>선택</small></label><textarea id="site-memo" rows="3" maxlength="1000" placeholder="예: 1층 카페, 상층부 사무실">${esc(draft.memo||'')}</textarea><p class="case-note">확인한 기준이나 검토할 가정값을 입력해 주세요. 입력값은 공식 허용치로 확정되지 않아요.</p><p class="site-input-error" role="alert"></p><button class="primary" type="submit">입력한 조건 확인</button><p class="case-note">입력한 검토는 계정에 저장하거나 파일로 내려받을 수 있어요.</p></form><div class="site-input-summary" hidden aria-live="polite"></div></section></div></section>`;
@@ -56,7 +56,14 @@ export function mountSiteReview(root,{draft,onBack}) {
     const search=$('[data-architect-search]');if(search)search.hidden=!architects.length;
     host.innerHTML=!architects.length?'<p class="site-architect-empty">아직 등록된 입점 건축사가 없어요.</p>':
       list.length?list.map(architectCardMarkup).join(''):'<p class="site-architect-empty">검색과 일치하는 건축사가 없어요.</p>';
-    const request=$('[data-site=request-architect]');if(request)request.disabled=!selected.size||!architects.length;
+    galleryTimers?.();galleryTimers=initArchitectGalleries(host);
+    const request=$('[data-site=request-architect]');
+    if(request){
+      request.disabled=!selected.size||!architects.length;
+      if(!architects.length)request.textContent='등록된 건축사가 없어요';
+      else if(!selected.size)request.textContent='필지를 먼저 선택하세요';
+      else request.textContent='건축사에게 검토받기';
+    }
   }
   async function loadArchitects() {
     try { architects=await fetchArchitects(); } catch { architects=[]; }
@@ -80,9 +87,9 @@ export function mountSiteReview(root,{draft,onBack}) {
     const address=list.length===1?(list[0].properties.address||list[0].id):`${list[0].properties.address||list[0].id} 외 ${list.length-1}필지`;
     const summary=['터잡이 건축사 검토 요청','주소: '+address,'필지번호: '+list.map(f=>f.id).join(', '),
       `대지면적: ${values.landArea??'미입력'}㎡`,values.far?`용적률: ${values.far}%`:'',values.bcr?`건폐율: ${values.bcr}%`:'',values.height?`높이: ${values.height}m`:'',draft.memo?'메모: '+draft.memo:''].filter(Boolean).join('\n');
-    const contacts=architects.map(a=>`<div class="architect-contact"><div><b>${esc(a.officeName)}</b><small>${esc([a.representativeName,a.phone].filter(Boolean).join(' · ')||'건축사')}</small></div><div class="architect-contact-links">${architectLinks(a)}</div></div>`).join('');
+    const contacts=architects.map(a=>{const hasContact=a.kakaoUrl||a.phone||a.websiteUrl||a.email;return `<div class="architect-contact"><div><b>${esc(a.officeName)}</b><small>${esc([a.representativeName,a.phone].filter(Boolean).join(' · ')||'건축사')}</small></div><div class="architect-contact-links">${hasContact?architectLinks(a):'<span class="case-note">등록된 연락처가 없어요</span>'}</div></div>`;}).join('');
     const before=document.activeElement,d=document.createElement('dialog');d.className='save-dialog';d.setAttribute('aria-labelledby','architect-request-title');
-    d.innerHTML=`<h2 id="architect-request-title">건축사에게 검토받기</h2><p class="case-note">아래 검토 요약을 복사해 입점 건축사에게 카카오톡이나 전화로 보내주세요.</p><textarea rows="8" readonly></textarea><div class="architect-contact-list">${contacts}</div><div class="export-actions"><button class="outline" data-copy type="button">검토 요약 복사</button><button class="outline" data-close type="button">닫기</button></div><p class="case-note" role="status"></p>`;
+    d.innerHTML=`<h2 id="architect-request-title">건축사에게 검토받기</h2><p class="case-note">아래 검토 요약을 복사해 입점 건축사에게 카카오톡·전화·이메일로 보내주세요.</p><textarea rows="8" readonly></textarea><div class="architect-contact-list">${contacts}</div><div class="export-actions"><button class="outline" data-copy type="button">검토 요약 복사</button><button class="outline" data-close type="button">닫기</button></div><p class="case-note" role="status"></p>`;
     d.querySelector('textarea').value=summary;
     d.querySelector('[data-copy]').onclick=async()=>{try{await navigator.clipboard.writeText(summary);d.querySelector('[role=status]').textContent='검토 요약을 복사했어요.';}catch{d.querySelector('textarea').select();d.querySelector('[role=status]').textContent='선택된 내용을 복사해 주세요.';}};
     d.querySelector('[data-close]').onclick=()=>d.close();
@@ -290,7 +297,7 @@ export function mountSiteReview(root,{draft,onBack}) {
   }
   $('#site-address').placeholder='예: 시흥동 999-45 (구·시 이름 생략 가능)';
   renderParcels();startMap();loadArchitects();if(draft.restore)restoreSaved();else if(draft.initialPnu)search({pnu:draft.initialPnu},{seed:true});
-  return ()=>{disposed=true;abort.abort();observer?.disconnect();for(const l of listeners){try{n.Event.removeListener(l);}catch{}}try{map?.destroy();}catch{}};
+  return ()=>{disposed=true;abort.abort();observer?.disconnect();galleryTimers?.();for(const l of listeners){try{n.Event.removeListener(l);}catch{}}try{map?.destroy();}catch{}};
 }
 
 

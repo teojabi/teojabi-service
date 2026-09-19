@@ -5,6 +5,7 @@ CREATE TABLE IF NOT EXISTS public.architect_profile (
   representative_name text NOT NULL,
   bio text,
   logo_url text,
+  gallery_urls text,
   website_url text,
   phone text,
   email text,
@@ -28,6 +29,7 @@ CREATE TABLE IF NOT EXISTS public.architect_profile (
 );
 
 ALTER TABLE public.architect_profile
+  ADD COLUMN IF NOT EXISTS gallery_urls text,
   ADD COLUMN IF NOT EXISTS business_number text,
   ADD COLUMN IF NOT EXISTS business_start_date text,
   ADD COLUMN IF NOT EXISTS business_name text,

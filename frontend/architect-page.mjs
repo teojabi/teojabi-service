@@ -6,6 +6,8 @@ import {
   saveMyArchitect,
   updateArchitectStatus,
   uploadArchitectLogo,
+  uploadArchitectGallery,
+  removeArchitectGalleryImage,
   verifyArchitectBusiness,
 } from './architect.mjs';
 
@@ -15,7 +17,7 @@ const adminHost = document.getElementById('architect-admin');
 const fieldValue = (form, name) => String(new FormData(form).get(name) ?? '').trim();
 const fmtDate = (value) => (/^\d{8}$/.test(String(value || '')) ? `${value.slice(0, 4)}-${value.slice(4, 6)}-${value.slice(6, 8)}` : value || '');
 
-const state = { mine: null, loaded: false, logoUrl: '', message: '', error: false, saving: false, applications: null, appsLoading: false, businessCheck: '', businessError: false };
+const state = { mine: null, loaded: false, logoUrl: '', galleryUrls: [], message: '', error: false, saving: false, applications: null, appsLoading: false, businessCheck: '', businessError: false };
 
 function setMessage(text, error = false) {
   state.message = text;
@@ -46,6 +48,7 @@ function loginPanel() {
 function formMarkup() {
   const mine = state.mine || {};
   const logo = state.logoUrl || mine.logoUrl || './assets/symbol.webp';
+  const gallery = Array.isArray(state.galleryUrls) && state.galleryUrls.length ? state.galleryUrls : (Array.isArray(mine.galleryUrls) ? mine.galleryUrls : []);
   const status = mine.status ? `<span class="architect-status-badge">${esc(ARCHITECT_STATUS_LABEL[mine.status] || mine.status)}</span>` : '';
   const businessNote = mine.businessNumber
     ? `<p class="case-note architect-business-note">저장된 사업자 확인: ${mine.businessVerified ? '<b>국세청 인증됨</b>' : esc(mine.businessStatusText || '확인 필요')}</p>`
@@ -55,7 +58,11 @@ function formMarkup() {
     <form class="architect-form" id="architect-form" novalidate>
       <div class="architect-logo-row">
         <img src="${esc(logo)}" alt="사무소 로고 미리보기" id="architect-logo-preview">
-        <label>로고 이미지 <small>PNG·JPG·WEBP, 5MB 이하</small><input type="file" accept="image/png,image/jpeg,image/webp" id="architect-logo-input"></label>
+        <label>로고 이미지 <small>상단 오른쪽에 표시 · PNG·JPG·WEBP</small><input type="file" accept="image/png,image/jpeg,image/webp" id="architect-logo-input"></label>
+      </div>
+      <div class="architect-gallery-field architect-wide">
+        <span class="architect-gallery-label">대표 이미지 <small>4:3 비율 · 최대 8장 · 3초마다 자동 전환</small></span>
+        <div class="architect-gallery-grid" id="architect-gallery-grid">${gallery.map((url) => `<div class="architect-gallery-thumb"><img src="${esc(url)}" alt="대표 이미지 미리보기"><button type="button" class="architect-gallery-remove" data-gallery-remove="${esc(url)}" aria-label="이미지 삭제">×</button></div>`).join('')}<label class="architect-gallery-add">＋ 이미지 추가<input type="file" accept="image/png,image/jpeg,image/webp" id="architect-gallery-input" multiple></label></div>
       </div>
       <label>사무소명 <input name="officeName" maxlength="120" required value="${esc(mine.officeName || '')}" placeholder="예: 터잡이건축사사무소"></label>
       <label>대표 건축사명 <input name="representativeName" maxlength="80" required value="${esc(mine.representativeName || '')}" placeholder="예: 홍길동"></label>
@@ -109,6 +116,7 @@ function render() {
 function bind() {
   document.getElementById('architect-form')?.addEventListener('submit', onSubmit);
   document.getElementById('architect-logo-input')?.addEventListener('change', onLogoChange);
+  document.getElementById('architect-gallery-input')?.addEventListener('change', onGalleryChange);
 }
 
 function businessFields(form) {
@@ -137,6 +145,33 @@ async function onVerifyBusiness(button) {
     setVerifyResult(error.message, true);
   }
   button.disabled = false;
+}
+
+async function onGalleryChange(event) {
+  const files = [...(event.target.files || [])];
+  if (!files.length) return;
+  setMessage('대표 이미지를 올리는 중이에요…');
+  try {
+    const result = await uploadArchitectGallery(files);
+    state.galleryUrls = result.galleryUrls || [];
+    if (state.mine) state.mine.galleryUrls = state.galleryUrls;
+    setMessage('대표 이미지를 저장했어요.');
+  } catch (error) {
+    setMessage(error.message, true);
+  }
+  render();
+}
+
+async function onGalleryRemove(url) {
+  try {
+    const result = await removeArchitectGalleryImage(url);
+    state.galleryUrls = result.galleryUrls || [];
+    if (state.mine) state.mine.galleryUrls = state.galleryUrls;
+    setMessage('대표 이미지를 삭제했어요.');
+  } catch (error) {
+    setMessage(error.message, true);
+  }
+  render();
 }
 
 async function onLogoChange(event) {
@@ -172,6 +207,7 @@ async function onSubmit(event) {
     specialties: fieldValue(form, 'specialties'),
     bio: fieldValue(form, 'bio'),
     logoUrl: state.logoUrl || state.mine?.logoUrl || '',
+    galleryUrls: (Array.isArray(state.galleryUrls) && state.galleryUrls.length ? state.galleryUrls : (state.mine?.galleryUrls || [])),
   };
   if (!payload.officeName || !payload.representativeName) { setMessage('사무소명과 대표 건축사명을 입력해 주세요.', true); return; }
   if (!payload.businessNumber || !payload.businessStartDate || !payload.businessName) { setMessage('사업자등록번호·개업연월일·사업자 상호를 입력해 주세요.', true); return; }
@@ -213,6 +249,8 @@ async function loadApplications() {
 }
 
 document.addEventListener('click', async (event) => {
+  const remove = event.target.closest('[data-gallery-remove]');
+  if (remove) { await onGalleryRemove(remove.dataset.galleryRemove); return; }
   const verify = event.target.closest('[data-verify-business]');
   if (verify) { await onVerifyBusiness(verify); return; }
   const login = event.target.closest('[data-architect="login"]');

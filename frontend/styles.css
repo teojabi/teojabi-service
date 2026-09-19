@@ -597,7 +597,21 @@ body.map-results-open{height:100dvh;min-height:0;overflow:hidden;display:flex;fl
 .site-architect-card h2>span{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:999px;background:var(--selected);color:var(--primary);font-size:12px;font-weight:700}
 .site-architect-card>.case-note{font-size:13px;color:var(--muted);margin:0}
 .site-architect-list{display:grid;gap:10px;margin-top:14px}
-.site-architect-item{display:grid;grid-template-columns:auto minmax(0,1fr);gap:12px;padding:13px;border:1px solid var(--line);border-radius:14px;background:var(--selected)}
+.site-architect-item{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);gap:14px;padding:14px;border:1px solid var(--line);border-radius:14px;background:var(--selected);align-items:start}
+.site-architect-media{min-width:0}
+.site-architect-gallery{position:relative;width:100%;aspect-ratio:4/3;border-radius:12px;overflow:hidden;background:var(--card);border:1px solid var(--line)}
+.site-architect-gallery-empty{display:grid;place-items:center}
+.site-architect-gallery-empty .site-architect-logo{width:56px;height:56px;border:0;background:transparent}
+.site-architect-slides{position:absolute;inset:0}
+.site-architect-slide{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0;transition:opacity .7s ease}
+.site-architect-slide.is-active{opacity:1}
+.site-architect-dots{position:absolute;left:0;right:0;bottom:8px;display:flex;justify-content:center;gap:6px;z-index:2}
+.site-architect-dot{width:7px;height:7px;border-radius:50%;border:0;padding:0;background:#ffffff9e;box-shadow:0 0 0 1px #0003;cursor:pointer}
+.site-architect-dot.is-active{background:#fff;width:18px;border-radius:999px}
+.site-architect-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+.site-architect-logo-badge{flex:0 0 auto}
+.site-architect-logo-badge img,.site-architect-logo-img{width:44px;height:44px;border-radius:10px;object-fit:contain;background:var(--card);border:1px solid var(--line)}
+@media(max-width:520px){.site-architect-item{grid-template-columns:1fr}}
 .site-architect-item img,.site-architect-logo{width:46px;height:46px;border-radius:12px;object-fit:cover;background:var(--card);border:1px solid var(--line);display:grid;place-items:center;font-weight:800;color:var(--primary)}
 .site-architect-body{min-width:0}
 .site-architect-body b{font-size:15px}
@@ -668,3 +682,14 @@ body.map-results-open{height:100dvh;min-height:0;overflow:hidden;display:flex;fl
 .architect-verify-row .outline{white-space:nowrap;padding:9px 12px;min-height:40px}
 .architect-verify-result{font-size:13px;color:var(--green);flex:1;min-width:0}
 .architect-verify-result.error{color:var(--danger)}
+
+/* 건축사 입점 폼 - 대표 이미지 */
+.architect-gallery-field{display:grid;gap:8px}
+.architect-gallery-label{font-size:13px;font-weight:600}
+.architect-gallery-label small{font-size:11px;color:var(--muted);font-weight:400}
+.architect-gallery-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px}
+.architect-gallery-thumb{position:relative;aspect-ratio:4/3;border-radius:10px;overflow:hidden;border:1px solid var(--line);background:var(--selected)}
+.architect-gallery-thumb img{width:100%;height:100%;object-fit:cover}
+.architect-gallery-remove{position:absolute;top:5px;right:5px;width:24px;height:24px;border-radius:50%;border:0;background:#000000a6;color:#fff;font-size:14px;line-height:1;display:grid;place-items:center;cursor:pointer;padding:0}
+.architect-gallery-add{display:grid;place-items:center;aspect-ratio:4/3;border:1px dashed var(--line);border-radius:10px;background:var(--selected);color:var(--muted);font-size:12px;font-weight:600;cursor:pointer;text-align:center;padding:6px}
+.architect-gallery-add input{display:none}
