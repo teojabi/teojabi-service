@@ -18,7 +18,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { ArchitectsService } from './architects.service';
-import { UpdateArchitectStatusDto, UpsertArchitectDto } from './architects.dto';
+import { UpdateArchitectStatusDto, UpsertArchitectDto, VerifyBusinessDto } from './architects.dto';
 
 @Controller('api/v1/architects')
 export class ArchitectsController {
@@ -40,6 +40,13 @@ export class ArchitectsController {
   @Put('me')
   upsert(@Request() req: any, @Body() body: UpsertArchitectDto) {
     return this.architectsService.upsertMine(req.user.id, body);
+  }
+
+  // 저장 전에 국세청 진위확인·상태조회 결과를 바로 확인한다.
+  @UseGuards(JwtAuthGuard)
+  @Post('verify-business')
+  verifyBusiness(@Body() body: VerifyBusinessDto) {
+    return this.architectsService.verifyBusiness(body);
   }
 
   @UseGuards(JwtAuthGuard)

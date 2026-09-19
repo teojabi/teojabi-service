@@ -38,6 +38,7 @@ export async function architectRequest(path, options = {}) {
 export const fetchArchitects = () => architectRequest('/architects').catch(() => []);
 export const fetchMyArchitect = () => architectRequest('/architects/me');
 export const saveMyArchitect = (payload) => architectRequest('/architects/me', { method: 'PUT', body: JSON.stringify(payload) });
+export const verifyArchitectBusiness = (payload) => architectRequest('/architects/verify-business', { method: 'POST', body: JSON.stringify(payload) });
 export const fetchArchitectApplications = () => architectRequest('/architects/admin/list');
 export const updateArchitectStatus = (id, patch) => architectRequest(`/architects/admin/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(patch) });
 

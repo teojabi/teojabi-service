@@ -227,14 +227,19 @@ export class ArchitectsService implements OnModuleInit {
     if (!officeName || !representativeName) {
       throw new BadRequestException('사무소명과 대표 건축사명을 입력해 주세요.');
     }
-    const businessNumber = digits(dto.businessNumber).slice(0, 10) || null;
-    const businessStartDate = digits(dto.businessStartDate).slice(0, 8) || null;
+    const businessNumber = digits(dto.businessNumber).slice(0, 10);
+    const businessStartDate = digits(dto.businessStartDate).slice(0, 8);
     const businessName = this.text(dto.businessName, 120);
+    if (businessNumber.length !== 10) throw new BadRequestException('사업자등록번호 10자리를 입력해 주세요.');
+    if (businessStartDate.length !== 8) throw new BadRequestException('개업연월일을 사업자등록증 기준(YYYYMMDD)으로 입력해 주세요.');
+    if (!businessName) throw new BadRequestException('사업자 상호를 입력해 주세요. 국세청에 등록된 상호와 같아야 확인돼요.');
 
-    const verification =
-      businessNumber && businessStartDate
-        ? await this.verifyBusiness({ businessNumber, businessStartDate, representativeName, businessName })
-        : ({ status: 'skipped' } as BusinessVerification);
+    const verification = await this.verifyBusiness({
+      businessNumber,
+      businessStartDate,
+      representativeName,
+      businessName,
+    });
 
     const existing = await this.prisma.architectProfile.findUnique({ where: { userId } });
     // 이미 승인된 프로필은 수정해도 공개를 유지하고, 신규·보류 건은 다시 검토 대기로 둔다.
@@ -257,7 +262,7 @@ export class ArchitectsService implements OnModuleInit {
       businessVerified: verification.status === 'verified',
       businessStatus: verification.businessStatus ?? null,
       businessStatusText: verification.businessStatusText ?? null,
-      businessCheckedAt: verification.status === 'skipped' || verification.status === 'invalid-input' ? null : new Date(),
+      businessCheckedAt: new Date(),
       status,
     };
     const row = await this.prisma.architectProfile.upsert({
