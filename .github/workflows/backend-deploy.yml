@@ -110,10 +110,8 @@ jobs:
             git reset --hard origin/main
             git clean -fd -e .env -e '*.log'
 
-            # sharp 등 네이티브 모듈과 prisma CLI는 서버(Linux)에서 직접 설치한다.
-            if [ ! -d node_modules ] || [ package-lock.json -nt node_modules/.package-lock.json ]; then
-              npm ci --legacy-peer-deps --no-audit --no-fund
-            fi
+            # sharp 등 네이티브 모듈은 서버(Linux)에서만 설치한다. 배포 패키지에는 dist와 매니페스트만 들어 있다.
+            npm install --no-save --legacy-peer-deps --no-audit --no-fund sharp@0.35.4
             npx prisma generate
 
             if pm2 describe teojabi-backend >/dev/null 2>&1; then
