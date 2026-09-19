@@ -663,3 +663,8 @@ body.map-results-open{height:100dvh;min-height:0;overflow:hidden;display:flex;fl
 .site-architect-verified{display:inline-block;font-size:11px;font-weight:800;color:var(--primary);border:1px solid var(--primary);border-radius:999px;padding:1px 7px;margin-left:4px;vertical-align:middle}
 .architect-business-note{margin-top:2px}
 .architect-business-note b{color:var(--primary)}
+.site-architect-search{width:100%;margin-top:12px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--text);font:inherit;font-size:13px}
+.architect-verify-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.architect-verify-row .outline{white-space:nowrap;padding:9px 12px;min-height:40px}
+.architect-verify-result{font-size:13px;color:var(--green);flex:1;min-width:0}
+.architect-verify-result.error{color:var(--danger)}
