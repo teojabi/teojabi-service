@@ -133,7 +133,16 @@ jobs:
             done
             if [ "$status_code" != "401" ]; then
               echo "Backend health check failed after retries: expected 401, received ${status_code:-no-response}"
-              pm2 logs teojabi-backend --lines 120 --nostream
+              echo '--- NODE ---'
+              node --version
+              echo '--- SHARP LOAD ---'
+              node -e "require('sharp'); console.log('sharp ok')" 2>&1 || true
+              echo '--- PRISMA CLIENT ---'
+              node -e "const {PrismaClient}=require('@prisma/client'); console.log('prisma client ok')" 2>&1 || true
+              echo '--- PM2 ERROR LOG ---'
+              tail -n 120 "$HOME/.pm2/logs/teojabi-backend-error.log" || true
+              echo '--- PM2 OUT LOG ---'
+              tail -n 60 "$HOME/.pm2/logs/teojabi-backend-out.log" || true
               exit 1
             fi
         env:
