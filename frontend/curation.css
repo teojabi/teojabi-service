@@ -23,3 +23,25 @@
 
 .review-filters.registered-simple label:not(:has(#review-query)),.review-filters.registered-simple .curation-checks{display:none!important}.review-filters.registered-simple .district-options label{display:flex!important}.review-filters.registered-simple{gap:10px}.review-filters.registered-simple #review-reset,.review-filters.registered-simple #review-unit{display:none}.review-filters.registered-simple #review-query{width:240px}
 @media(max-width:600px){.district-popover{position:fixed;left:16px;right:16px;top:auto;width:auto}.district-options{grid-template-columns:repeat(2,1fr)}}
+
+/* 건축사 입점 신청 검토 */
+.architect-review{margin:22px 0;border:1px solid var(--line);border-radius:16px;background:var(--card);padding:22px}
+.architect-review-head h2{margin:6px 0 8px;font-size:20px}
+.architect-review-head p{font-size:13px;color:var(--muted);margin:0}
+.architect-review-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px;margin-top:16px}
+.architect-review-card{border:1px solid var(--line);border-radius:14px;padding:16px;background:var(--selected);min-width:0}
+.architect-review-card-top{display:grid;grid-template-columns:auto minmax(0,1fr);gap:12px;align-items:center}
+.architect-review-card-top img,.architect-review-logo{width:46px;height:46px;border-radius:12px;object-fit:cover;background:var(--card);border:1px solid var(--line);display:grid;place-items:center;font-weight:800;color:var(--primary)}
+.architect-review-card-top b{font-size:16px}
+.architect-review-card-top small{display:block;font-size:12px;color:var(--muted);margin-top:2px}
+.architect-review-bio{margin:10px 0 0;font-size:13px;line-height:1.6;color:var(--text)}
+.architect-review-facts{display:grid;gap:6px;margin:12px 0 0;font-size:12.5px}
+.architect-review-facts>div{display:grid;grid-template-columns:78px minmax(0,1fr);gap:8px}
+.architect-review-facts dt{color:var(--muted)}
+.architect-review-facts dd{margin:0;overflow-wrap:anywhere}
+.architect-review-facts b{color:var(--primary)}
+.architect-review-links{display:flex;flex-wrap:wrap;gap:10px;margin-top:10px}
+.architect-review-links a{font-size:12px;font-weight:700}
+.architect-review-actions{display:flex;flex-wrap:wrap;gap:6px;margin-top:14px}
+.architect-review-actions button{padding:8px 11px;font-size:12px;border-radius:9px}
+@media(max-width:760px){.architect-review-list{grid-template-columns:1fr}}
