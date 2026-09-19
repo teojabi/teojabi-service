@@ -30,10 +30,30 @@ jobs:
           npx prisma generate
           npm run build
 
-      - name: Package build output and manifests
+      # 서버에는 npm/컴파일러가 없어도 되도록, 러너(Linux)에서 운영 의존성만 설치해 통째로 배포한다.
+      # dev 전용인 prisma CLI(@prisma/dev -> @prisma/streams-local)의 Node >=22 요구는 서버 런타임과
+      # 무관하므로 --omit=dev로 배제한다. 런타임 @prisma/client는 Node ^20.19를 지원해 Node 20 서버에서 동작한다.
+      - name: Prepare portable production node_modules
+        working-directory: backend
+        run: |
+          # 빌드 단계에서 만든 Prisma 클라이언트는 WASM 기반이라 플랫폼 독립적이다. 잠시 보관했다가 복원한다.
+          rm -rf /tmp/teojabi-prisma-client
+          cp -R node_modules/.prisma /tmp/teojabi-prisma-client
+          # 운영 의존성만 설치한다. (dev 전용 @prisma/dev -> @prisma/streams-local의 Node >=22 요구 배제)
+          rm -rf node_modules
+          npm ci --omit=dev --legacy-peer-deps --no-audit --no-fund
+          mkdir -p node_modules/.prisma
+          cp -R /tmp/teojabi-prisma-client/. node_modules/.prisma/
+          rm -rf /tmp/teojabi-prisma-client
+          test -f node_modules/.prisma/client/index.js
+          test -d node_modules/@img/sharp-linux-x64
+          node -e "require('sharp'); console.log('sharp ready for linux-x64')"
+
+      - name: Package build output and runtime dependencies
         run: |
           mkdir -p deploy-package
           cp -R backend/dist deploy-package/dist
+          cp -R backend/node_modules deploy-package/node_modules
           cp backend/package.json deploy-package/package.json
           cp backend/package-lock.json deploy-package/package-lock.json
           tar -czf backend-deploy.tgz -C deploy-package .
@@ -46,8 +66,8 @@ jobs:
           password: ${{ secrets.NCP_SSH_PASSWORD }}
           source: backend-deploy.tgz
           target: ~/teojabi-service/backend
-          timeout: 2m
-          command_timeout: 5m
+          timeout: 10m
+          command_timeout: 10m
 
       - name: Activate backend on NCP
         uses: appleboy/ssh-action@v1.1.0
@@ -60,6 +80,12 @@ jobs:
           script: |
             set -e
             cd ~/teojabi-service/backend
+
+            # 배포 패키지를 먼저 안전한 곳에 풀어 둔다. (git clean이 지우지 못하도록)
+            rm -rf /tmp/teojabi-payload
+            mkdir -p /tmp/teojabi-payload
+            tar -xzf backend-deploy.tgz -C /tmp/teojabi-payload
+            rm -f backend-deploy.tgz
 
             cat > .env << ENVEOF
             NODE_ENV="production"
@@ -102,28 +128,39 @@ jobs:
             if [ -d "$HOME/teojabi-service/beta-service" ] && ! git ls-files --error-unmatch beta-service/serve.mjs >/dev/null 2>&1; then
               rm -rf "$HOME/teojabi-service/beta-service"
             fi
-            # 배포 패키지에서 dist를 풀어 둔다.
-            mkdir -p /tmp/teojabi-dist
-            tar -xzf backend-deploy.tgz -C /tmp/teojabi-dist
-            rm -f backend-deploy.tgz
-            # 서버 체크아웃을 origin/main과 강제로 맞춘다. dist·node_modules는 gitignore라 clean이 건드리지 않는다.
+            # 서버 체크아웃을 origin/main과 강제로 맞춘다. (배포 패키지는 /tmp에 이미 풀어 두어 영향 없음)
             git fetch --prune origin main
             git reset --hard origin/main
             git clean -fd -e .env -e '*.log'
-            # 코드 동기화 뒤에 빌드 산출물을 덮어써 항상 최신 dist가 실행되게 한다.
-            rm -rf dist
-            cp -R /tmp/teojabi-dist/dist dist
-            rm -rf /tmp/teojabi-dist
 
-            # sharp 등 네이티브 모듈은 서버(Linux)에서만 설치한다.
-            npm install --no-save --legacy-peer-deps --no-audit --no-fund sharp@0.35.4
-            npx prisma generate
+            # 파일을 교체하기 전에 반드시 프로세스를 멈춘다. (npm/런타임이 잡은 node_modules로 인한 ENOTEMPTY 방지)
+            if pm2 describe teojabi-backend >/dev/null 2>&1; then
+              pm2 stop teojabi-backend || true
+            fi
+
+            # 러너에서 만든 운영 node_modules와 최신 dist로 통째 교체한다. 서버에서는 npm을 실행하지 않는다.
+            rm -rf node_modules dist
+            cp -R /tmp/teojabi-payload/node_modules node_modules
+            cp -R /tmp/teojabi-payload/dist dist
+            rm -rf /tmp/teojabi-payload
+
+            echo '--- SERVER ENV ---'
+            uname -m
+            node --version
+
+            echo '--- SHARP LOAD ---'
+            node -e "require('sharp'); console.log('sharp ok')" 2>&1 || {
+              # 아키텍처가 러너와 달라 prebuilt가 맞지 않는 경우에만 해당 플랫폼 바이너리를 받는다.
+              echo 'sharp load failed; installing platform binary for this server'
+              npm install --omit=dev --no-save --legacy-peer-deps --no-audit --no-fund sharp@0.35.4
+              node -e "require('sharp'); console.log('sharp ok after install')"
+            }
 
             echo '--- DEPLOYED main.ts marker ---'
             grep -o "Production requires[^']*" dist/src/main.js | head -1 || true
 
             if pm2 describe teojabi-backend >/dev/null 2>&1; then
-              pm2 reload teojabi-backend --update-env
+              pm2 restart teojabi-backend --update-env
             else
               pm2 start dist/src/main.js --name teojabi-backend
             fi
@@ -144,6 +181,8 @@ jobs:
                 echo "Backend health check failed after retries: expected 401, received ${status_code:-no-response}"
                 echo '--- NODE ---'
                 node --version
+                echo '--- ARCH ---'
+                uname -m
                 echo '--- SHARP LOAD ---'
                 node -e "require('sharp'); console.log('sharp ok')" 2>&1 || true
                 echo '--- PRISMA CLIENT ---'
@@ -158,53 +197,14 @@ jobs:
               exit 1
             fi
 
-      - name: Fetch deploy diagnostics
+      - name: Show deploy diagnostics
         if: failure()
-        uses: appleboy/scp-action@v0.1.7
+        uses: appleboy/ssh-action@v1.1.0
         with:
           host: ${{ secrets.NCP_SSH_HOST }}
           username: ${{ secrets.NCP_SSH_USER }}
           password: ${{ secrets.NCP_SSH_PASSWORD }}
-          source: teojabi-service/backend/deploy-diagnostics.txt
-          target: diagnostics
-          timeout: 2m
-
-      - name: Upload diagnostics artifact
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: backend-deploy-diagnostics
-          path: diagnostics
-          if-no-files-found: ignore
-          retention-days: 5
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          DIRECT_URL: ${{ secrets.DIRECT_URL }}
-          PORT: ${{ secrets.PORT }}
-          FRONTEND_URL: ${{ secrets.FRONTEND_URL }}
-          JWT_SECRET: ${{ secrets.JWT_SECRET }}
-          NCLOUD_MAIL_BASE_URL: ${{ secrets.NCLOUD_MAIL_BASE_URL }}
-          NCLOUD_ACCESS_KEY: ${{ secrets.NCLOUD_ACCESS_KEY }}
-          NCLOUD_SECRET_KEY: ${{ secrets.NCLOUD_SECRET_KEY }}
-          NCLOUD_MAIL_SENDER_ADDRESS: ${{ secrets.NCLOUD_MAIL_SENDER_ADDRESS }}
-          NCLOUD_MAIL_SENDER_NAME: ${{ secrets.NCLOUD_MAIL_SENDER_NAME }}
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          SUPABASE_BUCKET: ${{ secrets.SUPABASE_BUCKET }}
-          NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
-          NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
-          NAVER_CALLBACK_URL: ${{ secrets.NAVER_CALLBACK_URL }}
-          KAKAO_CLIENT_ID: ${{ secrets.KAKAO_CLIENT_ID }}
-          KAKAO_CLIENT_SECRET: ${{ secrets.KAKAO_CLIENT_SECRET }}
-          KAKAO_CALLBACK_URL: ${{ secrets.KAKAO_CALLBACK_URL }}
-          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
-          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
-          GOOGLE_CALLBACK_URL: ${{ secrets.GOOGLE_CALLBACK_URL }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          NTS_SERVICE_KEY: ${{ secrets.NTS_SERVICE_KEY }}
-          PORTONE_STORE_ID: ${{ secrets.PORTONE_STORE_ID }}
-          PORTONE_CHANNEL_KEY_SUBSCRIPTION: ${{ secrets.PORTONE_CHANNEL_KEY_SUBSCRIPTION }}
-          PORTONE_CHANNEL_KEY_ONETIME: ${{ secrets.PORTONE_CHANNEL_KEY_ONETIME }}
-          PORTONE_API_SECRET: ${{ secrets.PORTONE_API_SECRET }}
-          PORTONE_WEBHOOK_SECRET: ${{ secrets.PORTONE_WEBHOOK_SECRET }}
+          command_timeout: 2m
+          script: |
+            echo '===== deploy-diagnostics.txt ====='
+            cat ~/teojabi-service/backend/deploy-diagnostics.txt 2>/dev/null || echo 'no diagnostics file found'
