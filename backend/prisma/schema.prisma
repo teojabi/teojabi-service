@@ -30,6 +30,7 @@ model User {
   emailVerificationTokens EmailVerificationToken[]
   adminMembership         AdminMember? @relation("AdminMemberUser")
   grantedAdmins           AdminMember[] @relation("AdminMemberGranter")
+  architectProfile        ArchitectProfile?
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -385,4 +386,31 @@ model GeomScoreLayer {
 
   @@index([geom], type: Gist)
   @@map("geom_score_layer")
+}
+
+// 건축사 입점 프로필. 회원(User) 1명당 1개. status는 PENDING/APPROVED/HIDDEN.
+model ArchitectProfile {
+  id                 String    @id @default(uuid())
+  userId             String    @unique @map("user_id")
+  user               User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  officeName         String    @map("office_name")
+  representativeName String    @map("representative_name")
+  bio                String?   @db.Text
+  logoUrl            String?   @map("logo_url") @db.Text
+  websiteUrl         String?   @map("website_url")
+  phone              String?
+  email              String?
+  address            String?
+  kakaoUrl           String?   @map("kakao_url")
+  regions            String?   @db.Text
+  specialties        String?   @db.Text
+  status             String    @default("PENDING")
+  featured           Boolean   @default(false)
+  sortOrder          Int       @default(0) @map("sort_order")
+  approvedAt         DateTime? @map("approved_at")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+
+  @@index([status, sortOrder])
+  @@map("architect_profile")
 }

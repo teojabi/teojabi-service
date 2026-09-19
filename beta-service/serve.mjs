@@ -56,6 +56,9 @@ const files = new Map([
   ['/site-export.mjs',['site-export.mjs','text/javascript']],
   ['/site-inputs.mjs',['site-inputs.mjs','text/javascript']],
   ['/site-context.mjs',['site-context.mjs','text/javascript']],
+  ['/architect.html',['architect.html','text/html']],
+  ['/architect.mjs',['architect.mjs','text/javascript']],
+  ['/architect-page.mjs',['architect-page.mjs','text/javascript']],
   ['/risk-policy.mjs',['risk-policy.mjs','text/javascript']],
 ]);
 async function readOptionalJson(name) {

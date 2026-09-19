@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#F7F8FA">
+  <script src="./theme.js"></script>
+  <title>건축사 입점 | 터잡이</title>
+  <link rel="stylesheet" href="./styles.css?v=20260919-architect">
+  <link rel="stylesheet" href="./theme.css?v=20260919-architect">
+  <link rel="icon" href="./assets/favicon.ico">
+  <meta name="description" content="터잡이에 입점해 건물·토지 검토가 필요한 고객과 연결되세요. 사무소 소개·로고·회사 사이트·연락처를 등록하면 신축 검토 화면에 노출됩니다.">
+  <link rel="canonical" href="https://teojabi.com/architect.html">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="터잡이">
+  <meta property="og:locale" content="ko_KR">
+  <meta property="og:title" content="건축사 입점 | 터잡이">
+  <meta property="og:description" content="터잡이에 입점해 건물·토지 검토가 필요한 고객과 연결되세요.">
+  <meta property="og:url" content="https://teojabi.com/architect.html">
+  <meta name="twitter:card" content="summary">
+</head>
+<body>
+  <header class="header">
+    <a class="brand" href="./index.html" aria-label="터잡이 시작 화면"><img src="./assets/logo.png" alt="터잡이"><span>BETA</span></a>
+    <nav aria-label="주요 메뉴"><a href="./index.html#search">건물 찾기</a><a href="./index.html#analyze">신축 검토</a><a href="./architect.html">건축사 입점</a></nav>
+    <div class="header-actions"><button type="button" data-architect="login" id="architect-login">로그인·회원가입</button><button id="theme-toggle" class="theme-icon-button" type="button" aria-label="다크 모드로 전환" aria-pressed="false" title="다크 모드로 전환">☾</button></div>
+  </header>
+  <main class="architect-page">
+    <section class="architect-hero">
+      <span class="eyebrow">ARCHITECT PARTNERS</span>
+      <h1>건축사 입점 안내</h1>
+      <p>터잡이에서 땅을 살펴보는 고객은 곧 건축 상담이 필요한 고객이에요. 사무소 정보를 등록하면 신축 검토 화면에 노출되고, 고객이 카카오톡이나 전화로 바로 상담을 요청할 수 있어요.</p>
+    </section>
+    <section class="architect-benefits" aria-label="입점 혜택">
+      <div class="architect-benefit"><b>검토 고객과 직접 연결</b><p>지도에서 필지와 조건을 확인한 고객이 곧바로 상담을 요청해요.</p></div>
+      <div class="architect-benefit"><b>사무소 홍보</b><p>로고·소개·회사 사이트를 등록해 우리 사무소를 알릴 수 있어요.</p></div>
+      <div class="architect-benefit"><b>지역·분야로 노출</b><p>활동 지역과 전문 분야를 적어 맞는 고객에게 보여드려요.</p></div>
+    </section>
+    <section class="architect-panel" id="architect-panel" aria-live="polite">
+      <p class="case-note">건축사 정보를 불러오고 있어요.</p>
+    </section>
+    <section id="architect-admin" aria-live="polite"></section>
+  </main>
+  <footer class="service-footer">
+    <nav class="footer-policy" aria-label="이용 정책 및 사업자 정보">
+      <a href="./terms.html">이용약관</a>
+      <a class="privacy-link" href="./privacy.html">개인정보처리방침</a>
+      <a href="./paid-service.html">구독서비스</a>
+      <a href="./refund.html">환불정책</a>
+      <a href="./business-info.html">사업자정보</a><a href="./qna.html">Q&amp;A</a>
+    </nav>
+    <div class="footer-bottom"><p>터잡이는 건축 상담의 성사나 결과를 보증하지 않아요. 계약 조건과 자격은 건축사와 직접 확인해 주세요.</p><small>© 2026 TEOJABI. All rights reserved.</small></div>
+  </footer>
+  <script type="module" src="./architect-page.mjs?v=20260919-architect"></script>
+</body>
+</html>
