@@ -159,6 +159,9 @@ jobs:
             echo '--- DEPLOYED main.ts marker ---'
             grep -o "Production requires[^']*" dist/src/main.js | head -1 || true
 
+            # 이전 크래시 루프의 오래된 로그가 진단을 가리지 않도록 비운다.
+            pm2 flush teojabi-backend >/dev/null 2>&1 || true
+
             if pm2 describe teojabi-backend >/dev/null 2>&1; then
               pm2 restart teojabi-backend --update-env
             else
@@ -167,18 +170,33 @@ jobs:
             pm2 save
             sleep 5
             pm2 describe teojabi-backend
+
+            # 서버 측 게이트는 PM2 프로세스 생존 여부다. (curl/wget 설치 여부에 의존하지 않는다)
             backend_port="${PORT:-3000}"
-            status_code="000"
-            # Prisma 연결과 표 생성으로 부팅이 몇 초 더 걸릴 수 있어 2분까지 재시도한다.
+            backend_pid=""
             for attempt in $(seq 1 24); do
-              status_code=$(curl --silent --output /dev/null --write-out '%{http_code}' "http://127.0.0.1:${backend_port}/api/v1/users/me" || true)
-              if [ "$status_code" = "401" ]; then break; fi
-              echo "Backend not ready yet (attempt ${attempt}/24, status ${status_code:-no-response}); retrying in 5s"
+              backend_pid=$(pm2 pid teojabi-backend 2>/dev/null | head -1 | tr -d '[:space:]')
+              if [ -n "$backend_pid" ] && [ "$backend_pid" != "0" ] && kill -0 "$backend_pid" 2>/dev/null; then
+                echo "PM2 process online (pid ${backend_pid})"
+                break
+              fi
+              backend_pid=""
+              echo "PM2 process not running yet (attempt ${attempt}/24); retrying in 5s"
               sleep 5
             done
-            if [ "$status_code" != "401" ]; then
+            # 참고용 로컬 응답 코드 (실패 판정에는 쓰지 않고, 공개 API 검증은 러너에서 한다)
+            local_code=$(CHECK_PORT="$backend_port" node -e '
+              const http = require("http");
+              const port = process.env.CHECK_PORT || "3000";
+              const req = http.get({ host: "127.0.0.1", port, path: "/api/v1/users/me", timeout: 4000 }, (res) => { console.log(res.statusCode); process.exit(0); });
+              req.on("error", () => { console.log("000"); process.exit(0); });
+              req.on("timeout", () => { req.destroy(); console.log("000"); process.exit(0); });
+            ' 2>/dev/null || echo 000)
+            echo "Local /api/v1/users/me responded ${local_code}"
+
+            if [ -z "$backend_pid" ]; then
               {
-                echo "Backend health check failed after retries: expected 401, received ${status_code:-no-response}"
+                echo "Backend process did not stay online after restarts"
                 echo '--- NODE ---'
                 node --version
                 echo '--- ARCH ---'
@@ -196,6 +214,21 @@ jobs:
               } | tee "$HOME/teojabi-service/backend/deploy-diagnostics.txt"
               exit 1
             fi
+
+      - name: Verify public API
+        run: |
+          # nginx를 포함한 실제 공개 경로를 러너에서 확인한다. (/api/v1/users/me는 미인증 시 401)
+          for attempt in $(seq 1 18); do
+            code=$(curl --silent --output /dev/null --write-out '%{http_code}' https://api.teojabi.com/api/v1/users/me || true)
+            if [ "$code" = "401" ] || [ "$code" = "200" ]; then
+              echo "Public API healthy (HTTP ${code})"
+              exit 0
+            fi
+            echo "Public API not ready (attempt ${attempt}/18, status ${code:-no-response}); retrying in 5s"
+            sleep 5
+          done
+          echo 'Public API health check failed'
+          exit 1
 
       - name: Show deploy diagnostics
         if: failure()
