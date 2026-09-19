@@ -94,13 +94,17 @@ export function architectCardMarkup(a) {
   const logo = a.logoUrl
     ? `<img class="site-architect-logo-img" src="${esc(a.logoUrl)}" alt="${esc(a.officeName)} 로고" loading="lazy">`
     : `<span class="site-architect-logo" aria-hidden="true">${esc((a.officeName || '건').slice(0, 1))}</span>`;
-  const meta = [a.representativeName, a.address].filter(Boolean).map(esc).join(' · ') || '건축사';
+  const rows = [
+    a.representativeName ? `<div class="site-architect-row"><span>대표 :</span><b>${esc(a.representativeName)}</b></div>` : '',
+    a.address ? `<div class="site-architect-row"><span>주소 :</span><b>${esc(a.address)}</b></div>` : '',
+    a.bio ? `<div class="site-architect-row"><span>소개 :</span><b>${esc(a.bio)}</b></div>` : '',
+  ].join('');
   const tags = [a.regions, a.specialties].filter(Boolean);
   const images = Array.isArray(a.galleryUrls) ? a.galleryUrls.filter(Boolean).slice(0, 8) : [];
   const gallery = images.length
     ? `<div class="site-architect-gallery" data-gallery><div class="site-architect-slides">${images.map((url, i) => `<img class="site-architect-slide${i === 0 ? ' is-active' : ''}" src="${esc(url)}" alt="${esc(a.officeName)} 대표 이미지 ${i + 1}" loading="lazy">`).join('')}</div>${images.length > 1 ? `<div class="site-architect-dots">${images.map((_, i) => `<button type="button" class="site-architect-dot${i === 0 ? ' is-active' : ''}" data-slide="${i}" aria-label="대표 이미지 ${i + 1}"></button>`).join('')}</div>` : ''}</div>`
     : `<div class="site-architect-gallery site-architect-gallery-empty" aria-hidden="true">${logo}</div>`;
-  return `<article class="site-architect-item"><div class="site-architect-media">${gallery}</div><div class="site-architect-body"><div class="site-architect-head"><b>${esc(a.officeName)}${a.businessVerified ? ' <span class="site-architect-verified">사업자 인증</span>' : ''}</b><span class="site-architect-logo-badge">${logo}</span></div><small>${meta}</small>${a.bio ? `<p>${esc(a.bio)}</p>` : ''}${tags.length ? `<div class="site-architect-tags">${tags.map((t) => esc(t)).join(' · ')}</div>` : ''}<div class="site-architect-links">${architectLinks(a)}</div></div></article>`;
+  return `<article class="site-architect-item"><div class="site-architect-media">${gallery}</div><div class="site-architect-body"><div class="site-architect-head"><span class="site-architect-logo-badge">${logo}</span><b class="site-architect-name">${esc(a.officeName)}</b>${a.businessVerified ? '<span class="site-architect-verified">사업자 인증</span>' : ''}</div>${rows}${tags.length ? `<div class="site-architect-tags">${tags.map((t) => esc(t)).join(' · ')}</div>` : ''}<div class="site-architect-links">${architectLinks(a)}</div></div></article>`;
 }
 
 // 대표 이미지를 3초 간격으로 자동 전환한다. 수동 점 클릭도 지원한다.
