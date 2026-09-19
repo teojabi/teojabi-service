@@ -586,8 +586,8 @@ body.map-results-open{height:100dvh;min-height:0;overflow:hidden;display:flex;fl
 /* 건물·토지 검토: 데스크톱은 01 아래 03, 02 아래 입점 건축사로 2단 배치한다. */
 @media(min-width:851px){
   .site-layout{grid-template-columns:minmax(0,1.42fr) minmax(340px,.92fr);grid-template-areas:"picker input" "context architects";align-items:start}
-  .site-layout>.site-picker{grid-area:picker}
-  .site-layout>.site-input-card{grid-area:input;position:static}
+  .site-layout>.site-picker{grid-area:picker;align-self:stretch}
+  .site-layout>.site-input-card{grid-area:input;position:static;align-self:stretch}
   .site-layout>.site-context-card{grid-area:context;margin-top:0}
   .site-layout>.site-architect-card{grid-area:architects;margin-top:0}
 }
