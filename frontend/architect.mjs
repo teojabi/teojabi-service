@@ -74,5 +74,5 @@ export function architectCardMarkup(a) {
     : `<span class="site-architect-logo" aria-hidden="true">${esc((a.officeName || '건').slice(0, 1))}</span>`;
   const meta = [a.representativeName, a.address].filter(Boolean).map(esc).join(' · ') || '건축사';
   const tags = [a.regions, a.specialties].filter(Boolean);
-  return `<article class="site-architect-item">${logo}<div class="site-architect-body"><b>${esc(a.officeName)}</b><small>${meta}</small>${a.bio ? `<p>${esc(a.bio)}</p>` : ''}${tags.length ? `<div class="site-architect-tags">${tags.map((t) => esc(t)).join(' · ')}</div>` : ''}<div class="site-architect-links">${architectLinks(a)}</div></div></article>`;
+  return `<article class="site-architect-item">${logo}<div class="site-architect-body"><b>${esc(a.officeName)}${a.businessVerified ? ' <span class="site-architect-verified">사업자 인증</span>' : ''}</b><small>${meta}</small>${a.bio ? `<p>${esc(a.bio)}</p>` : ''}${tags.length ? `<div class="site-architect-tags">${tags.map((t) => esc(t)).join(' · ')}</div>` : ''}<div class="site-architect-links">${architectLinks(a)}</div></div></article>`;
 }

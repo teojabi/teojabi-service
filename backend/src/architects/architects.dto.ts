@@ -62,6 +62,21 @@ export class UpsertArchitectDto {
   @IsString()
   @MaxLength(300)
   specialties?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  businessNumber?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  businessStartDate?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  businessName?: string;
 }
 
 export class UpdateArchitectStatusDto {

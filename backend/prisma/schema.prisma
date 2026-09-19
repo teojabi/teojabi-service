@@ -404,6 +404,13 @@ model ArchitectProfile {
   kakaoUrl           String?   @map("kakao_url")
   regions            String?   @db.Text
   specialties        String?   @db.Text
+  businessNumber     String?   @map("business_number")
+  businessStartDate  String?   @map("business_start_date")
+  businessName       String?   @map("business_name")
+  businessVerified   Boolean   @default(false) @map("business_verified")
+  businessStatus     String?   @map("business_status")
+  businessStatusText String?   @map("business_status_text")
+  businessCheckedAt  DateTime? @map("business_checked_at")
   status             String    @default("PENDING")
   featured           Boolean   @default(false)
   sortOrder          Int       @default(0) @map("sort_order")
