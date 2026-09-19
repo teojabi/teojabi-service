@@ -113,10 +113,17 @@ jobs:
             sleep 5
             pm2 describe teojabi-backend
             backend_port="${PORT:-3000}"
-            status_code=$(curl --silent --output /dev/null --write-out '%{http_code}' "http://127.0.0.1:${backend_port}/api/v1/users/me" || true)
+            status_code="000"
+            # Prisma 연결과 표 생성으로 부팅이 몇 초 더 걸릴 수 있어 2분까지 재시도한다.
+            for attempt in $(seq 1 24); do
+              status_code=$(curl --silent --output /dev/null --write-out '%{http_code}' "http://127.0.0.1:${backend_port}/api/v1/users/me" || true)
+              if [ "$status_code" = "401" ]; then break; fi
+              echo "Backend not ready yet (attempt ${attempt}/24, status ${status_code:-no-response}); retrying in 5s"
+              sleep 5
+            done
             if [ "$status_code" != "401" ]; then
-              echo "Backend health check failed: expected 401, received ${status_code:-no-response}"
-              pm2 logs teojabi-backend --lines 80 --nostream
+              echo "Backend health check failed after retries: expected 401, received ${status_code:-no-response}"
+              pm2 logs teojabi-backend --lines 120 --nostream
               exit 1
             fi
         env:
