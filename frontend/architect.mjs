@@ -59,6 +59,27 @@ export async function uploadArchitectLogo(file) {
   return response.json();
 }
 
+export async function uploadArchitectGallery(files) {
+  const base = await accountBase();
+  if (!base) throw new Error('회원 서버가 연결되지 않았어요.');
+  const body = new FormData();
+  for (const file of files) body.append('images', file);
+  const response = await apiFetch(base + '/api/v1/architects/me/gallery', { method: 'POST', credentials: 'include', body, signal: AbortSignal.timeout(60000) });
+  if (!response.ok) {
+    let message = '대표 이미지 업로드에 실패했어요.';
+    try {
+      const data = await response.json();
+      if (data?.message) message = Array.isArray(data.message) ? data.message[0] : data.message;
+    } catch { /* ignore */ }
+    throw new Error(message);
+  }
+  return response.json();
+}
+
+export function removeArchitectGalleryImage(url) {
+  return architectRequest('/architects/me/gallery?url=' + encodeURIComponent(url), { method: 'DELETE' });
+}
+
 const telHref = (phone) => `tel:${String(phone || '').replace(/[^0-9+]/g, '')}`;
 
 export function architectLinks(a) {
@@ -71,9 +92,33 @@ export function architectLinks(a) {
 
 export function architectCardMarkup(a) {
   const logo = a.logoUrl
-    ? `<img src="${esc(a.logoUrl)}" alt="${esc(a.officeName)} 로고" loading="lazy">`
+    ? `<img class="site-architect-logo-img" src="${esc(a.logoUrl)}" alt="${esc(a.officeName)} 로고" loading="lazy">`
     : `<span class="site-architect-logo" aria-hidden="true">${esc((a.officeName || '건').slice(0, 1))}</span>`;
   const meta = [a.representativeName, a.address].filter(Boolean).map(esc).join(' · ') || '건축사';
   const tags = [a.regions, a.specialties].filter(Boolean);
-  return `<article class="site-architect-item">${logo}<div class="site-architect-body"><b>${esc(a.officeName)}${a.businessVerified ? ' <span class="site-architect-verified">사업자 인증</span>' : ''}</b><small>${meta}</small>${a.bio ? `<p>${esc(a.bio)}</p>` : ''}${tags.length ? `<div class="site-architect-tags">${tags.map((t) => esc(t)).join(' · ')}</div>` : ''}<div class="site-architect-links">${architectLinks(a)}</div></div></article>`;
+  const images = Array.isArray(a.galleryUrls) ? a.galleryUrls.filter(Boolean).slice(0, 8) : [];
+  const gallery = images.length
+    ? `<div class="site-architect-gallery" data-gallery><div class="site-architect-slides">${images.map((url, i) => `<img class="site-architect-slide${i === 0 ? ' is-active' : ''}" src="${esc(url)}" alt="${esc(a.officeName)} 대표 이미지 ${i + 1}" loading="lazy">`).join('')}</div>${images.length > 1 ? `<div class="site-architect-dots">${images.map((_, i) => `<button type="button" class="site-architect-dot${i === 0 ? ' is-active' : ''}" data-slide="${i}" aria-label="대표 이미지 ${i + 1}"></button>`).join('')}</div>` : ''}</div>`
+    : `<div class="site-architect-gallery site-architect-gallery-empty" aria-hidden="true">${logo}</div>`;
+  return `<article class="site-architect-item"><div class="site-architect-media">${gallery}</div><div class="site-architect-body"><div class="site-architect-head"><b>${esc(a.officeName)}${a.businessVerified ? ' <span class="site-architect-verified">사업자 인증</span>' : ''}</b><span class="site-architect-logo-badge">${logo}</span></div><small>${meta}</small>${a.bio ? `<p>${esc(a.bio)}</p>` : ''}${tags.length ? `<div class="site-architect-tags">${tags.map((t) => esc(t)).join(' · ')}</div>` : ''}<div class="site-architect-links">${architectLinks(a)}</div></div></article>`;
+}
+
+// 대표 이미지를 3초 간격으로 자동 전환한다. 수동 점 클릭도 지원한다.
+export function initArchitectGalleries(root = document) {
+  const timers = [];
+  root.querySelectorAll('[data-gallery]').forEach((gallery) => {
+    const slides = [...gallery.querySelectorAll('.site-architect-slide')];
+    const dots = [...gallery.querySelectorAll('.site-architect-dot')];
+    if (slides.length < 2) return;
+    let index = 0;
+    const show = (next) => {
+      index = (next + slides.length) % slides.length;
+      slides.forEach((slide, i) => slide.classList.toggle('is-active', i === index));
+      dots.forEach((dot, i) => dot.classList.toggle('is-active', i === index));
+    };
+    dots.forEach((dot) => dot.addEventListener('click', () => show(Number(dot.dataset.slide))));
+    const timer = setInterval(() => show(index + 1), 3000);
+    timers.push(timer);
+  });
+  return () => timers.forEach(clearInterval);
 }

@@ -1,4 +1,6 @@
 import {
+  ArrayMaxSize,
+  IsArray,
   IsBoolean,
   IsIn,
   IsInt,
@@ -27,6 +29,13 @@ export class UpsertArchitectDto {
   @IsString()
   @MaxLength(500)
   logoUrl?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(8)
+  @IsString({ each: true })
+  @MaxLength(500, { each: true })
+  galleryUrls?: string[];
 
   @IsOptional()
   @IsString()

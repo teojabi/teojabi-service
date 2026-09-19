@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpStatus,
   Param,
@@ -8,12 +9,14 @@ import {
   Patch,
   Post,
   Put,
+  Query,
   Request,
   UploadedFile,
+  UploadedFiles,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
+import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -63,6 +66,28 @@ export class ArchitectsController {
     file: any,
   ) {
     return this.architectsService.uploadLogo(req.user.id, file);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('me/gallery')
+  @UseInterceptors(FilesInterceptor('images', 8))
+  uploadGallery(
+    @Request() req: any,
+    @UploadedFiles(
+      new ParseFilePipeBuilder()
+        .addFileTypeValidator({ fileType: /image\/(png|jpe?g|webp)/i })
+        .addMaxSizeValidator({ maxSize: 12 * 1024 * 1024 })
+        .build({ errorHttpStatusCode: HttpStatus.BAD_REQUEST }),
+    )
+    files: any[],
+  ) {
+    return this.architectsService.uploadGallery(req.user.id, files);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Delete('me/gallery')
+  removeGallery(@Request() req: any, @Query('url') url: string) {
+    return this.architectsService.removeGalleryImage(req.user.id, String(url || ''));
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
