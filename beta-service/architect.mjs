@@ -102,13 +102,65 @@ export function architectCardMarkup(a) {
   const tags = [a.regions, a.specialties].filter(Boolean);
   const images = Array.isArray(a.galleryUrls) ? a.galleryUrls.filter(Boolean).slice(0, 8) : [];
   const gallery = images.length
-    ? `<div class="site-architect-gallery" data-gallery><div class="site-architect-slides">${images.map((url, i) => `<img class="site-architect-slide${i === 0 ? ' is-active' : ''}" src="${esc(url)}" alt="${esc(a.officeName)} 대표 이미지 ${i + 1}" loading="lazy">`).join('')}</div>${images.length > 1 ? `<div class="site-architect-dots">${images.map((_, i) => `<button type="button" class="site-architect-dot${i === 0 ? ' is-active' : ''}" data-slide="${i}" aria-label="대표 이미지 ${i + 1}"></button>`).join('')}</div>` : ''}</div>`
+    ? `<div class="site-architect-gallery" data-gallery><button type="button" class="site-architect-expand" aria-label="이미지 크게 보기" title="이미지 크게 보기">⤢</button><div class="site-architect-slides">${images.map((url, i) => `<img class="site-architect-slide${i === 0 ? ' is-active' : ''}" src="${esc(url)}" alt="${esc(a.officeName)} 대표 이미지 ${i + 1}" loading="lazy">`).join('')}</div>${images.length > 1 ? `<div class="site-architect-dots">${images.map((_, i) => `<button type="button" class="site-architect-dot${i === 0 ? ' is-active' : ''}" data-slide="${i}" aria-label="대표 이미지 ${i + 1}"></button>`).join('')}</div>` : ''}</div>`
     : `<div class="site-architect-gallery site-architect-gallery-empty" aria-hidden="true">${logo}</div>`;
   return `<article class="site-architect-item"><div class="site-architect-head"><span class="site-architect-logo-badge">${logo}</span><b class="site-architect-name">${esc(a.officeName)}</b>${a.businessVerified ? '<span class="site-architect-verified">사업자 인증</span>' : ''}</div><div class="site-architect-media">${gallery}</div><div class="site-architect-footline">${tags.length ? `<span class="site-architect-tags">${tags.map((t) => esc(t)).join(' · ')}</span>` : ''}<span class="site-architect-links">${architectLinks(a)}</span></div><div class="site-architect-rows">${rows}</div></article>`;
 }
 
-// 대표 이미지를 3초 간격으로 자동 전환한다. 수동 점 클릭도 지원한다.
+let architectLightboxReady = false;
+
+function ensureArchitectLightbox() {
+  if (architectLightboxReady || typeof document === 'undefined') return;
+  architectLightboxReady = true;
+  const overlay = document.createElement('div');
+  overlay.className = 'architect-lightbox';
+  overlay.hidden = true;
+  overlay.innerHTML = `<button type="button" class="architect-lightbox-close" aria-label="닫기">×</button><button type="button" class="architect-lightbox-nav prev" aria-label="이전 이미지">‹</button><button type="button" class="architect-lightbox-nav next" aria-label="다음 이미지">›</button><img class="architect-lightbox-img" alt="">`;
+  document.body.appendChild(overlay);
+
+  const img = overlay.querySelector('.architect-lightbox-img');
+  const prevBtn = overlay.querySelector('.architect-lightbox-nav.prev');
+  const nextBtn = overlay.querySelector('.architect-lightbox-nav.next');
+  let urls = [];
+  let index = 0;
+
+  const render = () => {
+    img.src = urls[index] || '';
+    const multiple = urls.length > 1;
+    prevBtn.hidden = !multiple;
+    nextBtn.hidden = !multiple;
+  };
+  const show = (next) => { if (!urls.length) return; index = (next + urls.length) % urls.length; render(); };
+  const open = (list, start) => { urls = list; index = Math.max(0, Math.min(start, list.length - 1)); render(); overlay.hidden = false; document.body.classList.add('architect-lightbox-open'); };
+  const close = () => { overlay.hidden = true; img.removeAttribute('src'); document.body.classList.remove('architect-lightbox-open'); };
+
+  overlay.addEventListener('click', (event) => {
+    if (event.target === overlay || event.target.closest('.architect-lightbox-close')) { close(); return; }
+    if (event.target.closest('.architect-lightbox-nav.prev')) show(index - 1);
+    if (event.target.closest('.architect-lightbox-nav.next')) show(index + 1);
+  });
+  document.addEventListener('keydown', (event) => {
+    if (overlay.hidden) return;
+    if (event.key === 'Escape') close();
+    else if (event.key === 'ArrowLeft') show(index - 1);
+    else if (event.key === 'ArrowRight') show(index + 1);
+  });
+  document.addEventListener('click', (event) => {
+    const trigger = event.target.closest('.site-architect-expand');
+    if (!trigger) return;
+    event.preventDefault();
+    const card = trigger.closest('.site-architect-item');
+    if (!card) return;
+    const slides = [...card.querySelectorAll('.site-architect-slide')];
+    const list = slides.map((slide) => slide.getAttribute('src')).filter(Boolean);
+    if (!list.length) return;
+    open(list, Math.max(0, slides.findIndex((slide) => slide.classList.contains('is-active'))));
+  });
+}
+
+// 대표 이미지를 3초 간격으로 자동 전환한다. 수동 점 클릭과 크게 보기(라이트박스)를 지원한다.
 export function initArchitectGalleries(root = document) {
+  ensureArchitectLightbox();
   const timers = [];
   root.querySelectorAll('[data-gallery]').forEach((gallery) => {
     const slides = [...gallery.querySelectorAll('.site-architect-slide')];
