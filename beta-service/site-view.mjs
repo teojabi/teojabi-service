@@ -31,7 +31,7 @@ export function mountSiteReview(root,{draft,onBack}) {
   const contexts=new Map(),pending=new Map(),documentCache=new Map();let contextVersion=0,lastSelection=null;
   $('.site-input-grid').insertAdjacentHTML('afterend','<div class="site-ratio-source" aria-live="polite"></div><button class="site-ratio-reset" type="button" data-site="reset-ratios">저장된 기준 다시 적용</button>');
   $('.site-layout').insertAdjacentHTML('beforeend','<section class="site-context-card" aria-label="이 땅에서 확인할 사항"><h2><span>03</span> 이 땅에서 확인할 사항</h2><p class="case-note">대장과 등기부터 확인하고, 그 아래에서 구역·도로·지구단위계획을 함께 살펴보세요.</p><div class="document-list site-document-actions"><div><span class="document-symbol">01</span><div><b>건축물대장</b><p>주소가 같은 표제부·총괄표제부 후보</p></div><button class="outline" data-site="documents" data-document="building" type="button" aria-expanded="false">건축물대장 보기</button></div><div><span class="document-symbol">02</span><div><b>토지(임야)대장</b><p>선택 필지의 공부상 토지 기록</p></div><button class="outline" data-site="documents" data-document="land" type="button" aria-expanded="false">토지대장 보기</button></div><div><span class="document-symbol">03</span><div><b>등기사항증명서</b><p>인터넷등기소에서 직접 열람</p></div><div class="document-actions"><button class="outline" data-site="copy-registry-address" type="button" disabled>필지 주소 복사</button><a class="outline" href="https://www.iros.go.kr/" target="_blank" rel="noopener noreferrer">열람·발급 ↗</a></div></div></div><div class="site-document-status" role="status"></div><div class="site-document-result building-records" hidden></div><div class="site-context-divider"><span>필지별 확인사항</span></div><div class="site-context-list" aria-live="polite"></div></section>');
-  $('.site-layout').insertAdjacentHTML('beforeend','<section class="site-architect-card" aria-label="입점 건축사"><h2><span>04</span> 입점 건축사</h2><p class="case-note">검토한 필지와 조건을 건축사에게 보내면, 가능한 건축사가 직접 연락드려요.</p><input type="search" class="site-architect-search" data-architect-search placeholder="사무소(사업자) 이름·지역·분야로 찾기" aria-label="입점 건축사 검색"><div class="site-architect-list" aria-live="polite"></div><button class="primary" data-site="request-architect" type="button" disabled>건축사에게 검토받기</button><div class="site-architect-foot"><span>건축사이신가요?</span><button class="link-button" type="button" data-site="join-architect">입점 신청</button></div><p class="site-architect-status" role="status"></p></section>');
+  $('.site-layout').insertAdjacentHTML('beforeend','<section class="site-architect-card" aria-label="입점 건축사"><h2><span>04</span> 입점 건축사</h2><p class="case-note">검토한 필지와 조건을 건축사에게 보내면, 가능한 건축사가 직접 연락드려요.</p><input type="search" class="site-architect-search" data-architect-search placeholder="사무소(사업자) 이름·지역·분야로 찾기" aria-label="입점 건축사 검색"><div class="site-architect-list" aria-live="polite"></div><button class="primary" data-site="request-architect" type="button" disabled>건축사에게 검토받기</button><p class="site-architect-status" role="status"></p></section>');
   $('#site-inputs').insertAdjacentHTML('beforeend','<div class="site-save-actions"><button class="outline" data-site="save" type="button">검토 저장</button><button class="outline" data-site="export" type="button">검토 내보내기</button></div>');
   function renderContext() {
     const list=[...selected.values()],common=syncSiteRatios(draft,list,contexts);
@@ -54,7 +54,7 @@ export function mountSiteReview(root,{draft,onBack}) {
     const query=architectQuery.trim().toLowerCase();
     const list=query?architects.filter(a=>[a.officeName,a.businessName,a.representativeName,a.regions,a.specialties,a.address].filter(Boolean).join(' ').toLowerCase().includes(query)):architects;
     const search=$('[data-architect-search]');if(search)search.hidden=!architects.length;
-    host.innerHTML=!architects.length?'<p class="site-architect-empty">입점 건축사를 준비하고 있어요. 아래에서 입점 신청하거나, 검토를 신청하면 조건에 맞는 건축사를 연결해 드려요.</p>':
+    host.innerHTML=!architects.length?'<p class="site-architect-empty">아직 등록된 입점 건축사가 없어요.</p>':
       list.length?list.map(architectCardMarkup).join(''):'<p class="site-architect-empty">검색과 일치하는 건축사가 없어요.</p>';
     const request=$('[data-site=request-architect]');if(request)request.disabled=!selected.size||!architects.length;
   }
@@ -225,7 +225,6 @@ export function mountSiteReview(root,{draft,onBack}) {
       $('.site-architect-status').textContent='';
       openArchitectRequest(checked.values);
     }
-    if(button.dataset.site==='join-architect')location.href='./architect.html';
     if(button.dataset.site==='toggle')toggle(button.dataset.pnu);
     if(button.dataset.site==='apply-ledger') {
       const ledger=selectedLedgerArea([...selected.values()]);
