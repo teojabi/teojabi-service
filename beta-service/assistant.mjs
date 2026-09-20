@@ -451,5 +451,5 @@ export function mountAssistant({ onResults, onAnalyze } = {}) {
     input.value = '';
     runSearch(value);
   });
-  return { open: openPanel, close: closePanel, destroy: () => { window.removeEventListener('teojabi-map-click', onMapClick); fab.remove(); panel.remove(); } };
+  return { open: openPanel, close: closePanel, ask: message => { openPanel(); runSearch(message); }, destroy: () => { window.removeEventListener('teojabi-map-click', onMapClick); fab.remove(); panel.remove(); } };
 }

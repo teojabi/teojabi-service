@@ -57,7 +57,7 @@ def connect():
 
 
 def read(operation, value=None):
-    if operation not in ('catalog', 'parcel', 'risk', 'context', 'registers', 'site-parcels', 'parcel-context', 'parcel-documents', 'land-record', 'nearby-transactions', 'selected-risk', 'selected-context', 'selected-registers', 'selected-land-record', 'naver-listing', 'disco-listing'):
+    if operation not in ('catalog', 'parcel', 'risk', 'context', 'registers', 'site-parcels', 'parcel-context', 'parcel-documents', 'land-record', 'nearby-transactions', 'selected-risk', 'selected-context', 'selected-registers', 'selected-land-record', 'naver-listing', 'disco-listing', 'commercial', 'commercial-areas'):
         raise ValueError('Unsupported operation')
     if operation == 'parcel' and not re.fullmatch(r'\d{19}', value or ''):
         raise ValueError('Invalid parcel')
@@ -160,6 +160,11 @@ def read(operation, value=None):
         if operation == 'site-parcels':
             from site_reader import read_site_parcels
             return read_site_parcels(connection, json.loads(value))
+        if operation in ('commercial', 'commercial-areas'):
+            from commercial_reader import read_commercial, read_commercial_areas
+            if operation == 'commercial':
+                return read_commercial(connection, value or '{}')
+            return read_commercial_areas(connection, value or '{}')
         with connection.cursor(cursor_factory=RealDictCursor) as cursor:
             if operation == 'catalog':
                 cursor.execute('''
