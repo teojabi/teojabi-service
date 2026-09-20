@@ -219,11 +219,11 @@ export class ListingMap {
   }
   commercialIcon(area) {
     const element=document.createElement('button');
-    element.type='button';element.className='map-commercial-dot';
-    const color={골목상권:'#64748b',전통시장:'#f59e0b',발달상권:'#2563eb',관광특구:'#10b981'}[area.type]||'#64748b';
+    element.type='button';element.className='map-radar';
     const sales=Number(area.monthlySalesWon)||0;
-    const size=Math.max(10,Math.min(22,10+Math.log10(sales+1)*2.2));
-    element.style.width=`${size}px`;element.style.height=`${size}px`;element.style.background=color;
+    const size=Math.round(Math.max(24,Math.min(48,24+Math.log10(sales+1)*3)));
+    element.style.width=`${size}px`;element.style.height=`${size}px`;
+    element.innerHTML='<i class="map-radar-ring r1"></i><i class="map-radar-ring r2"></i><i class="map-radar-ring r3"></i><i class="map-radar-core"></i>';
     element.title=`${area.name}${area.type?` (${area.type})`:''}`;
     element.setAttribute('aria-label',`상권 ${area.name} ${area.type||''}, 정보 보기`);
     return {content:element,anchor:new this.n.Point(size/2,size/2)};
