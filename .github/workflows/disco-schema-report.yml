@@ -1,0 +1,53 @@
+name: Disco Schema Report
+
+# public.disco_listing / public.teojabi_disco_listing_runs 의 컬럼 구조와 샘플을 읽기 전용으로 출력한다.
+on:
+  push:
+    branches: [ "main" ]
+    paths:
+      - '.github/workflows/disco-schema-report.yml'
+  workflow_dispatch:
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dump disco table schema on NCP
+        uses: appleboy/ssh-action@v1.1.0
+        with:
+          host: ${{ secrets.NCP_SSH_HOST }}
+          username: ${{ secrets.NCP_SSH_USER }}
+          password: ${{ secrets.NCP_SSH_PASSWORD }}
+          command_timeout: 5m
+          script: |
+            set -e
+            cd ~/teojabi-runtime/beta-service
+            set -a
+            . ./.env
+            set +a
+            .venv/bin/python - <<'PY'
+            import os, sys, json
+            import psycopg2
+            from psycopg2.extras import RealDictCursor
+
+            sys.path.insert(0, os.path.join(os.getcwd(), 'automation'))
+            sys.stdout.reconfigure(encoding='utf-8')
+            from service_database import service_config
+
+            conn = psycopg2.connect(**service_config(), connect_timeout=10, options='-c statement_timeout=30000 -c default_transaction_read_only=on')
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                for table in ('public.disco_listing', 'public.teojabi_disco_listing_runs'):
+                    name = table.split('.')[1]
+                    cur.execute("SELECT to_regclass(%s) AS rel", (table,))
+                    if not cur.fetchone()['rel']:
+                        print('MISSING', table); continue
+                    cur.execute("SELECT column_name, data_type FROM information_schema.columns WHERE table_schema='public' AND table_name=%s ORDER BY ordinal_position", (name,))
+                    print('=== TABLE', table, '===')
+                    for c in cur.fetchall():
+                        print('  COL', c['column_name'], '|', c['data_type'])
+                    cur.execute(f'SELECT count(*) AS n FROM {table}')
+                    print('  ROWS', cur.fetchone()['n'])
+                    cur.execute(f'SELECT * FROM {table} LIMIT 2')
+                    for row in cur.fetchall():
+                        print('  SAMPLE', json.dumps(row, ensure_ascii=False, default=str)[:3000])
+            PY
