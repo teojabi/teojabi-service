@@ -182,6 +182,7 @@ CREATE VIEW public.v_far_serving_full AS
  SELECT fs.id, fs.dgm_nm, fs.singu_cd, fs.zone_raw, fs.zone_class, fs.zone_detail,
     fs.road_side, fs.label_quality, fs.change_type,
     fs.far_standard, fs.far_allowed, fs.far_upper, fs.bcr, fs.height_m, fs.floors,
+    fs.far_standard_text, fs.far_allowed_text, fs.far_upper_text, fs.bcr_text,
     fs.source_article, fs.method, fs.confidence,
     lnk.base_notice_no, lnk.base_notice_date, lnk.base_notice_name, lnk.base_notice_url,
     sf.file_name AS source_file_name, sf.file_url AS source_file_url, sf.group_code AS source_group

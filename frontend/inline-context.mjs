@@ -21,6 +21,16 @@ function farRowLine(item) {
   if(item.bcr!=null)parts.push(`건폐율 ${item.bcr}%`);
   if(item.heightM!=null)parts.push(`높이제한 ${item.heightM}m`);
   if(item.floors!=null)parts.push(`${item.floors}층`);
+  // 숫자로 추출되지 않았지만 원문에 기준이 있는 경우(예: "용적률 미규제", "519% 이하")는 문구를 그대로 보여준다.
+  const farTexts=[];
+  if(item.standard==null&&item.standardText)farTexts.push(item.standardText);
+  if(item.allowed==null&&item.allowedText)farTexts.push(item.allowedText);
+  if(item.upper==null&&item.upperText)farTexts.push(item.upperText);
+  if(![item.standard,item.allowed,item.upper].some(v=>v!=null)&&farTexts.length) {
+    const value=farTexts.join(' · ');
+    parts.push(/미규제/.test(value)?'용적률 미규제(용도지역 기준 적용)':`용적률 ${value}`);
+  }
+  if(item.bcr==null&&item.bcrText)parts.push(`건폐율 ${item.bcrText}`);
   if(!parts.length)return '';
   const label=item.zoneDetail||item.roadSide||item.zoneClass||'기준';
   const meta=[item.zoneDetail&&item.roadSide?item.roadSide:null,item.changeType].filter(Boolean).join(' · ');
