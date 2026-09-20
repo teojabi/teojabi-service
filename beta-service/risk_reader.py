@@ -150,12 +150,6 @@ def read_risk(connection, source_id, include_registers=True, include_context=Tru
                            d.notice_date AS "noticeDate", d.notice_no AS "noticeNumber",
                            d.notice_pdf_name AS "pdfName", d.notice_pdf_url AS "pdfUrl",
                            d.drawings, d.updated_at AS "storedAt",
-                           s.base_notice_no AS "baseNoticeNo", s.base_notice_date AS "baseNoticeDate",
-                           s.base_notice_name AS "baseNoticeName", s.base_notice_url AS "baseNoticeUrl",
-                           s.latest_notice_no AS "latestNoticeNo", s.latest_notice_date AS "latestNoticeDate",
-                           s.rep_kind AS "repKind", s.rep_group AS "repGroup", s.rep_name AS "repName",
-                           s.rep_url AS "repUrl", s.rep_date AS "repDate", s.rep_used AS "repUsed",
-                           s.guidelines,
                            CASE WHEN ST_SRID(d.geom)=4326 AND ST_IsValid(d.geom) AND NOT ST_IsEmpty(d.geom)
                                 THEN ST_Relate(d.geom,p.geom,'T********') END AS "overlaps",
                            CASE WHEN ST_SRID(d.geom)=4326 AND ST_IsValid(d.geom) AND NOT ST_IsEmpty(d.geom)
@@ -163,7 +157,6 @@ def read_risk(connection, source_id, include_registers=True, include_context=Tru
                            CASE WHEN ST_SRID(d.geom)=4326 AND ST_IsValid(d.geom) AND NOT ST_IsEmpty(d.geom)
                                 THEN ST_Touches(d.geom,p.geom) END AS "touches"
                     FROM public.district_unit_plan d
-                    LEFT JOIN public.v_district_sources s ON s.dgm_nm = d.dgm_nm
                     JOIN p ON d.geom && p.geom
                 )
                 SELECT *, COUNT(*) OVER() AS total FROM candidates
@@ -180,6 +173,31 @@ def read_risk(connection, source_id, include_registers=True, include_context=Tru
                         far_names.append(value.strip())
                         break
             far_names = sorted(set(far_names))[:20]
+            # 기준(최초) 고시·대표 값 파일·시행지침 (v_district_sources). 뷰가 없으면 조용히 생략한다.
+            if far_names:
+                sources = fetch('''
+                    SELECT dgm_nm AS "dgmName",
+                           base_notice_no AS "baseNoticeNo", base_notice_date AS "baseNoticeDate",
+                           base_notice_name AS "baseNoticeName", base_notice_url AS "baseNoticeUrl",
+                           latest_notice_no AS "latestNoticeNo", latest_notice_date AS "latestNoticeDate",
+                           rep_kind AS "repKind", rep_group AS "repGroup", rep_name AS "repName",
+                           rep_url AS "repUrl", rep_date AS "repDate", rep_used AS "repUsed",
+                           guidelines
+                    FROM public.v_district_sources
+                    WHERE dgm_nm = ANY(%s)
+                ''', (far_names,))
+                if sources.get('status') == 'ready':
+                    by_name = {}
+                    for item in sources['rows']:
+                        by_name.setdefault(item.get('dgmName'), item)
+                    for row in (plans.get('rows') or []):
+                        item = by_name.get(row.get('dgmName'))
+                        if not item:
+                            continue
+                        for key in ('baseNoticeNo', 'baseNoticeDate', 'baseNoticeName', 'baseNoticeUrl',
+                                    'latestNoticeNo', 'latestNoticeDate', 'repKind', 'repGroup',
+                                    'repName', 'repUrl', 'repDate', 'repUsed', 'guidelines'):
+                            row[key] = item.get(key)
             far = fetch('''
                 SELECT dgm_nm AS "dgmName", zone_raw, zone_class, zone_detail,
                        road_side, label_quality, change_type,
