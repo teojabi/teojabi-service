@@ -255,7 +255,7 @@ export function mountAssistant({ onResults, onAnalyze, onEditConditions, onSearc
     if (data.unsupported) reply += `<p class="assistant-note">${esc(data.unsupported)}</p>`;
     const chips = [];
     if (groups.length) chips.push(`<button type="button" class="assistant-chip assistant-chip-primary" data-map="1">지도에서 보기</button>`);
-    chips.push(`<button type="button" class="assistant-chip" data-editor="1">조건 바꾸기</button>`);
+    chips.push(`<button type="button" class="assistant-chip" data-edit-conditions data-intent>검색 조건 바꾸기</button>`);
     if (data.conditionNote) chips.push(`<button type="button" class="assistant-chip" data-send="저장한 조건으로 찾아줘">저장 조건으로 찾기</button>`);
     (data.suggestions || []).forEach(s => chips.push(`<button type="button" class="assistant-chip" data-send="${esc(s.message)}">${esc(s.label)}</button>`));
     if (chips.length) reply += `<div class="assistant-chiprow">${chips.join('')}</div>`;
@@ -355,23 +355,43 @@ export function mountAssistant({ onResults, onAnalyze, onEditConditions, onSearc
     if (busy) return;
     busy = true;
     if (message) addUser(message);
-    const scan = addBot(`<div class="assistant-scan"><span class="assistant-spinner"></span><b>잠시만요…</b></div>`);
+    const started = Date.now();
+    const guessSearch = !message || !looksConversational(message);
+    const scan = addBot(guessSearch
+      ? `<div class="assistant-scan"><span class="assistant-spinner"></span><b>AI 공간 분석 중…</b><ul class="assistant-steps"></ul><div class="assistant-bar"><i></i></div></div>`
+      : `<div class="assistant-scan"><span class="assistant-spinner"></span><b>잠시만요…</b></div>`);
+    let timers = [];
+    const playSteps = () => {
+      scan.innerHTML = `<div class="assistant-scan"><span class="assistant-spinner"></span><b>AI 공간 분석 중…</b><ul class="assistant-steps"></ul><div class="assistant-bar"><i></i></div></div>`;
+      const stepsEl = scan.querySelector('.assistant-steps');
+      const bar = scan.querySelector('.assistant-bar i');
+      const interval = Math.floor(SCAN_MS * 0.9 / STEPS.length);
+      timers = STEPS.map((text, i) => setTimeout(() => {
+        stepsEl.insertAdjacentHTML('beforeend', `<li>${esc(text)}</li>`); scroll();
+        if (bar) bar.style.width = `${Math.round(((i + 1) / STEPS.length) * 92)}%`;
+      }, i * interval));
+    };
+    if (guessSearch) playSteps();
     const condition = savedCondition();
     const payload = { message: message || '', condition, filters: editedFilters || undefined };
     try {
       const response = await apiFetch('/api/assistant', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
       const data = await response.json();
-      scan.remove();
-      if (data.searchIntent) {
-        intentFilters = data.filters || null;
-        const labels = (data.chips || []).map(c => c.label).join(' / ');
-        addBot(`<p>말씀하신 조건이에요.</p>${labels ? `<p class="assistant-conditions">조건 · ${esc(labels)}</p>` : ''}<small>아래에서 이 조건으로 검색 조건을 설정할 수 있어요.</small><div class="assistant-chiprow"><button type="button" class="assistant-chip assistant-chip-primary" data-edit-conditions data-intent>이 조건으로 조건 바꾸기</button></div>`);
-      } else {
-        addBot(esc(data.reply || '답변을 준비하지 못했어요. 다시 시도해 주세요.').replace(/\n/g, '<br>'));
+      const isSearch = Array.isArray(data.groups) && data.groups.length > 0;
+      if (isSearch && !guessSearch) playSteps();
+      if (isSearch) {
+        const target = guessSearch ? SCAN_MS : Math.max(SCAN_MS, (Date.now() - started) + 1500);
+        await new Promise(resolve => setTimeout(resolve, Math.max(0, target - (Date.now() - started))));
       }
-    } catch {
+      const bar = scan.querySelector('.assistant-bar i'); if (bar) bar.style.width = '100%';
+      timers.forEach(clearTimeout);
       scan.remove();
-      addBot('답변을 가져오지 못했어요. 잠시 후 다시 시도해 주세요.');
+      lastFilters = { ...(data.filters || {}) };
+      intentFilters = { ...(data.filters || {}) };
+      renderResult(null, data, false);
+    } catch {
+      timers.forEach(clearTimeout); scan.remove();
+      addBot('매물 자료를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.');
     } finally { busy = false; }
   }
 
