@@ -8,7 +8,7 @@ const $=s=>document.querySelector(s);
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const types={commercial:'상업·근생·숙박',residential:'단독·다가구',office:'업무용 건물',land:'토지'};
 const prices=['10~20억 미만','20~40억 미만','40~70억 미만','70~100억 이상','100억 이상'];
-let mode='registered',sources=[],registered=[],sourceTotal=0,current=null,map=null,loading=false,pickOnly=false,sourcesLoaded=false,showAllRegistered=true,showRegisteredSources=true,autoSelectionIds=null;
+let mode='registered',sources=[],registered=[],sourceTotal=0,current=null,map=null,loading=false,pickOnly=false,hidePicks=false,sourcesLoaded=false,showAllRegistered=true,showRegisteredSources=true,autoSelectionIds=null;
 const selectedIds=new Set();
 const money=n=>`${Number(n||0).toLocaleString('ko-KR',{maximumFractionDigits:2})}억`;
 const area=n=>formatArea(n,getAreaDisplayUnit(),'미기재');
@@ -66,7 +66,7 @@ function visible(){
   if(mode==='registered'){
     return registered.filter(r=>{
       const s=r.snapshot||{},p=pickOf(r),searchText=[p.pickNo,s.address,s.neighborhood,s.district,s.source_id,r.source_id].join(' ').toLowerCase();
-      return (!pickOnly||isTeojabiPick(r))&&(!districts.length||districts.includes(s.district))&&(!q||searchText.includes(q));
+      return (!pickOnly||isTeojabiPick(r))&&(!hidePicks||!isTeojabiPick(r))&&(!districts.length||districts.includes(s.district))&&(!q||searchText.includes(q));
     });
   }
   return activeRows().filter(r=>{
@@ -119,6 +119,8 @@ function updateBulkTools(list=visible()){
   $('#auto-selection-clear').hidden=mode!=='source'||!autoSelectionIds;
   $('#pick-only-toggle').setAttribute('aria-pressed',String(pickOnly));
   $('#pick-only-toggle').textContent=pickOnly?'터잡이픽만 보는 중':'터잡이픽만 보기';
+  $('#pick-hide-toggle').setAttribute('aria-pressed',String(hidePicks));
+  $('#pick-hide-toggle').textContent=hidePicks?'터잡이픽 숨기는 중':'터잡이픽 숨기기';
   $('#registered-show-all').setAttribute('aria-pressed',String(showAllRegistered));
   $('#registered-show-all').textContent=showAllRegistered?'처음 180개만 보기':'등록 매물 모두보기';
   $('#registered-show-all').disabled=mode!=='registered'||list.length<=180;
@@ -160,6 +162,32 @@ function randomNo(){
   for(let n=1000;n<10000;n++)if(!used.has(String(n)))return String(n);
   return '';
 }
+const AUTO_TYPES=['commercial','residential','office','land'];
+const AUTO_BUDGETS_DEFAULT=[60,60,40,25,15];
+function clampAuto(value){const n=Number(value);return Number.isFinite(n)?Math.max(0,Math.min(500,Math.round(n))):0;}
+function readAutoCriteria(){
+  const types={};AUTO_TYPES.forEach(key=>{types[key]=clampAuto($(`#auto-type-${key}`)?.value);});
+  const budgets=AUTO_BUDGETS_DEFAULT.map((_,i)=>clampAuto($(`#auto-budget-${i}`)?.value));
+  return {types,budgets};
+}
+function autoCriteriaTotal(criteria){return AUTO_TYPES.reduce((sum,key)=>sum+criteria.types[key],0);}
+function syncAutoCriteriaTotal(criteria=readAutoCriteria()){
+  const total=autoCriteriaTotal(criteria),budgetTotal=criteria.budgets.reduce((a,b)=>a+b,0),ok=total>0&&total===budgetTotal;
+  const status=$('#auto-criteria-status');
+  if(status){status.textContent=ok?`총 ${total}개를 선별합니다. 유형·가격대 배분이 적용돼요.`:`유형 합계 ${total} · 가격대 합계 ${budgetTotal} — 두 합계를 같게 맞춰 주세요.`;status.classList.toggle('error',!ok);}
+  const label=$('#auto-criteria-total');if(label)label.textContent=String(total);
+  return ok;
+}
+function loadAutoCriteria(){
+  try{
+    const saved=JSON.parse(localStorage.getItem('teojabi.autoCriteria')||'null');
+    if(saved?.types)AUTO_TYPES.forEach(key=>{const input=$(`#auto-type-${key}`);if(input&&saved.types[key]!==undefined)input.value=saved.types[key];});
+    if(Array.isArray(saved?.budgets))AUTO_BUDGETS_DEFAULT.forEach((_,i)=>{const input=$(`#auto-budget-${i}`);if(input&&saved.budgets[i]!==undefined)input.value=saved.budgets[i];});
+  }catch{}
+  syncAutoCriteriaTotal();
+}
+AUTO_TYPES.forEach(key=>$(`#auto-type-${key}`)?.addEventListener('input',()=>syncAutoCriteriaTotal()));
+AUTO_BUDGETS_DEFAULT.forEach((_,i)=>$(`#auto-budget-${i}`)?.addEventListener('input',()=>syncAutoCriteriaTotal()));
 function model(row){const s=row.snapshot||{};return {id:rowId(row),district:s.district,neighborhood:s.neighborhood,position:s.position,priceWon:(s.price||0)*1e8,areaM2:s.areaM2,cohort:isTeojabiPick(row)?'existing':'curated'};}
 function open(id){
   const row=activeRows().find(r=>rowId(r)===id)||sources.find(r=>rowId(r)===id)||registered.find(r=>rowId(r)===id);if(!row)return;
@@ -231,11 +259,16 @@ $('#review-reset').onclick=()=>{for(const id of ['query','category','price-range
 $('#review-unit').onclick=()=>{setAreaDisplayUnit(getAreaDisplayUnit()==='pyeong'?'m2':'pyeong');draw();if(current)open(current);};
 $('#review-refresh').onclick=()=>{if(mode==='source'){sourcesLoaded=false;sources=[];loadSources(true);}else load();};
 $('#auto-select-200').onclick=async()=>{
-  if(loading)return;loading=true;const button=$('#auto-select-200');button.disabled=true;message('가격·유형·지역 분산 기준으로 자동 선별 200개를 확인하고 있어요.');
+  if(loading)return;
+  const criteria=readAutoCriteria();
+  if(!syncAutoCriteriaTotal(criteria)){message('자동 선별 기준의 유형 합계와 가격대 합계를 같게 맞춰 주세요.',true);return;}
+  localStorage.setItem('teojabi.autoCriteria',JSON.stringify(criteria));
+  const total=autoCriteriaTotal(criteria);
+  loading=true;const button=$('#auto-select-200');button.disabled=true;message(`가격·유형·지역 분산 기준으로 자동 선별 ${total}개를 확인하고 있어요.`);
   try{
-    const data=await postCuration({action:'auto_select_200'});
+    const data=await postCuration({action:'auto_select_200',criteria});
     sourcesLoaded=false;sources=[];registered=[];selectedIds.clear();current=null;mode='source';autoSelectionIds=new Set(data.sourceIds||[]);loading=false;setModeButtons();await load();await loadSources();draw();
-    message(`최신 원자료에서 자동 선별 ${Number(data.selected||200)}개를 새로 구성해 표시했습니다. 직접 등록한 ${Number(data.preserved||0)}개는 유지했습니다.`);
+    message(`최신 원자료에서 자동 선별 ${Number(data.selected||total)}개를 새로 구성해 표시했습니다. 직접 등록한 ${Number(data.preserved||0)}개는 유지했습니다.`);
   }catch(error){message('자동 선별을 실행하지 못했습니다.',true);}finally{loading=false;button.disabled=false;updateBulkTools();}
 };
 document.querySelectorAll('[data-pick-mode]').forEach(button=>button.addEventListener('click',()=>{mode=button.dataset.pickMode;if(mode==='registered')showAllRegistered=true;current=null;selectedIds.clear();setModeButtons();draw();$('#review-detail').innerHTML='<div class="review-empty"><h2>매물을 눌러보세요.</h2><p>등록하거나 수정할 매물을 선택해 주세요.</p></div>';if(mode==='source'&&!sourcesLoaded){loadSources();}else if(mode==='source'){message('원자료에서 체크박스로 여러 개를 선택한 뒤 선택 매물 등록을 누르세요.');}else{message('등록한 매물은 지역만 골라 간단히 확인할 수 있어요.');}}));
@@ -243,7 +276,20 @@ $('#bulk-select-visible').onclick=()=>{for(const row of visible().slice(0,120))i
 $('#bulk-clear').onclick=()=>{selectedIds.clear();draw();};
 $('#auto-selection-clear').onclick=()=>{autoSelectionIds=null;draw();message('전체 네이버 원자료를 표시합니다.');};
 $('#source-registered-toggle').onclick=()=>{showRegisteredSources=!showRegisteredSources;current=null;draw();$('#review-detail').innerHTML='<div class="review-empty"><h2>매물을 눌러보세요.</h2><p>네이버 원자료에서 등록할 매물을 선택해 주세요.</p></div>';};
-$('#pick-only-toggle').onclick=()=>{pickOnly=!pickOnly;draw();};
+$('#pick-only-toggle').onclick=()=>{pickOnly=!pickOnly;if(pickOnly)hidePicks=false;draw();};
+$('#pick-hide-toggle').onclick=()=>{hidePicks=!hidePicks;if(hidePicks)pickOnly=false;draw();};
+$('#delete-all-registered').onclick=async()=>{
+  if(loading)return;
+  const total=registered.length;
+  if(!total){message('삭제할 등록 매물이 없어요.');return;}
+  if(!confirm(`등록된 매물 ${total}개를 모두 삭제합니다. 터잡이픽도 함께 삭제되며 되돌릴 수 없어요. 계속할까요?`))return;
+  loading=true;const button=$('#delete-all-registered');button.disabled=true;message('등록 매물을 모두 삭제하고 있어요.');
+  try{
+    const data=await postCuration({action:'delete_all'});
+    sourcesLoaded=false;sources=[];registered=[];selectedIds.clear();current=null;autoSelectionIds=null;loading=false;setModeButtons();await load();
+    message(`등록 매물 ${Number(data.deleted||0)}개를 삭제했습니다.`);
+  }catch(error){message(error.message,true);}finally{loading=false;button.disabled=false;}
+};
 $('#registered-show-all').onclick=()=>{showAllRegistered=!showAllRegistered;draw();};
 $('#bulk-register').onclick=async()=>{
   const rows=[...selectedIds].map(id=>sources.find(r=>rowId(r)===id)).filter(Boolean).filter(r=>!r.registered).slice(0,120);if(!rows.length)return;
@@ -254,6 +300,7 @@ $('#bulk-register').onclick=async()=>{
   }catch(error){message(`일괄 등록하지 못했습니다. ${error.message}`,true);}finally{loading=false;updateBulkTools();}
 };
 setModeButtons();
+loadAutoCriteria();
 load();
 initAdminAccess();
 
