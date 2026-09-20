@@ -1,6 +1,7 @@
 import { apiFetch } from './api-client.mjs';
 import { member, openLogin } from './member.mjs';
 import { DISTRICTS } from './policy.mjs';
+import { ruleFilters } from './assistant-parse.mjs';
 import { formatArea, getAreaDisplayUnit } from './area-display.mjs';
 import { renderInlineContext } from './inline-context.mjs';
 
@@ -21,6 +22,16 @@ const STEPS = [
   '도로폭 등 주변 조건을 확인하는 중이에요…',
   '조건에 맞는 매물을 정리하고 있어요…',
 ];
+// 매물 검색일 때만 상세 단계 애니메이션을 보여준다. 인사·FAQ 등 일반 대화는 간단히 표시한다.
+function requireAssistantSearchSteps(message) {
+  const text = String(message || '');
+  const spoken = ruleFilters(text);
+  const strongKeys = ['districts', 'budgetWon', 'minAreaM2', 'maxAreaM2', 'zones', 'stationName', 'maxDistanceM', 'minRoadWidthM'];
+  const hasStrong = strongKeys.some(key => { const value = spoken[key]; return Array.isArray(value) ? value.length > 0 : value !== undefined && value !== null && value !== ''; });
+  if (/안녕|반갑|반가|잘\s*부탁|고마|감사|수고|하이|헬로|hello|\bhi\b/i.test(text) && !hasStrong) return false;
+  if (hasStrong) return true;
+  return /찾|검색|보여|추천|구해|골라|알려|리스트|매물|건물|토지|땅/.test(text);
+}
 const BUDGET_PRESETS = [10, 20, 30, 50, 100, 200];
 const AREA_PRESETS = [50, 100, 200, 300, 500];
 const ROAD_PRESETS = [4, 6, 8, 12];
@@ -341,15 +352,18 @@ export function mountAssistant({ onResults, onAnalyze } = {}) {
     if (busy) return;
     busy = true;
     if (message) addUser(message);
-    const scan = addBot(`<div class="assistant-scan"><span class="assistant-spinner"></span><b>AI 공간 분석 중…</b><ul class="assistant-steps"></ul><div class="assistant-bar"><i></i></div></div>`);
+    const detailed = !message || requireAssistantSearchSteps(message);
+    const scan = addBot(detailed
+      ? `<div class="assistant-scan"><span class="assistant-spinner"></span><b>AI 공간 분석 중…</b><ul class="assistant-steps"></ul><div class="assistant-bar"><i></i></div></div>`
+      : `<div class="assistant-scan"><span class="assistant-spinner"></span><b>답변을 준비하고 있어요…</b></div>`);
     const stepsEl = scan.querySelector('.assistant-steps');
     const bar = scan.querySelector('.assistant-bar i');
     const started = Date.now();
     const interval = Math.floor(SCAN_MS * 0.9 / STEPS.length);
-    const timers = STEPS.map((text, i) => setTimeout(() => {
+    const timers = stepsEl ? STEPS.map((text, i) => setTimeout(() => {
       stepsEl.insertAdjacentHTML('beforeend', `<li>${esc(text)}</li>`); scroll();
       if (bar) bar.style.width = `${Math.round(((i + 1) / STEPS.length) * 92)}%`;
-    }, 250 + i * interval));
+    }, 250 + i * interval)) : [];
     const condition = savedCondition();
     const payload = { message: message || '', condition, filters: editedFilters || undefined };
     try {
