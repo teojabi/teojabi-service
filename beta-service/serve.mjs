@@ -237,7 +237,7 @@ createServer(async (request, response) => {
       if(!hasMeaningfulFilters(parsed.filters)){
         send(response,request,{status:'ready',
           reply:parsed.unsupported?`죄송해요, ${parsed.unsupported} 정보는 아직 확인할 수 없어요. 예) "종로구 상업지역 100억 이하 도로 6m"처럼 알려주세요.`:'조건을 이해하지 못했어요. 예) "마포구 30억 이하 건물", "홍대입구역 도보 3분"처럼 알려주세요.',
-          filters:parsed.filters,chips:[],total:0,groups:[],originTotals:{premium:0,registered:0,naver:0},station:null,districts:[],suggestions:[],relaxations:[],unsupported:parsed.unsupported||null,searchedAt:null});
+          filters:parsed.filters,chips:[],total:0,groups:[],originTotals:{premium:0,registered:0,disco:0,naver:0},station:null,districts:[],suggestions:[],relaxations:[],unsupported:parsed.unsupported||null,searchedAt:null});
         return;
       }
       const search=await runAssistant(root,parsed.filters);
