@@ -18,6 +18,37 @@ function bars(items) {
   }).join('')}</div>`;
 }
 
+function halfYearTrend(trend) {
+  const groups = new Map();
+  for (const item of trend || []) {
+    const q = String(item.quarter || '');
+    const year = q.slice(0, 4), qn = Number(q.slice(4)) || 0;
+    if (!year || !qn) continue;
+    const key = `${year}-${qn <= 2 ? 1 : 2}`;
+    groups.set(key, (groups.get(key) || 0) + (Number(item.salesWon) || 0));
+  }
+  return [...groups.entries()].map(([key, value]) => {
+    const [year, half] = key.split('-');
+    return { label: `${year} ${half === '1' ? '상반기' : '하반기'}`, value };
+  }).slice(-4);
+}
+
+function trendMarkup(trend) {
+  const groups = halfYearTrend(trend);
+  if (groups.length < 2) return '';
+  const items = groups.map((g, i) => ({ label: g.label, value: g.value, display: eok(g.value) || '자료 없음', current: i === groups.length - 1 }));
+  let change = '';
+  if (groups.length >= 3) {
+    const last = groups[groups.length - 1], prev = groups[groups.length - 3];
+    if (prev.value > 0) {
+      const pct = (last.value - prev.value) / prev.value * 100;
+      const arrow = pct > 0 ? '▲' : pct < 0 ? '▼' : '–';
+      change = `<p class="commercial-change">${esc(last.label)} · 전년동기 대비 ${arrow} ${Math.abs(pct).toLocaleString('ko-KR', { maximumFractionDigits: 1 })}%</p>`;
+    }
+  }
+  return `<p class="commercial-block-title">매출 추이 · 반기별 (상권 합계)</p>${bars(items)}${change}`;
+}
+
 function metrics(area, { sales = true } = {}) {
   const items = [];
   if (sales) { const s = eok(area.monthlySalesWon); if (s) items.push(`<span>월 추정매출 <b>${s}</b></span>`); }
@@ -49,6 +80,7 @@ export function renderCommercial(data) {
     <div class="commercial-head"><span class="commercial-icon" aria-hidden="true">🏪</span><div><b>${esc(n.name)}</b><small>${esc(n.type || '')}${n.gu ? ` · ${esc(n.gu)}` : ''}</small></div>${near}</div>
     ${metrics(n, { sales: false })}
     ${catBars.length ? `<p class="commercial-block-title">주요 업종 · 이 상권 매출 비중</p>${bars(catBars)}` : ''}
+    ${trendMarkup(n.trend)}
     ${cmpBars.length ? `<p class="commercial-block-title">반경 안 상권 월 추정매출 · 상권별 합계</p>${bars(cmpBars)}` : ''}
     <button type="button" class="outline commercial-ask" data-commercial-ask="${esc(n.name)} 상권">이 상권에서 매물 찾기</button>
   </div>

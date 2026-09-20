@@ -741,6 +741,7 @@ body.architect-lightbox-open{overflow:hidden}
 .commercial-bar-track i{position:absolute;left:0;top:0;bottom:0;background:#94a3b8;border-radius:4px}
 .commercial-bar.is-current .commercial-bar-track i{background:var(--primary)}
 .commercial-bar b{font-variant-numeric:tabular-nums;font-size:12px;white-space:nowrap}
+.commercial-change{margin:6px 0 0;font-size:12px;font-weight:700;color:var(--muted)}
 .commercial-ask{margin-top:10px}
 .commercial-section .commercial-ask{width:100%}
 .commercial-others{margin-top:10px}
