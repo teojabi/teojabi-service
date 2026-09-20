@@ -113,6 +113,8 @@ body.map-results-open{height:100dvh;min-height:0;overflow:hidden;display:flex;fl
 .site-map-wrap>.site-street-button{position:absolute;top:12px;right:12px;left:auto;z-index:100;pointer-events:auto;touch-action:manipulation;background:var(--card);font-size:12px;min-height:40px;padding:9px 12px;box-shadow:0 2px 8px #0002}
 .assistant-card.is-hidden{display:none}
 .assistant-more{width:100%;margin-top:8px}
+.assistant-edit-row{padding:10px 14px 14px;border-top:1px solid var(--line)}
+.assistant-edit-row>button{width:100%;font-weight:700}
 .nearby-details{border:0}
 .nearby-summary{display:flex;align-items:center;gap:10px;cursor:pointer;list-style:none;min-height:48px;padding:4px 0}
 .nearby-summary::-webkit-details-marker{display:none}
