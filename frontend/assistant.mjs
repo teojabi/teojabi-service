@@ -361,8 +361,11 @@ export function mountAssistant({ onResults, onAnalyze } = {}) {
       const response = await apiFetch('/api/assistant', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
       const data = await response.json();
       const isSearch = Array.isArray(data.groups) && data.groups.length > 0;
+      const elapsed = Date.now() - started;
+      // 검색이면 단계 애니메이션을 최소 1.5초는 보여준 뒤 결과를 표시한다.
       if (isSearch) playSteps();
-      await new Promise(resolve => setTimeout(resolve, Math.max(0, (isSearch ? SCAN_MS : 0) - (Date.now() - started))));
+      const target = isSearch ? Math.max(SCAN_MS, elapsed + 1500) : 0;
+      await new Promise(resolve => setTimeout(resolve, Math.max(0, target - elapsed)));
       const bar = scan.querySelector('.assistant-bar i'); if (bar) bar.style.width = '100%';
       timers.forEach(clearTimeout);
       scan.remove();
