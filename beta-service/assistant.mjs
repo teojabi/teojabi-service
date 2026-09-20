@@ -355,7 +355,7 @@ export function mountAssistant({ onResults, onAnalyze } = {}) {
     try {
       const response = await apiFetch('/api/assistant', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
       const data = await response.json();
-      const wait = Math.max(0, SCAN_MS - (Date.now() - started));
+      const wait = Math.max(0, ((data.groups && data.groups.length) ? SCAN_MS : 900) - (Date.now() - started));
       await new Promise(resolve => setTimeout(resolve, wait));
       if (bar) bar.style.width = '100%';
       timers.forEach(clearTimeout);
