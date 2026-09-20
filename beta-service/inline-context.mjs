@@ -42,11 +42,11 @@ function farRowLine(item) {
 const numRange=(values,suffix)=>{
   const nums=(values||[]).filter(v=>typeof v==='number'&&Number.isFinite(v));
   if(!nums.length)return null;
-  const min=Math.min(...nums),max=Math.max(...nums);
-  return `${min===max?min:`${min}~${max}`}${suffix}`;
+  const min=Math.min(...nums),max=Math.max(...nums),fmt=v=>Number(v).toLocaleString('ko-KR',{maximumFractionDigits:2});
+  return `${min===max?fmt(min):`${fmt(min)}~${fmt(max)}`}${suffix}`;
 };
 // 필지별 나열 대신 기준·허용·상한 용적률, 건폐율, 높이제한을 범위로 요약한다.
-const parsePercents=value=>{const out=[];const re=/(\d+(?:\.\d+)?)\s*%/g;const s=String(value||'');let m;while((m=re.exec(s)))out.push(Number(m[1]));return out;};
+const parsePercents=value=>{const out=[];const re=/(\d[\d,]*(?:\.\d+)?)\s*%/g;const s=String(value||'');let m;while((m=re.exec(s)))out.push(Number(m[1].replace(/,/g,'')));return out;};
 function farSummaryParts(rows) {
   const parts=[];
   const collect=(numeric,text)=>[...rows.map(r=>r[numeric]),...rows.flatMap(r=>parsePercents(r[text]))];
@@ -118,7 +118,14 @@ export function renderInlineContext(data) {
   const zoneRows=zones.map(zoneLine).join('');
   const plans=zones.find(z=>z.id==='district-plan')?.items||[];
   const farSection=renderFarSummary(plans);
-  return `<ul class="context-facts">${zoneRows}<li><span class="context-dot"></span><div><p>${road?.widthM>0?`인접 도로폭은 약 <b>${esc(road.widthM)}m</b>로 기록되어 있어요.`:'인접 도로폭은 확인이 필요해요.'}</p>${road?.widthM>0?'<small title="주변 10m 이내 도로 중 최소 폭으로 적재된 참고값입니다.">주변 도로 자료 기준 · 실제 접도 확인 필요</small>':''}</div></li></ul>${farSection}${plans.length?`<details class="context-plans"><summary>지구단위계획 고시·도면 보기</summary><div>${plans.map(p=>`<article><b>${esc(p.name)}</b><p>${esc(p.noticeDate||'고시일 미기재')}${p.noticeNumber?' · '+esc(p.noticeNumber):''}</p>${planSources(p)}${p.documentWarning?`<p>${esc(p.documentWarning)}</p>`:''}${link(p.pdfUrl,'고시 원문 보기')||'<p>연결된 고시 원문이 없어요.</p>'}${p.drawings?.length?`<details><summary>도면 ${p.drawings.length}개 보기</summary>${p.drawings.map(d=>link(d.url,d.name)).join('')}</details>`:''}</article>`).join('')}</div></details>`:''}<p class="context-source">연결된 필지의 저장 자료 기준이에요.</p>`;
+  // 구역 도면에 높이·건폐율 기준이 없으면 필지 저장자료(master_land) 값을 참고로 보여준다.
+  const hasDistrictHeight=plans.some(p=>(p.far||[]).some(f=>f.heightM!=null));
+  const hasDistrictBcr=plans.some(p=>(p.far||[]).some(f=>f.bcr!=null));
+  const fallback=[];
+  if(!hasDistrictHeight&&road?.heightLimitM>0)fallback.push(`제한높이 약 <b>${esc(road.heightLimitM)}m</b>`);
+  if(!hasDistrictBcr&&road?.bcrM>0)fallback.push(`건폐율 약 <b>${esc(road.bcrM)}%</b>`);
+  const heightLi=fallback.length?`<li><span class="context-dot"></span><div><p>${fallback.join(' · ')}로 기록되어 있어요.</p><small>필지 저장 자료 기준 · 지구단위계획 도면에서 최종 확인 필요</small></div></li>`:'';
+  return `<ul class="context-facts">${zoneRows}<li><span class="context-dot"></span><div><p>${road?.widthM>0?`인접 도로폭은 약 <b>${esc(road.widthM)}m</b>로 기록되어 있어요.`:'인접 도로폭은 확인이 필요해요.'}</p>${road?.widthM>0?'<small title="주변 10m 이내 도로 중 최소 폭으로 적재된 참고값입니다.">주변 도로 자료 기준 · 실제 접도 확인 필요</small>':''}</div></li>${heightLi}</ul>${farSection}${plans.length?`<details class="context-plans"><summary>지구단위계획 고시·도면 보기</summary><div>${plans.map(p=>`<article><b>${esc(p.name)}</b><p>${esc(p.noticeDate||'고시일 미기재')}${p.noticeNumber?' · '+esc(p.noticeNumber):''}</p>${planSources(p)}${p.documentWarning?`<p>${esc(p.documentWarning)}</p>`:''}${link(p.pdfUrl,'고시 원문 보기')||'<p>연결된 고시 원문이 없어요.</p>'}${p.drawings?.length?`<details><summary>도면 ${p.drawings.length}개 보기</summary>${p.drawings.map(d=>link(d.url,d.name)).join('')}</details>`:''}</article>`).join('')}</div></details>`:''}<p class="context-source">연결된 필지의 저장 자료 기준이에요.</p>`;
 }
 export function mountInlineContext(host,listing) {
   const abort=new AbortController();let disposed=false,busy=false;
