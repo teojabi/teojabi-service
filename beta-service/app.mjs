@@ -106,7 +106,7 @@ function home() {
     <section class="activity-section" id="market-activity" aria-label="보유 자료 현황" aria-live="polite">${activity()}</section>
     <div class="entry-grid"><button class="entry entry-primary" data-action="find"><span class="entry-tag">FIND YOUR BUILDING</span><h2>마음에 드는<br>건물을 찾고 싶어요.</h2><p>목적과 예산, 원하는 지역부터 알려주세요.</p><span class="entry-cta">건물 찾기 시작 <span class="circle">${arrow}</span></span>${buildingArt}</button>
     <button class="entry entry-secondary" data-action="analyze"><span class="entry-tag">UNDERSTAND YOUR PLACE</span><h2>건물과 토지를<br>살펴보고 싶어요.</h2><p>신축할 필지의 현황과 확인할 자료를 함께 봐요.</p><span class="entry-cta">신축 검토 시작 <span class="circle">${arrow}</span></span>${parcelArt}</button></div>
-    <div class="home-browse"><p class="home-note"><span>i</span>확인된 정보로 살펴보고, 확인이 필요한 부분은 구분해 알려드려요.</p><button class="outline" data-action="browse">선별 매물 전체 둘러보기 ↗</button><button class="outline" data-action="preview-member">내 보관함 미리보기</button></div>
+    <div class="home-browse"><p class="home-note"><span>i</span>확인된 정보로 살펴보고, 확인이 필요한 부분은 구분해 알려드려요.</p><button class="outline" data-action="browse">터잡이 선별 매물 둘러보기 ↗</button><button class="outline" data-action="preview-member">내 보관함 미리보기</button></div>
     ${faq()}</section>`;
 }
 
@@ -140,8 +140,8 @@ function render(focus = true) {
     app.innerHTML='<section class="screen-loading" aria-live="polite"><span></span><p>매물과 지도를 불러오고 있어요.</p></section>';
     loadExplorer().then(({mountExplorer})=>{
       if(version!==renderVersion||state.screen!=='results')return;
-      const assistant=assistantPayload,openId=assistantOpenId;assistantPayload=null;assistantOpenId=null;
-      disposeExplorer=mountExplorer(app,{conditions:state.applied,assistant:assistant||undefined,initialSource:location.hash==='#favorites'?'favorites':undefined,initialId:openId||new URLSearchParams(location.hash.slice(1)).get('listing'),onAnalyze:listing=>{if(state.siteDraft?.listingId!==listing.id)state.siteDraft=createSiteDraft(listing);state.screen='analyze';history.replaceState(null,'',location.pathname);render();},onConditionsChange:next=>{state.applied=next;if(!new URLSearchParams(location.hash.slice(1)).has('listing'))history.replaceState(null,'',location.pathname+'#search');return rememberSearch(next);},onEdit:()=>{
+      const assistant=assistantPayload,openId=assistantOpenId;assistantPayload=null;assistantOpenId=null;const picksOnly=Boolean(state.picksOnly);state.picksOnly=false;
+      disposeExplorer=mountExplorer(app,{conditions:state.applied,picksOnly,assistant:assistant||undefined,initialSource:location.hash==='#favorites'?'favorites':undefined,initialId:openId||new URLSearchParams(location.hash.slice(1)).get('listing'),onAnalyze:listing=>{if(state.siteDraft?.listingId!==listing.id)state.siteDraft=createSiteDraft(listing);state.screen='analyze';history.replaceState(null,'',location.pathname);render();},onConditionsChange:next=>{state.applied=next;if(!new URLSearchParams(location.hash.slice(1)).has('listing'))history.replaceState(null,'',location.pathname+'#search');return rememberSearch(next);},onEdit:()=>{
         state.draft=appliedDraft();
         state.editing=Boolean(state.applied);state.screen='purpose';render();
       }});
@@ -187,7 +187,7 @@ document.addEventListener('click', event => {
   if (action === 'preview-member') {previewMember();return;}
   if (action === 'saved') {openMember();return;}
   if (action === 'home') { state.screen = 'home'; state.editing = false; }
-  if (action === 'browse') { state.screen='results';state.applied=null;state.editing=false;history.replaceState(null,'',location.pathname); }
+  if (action === 'browse') { state.screen='results';state.applied=null;state.editing=false;state.picksOnly=true;history.replaceState(null,'',location.pathname); }
   if (action === 'find') {
     state.draft=appliedDraft();state.editing=false;
     if(state.applied){state.screen='results';history.replaceState(null,'',location.pathname+'#search');}
