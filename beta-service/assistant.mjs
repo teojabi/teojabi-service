@@ -102,7 +102,7 @@ function editorMarkup(filters) {
   </form>`;
 }
 
-export function mountAssistant({ onResults, onAnalyze, onEditConditions } = {}) {
+export function mountAssistant({ onResults, onAnalyze, onEditConditions, onSearchCondition } = {}) {
   if (document.querySelector('#assistant-fab')) return () => {};
   const fab = document.createElement('button');
   fab.id = 'assistant-fab'; fab.className = 'assistant-fab'; fab.type = 'button';
@@ -120,8 +120,9 @@ export function mountAssistant({ onResults, onAnalyze, onEditConditions } = {}) 
   const log = panel.querySelector('.assistant-log');
   const input = panel.querySelector('input');
   const form = panel.querySelector('.assistant-form');
-  let busy = false;
-  let lastFilters = null;
+    let busy = false;
+    let lastFilters = null;
+    let intentFilters = null;
   let selectedListing = null;
   const scroll = () => { log.scrollTop = log.scrollHeight; };
   // 결과처럼 긴 메시지는 그 메시지의 맨 위부터 보이게 하고, 짧은 대화는 맨 아래로 내린다.
@@ -231,11 +232,16 @@ export function mountAssistant({ onResults, onAnalyze, onEditConditions } = {}) 
     bubble.querySelectorAll('[data-ask-menu]').forEach(button => button.addEventListener('click', () => askAbout(button.dataset.askMenu, listing)));
   }
 
+  const conditionChips = () => {
+    const condition = savedCondition();
+    const search = condition && hasUsableFilters(condition) ? '<button type="button" class="assistant-chip assistant-chip-primary" data-search-condition>내 조건으로 검색하기</button>' : '';
+    return `<div class="assistant-chiprow">${search}<button type="button" class="assistant-chip" data-edit-conditions>검색 조건 바꾸기</button></div>`;
+  };
   const welcome = () => {
     if (!signedIn()) { renderLocked(); return; }
     const condition = savedCondition();
-    addBot(`안녕하세요, AI 부동산 비서예요. 터잡이 사용법·기능에 대해 편하게 물어보세요.<div class="assistant-chiprow"><button type="button" class="assistant-chip assistant-chip-primary" data-edit-conditions>검색 조건 바꾸기</button></div>`);
-    if (condition && hasUsableFilters(condition)) addBot(`<p>현재 저장하신 검색 조건이에요.</p><p class="assistant-saved-condition">${esc(conditionLabel(condition))}</p><small>조건을 바꾸려면 [검색 조건 바꾸기]를 눌러주세요.</small>`);
+    addBot(`안녕하세요, AI 부동산 비서예요. 터잡이 사용법·기능에 대해 편하게 물어보세요.${conditionChips()}`);
+    if (condition && hasUsableFilters(condition)) addBot(`<p>현재 저장하신 검색 조건이에요.</p><p class="assistant-saved-condition">${esc(conditionLabel(condition))}</p>`);
   };
 
   function renderResult(body, data, openEditor) {
@@ -349,50 +355,30 @@ export function mountAssistant({ onResults, onAnalyze, onEditConditions } = {}) 
     if (busy) return;
     busy = true;
     if (message) addUser(message);
-    const started = Date.now();
-    const guessSearch = !message || !looksConversational(message);
-    const scan = addBot(guessSearch
-      ? `<div class="assistant-scan"><span class="assistant-spinner"></span><b>AI 공간 분석 중…</b><ul class="assistant-steps"></ul><div class="assistant-bar"><i></i></div></div>`
-      : `<div class="assistant-scan"><span class="assistant-spinner"></span><b>잠시만요…</b></div>`);
-    let timers = [];
-    const playSteps = () => {
-      scan.innerHTML = `<div class="assistant-scan"><span class="assistant-spinner"></span><b>AI 공간 분석 중…</b><ul class="assistant-steps"></ul><div class="assistant-bar"><i></i></div></div>`;
-      const stepsEl = scan.querySelector('.assistant-steps');
-      const bar = scan.querySelector('.assistant-bar i');
-      const interval = Math.floor(SCAN_MS * 0.9 / STEPS.length);
-      timers = STEPS.map((text, i) => setTimeout(() => {
-        stepsEl.insertAdjacentHTML('beforeend', `<li>${esc(text)}</li>`); scroll();
-        if (bar) bar.style.width = `${Math.round(((i + 1) / STEPS.length) * 92)}%`;
-      }, i * interval));
-    };
-    if (guessSearch) playSteps();
+    const scan = addBot(`<div class="assistant-scan"><span class="assistant-spinner"></span><b>잠시만요…</b></div>`);
     const condition = savedCondition();
     const payload = { message: message || '', condition, filters: editedFilters || undefined };
     try {
       const response = await apiFetch('/api/assistant', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
       const data = await response.json();
-      const isSearch = Array.isArray(data.groups) && data.groups.length > 0;
-      if (isSearch && !guessSearch) playSteps();
-      if (isSearch) {
-        const target = guessSearch ? SCAN_MS : Math.max(SCAN_MS, (Date.now() - started) + 1500);
-        await new Promise(resolve => setTimeout(resolve, Math.max(0, target - (Date.now() - started))));
-      }
-      const bar = scan.querySelector('.assistant-bar i'); if (bar) bar.style.width = '100%';
-      timers.forEach(clearTimeout);
       scan.remove();
-      if (isSearch) {
-        addBot(`말씀하신 조건으로 매물을 찾으시려면 <b>[검색 조건 바꾸기]</b>에서 조건을 설정해 주세요.<div class="assistant-chiprow"><button type="button" class="assistant-chip assistant-chip-primary" data-edit-conditions>검색 조건 바꾸기</button></div>`);
+      if (data.searchIntent) {
+        intentFilters = data.filters || null;
+        const labels = (data.chips || []).map(c => c.label).join(' / ');
+        addBot(`<p>말씀하신 조건이에요.</p>${labels ? `<p class="assistant-conditions">조건 · ${esc(labels)}</p>` : ''}<small>아래에서 이 조건으로 검색 조건을 설정할 수 있어요.</small><div class="assistant-chiprow"><button type="button" class="assistant-chip assistant-chip-primary" data-edit-conditions data-intent>이 조건으로 조건 바꾸기</button></div>`);
       } else {
         addBot(esc(data.reply || '답변을 준비하지 못했어요. 다시 시도해 주세요.').replace(/\n/g, '<br>'));
       }
     } catch {
-      timers.forEach(clearTimeout); scan.remove();
-      addBot('매물 자료를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.');
+      scan.remove();
+      addBot('답변을 가져오지 못했어요. 잠시 후 다시 시도해 주세요.');
     } finally { busy = false; }
   }
 
   panel.addEventListener('click', event => {
-    if (event.target.closest('[data-edit-conditions]')) { onEditConditions?.(); return; }
+    if (event.target.closest('[data-search-condition]')) { onSearchCondition?.(savedCondition()); return; }
+    const edit = event.target.closest('[data-edit-conditions]');
+    if (edit) { onEditConditions?.(edit.hasAttribute('data-intent') ? intentFilters : null); return; }
     const chip = event.target.closest('[data-send]');
     if (chip) { runSearch(chip.dataset.send); return; }
     if (event.target.closest('.assistant-close')) { closePanel(); return; }
