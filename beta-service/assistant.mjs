@@ -44,9 +44,9 @@ function hasUsableFilters(filters) {
   return Object.entries(filters || {}).some(([key, value]) => key !== 'limit' && (Array.isArray(value) ? value.length : value !== null && value !== undefined && value !== ''));
 }
 
-function cardMarkup(listing) {
+function cardMarkup(listing, hidden = false) {
   const station = listing.station ? `<span class="assistant-station">📍 ${esc(listing.station.name)}역 · 도보 약 ${listing.station.walkMin}분 · ${listing.station.distM}m</span>` : '';
-  return `<article class="assistant-card" data-open="${esc(listing.id)}" data-origin="${esc(listing.origin)}">
+  return `<article class="assistant-card${hidden ? ' is-hidden' : ''}" data-open="${esc(listing.id)}" data-origin="${esc(listing.origin)}">
     <div class="assistant-card-top"><span class="assistant-origin origin-${esc(listing.origin)}">${esc(originLabel(listing.origin))}</span><b>${money(listing.priceWon)}</b></div>
     <p class="assistant-card-address">${esc(listing.district)} ${esc(listing.neighborhood || '')} · ${esc(listing.address)}</p>
     <div class="assistant-card-meta"><span>대지 ${area(listing.areaM2)}</span><span>${esc(listing.kind === 'land' ? '토지' : listing.mainUse || '건물')}</span></div>${station}
@@ -231,10 +231,11 @@ export function mountAssistant({ onResults, onAnalyze } = {}) {
 
   function renderResult(body, data, openEditor) {
     const groups = Array.isArray(data.groups) ? data.groups : [];
-    const cards = groups.map(group => cardMarkup(group.representative)).join('');
+    const cards = groups.map((group, index) => cardMarkup(group.representative, index >= 5)).join('');
     let reply = `<p>${esc(data.reply || '결과를 가져왔어요.').replace(/\n/g, '<br>')}</p>`;
     if (data.conditionNote) reply += `<p class="assistant-note">${esc(data.conditionNote)}</p>`;
     if (cards) reply += `<div class="assistant-cards">${cards}</div>`;
+    if (groups.length > 5) reply += `<button type="button" class="assistant-chip assistant-more" data-more>더보기 (남은 ${groups.length - 5}건)</button>`;
     if (data.chips?.length) reply += `<p class="assistant-conditions">조건 · ${data.chips.map(c => esc(c.label)).join(' / ')}</p>`;
     if (data.unsupported) reply += `<p class="assistant-note">${esc(data.unsupported)}</p>`;
     const chips = [];
@@ -266,6 +267,13 @@ export function mountAssistant({ onResults, onAnalyze } = {}) {
         onResults?.(data, card.dataset.open);
       }));
     }
+    bubble.querySelector('[data-more]')?.addEventListener('click', event => {
+      const hiddenCards = [...bubble.querySelectorAll('.assistant-card.is-hidden')];
+      hiddenCards.slice(0, 5).forEach(card => card.classList.remove('is-hidden'));
+      const remaining = bubble.querySelectorAll('.assistant-card.is-hidden').length;
+      if (!remaining) event.currentTarget.remove();
+      else event.currentTarget.textContent = `더보기 (남은 ${remaining}건)`;
+    });
     const slot = bubble.querySelector('.assistant-editor-slot');
     const openEditorUi = () => {
       slot.hidden = false;
