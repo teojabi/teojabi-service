@@ -1,4 +1,4 @@
-import { apiFetch } from './api-client.mjs';
+﻿import { apiFetch } from './api-client.mjs';
 import { formatArea } from './area-display.mjs';
 let sdkPromise,authError;
 export function loadNaverMaps() {
@@ -123,10 +123,11 @@ export function transactionLabelOffsets(points,occupied,width,height) {
   });
 }
 export class ListingMap {
-  constructor(container,{onSelect,onTransaction,onMapClick,onMove,onStatus,center,zoom,areaUnit='m2'}={}) {
+  constructor(container,{onSelect,onTransaction,onCommercial,onMapClick,onMove,onStatus,center,zoom,areaUnit='m2'}={}) {
     this.areaUnit=areaUnit==='pyeong'?'pyeong':'m2';
     this.container=container;this.onSelect=onSelect;this.onMove=onMove;this.onStatus=onStatus;this.onMapClick=onMapClick;
-    this.onTransaction=onTransaction;this.transactionMarkers=[];this.transactions=[];this.transactionsVisible=true;
+    this.onTransaction=onTransaction;this.onCommercial=onCommercial;this.transactionMarkers=[];this.transactions=[];this.transactionsVisible=true;
+    this.commercialMarkers=[];this.commercialAreas=[];this.commercialVisible=false;
     this.center=center;this.zoom=zoom;this.markers=[];this.listeners=[];this.dead=false;this.selected=null;
     this.onAuthFailure=event=>{this.ready=false;this.onStatus?.('error',event.detail);};
     window.addEventListener('teojabi-map-auth-error',this.onAuthFailure);
@@ -216,6 +217,33 @@ export class ListingMap {
     for(const {marker} of this.transactionMarkers)marker.setMap(this.transactionsVisible?this.map:null);
     if(this.transactionsVisible)this.fitTransactions();
   }
+  commercialIcon(area) {
+    const element=document.createElement('button');
+    element.type='button';element.className='map-commercial-dot';
+    const color={골목상권:'#64748b',전통시장:'#f59e0b',발달상권:'#2563eb',관광특구:'#10b981'}[area.type]||'#64748b';
+    const sales=Number(area.monthlySalesWon)||0;
+    const size=Math.max(10,Math.min(22,10+Math.log10(sales+1)*2.2));
+    element.style.width=`${size}px`;element.style.height=`${size}px`;element.style.background=color;
+    element.title=`${area.name}${area.type?` (${area.type})`:''}`;
+    element.setAttribute('aria-label',`상권 ${area.name} ${area.type||''}, 정보 보기`);
+    return {content:element,anchor:new this.n.Point(size/2,size/2)};
+  }
+  setCommercialAreas(areas) {
+    this.commercialAreas=areas||[];
+    for(const {marker} of this.commercialMarkers){this.n.Event.clearInstanceListeners(marker);marker.setMap(null);}
+    this.commercialMarkers=[];
+    if(!this.map||!this.ready)return;
+    for(const area of this.commercialAreas) {
+      if(!Number.isFinite(area.lat)||!Number.isFinite(area.lng))continue;
+      const marker=new this.n.Marker({map:this.commercialVisible?this.map:null,position:new this.n.LatLng(area.lat,area.lng),icon:this.commercialIcon(area),zIndex:0});
+      this.n.Event.addListener(marker,'click',()=>this.onCommercial?.(area));
+      this.commercialMarkers.push({marker,area});
+    }
+  }
+  setCommercialVisible(value) {
+    this.commercialVisible=Boolean(value);
+    for(const {marker} of this.commercialMarkers)marker.setMap(this.commercialVisible?this.map:null);
+  }
   fitTransactions() {
     if(!this.ready||!this.transactionsVisible||!this.transactionMarkers.length||!this.selectedItem?.position)return false;
     const bounds=new this.n.LatLngBounds(),position=this.selectedItem.position;
@@ -290,7 +318,7 @@ export class ListingMap {
   destroy() {
     this.dead=true;this.resizeObserver?.disconnect();
     window.removeEventListener('teojabi-map-auth-error',this.onAuthFailure);
-    for(const {marker} of [...this.markers,...this.transactionMarkers]) {
+    for(const {marker} of [...this.markers,...this.transactionMarkers,...this.commercialMarkers]) {
       try {this.n.Event.clearInstanceListeners(marker);marker.setMap(null);} catch { /* Failed SDK authentication. */ }
     }
     for(const listener of this.listeners) {

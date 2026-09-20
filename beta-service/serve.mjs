@@ -49,6 +49,7 @@ const files = new Map([
   ['/quick-filters.mjs',['quick-filters.mjs','text/javascript']],
   ['/recent-search.mjs',['recent-search.mjs','text/javascript']],
   ['/inline-context.mjs',['inline-context.mjs','text/javascript']],
+  ['/commercial-context.mjs',['commercial-context.mjs','text/javascript']],
   ['/building-records.mjs',['building-records.mjs','text/javascript']],
   ['/land-records.mjs',['land-records.mjs','text/javascript']],
   ['/land-policy.mjs',['land-policy.mjs','text/javascript']],
@@ -146,6 +147,7 @@ async function loadCatalog() {
 const parcelCache=new Map();
 const riskCache=new Map();
 const transactionCache=new Map();
+let commercialAreasCache=null,commercialAreasCachedAt=0;
 let transactionVersion=0;
 async function refreshTransactionVersion(){
   const version=await stat(join(root,'.local/disco-daily/data-version.json')).then(s=>s.mtimeMs).catch(error=>{if(error.code==='ENOENT')return 0;throw error;});
@@ -348,6 +350,26 @@ createServer(async (request, response) => {
       if(result.building.status==='error'||result.land.status==='error')riskCache.delete(key);
       send(response,request,result,result.building.status==='error'&&result.land.status==='error'?503:200);
     } catch {riskCache.delete(key);send(response,request,{status:'error'},503);}
+    return;
+  }
+  if (path==='/api/commercial-areas') {
+    try {
+      if(!commercialAreasCache||Date.now()-commercialAreasCachedAt>300000){
+        commercialAreasCache=await localRead('commercial-areas','{}');
+        commercialAreasCachedAt=Date.now();
+      }
+      send(response,request,commercialAreasCache);
+    } catch {send(response,request,{status:'error',areas:[]},503);}
+    return;
+  }
+  if (path==='/api/commercial') {
+    const params=new URL(request.url,'http://localhost').searchParams;
+    const lat=Number(params.get('lat')),lng=Number(params.get('lng')),radius=Number(params.get('radius'))||500;
+    if(!Number.isFinite(lat)||!Number.isFinite(lng)){send(response,request,{status:'missing'},400);return;}
+    try {
+      const result=await localRead('commercial',JSON.stringify({lat,lng,radius}));
+      send(response,request,result,result.status==='error'?503:200);
+    } catch {send(response,request,{status:'error'},503);}
     return;
   }
   if (path.startsWith('/api/risk/') || path.startsWith('/api/site-context/') || path.startsWith('/api/building-records/') || path.startsWith('/api/land-record/')) {
