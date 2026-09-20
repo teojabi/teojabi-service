@@ -2,7 +2,7 @@ import { apiFetch } from './api-client.mjs';
 import { member, openLogin } from './member.mjs';
 import { DISTRICTS } from './policy.mjs';
 import { formatArea, getAreaDisplayUnit } from './area-display.mjs';
-import { renderInlineContext } from './inline-context.mjs';
+import { renderInlineContext, renderFarSummary } from './inline-context.mjs';
 
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const money = won => won > 0 ? `${(won / 1e8).toLocaleString('ko-KR', { maximumFractionDigits: 2 })}억` : '가격 미기재';
@@ -83,6 +83,7 @@ function askMenuMarkup(listing) {
       ${item('nearby', '📊 주변 실거래', true, '')}
       ${item('commercial', '🏪 이 상권에서 매물 찾기', Boolean(listing.commercial), '인근 상권 정보가 없어요')}
       ${item('zoning', '🗺️ 용도지역·규제', hasPnu, '필지 정보가 없어 확인할 수 없어요')}
+      ${item('far', '📐 용적률·높이 기준', hasPnu, '필지 정보가 없어 확인할 수 없어요')}
       ${item('similar', '🔎 비슷한 매물 찾기', true, '')}
       ${item('analyze', '🏗️ 신축 검토하기', true, '')}
     </div>
@@ -221,6 +222,16 @@ export function mountAssistant({ onResults, onAnalyze } = {}) {
         const data = await readJson(`/api/site-context/${encodeURIComponent(listing.id)}`);
         if (!data) html = '구역과 도로 자료를 불러오지 못했어요.';
         else html = renderInlineContext(data) + `<div class="assistant-chiprow"><button type="button" class="assistant-chip assistant-chip-primary" data-ask-nav="detail">상세페이지에서 보기</button></div>`;
+      } else if (key === 'far') {
+        const data = await readJson(`/api/site-context/${encodeURIComponent(listing.id)}`);
+        if (!data) html = '지구단위계획 용적률·높이 기준을 불러오지 못했어요.';
+        else {
+          const plans = (data.zones || []).find(z => z.id === 'district-plan')?.items || [];
+          const summary = renderFarSummary(plans);
+          html = summary
+            ? `<p>이 필지가 속한 <b>지구단위계획 건축 기준</b>이에요.</p>${summary}<p class="assistant-note">구역 단위 기준이며, 해당 획지에 적용되는지는 고시·도면 확인이 필요해요.</p><div class="assistant-chiprow"><button type="button" class="assistant-chip assistant-chip-primary" data-ask-nav="detail">상세페이지에서 보기</button></div>`
+            : '보유 자료에서 이 필지의 지구단위계획 용적률·높이 기준을 찾지 못했어요. 고시 원문과 도면 확인이 필요해요.';
+        }
       } else html = '알 수 없는 요청이에요.';
       await settle();
       scan.remove();

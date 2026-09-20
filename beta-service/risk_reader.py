@@ -106,6 +106,7 @@ def read_risk(connection, source_id, include_registers=True, include_context=Tru
                 'recap': recap, 'buildings': buildings}
     parcel = {'status': 'missing', 'rows': []}
     plans = {'status': 'missing-parcel', 'rows': []}
+    far = {'status': 'missing-parcel', 'rows': []}
     education = {'status': 'missing-parcel', 'rows': []}
     tourism = {'status': 'missing-parcel', 'rows': []}
     road = {'status': 'missing-parcel', 'rows': []}
@@ -145,22 +146,57 @@ def read_risk(connection, source_id, include_registers=True, include_context=Tru
                     SELECT ST_Transform(geom,4326) AS geom FROM public.seoul_parcel_map
                     WHERE pnu=%s AND ST_IsValid(geom) AND ST_SRID(geom)=5174
                 ), candidates AS (
-                    SELECT d.id, d.zone_name AS name, d.notice_title AS title,
+                    SELECT d.id, d.dgm_nm AS "dgmName", d.zone_name AS name, d.notice_title AS title,
                            d.notice_date AS "noticeDate", d.notice_no AS "noticeNumber",
                            d.notice_pdf_name AS "pdfName", d.notice_pdf_url AS "pdfUrl",
                            d.drawings, d.updated_at AS "storedAt",
+                           s.base_notice_no AS "baseNoticeNo", s.base_notice_date AS "baseNoticeDate",
+                           s.base_notice_name AS "baseNoticeName", s.base_notice_url AS "baseNoticeUrl",
+                           s.latest_notice_no AS "latestNoticeNo", s.latest_notice_date AS "latestNoticeDate",
+                           s.rep_kind AS "repKind", s.rep_group AS "repGroup", s.rep_name AS "repName",
+                           s.rep_url AS "repUrl", s.rep_date AS "repDate", s.rep_used AS "repUsed",
+                           s.guidelines,
                            CASE WHEN ST_SRID(d.geom)=4326 AND ST_IsValid(d.geom) AND NOT ST_IsEmpty(d.geom)
                                 THEN ST_Relate(d.geom,p.geom,'T********') END AS "overlaps",
                            CASE WHEN ST_SRID(d.geom)=4326 AND ST_IsValid(d.geom) AND NOT ST_IsEmpty(d.geom)
                                 THEN ST_Covers(d.geom,p.geom) END AS "covers",
                            CASE WHEN ST_SRID(d.geom)=4326 AND ST_IsValid(d.geom) AND NOT ST_IsEmpty(d.geom)
                                 THEN ST_Touches(d.geom,p.geom) END AS "touches"
-                    FROM public.district_unit_plan d JOIN p ON d.geom && p.geom
+                    FROM public.district_unit_plan d
+                    LEFT JOIN public.v_district_sources s ON s.dgm_nm = d.dgm_nm
+                    JOIN p ON d.geom && p.geom
                 )
                 SELECT *, COUNT(*) OVER() AS total FROM candidates
                 WHERE "overlaps" IS TRUE OR "touches" IS TRUE OR "overlaps" IS NULL
                 ORDER BY "noticeDate" DESC NULLS LAST, id LIMIT 21
             ''', (pnu,))
+            # 지구단위계획 용적률·건폐율·높이 기준 (정제 뷰 v_far_serving_full).
+            # 특정 획지 지정 여부는 도면 확인 전이므로, 구역 전체 기준을 참고용으로 함께 전달한다.
+            far_names = []
+            for row in (plans.get('rows') or []):
+                for key in ('dgmName', 'name'):
+                    value = row.get(key)
+                    if isinstance(value, str) and value.strip():
+                        far_names.append(value.strip())
+                        break
+            far_names = sorted(set(far_names))[:20]
+            far = fetch('''
+                SELECT dgm_nm AS "dgmName", zone_raw, zone_class, zone_detail,
+                       road_side, label_quality, change_type,
+                       far_standard, far_allowed, far_upper,
+                       bcr, height_m, floors,
+                       source_article, method, confidence,
+                       base_notice_no AS "baseNoticeNo", base_notice_date AS "baseNoticeDate",
+                       base_notice_url AS "baseNoticeUrl",
+                       source_file_name AS "sourceFileName", source_file_url AS "sourceFileUrl",
+                       source_group AS "sourceGroup"
+                FROM public.v_far_serving_full
+                WHERE dgm_nm = ANY(%s)
+                ORDER BY dgm_nm,
+                    CASE zone_class WHEN '구역' THEN 0 WHEN '획지' THEN 1 WHEN '용도지역' THEN 2
+                                    WHEN '입지' THEN 3 WHEN '용도' THEN 4 WHEN '기타' THEN 5 ELSE 6 END,
+                    id
+            ''', (far_names,)) if far_names else {'status': 'mismatch', 'rows': []}
             # Transform the single parcel, keeping source geometries indexed and unchanged.
             education = remote_zone('education_safezones',pnu) if remote_mode() else fetch('''
                 WITH p AS (SELECT geom FROM public.seoul_parcel_map WHERE pnu=%s), candidates AS (
@@ -199,5 +235,5 @@ def read_risk(connection, source_id, include_registers=True, include_context=Tru
             ''', (pnu,))
     return {'sourceId': source_id, 'address': address, 'pnu': pnu,
             'observedAt': datetime.now(timezone.utc).isoformat(),
-            'recap': recap, 'buildings': buildings, 'parcel': parcel, 'plans': plans,
+            'recap': recap, 'buildings': buildings, 'parcel': parcel, 'plans': plans, 'far': far,
             'education': education, 'tourism': tourism, 'heritage': heritage, 'road': road}
