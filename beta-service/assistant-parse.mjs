@@ -13,7 +13,9 @@ export function ruleFilters(text) {
   const districts = DISTRICTS.filter(name => t.includes(name) || (name.endsWith('구') && name.length >= 3 && t.includes(name.slice(0, -1))));
   if (districts.length) filters.districts = districts;
   // "상업지역", "특화구역" 같은 용도·구역 표현을 역 이름으로 잘못 잡지 않도록 제거한 뒤 역을 찾는다.
-  const station = t.replace(/[가-힣]{1,8}(지역|구역|지구)/g, ' ').match(/([가-힣A-Za-z0-9]{2,12})\s*역/);
+  // "홍대입구역"의 "입구역"처럼 역 이름 안의 글자를 지우지 않도록 구역은 알려진 접미사만 지운다.
+  const stationText = t.replace(/[가-힣]{0,8}지역/g, ' ').replace(/(특화|보호|보존|계획|정비|개발|관리|시설|유원)구역/g, ' ');
+  const station = stationText.match(/([가-힣A-Za-z0-9]{2,12})\s*역/);
   if (station) filters.stationName = station[1];
   const walk = t.match(/도보\s*(\d+)\s*분/);
   if (walk) filters.maxDistanceM = Number(walk[1]) * WALK_METERS_PER_MIN;
