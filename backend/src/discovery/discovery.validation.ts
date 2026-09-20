@@ -6,7 +6,7 @@ const optionalNumber=(v:unknown,max=1e15)=>{
   if(v===null||v===undefined||v==='')return null;
   const n=positive(v,max);if(n===null)throw new BadRequestException('Invalid number');return n;
 };
-const listingKey=/^(?:naver:\d{1,30}|naver-land:\d{1,30}|premium:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$/;
+const listingKey=/^(?:naver:\d{1,30}|naver-land:\d{1,30}|premium:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}|disco:[A-Za-z0-9]{4,24})$/;
 export function validateItem(kind:string,key:string,input:any) {
   if(!KINDS.includes(kind)||!input||typeof input!=='object'||Array.isArray(input)||JSON.stringify(input).length>32768)throw new BadRequestException('Invalid saved item');
   if(['favorite','feedback'].includes(kind)&&!listingKey.test(key))throw new BadRequestException('Invalid listing');
