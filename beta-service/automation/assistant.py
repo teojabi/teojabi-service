@@ -315,7 +315,6 @@ def search(conn, filters):
         has_disco = bool(rel['d'])
         has_premium = bool(rel['p'])
         source = source_from(has_disco, has_premium)
-        total = count(cur, source, where, params)
         cur.execute('SELECT "구", count(*) AS n FROM ' + source + ' n WHERE ' + where_sql + ' GROUP BY "구" ORDER BY n DESC LIMIT 6', params)
         districts = [{'name': r['구'], 'count': int(r['n'])} for r in cur.fetchall() if r['구']]
         join = '' if not has_curation else ('LEFT JOIN public.teojabi_curation_candidates c ON c.source_id=n."매물번호" AND c.source_table IN (\'naver\',\'naver_land\') '
@@ -366,32 +365,23 @@ def search(conn, filters):
         for group, row in zip(groups, ordered[:limit]):
             group['representative'] = row
         counts = {k: len(v) for k, v in grouped.items()}
-        origin_totals = {'premium': 0, 'registered': 0, 'disco': 0}
-        if has_curation:
-            for key, clause in (('premium', "c.snapshot->'teojabiPick'->>'status'='published'"),
-                                ('registered', "c.id IS NOT NULL AND COALESCE(c.snapshot->'teojabiPick'->>'status','')<>'published'")):
-                trial_where = where + [clause]
-                trial_params = params + []
-                try:
-                    cur.execute('SELECT count(*) AS total FROM ' + source + ' n '
-                                'LEFT JOIN public.teojabi_curation_candidates c ON c.source_id=n."매물번호" AND c.source_table IN (\'naver\',\'naver_land\') '
-                                'LEFT JOIN public.teojabi_listing_number ln ON ln.listing_id = \'naver:\' || n."매물번호" '
-                                'WHERE ' + ' AND '.join(trial_where), trial_params)
-                    origin_totals[key] += int(cur.fetchone()['total'])
-                except Exception:
-                    conn.rollback()
-        if has_premium:
-            try:
-                cur.execute('SELECT count(*) AS total FROM ' + source + ' n WHERE ' + ' AND '.join(where + ["n.source_kind='premium'"]), params)
-                origin_totals['premium'] += int(cur.fetchone()['total'])
-            except Exception:
-                conn.rollback()
+        # 출처별 집계를 한 번의 스캔으로 계산한다(통합 소스 반복 스캔 방지).
+        agg = 'SELECT count(*) AS total'
         if has_disco:
-            try:
-                cur.execute('SELECT count(*) AS total FROM ' + source + ' n WHERE ' + ' AND '.join(where + ["n.source_kind='disco'"]), params)
-                origin_totals['disco'] = int(cur.fetchone()['total'])
-            except Exception:
-                conn.rollback()
+            agg += ", count(*) FILTER (WHERE n.source_kind='disco') AS disco"
+        if has_premium:
+            agg += ", count(*) FILTER (WHERE n.source_kind='premium') AS premium_prop"
+        if has_curation:
+            agg += (", count(*) FILTER (WHERE c.snapshot->'teojabiPick'->>'status'='published') AS premium_cand"
+                    ", count(*) FILTER (WHERE c.id IS NOT NULL AND COALESCE(c.snapshot->'teojabiPick'->>'status','')<>'published') AS registered")
+        cur.execute(agg + ' FROM ' + source + ' n ' + join + ' WHERE ' + where_sql, params)
+        aggrow = cur.fetchone()
+        total = int(aggrow['total'])
+        origin_totals = {
+            'premium': (int(aggrow.get('premium_cand') or 0) if has_curation else 0) + (int(aggrow.get('premium_prop') or 0) if has_premium else 0),
+            'registered': int(aggrow.get('registered') or 0) if has_curation else 0,
+            'disco': int(aggrow.get('disco') or 0) if has_disco else 0,
+        }
         origin_totals['naver'] = total - origin_totals['premium'] - origin_totals['registered'] - origin_totals['disco']
         relax = relaxations(cur, source, filters, station, where, params, total) if total == 0 else []
     result = {'status': 'ready', 'total': total, 'groups': groups, 'districts': districts,
