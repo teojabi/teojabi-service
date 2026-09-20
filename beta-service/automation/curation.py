@@ -94,24 +94,25 @@ def prepare(raw, table):
             (['임대료·보증금·공실·명도 조건 확인'] if category!='land' else ['실제 접도·토지 현황 확인']),
         scopeStatus='통매입 여부 확인 필요' if category!='land' else '매각 필지 범위 확인 필요')
 
-def allocate(cells):
+def allocate(cells, types, budgets):
     """Integral min-cost flow: match totals and spread each type across budgets."""
     capacity=defaultdict(int); neighbours=defaultdict(list)
+    total=max(1,sum(types.values()))
     def edge(a,b,n):
         capacity[a,b]=n; neighbours[a].append(b); neighbours[b].append(a)
-    for cat,n in TYPES.items():
+    for cat,n in types.items():
         edge('s',cat,n)
-        for b in range(5): edge(cat,f'b{b}',len(cells[cat,b]))
-    for b,n in enumerate(BUDGETS): edge(f'b{b}','t',n)
+        for b in range(len(budgets)): edge(cat,f'b{b}',len(cells[cat,b]))
+    for b,n in enumerate(budgets): edge(f'b{b}','t',n)
     initial=dict(capacity)
     while True:
         parent={'s':None}; queue=deque(['s']);distance={'s':0};queued={'s'}
         def cost(a,b):
-            if a in TYPES and b.startswith('b'):
-                used=initial[a,b]-capacity[a,b];expected=TYPES[a]*BUDGETS[int(b[1:])]/200
+            if a in types and b.startswith('b'):
+                used=initial[a,b]-capacity[a,b];expected=types[a]*budgets[int(b[1:])]/total
                 return round((2*used+1-2*expected)*100)
-            if b in TYPES and a.startswith('b'):
-                used=initial[b,a]-capacity[b,a];expected=TYPES[b]*BUDGETS[int(a[1:])]/200
+            if b in types and a.startswith('b'):
+                used=initial[b,a]-capacity[b,a];expected=types[b]*budgets[int(a[1:])]/total
                 return -round((2*(used-1)+1-2*expected)*100)
             return 0
         while queue:
@@ -127,9 +128,10 @@ def allocate(cells):
         b='t'
         while parent[b] is not None:
             a=parent[b]; capacity[a,b]-=n; capacity[b,a]+=n; b=a
-    return {(cat,b):initial[cat,f'b{b}']-capacity[cat,f'b{b}'] for cat in TYPES for b in range(5)}
+    return {(cat,b):initial[cat,f'b{b}']-capacity[cat,f'b{b}'] for cat in types for b in range(len(budgets))}
 
-def select_candidates(rows):
+def select_candidates(rows, types=None, budgets=None):
+    types=dict(types or TYPES); budgets=list(budgets or BUDGETS)
     groups=defaultdict(list)
     for r in rows: groups[r['group_key']].append(r)
     unique=[]
@@ -151,23 +153,55 @@ def select_candidates(rows):
         # A conservative unit/error check, not a claim about fair market value.
         if len(values)>=10 and r['price']/r['areaM2']>8*median(values):outliers+=1;continue
         cells[r['category'],r['budget']].append(r)
-    allocation=allocate(cells); selected=[]; district=Counter(); brokers=Counter()
+    allocation=allocate(cells, types, budgets); selected=[]; district=Counter(); brokers=Counter()
     for (cat,b),count in allocation.items():
         pool=list(cells[cat,b])
         for _ in range(count):
+            if not pool: break
             row=min(pool,key=lambda r:(district[r['district']],brokers[r['broker']],-r['priority'],r['price'],r['source_id']))
             pool.remove(row); selected.append(row); district[row['district']]+=1; brokers[row['broker']]+=1
     # Keep shortfall visible rather than silently relaxing agreed quotas.
-    selected.sort(key=lambda r:(r['budget'],list(TYPES).index(r['category']),r['district'],r['price'],r['source_id']))
+    selected.sort(key=lambda r:(r['budget'],list(types).index(r['category']),r['district'],r['price'],r['source_id']))
     return selected,dict(eligible=len(rows),unique=len(unique),priceOutliersDeferred=outliers,selected=len(selected),
-        categoryTargets=TYPES,priceTargets=BUDGETS,
+        categoryTargets=types,priceTargets=budgets,
         categoryActual=dict(Counter(r['category'] for r in selected)),
         priceActual=dict(Counter(str(r['budget']) for r in selected)),
         districts=dict(Counter(r['district'] for r in selected)),
         method='가격·유형 배정 후 지역·중개사 분산, 연락·필지·용도 정보 완성도 우선. 투자수익·저평가 순위 아님.')
 
-def refresh_auto_selection(conn):
-    """Rebuild only the automatic 200-row cohort and preserve manually registered rows."""
+def normalize_criteria(criteria):
+    """관리자가 정한 유형·가격대 배분을 검증한다. 없으면 기본값(200개)을 쓴다."""
+    if not isinstance(criteria,dict) or not criteria:
+        return dict(TYPES),list(BUDGETS)
+    raw_types=criteria.get('types') if isinstance(criteria.get('types'),dict) else {}
+    types={}
+    for key,default in TYPES.items():
+        try: value=int(raw_types.get(key,default))
+        except (TypeError,ValueError): value=default
+        types[key]=max(0,min(1000,value))
+    raw_budgets=criteria.get('budgets') if isinstance(criteria.get('budgets'),list) else []
+    budgets=[]
+    for i,default in enumerate(BUDGETS):
+        try: value=int(raw_budgets[i]) if i<len(raw_budgets) else default
+        except (TypeError,ValueError): value=default
+        budgets.append(max(0,min(1000,value)))
+    total=sum(types.values())
+    if total<=0 or sum(budgets)!=total: raise ValueError('Invalid criteria')
+    return types,budgets
+
+def delete_all_registered(conn):
+    """등록 매물(터잡이픽 포함)을 모두 삭제한다. 관리자 확인 후에만 호출된다."""
+    with conn.cursor(cursor_factory=RealDictCursor) as cur:
+        cur.execute('SELECT pg_advisory_xact_lock(174209151)')
+        cur.execute('SELECT to_regclass(%s) AS name',(TABLE,))
+        if not cur.fetchone()['name']: return {'status':'refreshed','deleted':0,'selected':0}
+        cur.execute(f'DELETE FROM {TABLE}')
+        return {'status':'refreshed','deleted':cur.rowcount,'selected':0}
+
+def refresh_auto_selection(conn, criteria=None):
+    """Rebuild only the automatic cohort and preserve manually registered rows."""
+    types,budgets=normalize_criteria(criteria)
+    total=sum(types.values())
     with conn.cursor(cursor_factory=RealDictCursor) as cur:
         cur.execute('SELECT pg_advisory_xact_lock(174209151)')
         cur.execute(f"SELECT source_table,source_id,group_key FROM {TABLE} WHERE snapshot ? 'teojabiPick'")
@@ -183,9 +217,9 @@ def refresh_auto_selection(conn):
                 row=prepare(item['row'],table)
                 if row and (row['source_table'],row['source_id']) not in protected_sources and row['group_key'] not in protected_groups:
                     all_rows.append(row)
-        selected,meta=select_candidates(all_rows)
-        if len(selected)!=200: raise ValueError('Automatic selection did not produce 200 rows')
-        now=datetime.now(timezone.utc).isoformat();meta.update(scanned=scanned,snapshotAt=now,criteriaVersion='v1-2026-09-16')
+        selected,meta=select_candidates(all_rows,types,budgets)
+        if len(selected)!=total: raise ValueError('Automatic selection did not produce the requested count')
+        now=datetime.now(timezone.utc).isoformat();meta.update(scanned=scanned,snapshotAt=now,criteriaVersion='v1-2026-09-16',criteria={'types':types,'budgets':budgets})
         cur.execute(f"DELETE FROM {TABLE} WHERE NOT (snapshot ? 'teojabiPick')")
         for rank,row in enumerate(selected,1):
             row['snapshotAt']=now;row.pop('priority',None)
@@ -193,6 +227,7 @@ def refresh_auto_selection(conn):
                             VALUES(%s,%s,%s,%s,%s,%s,%s,%s)''',
                         (row['source_table'],row['source_id'],row['group_key'],rank,row['category'],row['budget'],Json(clean(row)),Json(meta)))
         return {'status':'refreshed','selected':len(selected),'preserved':len(protected),'snapshotAt':now,
+                'criteria':{'types':types,'budgets':budgets},
                 'sourceIds':[f"{row['source_table']}:{row['source_id']}" for row in selected]}
 
 def seed(conn,rebalance=False):
@@ -518,7 +553,9 @@ def update(conn,data):
     if isinstance(data,dict) and data.get('action')=='delete':
         result=delete_pick(conn,data); listing(conn); return result
     if isinstance(data,dict) and data.get('action')=='auto_select_200':
-        result=refresh_auto_selection(conn); listing(conn); source_listing(conn); return result
+        result=refresh_auto_selection(conn, data.get('criteria')); listing(conn); source_listing(conn); return result
+    if isinstance(data,dict) and data.get('action')=='delete_all':
+        result=delete_all_registered(conn); listing(conn); return result
     base_keys={'id','version','review_status','cooperation_status','advertising_status','notes'}
     if not isinstance(data,dict) or not base_keys.issubset(data) or any(k not in base_keys|{'pick'} for k in data): raise ValueError('Invalid fields')
     if type(data['id']) is not int or type(data['version']) is not int or data['id']<1 or data['version']<1: raise ValueError('Invalid version')
