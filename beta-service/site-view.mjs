@@ -1,7 +1,7 @@
 import { apiFetch } from './api-client.mjs';
 import { saveNamed } from './member.mjs';
 import { openReviewExport } from './site-export.mjs';
-import { loadNaverMaps } from './map-controller.mjs';
+import { loadNaverMaps, openStreetView } from './map-controller.mjs';
 import { validateSiteInputs,constructionEstimate } from './site-inputs.mjs';
 import { selectedLedgerArea } from './land-policy.mjs';
 import { selectionKey, syncSiteRatios, renderSiteContext } from './site-context.mjs';
@@ -14,8 +14,9 @@ export function mountSiteReview(root,{draft,onBack}) {
   const abort=new AbortController(),selected=new Map(draft.selected.map(f=>[f.id,f])),cache=new Map();
   let disposed=false,restoring=false,version=0,n,map,observer,features=[...selected.values()],architects=[],architectQuery='',galleryTimers;const listeners=[];
   const $=s=>root.querySelector(s);
+  const featureCentroid=f=>{try{const rings=f.geometry.type==='MultiPolygon'?f.geometry.coordinates.flat():f.geometry.coordinates;let x=0,y=0,c=0;for(const ring of rings)for(const [lng,lat] of ring){x+=lng;y+=lat;c+=1;}return c?{lat:y/c,lng:x/c}:null;}catch{return null;}};
   draft.areaUnit??='m2';draft.unitCost??='1000';
-  root.innerHTML=`<section class="site-review"><button class="back" data-site="back">← ${draft.listingId?'매물 상세로 돌아가기':'처음으로'}</button><header class="site-heading"><span class="eyebrow">BUILDING & LAND</span><h1>건물·토지</h1><p>지도에서 땅을 눌러 선택하고, 검토 조건을 입력해 보세요.</p></header><div class="site-layout"><section class="site-picker"><h2><span>01</span> 검토할 필지 선택</h2><form id="site-search"><label for="site-address">선택한 주소 · 직접 검색도 가능해요</label><div><input id="site-address" value="${esc(draft.address)}" placeholder="예: 서울특별시 금천구 시흥동 999-45" maxlength="150" autocomplete="off"><button class="outline" type="submit">필지 찾기</button></div></form><div class="site-map-wrap"><div class="site-map" role="region" aria-label="검토 필지 선택 지도"></div><button class="outline" data-site="nearby" disabled>필지 선택</button></div><p class="site-map-status" role="status">지도를 불러오고 있어요.</p><p class="site-search-status" role="status"></p><div class="site-parcel-list" aria-label="검색한 필지"></div><p class="site-selection-count" aria-live="polite"></p><p class="case-note">지도 경계나 목록에서 필지를 선택·해제하세요. 여러 필지를 함께 선택할 수 있어요.</p></section><section class="site-input-card"><h2><span>02</span> 검토 조건 입력</h2><div class="site-ledger-summary" aria-live="polite"></div><form id="site-inputs" novalidate><div class="site-input-grid">${[['landArea','대지면적','㎡',draft.fields.landArea],['far','용적률','%',draft.fields.far],['bcr','건폐율','%',draft.fields.bcr],['height','높이','m',draft.fields.height],['unitCost','평당 공사비','만원',draft.unitCost]].map(([key,label,unit,value])=>`<label for="site-${key}">${label}${['landArea','unitCost'].includes(key)?'':' <small>선택</small>'}<div><input id="site-${key}" name="${key}" value="${esc(value)}" type="text" inputmode="decimal" autocomplete="off" placeholder="직접 입력"><span>${unit}</span></div></label>`).join('')}</div><p class="site-area-source">${esc(draft.areaSource)} · 선택한 전체 대지의 면적인지 확인해 주세요.</p><label class="site-memo-label" for="site-memo">계획하는 용도·메모 <small>선택</small></label><textarea id="site-memo" rows="3" maxlength="1000" placeholder="예: 1층 카페, 상층부 사무실">${esc(draft.memo||'')}</textarea><p class="case-note">확인한 기준이나 검토할 가정값을 입력해 주세요. 입력값은 공식 허용치로 확정되지 않아요.</p><p class="site-input-error" role="alert"></p><button class="primary" type="submit">입력한 조건 확인</button><p class="case-note">입력한 검토는 계정에 저장하거나 파일로 내려받을 수 있어요.</p></form><div class="site-input-summary" hidden aria-live="polite"></div></section></div></section>`;
+  root.innerHTML=`<section class="site-review"><button class="back" data-site="back">← ${draft.listingId?'매물 상세로 돌아가기':'처음으로'}</button><header class="site-heading"><span class="eyebrow">BUILDING & LAND</span><h1>건물·토지</h1><p>지도에서 땅을 눌러 선택하고, 검토 조건을 입력해 보세요.</p></header><div class="site-layout"><section class="site-picker"><h2><span>01</span> 검토할 필지 선택</h2><form id="site-search"><label for="site-address">선택한 주소 · 직접 검색도 가능해요</label><div><input id="site-address" value="${esc(draft.address)}" placeholder="예: 서울특별시 금천구 시흥동 999-45" maxlength="150" autocomplete="off"><button class="outline" type="submit">필지 찾기</button></div></form><div class="site-map-wrap"><div class="site-map" role="region" aria-label="검토 필지 선택 지도"></div><button class="outline" data-site="nearby" disabled>필지 선택</button><button class="outline site-street-button" data-site="street" type="button" disabled>거리뷰</button></div><p class="site-map-status" role="status">지도를 불러오고 있어요.</p><p class="site-search-status" role="status"></p><div class="site-parcel-list" aria-label="검색한 필지"></div><p class="site-selection-count" aria-live="polite"></p><p class="case-note">지도 경계나 목록에서 필지를 선택·해제하세요. 여러 필지를 함께 선택할 수 있어요.</p></section><section class="site-input-card"><h2><span>02</span> 검토 조건 입력</h2><div class="site-ledger-summary" aria-live="polite"></div><form id="site-inputs" novalidate><div class="site-input-grid">${[['landArea','대지면적','㎡',draft.fields.landArea],['far','용적률','%',draft.fields.far],['bcr','건폐율','%',draft.fields.bcr],['height','높이','m',draft.fields.height],['unitCost','평당 공사비','만원',draft.unitCost]].map(([key,label,unit,value])=>`<label for="site-${key}">${label}${['landArea','unitCost'].includes(key)?'':' <small>선택</small>'}<div><input id="site-${key}" name="${key}" value="${esc(value)}" type="text" inputmode="decimal" autocomplete="off" placeholder="직접 입력"><span>${unit}</span></div></label>`).join('')}</div><p class="site-area-source">${esc(draft.areaSource)} · 선택한 전체 대지의 면적인지 확인해 주세요.</p><label class="site-memo-label" for="site-memo">계획하는 용도·메모 <small>선택</small></label><textarea id="site-memo" rows="3" maxlength="1000" placeholder="예: 1층 카페, 상층부 사무실">${esc(draft.memo||'')}</textarea><p class="case-note">확인한 기준이나 검토할 가정값을 입력해 주세요. 입력값은 공식 허용치로 확정되지 않아요.</p><p class="site-input-error" role="alert"></p><button class="primary" type="submit">입력한 조건 확인</button><p class="case-note">입력한 검토는 계정에 저장하거나 파일로 내려받을 수 있어요.</p></form><div class="site-input-summary" hidden aria-live="polite"></div></section></div></section>`;
   const clearSummary=()=>{$('.site-input-summary').hidden=true;$('.site-input-error').textContent='';};
   $('#site-search').before($('.site-map-wrap'));
   const areaText=m2=>`${(Number(m2)*(draft.areaUnit==='pyeong'?121/400:1)).toLocaleString('ko-KR',{maximumFractionDigits:2})}${draft.areaUnit==='pyeong'?'평':'㎡'}`;
@@ -192,7 +193,7 @@ export function mountSiteReview(root,{draft,onBack}) {
   async function startMap() {
     try {
       n=await loadNaverMaps();if(disposed)return;
-      map=new n.Map($('.site-map'),{center:new n.LatLng(37.5665,126.978),zoom:17,minZoom:12,maxZoom:21,zoomControl:true,zoomControlOptions:{position:n.Position.TOP_RIGHT},scaleControl:true,mapDataControl:true});
+      map=new n.Map($('.site-map'),{center:new n.LatLng(37.5665,126.978),zoom:17,minZoom:12,maxZoom:21,zoomControl:false,scaleControl:true,mapDataControl:true});
       let parcelClickedAt=0;
       listeners.push(n.Event.addListener(map.data,'click',e=>{parcelClickedAt=Date.now();++version;toggle(String(e.feature.getProperty('pnu')));}));
       listeners.push(n.Event.addListener(map,'click',e=>{if(restoring||Date.now()-parcelClickedAt<200)return;const point={lat:e.coord.lat(),lng:e.coord.lng()};search(point,{fit:false,clickPoint:point});}));
@@ -202,7 +203,7 @@ export function mountSiteReview(root,{draft,onBack}) {
       setTimeout(refreshMapSize,900);
       window.addEventListener('resize',refreshMapSize,{signal:abort.signal});
       window.addEventListener('orientationchange',refreshMapSize,{signal:abort.signal});
-      $('[data-site=nearby]').disabled=restoring;$('.site-map-status').textContent='지도를 누르면 주소가 자동으로 입력돼요. 파란색이 선택한 필지예요.';renderParcels(true);
+      $('[data-site=nearby]').disabled=restoring;$('[data-site=street]').disabled=false;$('.site-map-status').textContent='지도를 누르면 주소가 자동으로 입력돼요. 파란색이 선택한 필지예요.';renderParcels(true);
     } catch(error){mapError(error.message||'지도를 불러오지 못했어요. 주소 검색과 목록으로 필지를 선택할 수 있어요.');}
   }
   root.addEventListener('click',async e=>{
@@ -247,6 +248,12 @@ export function mountSiteReview(root,{draft,onBack}) {
       const center=map.getCenter();
       try{await search({lat:center.lat(),lng:center.lng()},{fit:false});}
       finally{if(!disposed){button.disabled=false;button.textContent='필지 선택';button.setAttribute('aria-pressed',String(features.length>0));$('.site-map-status').textContent=features.length?'필지 경계를 표시했어요. 원하는 필지를 눌러 선택하세요.':'이 위치의 필지를 찾지 못했어요. 지도를 이동해 다시 눌러 주세요.';}}
+    }
+    if(button.dataset.site==='street'){
+      const first=[...selected.values()][0];
+      const position=first?featureCentroid(first):(map?{lat:map.getCenter().lat(),lng:map.getCenter().lng()}:null);
+      if(!position){$('.site-map-status').textContent='지도를 불러온 뒤 거리뷰를 열 수 있어요.';return;}
+      openStreetView(position,first?.properties?.address||draft.address||'선택한 위치');
     }
   },{signal:abort.signal});
   root.addEventListener('submit',e=>{
