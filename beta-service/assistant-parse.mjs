@@ -104,13 +104,19 @@ export async function geminiFilters(message, key, condition) {
     `사용자 문장: ${String(message).slice(0, 400)}`,
   ].filter(Boolean).join('\n');
   try {
-    const model = process.env.GEMINI_MODEL || 'gemini-2.5-flash-lite';
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.1, topP: 0.9, maxOutputTokens: 1024, responseMimeType: 'application/json' } }),
-      signal: AbortSignal.timeout(15000),
-    });
-    if (!response.ok) return { filters: {}, unsupported: null, reply: 'DEBUG http ' + response.status };
+    const models = [...new Set([process.env.GEMINI_MODEL, 'gemini-2.5-flash-lite', 'gemini-2.5-flash', 'gemini-flash-lite-latest', 'gemini-flash-latest'].filter(Boolean))];
+    let response = null, lastStatus = 0;
+    for (const model of models) {
+      response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.1, topP: 0.9, maxOutputTokens: 1024, responseMimeType: 'application/json' } }),
+        signal: AbortSignal.timeout(15000),
+      });
+      lastStatus = response.status;
+      if (response.ok) break;
+      if (![404, 429, 500, 503].includes(response.status)) break;
+    }
+    if (!response || !response.ok) return { filters: {}, unsupported: null, reply: 'DEBUG allfail last=' + lastStatus };
     const data = await response.json();
     const text = (data?.candidates || []).flatMap(c => c?.content?.parts || []).map(p => p?.text).filter(Boolean).join('\n').trim();
     const match = text.match(/\{[\s\S]*\}/);
