@@ -38,14 +38,15 @@ def clean(value, max_len=60):
 
 
 def origin_expression():
-    """터잡이 매물 판정은 매물번호 보관 테이블(teojabi_listing_number)을 기준으로 한다.
+    """터잡이 매물 판정은 후보 테이블(teojabi_curation_candidates)의 존재 여부로 한다.
 
-    여기에 매물번호가 있으면 터잡이 등록·추천 매물이고, 없으면 네이버 수집 매물이다.
+    후보가 있으면 터잡이 등록·추천 매물, 없으면 네이버 수집 매물이다. 매물번호 보관 테이블은
+    삭제된 후보의 번호가 남을 수 있어 판정 기준으로 쓰지 않는다(유령 매물 방지).
     터잡이 추천(픽)만 후보 테이블의 published 상태로 따로 구분한다.
     """
     return '''CASE
         WHEN c.snapshot->'teojabiPick'->>'status' = 'published' THEN 'premium'
-        WHEN ln.listing_id IS NOT NULL THEN 'registered'
+        WHEN c.id IS NOT NULL THEN 'registered'
         ELSE 'naver' END'''
 
 
@@ -268,7 +269,7 @@ def search(conn, filters):
         join = '' if not has_curation else ('LEFT JOIN public.teojabi_curation_candidates c ON c.source_id=n."매물번호" AND c.source_table IN (\'naver\',\'naver_land\') '
             'LEFT JOIN public.teojabi_listing_number ln ON ln.listing_id = \'naver:\' || n."매물번호"')
         origin = "'naver'" if not has_curation else origin_expression()
-        pick_no = "NULL" if not has_curation else "COALESCE(c.snapshot->'teojabiPick'->>'pickNo', ln.teojabi_no)"
+        pick_no = "NULL" if not has_curation else "CASE WHEN c.id IS NOT NULL THEN COALESCE(c.snapshot->'teojabiPick'->>'pickNo', ln.teojabi_no) ELSE NULL END"
         select_point = ''
         if station:
             # 요청한 역까지의 거리를 결과에 실어 보낸다. ORDER BY와 같은 좌표를 두 번 쓰지 않는다.
@@ -313,7 +314,7 @@ def search(conn, filters):
         counts = {k: len(v) for k, v in grouped.items()}
         origin_totals = {}
         for key, clause in (('premium', "c.snapshot->'teojabiPick'->>'status'='published'"),
-                            ('registered', "ln.listing_id IS NOT NULL AND COALESCE(c.snapshot->'teojabiPick'->>'status','')<>'published'")):
+                            ('registered', "c.id IS NOT NULL AND COALESCE(c.snapshot->'teojabiPick'->>'status','')<>'published'")):
             if not has_curation:
                 origin_totals[key] = 0; continue
             trial_where = where + [clause]
