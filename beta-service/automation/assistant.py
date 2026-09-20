@@ -65,8 +65,7 @@ def source_from(has_disco, has_premium):
                       "사용승인일자"::text AS "사용승인일자", "매물특징"::text AS "매물특징",
                       pnu::text AS pnu, lat::double precision AS lat, lng::double precision AS lng,
                       'naver'::text AS source_kind, NULL::text AS source_url
-               FROM public.naver
-               WHERE "상태" IN ('신규','유지') AND lat IS NOT NULL AND lng IS NOT NULL'''
+               FROM public.naver'''
     parts = [naver]
     if has_disco:
         parts.append('''SELECT d.did::text AS "매물번호", '신규'::text AS "상태", (d.price_manwon/10000.0)::numeric AS "거래가격",
@@ -316,6 +315,7 @@ def search(conn, filters):
         has_disco = bool(rel['d'])
         has_premium = bool(rel['p'])
         source = source_from(has_disco, has_premium)
+        total = count(cur, source, where, params)
         cur.execute('SELECT "구", count(*) AS n FROM ' + source + ' n WHERE ' + where_sql + ' GROUP BY "구" ORDER BY n DESC LIMIT 6', params)
         districts = [{'name': r['구'], 'count': int(r['n'])} for r in cur.fetchall() if r['구']]
         join = '' if not has_curation else ('LEFT JOIN public.teojabi_curation_candidates c ON c.source_id=n."매물번호" AND c.source_table IN (\'naver\',\'naver_land\') '
@@ -327,34 +327,32 @@ def search(conn, filters):
             # 요청한 역까지의 거리를 결과에 실어 보낸다. ORDER BY와 같은 좌표를 두 번 쓰지 않는다.
             select_point = ''', ST_Distance(ST_SetSRID(ST_MakePoint(n.lng,n.lat),4326)::geography,
                           ST_SetSRID(ST_MakePoint(%s,%s),4326)::geography) AS requested_dist_m'''
-        # 디스코를 앞세우지 않도록 출처는 무작위로 섞고, 터잡이 추천·등록만 먼저 둔다.
-        order = "CASE WHEN " + origin + " IN ('premium','registered') THEN 0 ELSE 1 END, random()"
+        order = 'CASE WHEN ' + origin + "='naver' THEN 1 ELSE 0 END, n.\"거래가격\""
         if filters.get('preferTourism'):
             # 관광숙박특화구역에 포함·걸친 매물을 먼저 보여준다. 조건이 아니라 정렬 우선순위다.
             order = tourism_rank_sql() + ', ' + order
-        # SQL 파라미터 순서는 SELECT(요청 역 거리) → WHERE → LIMIT 이다.
-        query_params = station_distance_params(station) + params + [limit]
-        row_sql = '''SELECT q.*, s.station_name, s.dist_m
-                     FROM (
-                         SELECT n."매물번호", n."대지위치", n."거래가격", n."대지면적", n."연면적", n."층정보",
-                                n."구", n."동", n."주용도코드명", n."용도지역", n."매물특징", n."도로폭_m",
-                                n."사용승인일자", n.pnu, n.lat, n.lng, n.source_kind, n.source_url,
-                                ''' + origin + ''' AS origin, ''' + pick_no + ''' AS teojabi_no''' + select_point + '''
-                         FROM ''' + source + ''' n ''' + join + '''
-                         WHERE ''' + where_sql + '''
-                         ORDER BY ''' + order + '''
-                         LIMIT %s
-                     ) q
+        if station:
+            order = 'ST_Distance(ST_SetSRID(ST_MakePoint(n.lng,n.lat),4326)::geography, ST_SetSRID(ST_MakePoint(%s,%s),4326)::geography), ' + order
+        # SQL 파라미터 순서는 SELECT(요청 역 거리) → WHERE → ORDER BY(역 기준 정렬) → LIMIT 이다.
+        query_params = station_distance_params(station) + params + station_distance_params(station) + [limit]
+        row_sql = '''SELECT n."매물번호", n."대지위치", n."거래가격", n."대지면적", n."연면적", n."층정보",
+                            n."구", n."동", n."주용도코드명", n."용도지역", n."매물특징", n."도로폭_m",
+                            n."사용승인일자", n.pnu, n.lat, n.lng, n.source_kind, n.source_url, s.station_name, s.dist_m,
+                            ''' + origin + ''' AS origin, ''' + pick_no + ''' AS teojabi_no''' + select_point + '''
+                     FROM ''' + source + ''' n ''' + join + '''
                      CROSS JOIN LATERAL (
                          SELECT station_name,
                                 ST_Distance(ST_SetSRID(ST_MakePoint(lng,lat),4326)::geography,
-                                            ST_SetSRID(ST_MakePoint(q.lng,q.lat),4326)::geography) AS dist_m
+                                            ST_SetSRID(ST_MakePoint(n.lng,n.lat),4326)::geography) AS dist_m
                          FROM public.seoul_subway_stations
                          WHERE lat IS NOT NULL
                          ORDER BY ST_SetSRID(ST_MakePoint(lng,lat),4326)::geography <->
-                                  ST_SetSRID(ST_MakePoint(q.lng,q.lat),4326)::geography
+                                  ST_SetSRID(ST_MakePoint(n.lng,n.lat),4326)::geography
                          LIMIT 1
-                     ) s'''
+                     ) s
+                     WHERE ''' + where_sql + '''
+                     ORDER BY ''' + order + '''
+                     LIMIT %s'''
         cur.execute(row_sql, query_params)
         rows = [row_dto(r, station, station) for r in cur.fetchall()]
         grouped = {'premium': [], 'registered': [], 'disco': [], 'naver': []}
@@ -366,23 +364,32 @@ def search(conn, filters):
         for group, row in zip(groups, ordered[:limit]):
             group['representative'] = row
         counts = {k: len(v) for k, v in grouped.items()}
-        # 출처별 집계를 한 번의 스캔으로 계산한다(통합 소스 반복 스캔 방지).
-        agg = 'SELECT count(*) AS total'
-        if has_disco:
-            agg += ", count(*) FILTER (WHERE n.source_kind='disco') AS disco"
-        if has_premium:
-            agg += ", count(*) FILTER (WHERE n.source_kind='premium') AS premium_prop"
+        origin_totals = {'premium': 0, 'registered': 0, 'disco': 0}
         if has_curation:
-            agg += (", count(*) FILTER (WHERE c.snapshot->'teojabiPick'->>'status'='published') AS premium_cand"
-                    ", count(*) FILTER (WHERE c.id IS NOT NULL AND COALESCE(c.snapshot->'teojabiPick'->>'status','')<>'published') AS registered")
-        cur.execute(agg + ' FROM ' + source + ' n ' + join + ' WHERE ' + where_sql, params)
-        aggrow = cur.fetchone()
-        total = int(aggrow['total'])
-        origin_totals = {
-            'premium': (int(aggrow.get('premium_cand') or 0) if has_curation else 0) + (int(aggrow.get('premium_prop') or 0) if has_premium else 0),
-            'registered': int(aggrow.get('registered') or 0) if has_curation else 0,
-            'disco': int(aggrow.get('disco') or 0) if has_disco else 0,
-        }
+            for key, clause in (('premium', "c.snapshot->'teojabiPick'->>'status'='published'"),
+                                ('registered', "c.id IS NOT NULL AND COALESCE(c.snapshot->'teojabiPick'->>'status','')<>'published'")):
+                trial_where = where + [clause]
+                trial_params = params + []
+                try:
+                    cur.execute('SELECT count(*) AS total FROM ' + source + ' n '
+                                'LEFT JOIN public.teojabi_curation_candidates c ON c.source_id=n."매물번호" AND c.source_table IN (\'naver\',\'naver_land\') '
+                                'LEFT JOIN public.teojabi_listing_number ln ON ln.listing_id = \'naver:\' || n."매물번호" '
+                                'WHERE ' + ' AND '.join(trial_where), trial_params)
+                    origin_totals[key] += int(cur.fetchone()['total'])
+                except Exception:
+                    conn.rollback()
+        if has_premium:
+            try:
+                cur.execute('SELECT count(*) AS total FROM ' + source + ' n WHERE ' + ' AND '.join(where + ["n.source_kind='premium'"]), params)
+                origin_totals['premium'] += int(cur.fetchone()['total'])
+            except Exception:
+                conn.rollback()
+        if has_disco:
+            try:
+                cur.execute('SELECT count(*) AS total FROM ' + source + ' n WHERE ' + ' AND '.join(where + ["n.source_kind='disco'"]), params)
+                origin_totals['disco'] = int(cur.fetchone()['total'])
+            except Exception:
+                conn.rollback()
         origin_totals['naver'] = total - origin_totals['premium'] - origin_totals['registered'] - origin_totals['disco']
         relax = relaxations(cur, source, filters, station, where, params, total) if total == 0 else []
     result = {'status': 'ready', 'total': total, 'groups': groups, 'districts': districts,
@@ -391,9 +398,6 @@ def search(conn, filters):
     if station:
         result['station'] = {'name': station['station_name'], 'lineNo': station['line_no'],
                              'lat': float(station['lat']), 'lng': float(station['lng'])}
-    # 역 이름을 줬는데 특정되지 않으면 조용히 전체를 검색하지 않고 안내한다.
-    if filters.get('stationName') and station is None:
-        result['stationMissing'] = clean(filters.get('stationName'), 20)
     return result
 
 

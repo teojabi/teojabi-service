@@ -13,18 +13,6 @@ const app = document.querySelector('#app');
 const emptyDraft=()=>({budgetEok:'',districts:[],purpose:null,minArea:'',maxArea:'',areaUnit:'pyeong',zones:[],...BUILD_DEFAULTS});
 const state = { screen: 'home', siteDraft:null, draft: emptyDraft(), applied: readRecentSearch(), editing: false, pane: 'list', activity:null, activityError:false, search:null };
 const appliedDraft=()=>state.applied?{...emptyDraft(),...state.applied,budgetEok:state.applied.budgetWon?String(state.applied.budgetWon/1e8):'',districts:[...state.applied.districts],zones:[...state.applied.zones]}:emptyDraft();
-// AI가 이해한 조건을 메인 검색 조건 초안으로 옮긴다.
-const draftFromFilters=filters=>{
-  const draft=emptyDraft();
-  if(!filters||typeof filters!=='object')return draft;
-  if(filters.budgetWon)draft.budgetEok=String(filters.budgetWon/1e8);
-  if(Array.isArray(filters.districts)&&filters.districts.length)draft.districts=[...filters.districts];
-  if(filters.purpose)draft.purpose=filters.purpose;
-  if(Array.isArray(filters.zones)&&filters.zones.length)draft.zones=[...filters.zones];
-  if(filters.minAreaM2!=null||filters.maxAreaM2!=null){draft.areaUnit='m2';draft.minArea=filters.minAreaM2!=null?String(filters.minAreaM2):'';draft.maxArea=filters.maxAreaM2!=null?String(filters.maxAreaM2):'';}
-  for(const key of ['preferTourism','excludeEducation','excludeHeritage'])if(filters[key])draft[key]=true;
-  return draft;
-};
 let disposeExplorer;
 let renderVersion=0;
 let explorerModulePromise;
@@ -111,7 +99,7 @@ updateMemberButton();
 member.refresh();
 resumeSignup(member);
 let assistantPayload=null,assistantOpenId=null;
-const assistantControls=mountAssistant({onResults:(data,openId)=>{assistantPayload=data;assistantOpenId=openId||null;state.screen='results';history.replaceState(null,'',location.pathname+(openId?'#listing='+encodeURIComponent(openId):'#assistant'));render();},onAnalyze:listing=>{if(state.siteDraft?.listingId!==listing.id)state.siteDraft=createSiteDraft(listing);state.screen='analyze';history.replaceState(null,'',location.pathname);render();},onEditConditions:filters=>{assistantControls?.close();state.draft=filters?draftFromFilters(filters):appliedDraft();state.editing=Boolean(state.applied);state.screen='purpose';history.replaceState(null,'',location.pathname);render();},onSearchCondition:payload=>{if(!payload)return;assistantControls?.close();state.applied={...payload,sort:payload.sort||'price'};state.screen='results';history.replaceState(null,'',location.pathname+'#search');render();}});
+const assistantControls=mountAssistant({onResults:(data,openId)=>{assistantPayload=data;assistantOpenId=openId||null;state.screen='results';history.replaceState(null,'',location.pathname+(openId?'#listing='+encodeURIComponent(openId):'#assistant'));render();},onAnalyze:listing=>{if(state.siteDraft?.listingId!==listing.id)state.siteDraft=createSiteDraft(listing);state.screen='analyze';history.replaceState(null,'',location.pathname);render();}});
 function home() {
   return `<section class="home"><div class="intro"><div><span class="eyebrow">YOUR NEXT PLACE, TEOJABI</span><h1>미래의 건물,<br>찾는 기준부터.</h1></div><div class="intro-brand"><span class="home-symbol" role="img" aria-label="터잡이 로고마크"></span><p class="lead">원하는 공간을 찾는 일도,<br> 내 공간을 다시 바라보는 일도.<br> 터잡이에서 차근차근 시작하세요.</p></div></div>
     <button type="button" class="assistant-banner" data-action="assistant" aria-label="AI 부동산 비서 열기"><span class="assistant-banner-icon" aria-hidden="true">${ASSISTANT_ROBOT}</span><span class="assistant-banner-main"><span class="assistant-banner-text"><b>AI와 함께 맞춤 설정하고<br>매물을 찾아보세요.</b></span><span class="assistant-banner-cta">시작하기 <span class="circle">${arrow}</span></span></span><small class="assistant-banner-desc">"종로구 상업지역 100억 이하 도로 6m" 처럼 편하게 물어보세요.</small></button>
