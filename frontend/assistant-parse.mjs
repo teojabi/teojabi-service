@@ -289,8 +289,8 @@ export async function parseAssistant(message, condition, geminiKey, editedFilter
   const strongKeys = ['districts', 'budgetWon', 'minAreaM2', 'maxAreaM2', 'zones', 'stationName', 'maxDistanceM', 'minRoadWidthM'];
   const hasStrong = strongKeys.some(key => { const value = spoken[key]; return Array.isArray(value) ? value.length > 0 : value !== undefined && value !== null && value !== ''; });
   const conversational = /안녕|반갑|반가|잘\s*부탁|고마|감사|수고|하이|헬로|hello|\bhi\b/i.test(String(message || ''));
-  if (conversational && !hasStrong && !hasMeaningfulFilters(saved)) {
-    // 인사·안부가 섞인 말은 검색으로 넘기지 않고 대화로 응답한다.
+  if (conversational && !hasStrong) {
+    // 인사·안부가 섞인 말은 저장 조건과 무관하게 검색으로 넘기지 않고 대화로 응답한다.
     const gem = await geminiFilters(message, geminiKey, condition);
     reply = (gem && gem.reply) || '안녕하세요! 터잡이 AI 부동산 비서예요. 찾으시는 지역·예산·용도 같은 조건을 알려주시면 매물을 찾아드릴게요.';
     merged = {}; source = 'none';
