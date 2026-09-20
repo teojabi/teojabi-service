@@ -57,7 +57,7 @@ def connect():
 
 
 def read(operation, value=None):
-    if operation not in ('catalog', 'parcel', 'risk', 'context', 'registers', 'site-parcels', 'parcel-context', 'parcel-documents', 'land-record', 'nearby-transactions', 'selected-risk', 'selected-context', 'selected-registers', 'selected-land-record', 'naver-listing'):
+    if operation not in ('catalog', 'parcel', 'risk', 'context', 'registers', 'site-parcels', 'parcel-context', 'parcel-documents', 'land-record', 'nearby-transactions', 'selected-risk', 'selected-context', 'selected-registers', 'selected-land-record', 'naver-listing', 'disco-listing'):
         raise ValueError('Unsupported operation')
     if operation == 'parcel' and not re.fullmatch(r'\d{19}', value or ''):
         raise ValueError('Invalid parcel')
@@ -96,9 +96,36 @@ def read(operation, value=None):
                     'approvalDate': data['approvalDate'] or '', 'roadWidthM': float(data['roadWidth']) if data['roadWidth'] else None,
                     'zoning': {'status': 'matched', 'groups': [broad] if broad else [], 'entries': [{'name': zoning_text}]} if zoning_text else {'status': 'missing', 'groups': [], 'entries': []},
                     'kind': 'land' if data['mainUse'] == '토지' else 'building'}
+        if operation == 'disco-listing':
+            if not re.fullmatch(r'[A-Za-z0-9]{4,24}', value or ''):
+                raise ValueError('Invalid disco listing')
+            with connection.cursor(cursor_factory=RealDictCursor) as cursor:
+                cursor.execute('''SELECT did::text AS "sourceId", address, gu, dong, pnu, lat, lng,
+                                         price_manwon, land_area_m2, floor_area_m2, ts, use_zone, road_width_m
+                                  FROM public.disco_listing WHERE did::text=%s AND active LIMIT 1''', (value,))
+                row = cursor.fetchone()
+            if not row:
+                return {'status': 'missing'}
+            data = dict(row)
+            zoning_text = str(data['use_zone'] or '').strip()
+            broad = None
+            for label, key in (('주거지역', '주거'), ('상업지역', '상업'), ('공업지역', '공업'), ('녹지지역', '녹지')):
+                if key in zoning_text:
+                    broad = label; break
+            price = data['price_manwon']
+            return {'status': 'ready', 'sourceId': str(data['sourceId']), 'address': data['address'] or '',
+                    'district': data['gu'] or '', 'neighborhood': data['dong'] or '',
+                    'pnu': data['pnu'] if data['pnu'] and re.fullmatch(r'\d{19}', str(data['pnu'])) else None,
+                    'position': {'lat': float(data['lat']), 'lng': float(data['lng'])} if data['lat'] is not None and data['lng'] is not None else None,
+                    'priceWon': int(round(float(price) * 10000)) if price is not None else None,
+                    'areaM2': float(data['land_area_m2']) if data['land_area_m2'] else None,
+                    'floorAreaM2': float(data['floor_area_m2']) if data['floor_area_m2'] else None,
+                    'kind': 'land' if str(data['ts']) == '1' else 'building',
+                    'roadWidthM': float(data['road_width_m']) if data['road_width_m'] else None,
+                    'zoning': {'status': 'matched', 'groups': [broad] if broad else [], 'entries': [{'name': zoning_text}]} if zoning_text else {'status': 'missing', 'groups': [], 'entries': []}}
         if operation.startswith('selected-'):
             reference=json.loads(value)
-            if not isinstance(reference,dict) or not re.fullmatch(r'(?:\d{1,30}|[a-f0-9-]{36})',reference.get('sourceId','')):
+            if not isinstance(reference,dict) or not re.fullmatch(r'(?:\d{1,30}|[a-f0-9-]{36}|[A-Za-z0-9]{4,24})',reference.get('sourceId','')):
                 raise ValueError('Invalid selected listing')
             if reference.get('pnu') is not None and not re.fullmatch(r'11\d{17}',reference['pnu']):
                 raise ValueError('Invalid parcel')

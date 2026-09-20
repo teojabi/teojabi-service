@@ -5,7 +5,7 @@ from psycopg2.extras import RealDictCursor
 
 
 def read_land_record(connection, source_id, reference=None):
-    if not re.fullmatch(r'(?:\d{1,30}|[a-f0-9-]{36})' if reference else r'\d{1,30}',source_id or ''):
+    if not re.fullmatch(r'(?:\d{1,30}|[a-f0-9-]{36}|[A-Za-z0-9]{4,24})' if reference else r'\d{1,30}',source_id or ''):
         raise ValueError('Invalid listing')
     with connection.cursor(cursor_factory=RealDictCursor) as cursor:
         source_sql='public.naver'
