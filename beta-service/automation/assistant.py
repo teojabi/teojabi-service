@@ -65,7 +65,8 @@ def source_from(has_disco, has_premium):
                       "사용승인일자"::text AS "사용승인일자", "매물특징"::text AS "매물특징",
                       pnu::text AS pnu, lat::double precision AS lat, lng::double precision AS lng,
                       'naver'::text AS source_kind, NULL::text AS source_url
-               FROM public.naver'''
+               FROM public.naver
+               WHERE "상태" IN ('신규','유지') AND lat IS NOT NULL AND lng IS NOT NULL'''
     parts = [naver]
     if has_disco:
         parts.append('''SELECT d.did::text AS "매물번호", '신규'::text AS "상태", (d.price_manwon/10000.0)::numeric AS "거래가격",
