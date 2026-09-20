@@ -334,24 +334,27 @@ def search(conn, filters):
             order = tourism_rank_sql() + ', ' + order
         # SQL 파라미터 순서는 SELECT(요청 역 거리) → WHERE → LIMIT 이다.
         query_params = station_distance_params(station) + params + [limit]
-        row_sql = '''SELECT n."매물번호", n."대지위치", n."거래가격", n."대지면적", n."연면적", n."층정보",
-                            n."구", n."동", n."주용도코드명", n."용도지역", n."매물특징", n."도로폭_m",
-                            n."사용승인일자", n.pnu, n.lat, n.lng, n.source_kind, n.source_url, s.station_name, s.dist_m,
-                            ''' + origin + ''' AS origin, ''' + pick_no + ''' AS teojabi_no''' + select_point + '''
-                     FROM ''' + source + ''' n ''' + join + '''
+        row_sql = '''SELECT q.*, s.station_name, s.dist_m
+                     FROM (
+                         SELECT n."매물번호", n."대지위치", n."거래가격", n."대지면적", n."연면적", n."층정보",
+                                n."구", n."동", n."주용도코드명", n."용도지역", n."매물특징", n."도로폭_m",
+                                n."사용승인일자", n.pnu, n.lat, n.lng, n.source_kind, n.source_url,
+                                ''' + origin + ''' AS origin, ''' + pick_no + ''' AS teojabi_no''' + select_point + '''
+                         FROM ''' + source + ''' n ''' + join + '''
+                         WHERE ''' + where_sql + '''
+                         ORDER BY ''' + order + '''
+                         LIMIT %s
+                     ) q
                      CROSS JOIN LATERAL (
                          SELECT station_name,
                                 ST_Distance(ST_SetSRID(ST_MakePoint(lng,lat),4326)::geography,
-                                            ST_SetSRID(ST_MakePoint(n.lng,n.lat),4326)::geography) AS dist_m
+                                            ST_SetSRID(ST_MakePoint(q.lng,q.lat),4326)::geography) AS dist_m
                          FROM public.seoul_subway_stations
                          WHERE lat IS NOT NULL
                          ORDER BY ST_SetSRID(ST_MakePoint(lng,lat),4326)::geography <->
-                                  ST_SetSRID(ST_MakePoint(n.lng,n.lat),4326)::geography
+                                  ST_SetSRID(ST_MakePoint(q.lng,q.lat),4326)::geography
                          LIMIT 1
-                     ) s
-                     WHERE ''' + where_sql + '''
-                     ORDER BY ''' + order + '''
-                     LIMIT %s'''
+                     ) s'''
         cur.execute(row_sql, query_params)
         rows = [row_dto(r, station, station) for r in cur.fetchall()]
         grouped = {'premium': [], 'registered': [], 'disco': [], 'naver': []}
