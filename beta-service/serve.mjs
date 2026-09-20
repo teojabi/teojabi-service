@@ -104,8 +104,24 @@ async function naverListing(sourceId) {
   } catch {return null;}
 }
 async function findListing(id) {
+  const key=String(id||'');
+  if(key.startsWith('disco:'))return discoListing(key.slice('disco:'.length));
   const data=await catalog();
-  return data.rows.find(row=>row.id===id)||await naverListing(String(id).split(':').slice(1).join(':'));
+  return data.rows.find(row=>row.id===key)||await naverListing(key.split(':').slice(1).join(':'));
+}
+// 비서가 찾은 디스코 매물도 상세·실거래 조회에 쓸 수 있게 같은 모양으로 맞춘다.
+const validDiscoListingId=id=>typeof id==='string'&&/^disco:[A-Za-z0-9]{4,24}$/.test(id);
+async function discoListing(sourceId) {
+  if(!/^[A-Za-z0-9]{4,24}$/.test(String(sourceId||'')))return null;
+  try {
+    const raw=await localRead('disco-listing',String(sourceId));
+    if(!raw||raw.status!=='ready')return null;
+    return {id:`disco:${raw.sourceId}`,source:'disco',sourceId:raw.sourceId,sourceUrl:'',district:raw.district||'',neighborhood:raw.neighborhood||'',
+      address:raw.address||'',pnu:raw.pnu||null,position:raw.position||null,priceWon:raw.priceWon||null,
+      areaM2:raw.areaM2||null,floorAreaM2:raw.floorAreaM2||null,description:'',floorInfo:'',
+      zoning:raw.zoning||{status:'missing',groups:[],entries:[]},development:null,kind:raw.kind||'building',kindConfirmed:true,
+      areaSource:'listing',floorAreaSource:'listing',locationStatus:'pin-estimated',nearbyTransactions:{status:'unavailable',cases:[]}};
+  } catch {return null;}
 }
 async function catalog() {
   const catalogFileVersion=await stat(join(root,cachePath('.local/selected-catalog.json'))).then(s=>s.mtimeMs).catch(error=>{if(error.code==='ENOENT')return 0;throw error;});
@@ -340,7 +356,7 @@ createServer(async (request, response) => {
     const land=path.startsWith('/api/land-record/');
     const operation=land?'land-record':registers?'registers':compact?'context':'risk';
     const id=path.slice(land?'/api/land-record/'.length:registers?'/api/building-records/'.length:compact?'/api/site-context/'.length:'/api/risk/'.length),cacheKey=`${operation}:${id}`;
-    if(!validListingId(id)){send(response,request,{status:'missing'},404);return;}
+    if(!validListingId(id)&&!validDiscoListingId(id)){send(response,request,{status:'missing'},404);return;}
     try {
       const data=await catalog(),listing=await findListing(id);
       if(!listing){send(response,request,{status:'missing'},404);return;}
@@ -357,7 +373,7 @@ createServer(async (request, response) => {
   if(path.startsWith('/api/nearby-transactions/')) {
     await refreshTransactionVersion().catch(()=>{});
     const id=path.slice('/api/nearby-transactions/'.length);
-    if(!validListingId(id)){send(response,request,{status:'missing',cases:[]},404);return;}
+    if(!validListingId(id)&&!validDiscoListingId(id)){send(response,request,{status:'missing',cases:[]},404);return;}
     try {
       const data=await catalog(),listing=await findListing(id);
       if(!listing){send(response,request,{status:'missing',cases:[]},404);return;}

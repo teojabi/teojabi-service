@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 
 
 def read_risk(connection, source_id, include_registers=True, include_context=True, parcel_pnu=None, reference=None):
-    if not re.fullmatch(r'(?:\d{1,30}|[a-f0-9-]{36})' if reference else r'\d{1,30}', source_id or ''):
+    if not re.fullmatch(r'(?:\d{1,30}|[a-f0-9-]{36}|[A-Za-z0-9]{4,24})' if reference else r'\d{1,30}', source_id or ''):
         raise ValueError('Invalid listing')
 
     def fetch(sql, params=()):
