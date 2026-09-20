@@ -108,7 +108,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     if(disposed)return;
     $('#map-status').hidden=status==='ready';
     if(status==='error')$('#map-status').innerHTML=`<p>${esc(message)}</p><button class="outline" data-explore="retry-map">지도 다시 연결</button>`;
-    if(status==='ready' && result)map.setGroups(showAllPicks?(pickGroups||[]):result.groups,selected,true);
+    if(status==='ready' && result)map.setGroups(showAllPicks?(pickGroups||[]):mapGroups(),selected,true);
     if(status==='ready' && detail)map.select(detail.listing);
     if(status==='ready' && parcel?.status==='ready')map.parcel(parcel.geometry);
     if(status==='ready' && nearby?.status==='ready'){map.setTransactions(nearby.cases);map.setTransactionsVisible(showTransactions);}
@@ -122,9 +122,11 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     const row=group.representative;
     return `<article class="property-card${group.listings.some(r=>r.id===selected)?' selected':''}" data-card-id="${esc(row.id)}"><button class="property-select" data-explore="detail" data-id="${esc(row.id)}" aria-label="${esc(rowTitle(row))} ${money(row.priceWon)} 상세 보기"><div class="property-location"><span>${esc(rowTitle(row))}</span>${row.cohort==='disco'?'<em class="pick-badge disco-badge">디스코 매물</em>':row.cohort==='existing'?'<em class="pick-badge">★ 터잡이 추천</em>':''}${member.get('favorite',row.id)?'<em class="pick-badge favorite-badge">♥ 찜한 물건</em>':''}</div><h2>${money(row.priceWon)}</h2><div class="area-pair"><span>대지 <b>${area(row.areaM2)}</b></span><span>연면적 <b>${area(row.floorAreaM2)}</b></span></div><p class="property-zoning">${esc(row.zoning?.groups?.length?row.zoning.groups.join(' · '):'용도지역 미확인')}</p><p class="property-description">${esc(row.description||'매물 설명이 기재되지 않았어요.')}</p><span class="property-link">상세 보기 <span aria-hidden="true">↗</span></span></button></article>`;
   }
+  // AI 결과는 화면에 보이는 만큼(5개 → 더보기)만 지도에도 표시한다.
+  const mapGroups=()=>source==='assistant'&&result?result.groups.slice(0,assistantShown):(result?.groups||[]);
   function drawCards() {
     const favoritesMode=source==='favorites',assistantMode=source==='assistant';
-    const renderGroups=assistantMode?result.groups.slice(0,assistantShown):result.groups;
+    const renderGroups=mapGroups();
     $('#listing-list').innerHTML=renderGroups.map(card).join('')||(favoritesMode?'<div class="empty"><h2>찜한 매물이 없어요.</h2><p>마음에 드는 매물을 ♡ 찜하면 여기에서 한 번에 볼 수 있어요.</p></div>':'<div class="empty"><h2>조건에 맞는 매물이 없어요.</h2><p>주소·면적·지도 범위를 바꾸거나 예산과 지역을 다시 선택해 주세요.</p></div>');
     if(favoritesMode){
       const missing=result.missingFavorites?.length||0;
@@ -183,7 +185,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
       const response=await apiFetch(`/api/catalog?${params}`,{signal:abort.signal});
       const data=await response.json();if(!response.ok || data.status!=='ready')throw new Error(data.reason||'unavailable');
       if(disposed||current!==version)return;
-      result=data;$('.explore-list').removeAttribute('aria-busy');drawCards();map.setGroups(showAllPicks?(pickGroups||[]):result.groups,selected,fit);
+      result=data;$('.explore-list').removeAttribute('aria-busy');drawCards();map.setGroups(showAllPicks?(pickGroups||[]):mapGroups(),selected,fit);
       if(initialId){const id=initialId;initialId=null;openDetail(id);}
     } catch(error) {
       if(disposed||current!==version)return;
@@ -197,7 +199,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     if(!assistantResult){source='conditions';return load();}
     const data=assistantResult;assistantShown=5;
     result={status:'ready',groups:data.groups||[],totalParcels:Number(data.total||0),totalListings:Number(data.total||0),hasMore:false,observedAt:data.searchedAt||null,station:data.station||null,reply:data.reply||''};
-    $('.explore-list').removeAttribute('aria-busy');drawCards();map.setGroups(result.groups,selected,true);
+    $('.explore-list').removeAttribute('aria-busy');drawCards();map.setGroups(mapGroups(),selected,true);
     if(initialId){const id=initialId;initialId=null;openDetail(id);}
   }
   async function loadFavorites({fit=true}={}) {
@@ -393,7 +395,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
       case 'retry-detail':openDetail(selected);break;
       case 'back-list':setSheet(true);closeDetail();break;
       case 'close':closeDetail();break;
-      case 'more':if(source==='assistant'){assistantShown+=5;drawCards();}else{limit=Math.min(500,limit+20);load({fit:false});}break;
+      case 'more':if(source==='assistant'){assistantShown+=5;drawCards();map.setGroups(showAllPicks?(pickGroups||[]):mapGroups(),selected,true);}else{limit=Math.min(500,limit+20);load({fit:false});}break;
       case 'retry':load();break;
       case 'pane':$('.explore-board').dataset.pane=button.dataset.value;root.querySelectorAll('[data-explore="pane"]').forEach(b=>b.setAttribute('aria-pressed',String(b===button)));break;
       case 'search-map':if(mapView){bounds=mapView.bounds;limit=5;closeDetail();load({fit:false});}break;
