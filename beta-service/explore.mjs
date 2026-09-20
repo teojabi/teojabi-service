@@ -51,7 +51,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
   const favoriteItems=()=>member.items.filter(item=>item.kind==='favorite');
   $('#listing-list').before($('#explore-filters'));
   let listScrollTop=0;
-  const compared=new Map();let closeComparison,showPins=true,showTransactions=true,showAllPicks=false,pickGroups=null,nearby=null,loadTimer=null,quickFilters;
+  const compared=new Map();let closeComparison,showPins=true,showTransactions=true,showAllPicks=false,pickGroups=null,nearby=null,loadTimer=null,quickFilters,assistantShown=5;
   $('.map-controls').insertAdjacentHTML('beforeend','<button class="outline" data-explore="transactions" aria-pressed="true" hidden>실거래</button><button class="outline return-detail" data-explore="return-detail">매물 상세로 돌아가기</button>');
   $('.explore-toolbar').insertAdjacentHTML('afterend','<div class="discovery-actions"><button class="outline" data-explore="compare-open" disabled>비교할 매물을 골라주세요 (최대 3개)</button><button class="outline" data-explore="compare-clear" hidden>비교 선택 지우기</button><button class="outline" data-explore="pins" aria-pressed="true">지도 매물 표시</button><span class="discovery-notice" role="status"></span></div><div class="search-suggestions" aria-live="polite"></div>');
   if(picksOnlyMode)$('[data-explore="all-picks"]').setAttribute('aria-pressed','true');
@@ -66,7 +66,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
   }
   function setSource(next){
     if(next===source)return;
-    source=next;showAllPicks=false;selected=null;compared.clear();
+    source=next;showAllPicks=false;selected=null;compared.clear();assistantShown=5;
     closeDetail();applySourceUi();
     history.replaceState(null,'',source==='favorites'?location.pathname+'#favorites':location.pathname+(conditions?'#search':''));
     load();
@@ -124,7 +124,8 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
   }
   function drawCards() {
     const favoritesMode=source==='favorites',assistantMode=source==='assistant';
-    $('#listing-list').innerHTML=result.groups.map(card).join('')||(favoritesMode?'<div class="empty"><h2>찜한 매물이 없어요.</h2><p>마음에 드는 매물을 ♡ 찜하면 여기에서 한 번에 볼 수 있어요.</p></div>':'<div class="empty"><h2>조건에 맞는 매물이 없어요.</h2><p>주소·면적·지도 범위를 바꾸거나 예산과 지역을 다시 선택해 주세요.</p></div>');
+    const renderGroups=assistantMode?result.groups.slice(0,assistantShown):result.groups;
+    $('#listing-list').innerHTML=renderGroups.map(card).join('')||(favoritesMode?'<div class="empty"><h2>찜한 매물이 없어요.</h2><p>마음에 드는 매물을 ♡ 찜하면 여기에서 한 번에 볼 수 있어요.</p></div>':'<div class="empty"><h2>조건에 맞는 매물이 없어요.</h2><p>주소·면적·지도 범위를 바꾸거나 예산과 지역을 다시 선택해 주세요.</p></div>');
     if(favoritesMode){
       const missing=result.missingFavorites?.length||0;
       $('#result-count').textContent=`찜한 매물 ${result.totalParcels.toLocaleString('ko-KR')}개${missing?` · 제공 종료 ${missing}개`:''}`;
@@ -132,9 +133,11 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
       $('#explore-foot').textContent='내 보관함에 저장한 찜 매물입니다. 면적은 매물 기재 기준 · 용도지역은 연결 필지의 보유 토지자료 기준입니다.';
       $('#bounds-chip').innerHTML='';
     } else if(assistantMode){
-      const shown=result.groups.length;
-      $('#result-count').textContent=`AI 비서 결과 · 조건 매칭 ${result.totalParcels.toLocaleString('ko-KR')}건 중 상위 ${shown}건`;
-      $('[data-explore="more"]').hidden=true;
+      const shown=Math.min(assistantShown,result.groups.length),remaining=Math.max(0,result.groups.length-shown);
+      $('#result-count').textContent=`AI 비서 결과 · 조건 매칭 ${result.totalParcels.toLocaleString('ko-KR')}건 중 ${shown}건 표시`;
+      const moreButton=$('[data-explore="more"]');
+      moreButton.hidden=remaining<=0;
+      moreButton.textContent=remaining>0?`더보기 (남은 ${remaining}건)`:'';
       $('#explore-foot').textContent=result.station?`${result.station.name}역 직선거리 기준입니다. 실제 보행 경로·시간과 다를 수 있어요.`:'AI 비서가 조건을 해석해 찾은 결과입니다. 실제와 다를 수 있어요.';
       $('#bounds-chip').innerHTML='';
     } else {
@@ -192,7 +195,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
   }
   function loadAssistant() {
     if(!assistantResult){source='conditions';return load();}
-    const data=assistantResult;
+    const data=assistantResult;assistantShown=5;
     result={status:'ready',groups:data.groups||[],totalParcels:Number(data.total||0),totalListings:Number(data.total||0),hasMore:false,observedAt:data.searchedAt||null,station:data.station||null,reply:data.reply||''};
     $('.explore-list').removeAttribute('aria-busy');drawCards();map.setGroups(result.groups,selected,true);
     if(initialId){const id=initialId;initialId=null;openDetail(id);}
@@ -248,7 +251,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
       <section class="detail-section" id="property-description"><h3>매물 설명</h3>${origin==='naver'?`<p class="case-note">네이버에서 찾은 매물이에요. 찜하기를 눌러 저장하세요.</p>${naverUrl?`<div class="detail-links"><a class="outline" href="${naverUrl}" target="_blank" rel="noopener noreferrer">네이버에서 보기 ↗</a></div>`:''}`:(row.description?`<p class="listing-description">${esc(row.description)}</p>`:'')}${detailFacts(row)||(origin!=='naver'&&!row.description?'<p class="listing-description">등록된 설명이 없습니다.</p>':'')}</section>
       <section class="detail-section" id="property-parcel"><h3>필지 위치</h3><p>${esc(row.address||`${rowTitle(row)} · 상세 주소 미확인`)}</p></section>
       <section class="detail-section"><h3>용도지역</h3>${row.zoning?.status==='matched'&&Array.isArray(row.zoning.entries)?`<p>${row.zoning.entries.map(e=>esc(e.name)).join('<br>')}</p><p class="case-note">공공데이터 기준</p>`:'<p class="case-note">용도지역을 확인하지 못했습니다.</p>'}</section>
-      <section class="detail-section nearby-section" id="property-transactions"><div class="nearby-heading"><h3>주변 실거래</h3><button class="outline" data-explore="transactions" aria-pressed="true" disabled>지도 표시</button></div>${areaUnitControls()}<div id="nearby-cases" aria-live="polite"><p class="case-note">가까운 토지·건물 거래를 찾고 있어요.</p></div></section>
+      <section class="detail-section nearby-section" id="property-transactions"><details id="nearby-details" class="nearby-details"><summary class="nearby-summary"><span class="nearby-summary-title">주변 실거래</span><span class="nearby-summary-count" id="nearby-count"></span></summary><div class="nearby-body"><div class="nearby-heading"><button class="outline" data-explore="transactions" aria-pressed="true" disabled>지도 표시</button></div>${areaUnitControls()}<div id="nearby-cases" aria-live="polite"><p class="case-note">가까운 토지·건물 거래를 찾고 있어요.</p></div></div></details></section>
       <section class="detail-section" id="property-documents"><h3>서류 확인</h3><p class="case-note">보유한 건축물·토지대장을 살펴보고, 등기는 인터넷등기소에서 확인하세요.</p><div class="document-list"><div><span class="document-symbol">01</span><div><b>건축물대장</b><p>표제부·총괄표제부의 건물 현황</p></div><button class="outline" id="building-records-toggle" aria-expanded="false" aria-controls="building-records">건축물대장 보기</button></div><div><span class="document-symbol">02</span><div><b>토지(임야)대장</b><p>필지별 토지 기록</p></div><button class="outline" id="land-records-toggle" aria-expanded="false" aria-controls="land-records">토지대장 보기</button></div><div><span class="document-symbol">03</span><div><b>등기사항증명서</b><p>인터넷등기소에서 직접 열람</p></div><div class="document-actions"><button class="outline" data-explore="copy-address">필지 주소 복사</button><a class="outline" href="https://www.iros.go.kr/" target="_blank" rel="noopener noreferrer">열람·발급 ↗</a></div></div></div><div id="building-records" class="building-records" hidden></div><div id="land-records" class="building-records" hidden></div></section>
       <section class="detail-section inline-context" id="property-context"><h3>이 땅, 이런 점을 살펴보세요.</h3><div id="context-facts" aria-live="polite"></div><div class="context-more"><p>더 구체적으로 개발을 검토하고 싶으세요?</p><button class="primary" data-explore="analyze-site">건물·토지에서 검토하기 <span aria-hidden="true">↗</span></button></div></section><p class="detail-bottom-note">사진과 발급 원본 PDF는 현재 보유 자료에 포함되어 있지 않습니다.</p>
       <section class="brokerage-info" aria-label="중개사무소 정보"><h3>터잡이 공인중개사사무소</h3><dl><div><dt>대표</dt><dd>윤진경</dd></div><div><dt>등록번호</dt><dd>제 11650-2026-00102 호</dd></div><div><dt>주소</dt><dd>서울특별시 서초구 언남5길 1, 2층 (양재동)</dd></div><div><dt>연락처</dt><dd>010-8258-4959</dd></div><div><dt>중개보수</dt><dd>상업용 빌딩 기준<br><span>(법정 상한 요율 0.9% 내 협의)</span></dd></div></dl></section></div>`;
@@ -306,6 +309,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
   }
   function renderNearby() {
     const container=$('#nearby-cases');if(!container)return;
+    const count=$('#nearby-count');if(count)count.textContent=nearby?.cases?.length?`${nearby.cases.length}건`:'';
     if(nearby?.status==='error'){container.innerHTML='<p class="case-note">주변 실거래를 불러오지 못했어요.</p><button class="outline" data-explore="retry-transactions">다시 불러오기</button>';return;}
     if(nearby?.status!=='ready'){container.innerHTML='<p class="case-note">이 매물의 주변 거래 자료를 확인하지 못했어요.</p>';return;}
     if(!nearby.cases.length){container.innerHTML='<p class="case-note">반경 1km 안에서 최근 36개월의 토지·건물 거래를 찾지 못했어요.</p>';return;}
@@ -387,7 +391,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
       case 'retry-detail':openDetail(selected);break;
       case 'back-list':setSheet(true);closeDetail();break;
       case 'close':closeDetail();break;
-      case 'more':limit=Math.min(500,limit+20);load({fit:false});break;
+      case 'more':if(source==='assistant'){assistantShown+=5;drawCards();}else{limit=Math.min(500,limit+20);load({fit:false});}break;
       case 'retry':load();break;
       case 'pane':$('.explore-board').dataset.pane=button.dataset.value;root.querySelectorAll('[data-explore="pane"]').forEach(b=>b.setAttribute('aria-pressed',String(b===button)));break;
       case 'search-map':if(mapView){bounds=mapView.bounds;limit=5;closeDetail();load({fit:false});}break;
@@ -396,7 +400,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
       case 'retry-map':map.mount(result?.groups||[],selected,true);break;
       case 'analyze-site':if(detail)onAnalyze?.(detail.listing);break;
       case 'street':if(detail){closeStreet?.();closeStreet=await openStreetView(detail.listing.position,detail.listing.address||rowTitle(detail.listing));if(disposed)closeStreet?.();}break;
-      case 'section':$(`#${button.dataset.section}`).scrollIntoView({behavior:'smooth',block:'start'});break;
+      case 'section':{const target=$(`#${button.dataset.section}`);if(button.dataset.section==='property-transactions')$('#nearby-details')?.setAttribute('open','');target?.scrollIntoView({behavior:'smooth',block:'start'});break;}
       case 'copy-address':
         try {await navigator.clipboard.writeText(detail.listing.address||rowTitle(detail.listing));button.textContent='주소 복사됨';}
         catch {button.textContent='주소를 선택해 복사해 주세요.';}break;
