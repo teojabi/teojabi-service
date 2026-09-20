@@ -92,7 +92,7 @@
 .explore-page.map-first{position:relative;isolation:isolate;padding:0;max-width:none;height:calc(100dvh - 115px);min-height:520px;overflow:hidden}.map-first>.map-frame{position:absolute;inset:0;display:block!important;width:100%;height:100%;border-radius:0}.map-first #map-host{height:100%;min-height:0}.map-first .map-controls{top:12px;left:12px}.results-sheet{position:absolute;left:18px;bottom:14px;z-index:5;width:min(440px,calc(100% - 36px));height:75%;background:var(--card);border:1px solid var(--line);border-radius:18px;box-shadow:0 -4px 24px #0003;overflow:hidden;display:flex;flex-direction:column;transition:height .75s cubic-bezier(.22,1,.36,1),width .75s cubic-bezier(.22,1,.36,1);will-change:height,width}.sheet-handle{height:46px;min-height:46px;display:flex;align-items:center;justify-content:center;gap:10px;position:relative;background:var(--card);color:var(--ink);font-size:13px;width:100%;border-bottom:1px solid var(--line);z-index:20}.sheet-grip{width:30px;height:4px;border-radius:4px;background:var(--line)}.sheet-arrow{font-size:18px}.sheet-body{overflow:auto;overscroll-behavior:contain;flex:1;min-height:0;padding:14px;background:var(--card);opacity:1;transition:opacity .45s ease}
 .results-sheet.collapsed .sheet-body{opacity:0;transition:opacity .5s ease}.sheet-body[hidden]{display:none}.results-sheet.collapsed{height:46px}.map-first .result-head{margin:0 0 12px;gap:8px}.map-first .result-head .eyebrow{display:none}.map-first h1{font-size:18px;margin:0}.map-first .result-head .outline{font-size:11px;padding:8px}.map-first .explore-board,.map-first .explore-board.has-detail{display:block;height:auto;position:static}.map-first .explore-list{display:block!important;height:auto;width:100%;overflow:visible;border:0;padding:0;background:var(--card)}.map-first .explore-toggle{display:none}.map-first .explore-filters{display:flex;margin-bottom:10px}.map-first .explore-filters label{flex:1}.map-first .explore-filters select{min-height:36px;padding:6px 10px}.map-first .purpose-guide{font-size:11px;margin:6px 0}.map-first .quick-chip-row{display:flex;overflow-x:auto;gap:6px;padding-bottom:6px}.map-first .quick-chip{flex:0 0 auto;font-size:12px;padding:7px 10px;min-height:40px}.map-first .quick-chip-label{display:none}.map-first .quick-save-note{display:none}.map-first .explore-toolbar{margin-bottom:8px}.map-first .discovery-actions{gap:6px;margin:8px 0;flex-wrap:wrap}.map-first .discovery-actions .outline{font-size:11px;padding:7px}.map-first .search-suggestions{display:flex;flex-direction:column;gap:7px;padding:10px;margin:8px 0;font-size:12px}.map-first .search-suggestions .outline{padding:8px;font-size:12px}.map-first .detail-panel{position:absolute!important;inset:46px 0 0!important;z-index:10;height:auto!important;width:100%;border:0;border-radius:0;display:block;background:var(--card)}.map-first .detail-panel[hidden]{display:none!important}.map-first .transaction-map-open .detail-panel{display:block}.map-first .detail-content{padding:16px}.map-first .explore-foot{font-size:10px}.map-first .map-caption{bottom:70px}.map-first .return-detail{display:none!important}
 @media(max-width:700px){.inventory-strip{gap:0;padding:10px 5px;justify-content:space-around}.inventory-strip>span{font-size:10px;gap:4px}.inventory-strip strong{font-size:11px}.activity-section{margin-bottom:20px}.explore-page.map-first{height:calc(100dvh - 96px);min-height:480px}.results-sheet{left:0;top:0;bottom:0;width:84%;height:100%;border-radius:0 18px 18px 0;flex-direction:row-reverse}.sheet-handle{width:18px;height:100%;min-height:0;flex:0 0 18px;padding:0;gap:0;overflow:hidden;font-size:0;border-bottom:0;border-left:1px solid var(--line)}.sheet-label,.sheet-grip{display:none!important}.sheet-arrow{display:block;font-size:16px;line-height:1}.sheet-body{width:calc(100% - 18px);padding:12px}.results-sheet.collapsed{width:0;height:100%;overflow:visible;border:0;background:none;box-shadow:none}
-.results-sheet.collapsed .sheet-handle{position:absolute;left:0;bottom:8%;width:54px;height:33.333%;min-height:130px;max-height:240px;border-radius:0 14px 14px 0;background:var(--selected);border:1px solid var(--line);border-left:0;box-shadow:0 4px 14px #0002;font-size:0;z-index:21;display:flex;align-items:center;justify-content:center;transition:background .18s ease,box-shadow .18s ease}
+.results-sheet.collapsed .sheet-handle{position:absolute;left:0;bottom:8%;width:27px;height:33.333%;min-height:130px;max-height:240px;border-radius:0 14px 14px 0;background:var(--selected);border:1px solid var(--line);border-left:0;box-shadow:0 4px 14px #0002;font-size:0;z-index:21;display:flex;align-items:center;justify-content:center;transition:background .18s ease,box-shadow .18s ease}
 .results-sheet.collapsed .sheet-handle:active{background:var(--card);box-shadow:0 2px 8px #0002}
 .results-sheet.collapsed .sheet-arrow{display:block;font-size:24px}
 @media(prefers-reduced-motion:reduce){.results-sheet{transition:none}}.map-first .detail-panel{inset:0!important}.map-first .result-head h1{font-size:17px}.map-first .build-applied-summary{font-size:11px}.map-first .map-controls .outline{font-size:11px;padding:8px}.map-first .map-frame{display:block!important}.map-first .detail-panel{border-radius:0}.map-first .map-caption{bottom:56px}}
@@ -763,7 +763,8 @@ body.architect-lightbox-open{overflow:hidden}
 .map-radar-ring.r3{width:36%;height:36%;opacity:.3}
 .map-radar-core{position:absolute;left:50%;top:50%;width:6px;height:6px;transform:translate(-50%,-50%);border-radius:50%;background:#ea580c;pointer-events:none}
 .map-radar:hover .map-radar-ring{background:#fb923c}
-.commercial-popup{position:absolute;top:12px;left:12px;z-index:200;width:min(88vw,340px);max-height:min(72vh,540px);overflow:auto;background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:0 8px 24px #0003}
+.commercial-popup{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:200;width:min(88vw,340px);max-height:min(72vh,540px);overflow:auto;background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:0 8px 24px #0003}
+@media(min-width:701px){.commercial-popup{left:auto;right:12px;transform:translateY(-50%)}}
 .commercial-popup-inner{position:relative;padding:12px}
 .commercial-popup-close{position:absolute;top:6px;right:6px;border:0;background:transparent;font-size:18px;line-height:1;cursor:pointer;color:var(--muted);z-index:1}
 .commercial-popup .commercial-card{border:0;padding:0;background:transparent}
@@ -775,3 +776,25 @@ body.architect-lightbox-open{overflow:hidden}
 .commercial-col.is-current b{color:var(--text);font-weight:700}
 .commercial-col.is-current .commercial-col-bar{background:#f97316}
 .commercial-col small{font-size:9px;color:var(--muted);white-space:nowrap}
+/* 지구단위계획 용적률·건폐율·높이 기준 */
+.context-far{margin:10px 0;padding:10px 12px;border:1px solid var(--line);border-radius:9px;background:var(--selected)}
+.context-far-title{margin:0 0 6px!important;font-size:12px!important;font-weight:700}
+.context-far-title small{font-weight:400;color:var(--muted);margin-left:6px}
+.context-far-list{list-style:none;margin:0;padding:0;display:grid;gap:5px}
+.context-far-list li{font-size:12.5px;color:var(--text);display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+.context-far-list li b{color:var(--green)}
+.context-far-list li small{color:var(--muted);font-size:11px}
+.context-far-more{margin:6px 0 0!important;font-size:11px;color:var(--muted)}
+.context-far-note{display:block;margin-top:6px;font-size:11px;color:var(--muted);line-height:1.6}
+.context-far-hint{margin:4px 0 0!important;font-size:12px!important;color:var(--green)}
+.context-far-group{margin-bottom:10px}
+.context-far-group>b{display:block;font-size:12.5px;margin-bottom:4px}
+.risk-far{margin:10px 0;border:1px solid var(--line);border-radius:9px;padding:8px 10px;background:var(--selected)}
+.risk-far>summary{cursor:pointer;font-size:12px;font-weight:700}
+.risk-far>summary small{font-weight:400;color:var(--muted);margin-left:4px}
+.risk-far-scroll{overflow-x:auto;margin:8px 0 4px}
+.risk-far table{width:100%;border-collapse:collapse;font-size:12px}
+.risk-far th,.risk-far td{padding:5px 6px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+.risk-far thead th{color:var(--muted);font-weight:600;font-size:11px}
+.risk-far tbody th{text-align:left;font-weight:600}
+.risk-far tbody th small{color:var(--muted);font-weight:400}
