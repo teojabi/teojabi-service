@@ -240,9 +240,30 @@ createServer(async (request, response) => {
           filters:parsed.filters,chips:[],total:0,groups:[],originTotals:{premium:0,registered:0,disco:0,naver:0},station:null,districts:[],suggestions:[],relaxations:[],unsupported:parsed.unsupported||null,searchedAt:null});
         return;
       }
-      // AI 비서는 직접 매물을 검색하지 않고, 이해한 조건을 보여준 뒤 메인 검색 조건 설정으로 안내한다.
-      send(response,request,{status:'ready',searchIntent:true,reply:'',chips:chipList(parsed.filters),
-        filters:parsed.filters,total:0,groups:[],originTotals:{premium:0,registered:0,disco:0,naver:0},station:null,districts:[],suggestions:[],relaxations:[],unsupported:null,searchedAt:null});
+      // 관광숙박특화구역·교육보호구역·문화재보존구역은 실시간 공간 질의가 너무 무거워 안내로 대체한다.
+      if (parsed.filters && (parsed.filters.preferTourism || parsed.filters.excludeEducation || parsed.filters.excludeHeritage)) {
+        send(response,request,{status:'ready',
+          reply:'관광숙박특화구역·교육보호구역·문화재보존구역 조건은 메인 화면의 "건물 찾기 > 신축 검토"에서 설정하면 결과를 볼 수 있어요. 여기서는 지역·예산·면적·용도지역·역거리·도로폭으로 찾아드릴게요.',
+          filters:parsed.filters,chips:[],total:0,groups:[],originTotals:{premium:0,registered:0,disco:0,naver:0},station:null,districts:[],suggestions:[],relaxations:[],unsupported:null,searchedAt:null});
+        return;
+      }
+      let search;
+      try { search=await runAssistant(root,parsed.filters); }
+      catch {
+        send(response,request,{status:'ready',
+          reply:'조건이 복잡해 지금은 결과를 가져오지 못했어요. 잠시 후 다시 시도하거나 조건을 조금 바꿔 주세요.',
+          filters:parsed.filters,chips:[],total:0,groups:[],originTotals:{premium:0,registered:0,disco:0,naver:0},station:null,districts:[],suggestions:[],relaxations:[],unsupported:null,searchedAt:null});
+        return;
+      }
+      if (search.stationMissing){
+        send(response,request,{status:'ready',
+          reply:`"${search.stationMissing}" 역을 찾지 못했어요. 역 이름을 정확히 알려주세요. 예) "홍대입구역 300m 이내"`,
+          filters:parsed.filters,chips:[],total:0,groups:[],originTotals:{premium:0,registered:0,disco:0,naver:0},station:null,districts:[],suggestions:[],relaxations:[],unsupported:null,searchedAt:null});
+        return;
+      }
+      const result=buildResult(parsed.filters,search,parsed.unsupported);
+      if(parsed.source==='spoken'&&parsed.conflicts?.length)result.conditionNote='저장하신 조건과 다른 부분이 있어 말씀하신 조건으로 찾았어요.';
+      send(response,request,result);
     } catch {send(response,request,{status:'error'},503);}
     return;
   }
