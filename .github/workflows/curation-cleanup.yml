@@ -39,15 +39,14 @@ jobs:
             . ./.env
             set +a
             .venv/bin/python - <<'PY'
-            import os, sys, json, subprocess
+            import os, sys, json, traceback, subprocess
             import psycopg2
             from psycopg2.extras import RealDictCursor
 
+            sys.path.insert(0, os.path.join(os.getcwd(), 'automation'))
             sys.stdout.reconfigure(encoding='utf-8')
             mode = (os.environ.get('MODE') or 'report').strip()
-            dsn = os.environ.get('TEOJABI_DATABASE_URL') or os.environ.get('DATABASE_URL')
-            if not dsn:
-                print('ERROR: database url missing'); sys.exit(1)
+            print('MODE =', mode)
 
             TABLE = 'public.teojabi_curation_candidates'
             NOT_PICK = "COALESCE(snapshot->'teojabiPick'->>'status','') <> 'published'"
@@ -61,24 +60,33 @@ jobs:
                 published = cur.fetchone()['n']
                 return {"total": total, "published_kept": published, "removable": removable}
 
-            with psycopg2.connect(dsn, connect_timeout=10, options='-c statement_timeout=60000') as conn:
-                with conn.cursor(cursor_factory=RealDictCursor) as cur:
-                    cur.execute('SELECT pg_advisory_xact_lock(174209151)')
-                    before = report(cur)
-                    print('BEFORE', json.dumps(before, ensure_ascii=False))
-
-                    if mode != 'purge':
-                        print('MODE=report 이므로 삭제하지 않았습니다.')
-                    else:
-                        cur.execute(f'DELETE FROM {TABLE} WHERE {NOT_PICK}')
-                        deleted = cur.rowcount
-                        print('DELETED', deleted)
-                        after = report(cur)
-                        print('AFTER', json.dumps(after, ensure_ascii=False))
+            try:
+                from service_database import service_config
+                config = service_config()
+                print('DB host =', config.get('host'))
+                with psycopg2.connect(**config, connect_timeout=10, options='-c statement_timeout=60000') as conn:
+                    with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                        cur.execute('SELECT pg_advisory_xact_lock(174209151)')
+                        print('BEFORE', json.dumps(report(cur), ensure_ascii=False))
+                        if mode != 'purge':
+                            print('MODE != purge 이므로 삭제하지 않았습니다.')
+                        else:
+                            cur.execute(f'DELETE FROM {TABLE} WHERE {NOT_PICK}')
+                            print('DELETED', cur.rowcount)
+                            print('AFTER', json.dumps(report(cur), ensure_ascii=False))
+            except Exception:
+                print('DELETE_STEP_FAILED')
+                traceback.print_exc()
+                sys.exit(1)
 
             if mode == 'purge':
-                # 고객 화면이 읽는 스냅샷을 재생성한다.
                 for script in ('automation/assign_service_numbers.py', 'automation/prepare_selected_preview.py'):
-                    subprocess.run([sys.executable, '-X', 'utf8', script], check=True)
+                    print('RUN', script)
+                    done = subprocess.run([sys.executable, '-X', 'utf8', script], capture_output=True, text=True)
+                    print(done.stdout.strip())
+                    if done.returncode != 0:
+                        print(done.stderr.strip())
+                        print('SNAPSHOT_STEP_FAILED', script)
+                        sys.exit(1)
                 print('SNAPSHOT regenerated')
             PY
