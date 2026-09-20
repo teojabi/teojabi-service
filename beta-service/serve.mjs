@@ -242,14 +242,8 @@ createServer(async (request, response) => {
       }
       const spatialKeys = ['preferTourism', 'excludeEducation', 'excludeHeritage'];
       const hasSpatial = parsed.filters && spatialKeys.some(key => parsed.filters[key]);
-      // 자연어로 구역 조건을 말하면 실시간 공간 질의가 무거워 안내로 대체한다.
-      if (parsed.source !== 'edited' && hasSpatial) {
-        send(response,request,{status:'ready',
-          reply:'관광숙박특화구역·교육보호구역·문화재보존구역 조건은 메인 화면의 "건물 찾기 > 신축 검토"에서 설정하면 결과를 볼 수 있어요. 여기서는 지역·예산·면적·용도지역·역거리·도로폭으로 찾아드릴게요.',
-          filters:parsed.filters,chips:[],total:0,groups:[],originTotals:{premium:0,registered:0,disco:0,naver:0},station:null,districts:[],suggestions:[],relaxations:[],unsupported:null,searchedAt:null});
-        return;
-      }
-      // 저장 조건("이 조건으로 찾기")은 구역 조건을 뺀 나머지로 검색한다(구역은 메인 '신축 검토'에서 처리).
+      // 구역 조건은 실시간 공간 질의가 무거워, 나머지 조건으로 찾고 안내를 덧붙인다.
+      // 구역 조건만 있으면 검색 없이 설정 위치를 안내한다.
       let spatialNote = null;
       if (hasSpatial) {
         const stripped = { ...parsed.filters };
