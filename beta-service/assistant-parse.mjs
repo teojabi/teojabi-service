@@ -286,9 +286,20 @@ export async function parseAssistant(message, condition, geminiKey, editedFilter
   let unsupported = null;
   let reply = null;
   let source = Object.keys(spoken).length ? 'spoken' : Object.keys(saved).length ? 'saved' : 'none';
-  if (!hasMeaningfulFilters(spoken) && !hasMeaningfulFilters(saved)) {
+  const strongKeys = ['districts', 'budgetWon', 'minAreaM2', 'maxAreaM2', 'zones', 'stationName', 'maxDistanceM', 'minRoadWidthM'];
+  const hasStrong = strongKeys.some(key => { const value = spoken[key]; return Array.isArray(value) ? value.length > 0 : value !== undefined && value !== null && value !== ''; });
+  const conversational = /안녕|반갑|반가|잘\s*부탁|고마|감사|수고|하이|헬로|hello|\bhi\b/i.test(String(message || ''));
+  if (conversational && !hasStrong && !hasMeaningfulFilters(saved)) {
+    // 인사·안부가 섞인 말은 검색으로 넘기지 않고 대화로 응답한다.
     const gem = await geminiFilters(message, geminiKey, condition);
-    if (gem) { merged = mergeFilters(gem.filters, saved); unsupported = gem.unsupported; reply = gem.reply; source = Object.keys(gem.filters || {}).length ? 'gemini' : 'none'; }
+    reply = (gem && gem.reply) || '안녕하세요! 터잡이 AI 부동산 비서예요. 찾으시는 지역·예산·용도 같은 조건을 알려주시면 매물을 찾아드릴게요.';
+    merged = {}; source = 'none';
+  } else if (!hasMeaningfulFilters(spoken) && !hasMeaningfulFilters(saved)) {
+    const gem = await geminiFilters(message, geminiKey, condition);
+    if (gem) {
+      if (hasMeaningfulFilters(gem.filters)) { merged = mergeFilters(gem.filters, saved); source = 'gemini'; }
+      else { merged = {}; unsupported = gem.unsupported; reply = gem.reply; source = 'none'; }
+    }
   }
   const filters = sanitize(merged); filters.limit = 60;
   return { filters, unsupported, source, conflicts: conflicts(spoken, saved), reply };
