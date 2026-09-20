@@ -342,7 +342,7 @@ export function mountAssistant({ onResults, onAnalyze } = {}) {
     busy = true;
     if (message) addUser(message);
     const started = Date.now();
-    const scan = addBot(`<div class="assistant-scan"><span class="assistant-spinner"></span><b>답변을 준비하고 있어요…</b></div>`);
+    const scan = addBot(`<div class="assistant-scan"><span class="assistant-spinner"></span><b>잠시만요…</b></div>`);
     let timers = [];
     // 결과 목록이 있을 때만 매물 검색 단계 애니메이션을 보여준다.
     const playSteps = () => {
@@ -362,7 +362,7 @@ export function mountAssistant({ onResults, onAnalyze } = {}) {
       const data = await response.json();
       const isSearch = Array.isArray(data.groups) && data.groups.length > 0;
       if (isSearch) playSteps();
-      await new Promise(resolve => setTimeout(resolve, Math.max(0, (isSearch ? SCAN_MS : 700) - (Date.now() - started))));
+      await new Promise(resolve => setTimeout(resolve, Math.max(0, (isSearch ? SCAN_MS : 0) - (Date.now() - started))));
       const bar = scan.querySelector('.assistant-bar i'); if (bar) bar.style.width = '100%';
       timers.forEach(clearTimeout);
       scan.remove();
