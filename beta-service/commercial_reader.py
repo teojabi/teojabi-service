@@ -82,6 +82,11 @@ def read_commercial(connection, query):
             base = districts[0]
             nearest = dict(base)
             nearest['topCategories'] = _top_categories(cursor, base['code'], quarter)
+            cursor.execute(
+                '''SELECT 기준년분기, sum(월매출금액) FROM public.commercial_sales
+                   WHERE 상권코드=%s GROUP BY 기준년분기 ORDER BY 기준년분기''',
+                (base['code'],))
+            nearest['trend'] = [{'quarter': r[0], 'salesWon': int(r[1] or 0)} for r in cursor.fetchall()]
     return {
         'status': 'ready',
         'basis': {'quarter': quarter, 'radiusM': radius, 'locationQuality': 'listing-coords'},
