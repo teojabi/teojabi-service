@@ -3,6 +3,8 @@ import { apiFetch } from './api-client.mjs';
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const eok = won => Number(won) > 0 ? `${(won / 1e8).toLocaleString('ko-KR', { maximumFractionDigits: 1 })}억` : null;
 const man = n => Number(n) > 0 ? `${Math.round(n / 10000).toLocaleString('ko-KR')}만` : null;
+const pct = v => Math.abs(v).toLocaleString('ko-KR', { maximumFractionDigits: 1 });
+const arrow = v => v > 0 ? '▲' : v < 0 ? '▼' : '–';
 
 // 상권 검색은 AI 비서에서만 제공한다. 카드 버튼은 비서에게 메시지를 보내는 이벤트를 띄운다.
 export function commercialAsk(message) {
@@ -15,6 +17,17 @@ function bars(items) {
   return `<div class="commercial-bars">${items.map(i => {
     const width = Math.max(2, Math.round((Number(i.value) || 0) / max * 100));
     return `<div class="commercial-bar${i.current ? ' is-current' : ''}"><span class="commercial-bar-label" title="${esc(i.label)}">${esc(i.label)}</span><span class="commercial-bar-track"><i style="width:${width}%"></i></span><b>${esc(i.display)}</b></div>`;
+  }).join('')}</div>`;
+}
+
+// 분기별 세로 막대. 값은 억 단위 정수, 라벨은 24Q3 형식.
+function columns(items) {
+  const max = Math.max(...items.map(i => Number(i.value) || 0), 1);
+  const last = items.length - 1;
+  return `<div class="commercial-columns">${items.map((i, idx) => {
+    const height = Math.max(3, Math.round((Number(i.value) || 0) / max * 100));
+    const value = Number(i.value) > 0 ? Math.round(Number(i.value) / 1e8) : '';
+    return `<div class="commercial-col${idx === last ? ' is-current' : ''}" title="${esc(i.label)} ${eok(i.value) || '자료 없음'}"><b>${value}</b><span class="commercial-col-track"><i class="commercial-col-bar" style="height:${height}%"></i></span><small>${esc(i.label)}</small></div>`;
   }).join('')}</div>`;
 }
 
@@ -33,20 +46,34 @@ function halfYearTrend(trend) {
   }).slice(-4);
 }
 
-function trendMarkup(trend) {
+function quarterTrend(trend) {
+  return (trend || []).map(item => {
+    const q = String(item.quarter || '');
+    return { quarter: q, label: q.length === 5 ? `${q.slice(2, 4)}Q${q.slice(4)}` : q, value: Number(item.salesWon) || 0 };
+  }).slice(-9);
+}
+
+function halfTrendMarkup(trend) {
   const groups = halfYearTrend(trend);
   if (groups.length < 2) return '';
   const items = groups.map((g, i) => ({ label: g.label, value: g.value, display: eok(g.value) || '자료 없음', current: i === groups.length - 1 }));
   let change = '';
   if (groups.length >= 3) {
     const last = groups[groups.length - 1], prev = groups[groups.length - 3];
-    if (prev.value > 0) {
-      const pct = (last.value - prev.value) / prev.value * 100;
-      const arrow = pct > 0 ? '▲' : pct < 0 ? '▼' : '–';
-      change = `<p class="commercial-change">${esc(last.label)} · 전년동기 대비 ${arrow} ${Math.abs(pct).toLocaleString('ko-KR', { maximumFractionDigits: 1 })}%</p>`;
-    }
+    if (prev.value > 0) change = `<p class="commercial-change">${esc(last.label)} · 전년동기 대비 ${arrow(last.value - prev.value)} ${pct((last.value - prev.value) / prev.value * 100)}%</p>`;
   }
   return `<p class="commercial-block-title">매출 추이 · 반기별 (상권 합계)</p>${bars(items)}${change}`;
+}
+
+function quarterTrendMarkup(trend) {
+  const items = quarterTrend(trend);
+  if (items.length < 2) return '';
+  let change = '';
+  if (items.length >= 5) {
+    const last = items[items.length - 1], prev = items[items.length - 5];
+    if (prev.value > 0) change = `<p class="commercial-change">${esc(last.label)} · 전년동기 대비 ${arrow(last.value - prev.value)} ${pct((last.value - prev.value) / prev.value * 100)}%</p>`;
+  }
+  return `<p class="commercial-block-title">분기별 월 추정매출 (상권 합계, 억원)</p>${columns(items)}${change}`;
 }
 
 function metrics(area, { sales = true } = {}) {
@@ -58,7 +85,7 @@ function metrics(area, { sales = true } = {}) {
   return items.length ? `<div class="commercial-metrics">${items.join('')}</div>` : '';
 }
 
-export function renderCommercial(data) {
+export function renderCommercial(data, { trend = 'half', nearby = true } = {}) {
   if (!data || data.status !== 'ready' || !data.nearest) {
     return '<p class="case-note">반경 안에서 연결되는 상권 자료를 찾지 못했어요.</p>';
   }
@@ -76,25 +103,16 @@ export function renderCommercial(data) {
     current: d.code === n.code,
   }));
   const near = n.distanceM != null ? `<span class="commercial-distance">${n.distanceM}m</span>` : '';
+  const trendBlock = trend === 'quarter' ? quarterTrendMarkup(n.trend) : halfTrendMarkup(n.trend);
   return `<div class="commercial-card">
     <div class="commercial-head"><span class="commercial-icon" aria-hidden="true">🏪</span><div><b>${esc(n.name)}</b><small>${esc(n.type || '')}${n.gu ? ` · ${esc(n.gu)}` : ''}</small></div>${near}</div>
-    ${metrics(n, { sales: false })}
+    ${metrics(n, { sales: trend !== 'quarter' })}
     ${catBars.length ? `<p class="commercial-block-title">주요 업종 · 이 상권 매출 비중</p>${bars(catBars)}` : ''}
-    ${trendMarkup(n.trend)}
-    ${cmpBars.length ? `<p class="commercial-block-title">반경 안 상권 월 추정매출 · 상권별 합계</p>${bars(cmpBars)}` : ''}
+    ${trendBlock}
+    ${nearby && cmpBars.length ? `<p class="commercial-block-title">반경 안 상권 월 추정매출 · 상권별 합계</p>${bars(cmpBars)}` : ''}
     <button type="button" class="outline commercial-ask" data-commercial-ask="${esc(n.name)} 상권">이 상권에서 매물 찾기</button>
   </div>
   <p class="commercial-source">월 추정매출은 상권 하나의 합계(모든 업종)예요 · 서울시 상권분석서비스 · 기준 ${esc(data.basis?.quarter || '')} · 대표점 기준</p>`;
-}
-
-export function commercialPopupMarkup(area) {
-  return `<div class="commercial-popup-inner">
-    <button type="button" class="commercial-popup-close" data-commercial-close aria-label="닫기">×</button>
-    <b>${esc(area.name)}</b>
-    <small>${esc(area.type || '')}${area.gu ? ` · ${esc(area.gu)}` : ''}</small>
-    ${metrics(area)}
-    <button type="button" class="outline commercial-ask" data-commercial-ask="${esc(area.name)} 상권">이 상권에서 매물 찾기</button>
-  </div>`;
 }
 
 export function mountCommercial(host, listing) {

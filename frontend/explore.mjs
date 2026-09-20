@@ -3,7 +3,7 @@ import { ListingMap, openStreetView } from './map-controller.mjs';
 import { mountInlineContext } from './inline-context.mjs';
 import { mountBuildingRecords } from './building-records.mjs';
 import { mountLandRecords } from './land-records.mjs';
-import { mountCommercial, commercialPopupMarkup, commercialAsk } from './commercial-context.mjs';
+import { mountCommercial, renderCommercial, commercialAsk } from './commercial-context.mjs';
 import { PURPOSES } from './search-options.mjs';
 import { openComparison } from './compare.mjs';
 import { member,openFeedback } from './member.mjs';
@@ -52,7 +52,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
   const favoriteItems=()=>member.items.filter(item=>item.kind==='favorite');
   $('#listing-list').before($('#explore-filters'));
   let listScrollTop=0;
-  const compared=new Map();let closeComparison,showPins=true,showTransactions=true,showAllPicks=false,pickGroups=null,nearby=null,loadTimer=null,quickFilters,assistantShown=5;
+  const compared=new Map();let closeComparison,showPins=true,showTransactions=true,showAllPicks=false,pickGroups=null,nearby=null,loadTimer=null,quickFilters,assistantShown=5,commercialPopupVersion=0;
   $('.map-controls').insertAdjacentHTML('beforeend','<button class="outline" data-explore="transactions" aria-pressed="true" hidden>실거래</button><button class="outline" data-explore="commercial" aria-pressed="false">상권</button><button class="outline return-detail" data-explore="return-detail">매물 상세로 돌아가기</button>');
   $('.explore-toolbar').insertAdjacentHTML('afterend','<div class="discovery-actions"><button class="outline" data-explore="compare-open" disabled>비교할 매물을 골라주세요 (최대 3개)</button><button class="outline" data-explore="compare-clear" hidden>비교 선택 지우기</button><button class="outline" data-explore="pins" aria-pressed="true">지도 매물 표시</button><span class="discovery-notice" role="status"></span></div><div class="search-suggestions" aria-live="polite"></div>');
   if(picksOnlyMode)$('[data-explore="all-picks"]').setAttribute('aria-pressed','true');
@@ -103,7 +103,16 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     $('.explore-board').classList.remove('transaction-map-open');
     const card=root.querySelector(`[data-transaction-id="${CSS.escape(id)}"]`);
     if(card){card.scrollIntoView({behavior:'smooth',block:'center'});card.focus({preventScroll:true});}
-  },onCommercial:area=>{const popup=$('#commercial-popup');popup.innerHTML=commercialPopupMarkup(area);popup.hidden=false;},onMove:view=>{
+  },onCommercial:area=>{
+    const popup=$('#commercial-popup');
+    const version=++commercialPopupVersion;
+    popup.hidden=false;
+    popup.innerHTML='<div class="commercial-popup-inner"><button type="button" class="commercial-popup-close" data-commercial-close aria-label="닫기">×</button><p class="case-note">상권 정보를 불러오고 있어요.</p></div>';
+    apiFetch(`/api/commercial?lat=${area.lat}&lng=${area.lng}&radius=100`,{signal:abort.signal}).then(response=>response.json()).then(data=>{
+      if(disposed||version!==commercialPopupVersion)return;
+      popup.innerHTML=`<div class="commercial-popup-inner"><button type="button" class="commercial-popup-close" data-commercial-close aria-label="닫기">×</button>${renderCommercial(data,{trend:'quarter'})}</div>`;
+    }).catch(()=>{if(!disposed&&version===commercialPopupVersion)popup.innerHTML='<div class="commercial-popup-inner"><button type="button" class="commercial-popup-close" data-commercial-close aria-label="닫기">×</button><p class="case-note">상권 정보를 불러오지 못했어요.</p></div>';});
+  },onMove:view=>{
     mapView=view;const button=$('[data-explore="search-map"]');if(button)button.disabled=false;
   },onStatus:(status,message)=>{
     if(disposed)return;
