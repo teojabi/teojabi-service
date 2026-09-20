@@ -205,6 +205,14 @@ createServer(async (request, response) => {
       }
       if(request.method==='POST'&&result.status==='deleted') {
         catalogPromise=zoningPromise=developmentPromise=normalizedCatalogPromise=null;catalogVersion=0;
+        if(['delete','bulk_delete'].includes(input?.action)&&process.env.TEOJABI_DATA_SOURCE==='supabase') {
+          const python=process.env.TEOJABI_PYTHON;
+          if(python)curationRefreshQueue=curationRefreshQueue.catch(()=>{}).then(async()=>{
+            for(const script of ['automation/assign_service_numbers.py','automation/prepare_selected_preview.py'])await execute(python,['-X','utf8',join(root,script)],{windowsHide:true,timeout:180000,maxBuffer:32*1024*1024,encoding:'utf8'});
+            catalogPromise=zoningPromise=developmentPromise=normalizedCatalogPromise=null;catalogVersion=0;
+            registeredSnapshotCache=null;registeredSnapshotCachedAt=0;
+          });
+        }
       }
       if(request.method==='POST'&&input?.action==='auto_select_200'&&result.status==='refreshed'&&process.env.TEOJABI_DATA_SOURCE!=='supabase') {
         await execute(process.env.TEOJABI_PYTHON || 'C:/Users/yoon/AppData/Local/Programs/Python/Python310/python.exe',
