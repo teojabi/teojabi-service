@@ -92,9 +92,9 @@ function draw(){
   const renderLimit=mode==='source'?120:showAllRegistered?list.length:180,renderRows=list.slice(0,renderLimit);
   $('#review-count').textContent=`${mode==='registered'?'등록한 매물':autoSelectionIds?'자동선별 결과':'네이버 원자료 후보'} ${list.length}개${list.length>renderRows.length?' · 먼저 '+renderRows.length+'개 표시':''}`;
   $('#review-list').innerHTML=renderRows.map(r=>{
-    const id=rowId(r),s=r.snapshot||{},p=pickOf(r),registeredText=isTeojabiPick(r)?'터잡이픽':r.registered?'등록됨':'미등록',selectable=mode==='source'&&!r.registered;
+    const id=rowId(r),s=r.snapshot||{},p=pickOf(r),registeredText=isTeojabiPick(r)?'터잡이픽':r.registered?'등록됨':'미등록',selectable=mode==='source'?!r.registered:true;
     return `<article class="review-card${id===current?' active':''}${selectedIds.has(id)?' bulk-selected':''}"><button class="review-open" data-open="${esc(id)}" aria-pressed="${id===current}">
-      <div class="review-card-top"><span>${p.pickNo?`매물번호 ${esc(p.pickNo)}`:`${esc(r.source_table)} ${esc(r.source_id)}`}</span><span class="review-tag">${registeredText}</span></div>${selectable?`<label class="bulk-check-wrap"><input class="bulk-check" type="checkbox" data-select="${esc(id)}" ${selectedIds.has(id)?'checked':''}> 일괄 등록 선택</label>`:''}
+      <div class="review-card-top"><span>${p.pickNo?`매물번호 ${esc(p.pickNo)}`:`${esc(r.source_table)} ${esc(r.source_id)}`}</span><span class="review-tag">${registeredText}</span></div>${selectable?`<label class="bulk-check-wrap"><input class="bulk-check" type="checkbox" data-select="${esc(id)}" ${selectedIds.has(id)?'checked':''}> ${mode==='source'?'일괄 등록 선택':'선택'}</label>`:''}
       <h3>${esc(s.address)}</h3><div class="review-price">${money(s.price)}</div><p>${esc(types[r.category]||'기타')} · ${esc(s.mainUse||'용도 미확인')}</p>
       <div class="review-card-areas"><span>대지 <b>${area(s.areaM2)}</b></span><span>연면적 <b>${area(s.floorAreaM2)}</b></span></div>
       <p>${esc(p.headline||s.description?.split('\n')[0]||'매물 설명을 입력해 주세요.')}</p></button></article>`;
@@ -109,7 +109,7 @@ function updateBulkTools(list=visible()){
   if(!bulk)return;
   bulk.hidden=false;
   sourceBox.hidden=mode!=='source';registeredBox.hidden=mode!=='registered';
-  selectedIds.forEach(id=>{const row=sources.find(r=>rowId(r)===id);if(!row||row.registered)selectedIds.delete(id);});
+  if(mode==='source')selectedIds.forEach(id=>{const row=sources.find(r=>rowId(r)===id);if(!row||row.registered)selectedIds.delete(id);});
   $('#bulk-selected-count').textContent=`선택 ${selectedIds.size}개`;
   $('#bulk-register').disabled=!selectedIds.size||loading;
   $('#bulk-select-visible').disabled=mode!=='source'||!sourcesLoaded||!list.some(r=>!r.registered)||loading;
@@ -124,6 +124,9 @@ function updateBulkTools(list=visible()){
   $('#registered-show-all').setAttribute('aria-pressed',String(showAllRegistered));
   $('#registered-show-all').textContent=showAllRegistered?'처음 180개만 보기':'등록 매물 모두보기';
   $('#registered-show-all').disabled=mode!=='registered'||list.length<=180;
+  $('#registered-select-all').disabled=mode!=='registered'||loading||!list.length;
+  $('#bulk-delete').disabled=mode!=='registered'||!selectedIds.size||loading;
+  $('#bulk-delete').textContent=selectedIds.size?`선택 ${selectedIds.size}개 일괄 삭제`:'선택 일괄 삭제';
 }
 async function postCuration(payload){
   const response=await apiFetch('/api/curation',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}),data=await response.json();
@@ -278,16 +281,22 @@ $('#auto-selection-clear').onclick=()=>{autoSelectionIds=null;draw();message('�
 $('#source-registered-toggle').onclick=()=>{showRegisteredSources=!showRegisteredSources;current=null;draw();$('#review-detail').innerHTML='<div class="review-empty"><h2>매물을 눌러보세요.</h2><p>네이버 원자료에서 등록할 매물을 선택해 주세요.</p></div>';};
 $('#pick-only-toggle').onclick=()=>{pickOnly=!pickOnly;if(pickOnly)hidePicks=false;draw();};
 $('#pick-hide-toggle').onclick=()=>{hidePicks=!hidePicks;if(hidePicks)pickOnly=false;draw();};
-$('#delete-all-registered').onclick=async()=>{
+$('#registered-select-all').onclick=()=>{const list=visible();list.forEach(r=>selectedIds.add(rowId(r)));draw();message(`현재 화면 ${list.length}개를 선택했습니다.`);};
+$('#bulk-delete').onclick=async()=>{
   if(loading)return;
-  const total=registered.length;
-  if(!total){message('삭제할 등록 매물이 없어요.');return;}
-  if(!confirm(`등록된 매물 ${total}개를 모두 삭제합니다. 터잡이픽도 함께 삭제되며 되돌릴 수 없어요. 계속할까요?`))return;
-  loading=true;const button=$('#delete-all-registered');button.disabled=true;message('등록 매물을 모두 삭제하고 있어요.');
+  const ids=[...selectedIds];
+  if(!ids.length){message('삭제할 매물을 선택해 주세요.');return;}
+  if(!confirm(`선택한 ${ids.length}개를 삭제합니다. 되돌릴 수 없어요. 계속할까요?`))return;
+  const items=ids.map(id=>{const row=registered.find(r=>rowId(r)===id)||sources.find(r=>rowId(r)===id);return row?{source_table:row.source_table,source_id:row.source_id}:null;}).filter(Boolean);
+  if(!items.length){message('삭제할 매물을 찾지 못했어요.',true);return;}
+  loading=true;const button=$('#bulk-delete');button.disabled=true;message('선택한 매물을 삭제하고 있어요.');
   try{
-    const data=await postCuration({action:'delete_all'});
-    sourcesLoaded=false;sources=[];registered=[];selectedIds.clear();current=null;autoSelectionIds=null;loading=false;setModeButtons();await load();
-    message(`등록 매물 ${Number(data.deleted||0)}개를 삭제했습니다.`);
+    const data=await postCuration({action:'bulk_delete',items});
+    const deletedIds=new Set(ids);
+    registered=registered.filter(r=>!deletedIds.has(rowId(r)));
+    sources=sources.map(r=>deletedIds.has(rowId(r))?{...r,registered:false}:r);
+    selectedIds.clear();current=null;loading=false;setModeButtons();await load();
+    message(`${Number(data.deleted||0)}개를 삭제했습니다.`);
   }catch(error){message(error.message,true);}finally{loading=false;button.disabled=false;}
 };
 $('#registered-show-all').onclick=()=>{showAllRegistered=!showAllRegistered;draw();};

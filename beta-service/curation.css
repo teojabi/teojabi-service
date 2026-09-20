@@ -58,7 +58,7 @@
 .auto-criteria-body input{width:88px;border:1px solid var(--line);border-radius:8px;padding:8px;font:inherit;font-size:13px;text-align:right;background:var(--card);color:var(--text)}
 .auto-criteria-body .validation{grid-column:1/-1;margin:0;font-size:12px;color:var(--green)}
 .auto-criteria-body .validation.error{color:var(--danger)}
-#delete-all-registered.danger{border-color:var(--danger);color:var(--danger)}
-#delete-all-registered.danger:hover{background:var(--danger);color:#fff}
+.registered-bulk .danger{border-color:var(--danger);color:var(--danger)}
+.registered-bulk .danger:hover:not(:disabled){background:var(--danger);color:#fff}
 #pick-hide-toggle[aria-pressed=true]{background:var(--selected);border-color:var(--primary);color:var(--primary);font-weight:700}
 @media(max-width:700px){.auto-criteria-body{grid-template-columns:1fr}}

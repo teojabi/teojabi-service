@@ -464,6 +464,26 @@ def delete_pick(conn,data):
             deleted=cur.rowcount
     return {'status':'deleted','id':cid,'deleted':deleted}
 
+def bulk_delete_picks(conn,data):
+    """선택한 등록 매물을 한 번에 삭제한다. 단건 삭제와 같은 숨김 목록도 함께 기록한다."""
+    items=data.get('items') if isinstance(data,dict) else None
+    if not isinstance(items,list) or not items or len(items)>2000: raise ValueError('Invalid bulk items')
+    hidden=read_hidden_ids(); deleted=0
+    with conn.cursor(cursor_factory=RealDictCursor) as cur:
+        cur.execute('SELECT pg_advisory_xact_lock(174209151)')
+        cur.execute('SELECT to_regclass(%s) AS name',(TABLE,))
+        if not cur.fetchone()['name']: return {'status':'deleted','deleted':0}
+        for item in items:
+            if not isinstance(item,dict): continue
+            table=str(item.get('source_table') or ''); sid=str(item.get('source_id') or '')
+            if table not in ('naver','naver_land','premium') or not sid: continue
+            hidden.add(catalog_id(table,sid))
+            if table in ('naver','naver_land') and sid.isdigit():
+                cur.execute(f'DELETE FROM {TABLE} WHERE source_table=%s AND source_id=%s',(table,sid))
+                deleted+=cur.rowcount
+    write_hidden_ids(hidden)
+    return {'status':'deleted','deleted':deleted}
+
 def repair_duplicates(conn):
     """Replace only untouched duplicate-address rows, preserving IDs and all user decisions."""
     with conn.cursor(cursor_factory=RealDictCursor) as cur:
@@ -552,6 +572,8 @@ def update(conn,data):
         result=bulk_register_picks(conn,data); listing(conn); return result
     if isinstance(data,dict) and data.get('action')=='delete':
         result=delete_pick(conn,data); listing(conn); return result
+    if isinstance(data,dict) and data.get('action')=='bulk_delete':
+        result=bulk_delete_picks(conn,data); listing(conn); return result
     if isinstance(data,dict) and data.get('action')=='auto_select_200':
         result=refresh_auto_selection(conn, data.get('criteria')); listing(conn); source_listing(conn); return result
     if isinstance(data,dict) and data.get('action')=='delete_all':
