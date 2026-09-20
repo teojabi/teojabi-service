@@ -113,7 +113,6 @@ def read_risk(connection, source_id, include_registers=True, include_context=Tru
     heritage = {'status': 'missing-parcel', 'rows': []}
     if isinstance(pnu, str) and re.fullmatch(r'11\d{17}', pnu):
         road = fetch('''SELECT pnu,"도로폭_m" AS "widthM", "최대용적률" AS far,"최대건폐율" AS bcr,
-            "제한높이" AS "heightLimit", "지구단위계획" AS "districtPlan",
             "용도지역" AS "originalZone","법정기준용도지역" AS zone,"법정기준상태" AS "baselineStatus",
             "서울도심" AS downtown FROM public.master_land WHERE pnu=%s LIMIT 2''', (pnu,))
         parcel = fetch('''

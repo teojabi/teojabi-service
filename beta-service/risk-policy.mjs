@@ -115,11 +115,9 @@ function zoneSummary(id,title,source,detail) {
 }
 export function normalizeRoad(source,pnu) {
   const rows=source?.rows;
-  if(source?.status==='error')return {status:'error',widthM:null,heightLimitM:null};
-  const row=source?.status==='ready'&&rows?.length===1&&rows[0].pnu===pnu?rows[0]:null;
-  const widthM=row?number(row.widthM):null,heightLimitM=row?number(row.heightLimit):null,bcrM=row?number(row.bcr):null;
-  return {status:widthM!==null?'ready':'missing',widthM,heightLimitM,bcrM,
-    districtPlanName:row?text(row.districtPlan,200)||null:null,source:'master_land.도로폭_m',adjacencyConfirmed:false};
+  if(source?.status==='error')return {status:'error',widthM:null};
+  const widthM=source?.status==='ready'&&rows?.length===1&&rows[0].pnu===pnu?number(rows[0].widthM):null;
+  return {status:widthM!==null?'ready':'missing',widthM,source:'master_land.도로폭_m',adjacencyConfirmed:false};
 }
 export function buildBuildingRecords(listing,raw) {
   if(!listing||raw?.sourceId!==listing.sourceId||raw.pnu!==listing.pnu||normalizeRiskAddress(raw.address)!==normalizeRiskAddress(listing.address))return {status:'error',reason:'SOURCE_MISMATCH'};
