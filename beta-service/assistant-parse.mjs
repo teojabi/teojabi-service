@@ -10,7 +10,7 @@ const m2 = (value, unit) => Math.round((unit === '평' ? Number(value) * 3.30578
 export function ruleFilters(text) {
   const t = String(text || '').slice(0, 500);
   const filters = {};
-  const districts = DISTRICTS.filter(name => t.includes(name));
+  const districts = DISTRICTS.filter(name => t.includes(name) || (name.endsWith('구') && name.length >= 3 && t.includes(name.slice(0, -1))));
   if (districts.length) filters.districts = districts;
   // "상업지역", "특화구역" 같은 용도·구역 표현을 역 이름으로 잘못 잡지 않도록 제거한 뒤 역을 찾는다.
   const station = t.replace(/[가-힣]{1,8}(지역|구역|지구)/g, ' ').match(/([가-힣A-Za-z0-9]{2,12})\s*역/);
