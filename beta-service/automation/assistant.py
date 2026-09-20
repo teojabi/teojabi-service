@@ -398,6 +398,9 @@ def search(conn, filters):
     if station:
         result['station'] = {'name': station['station_name'], 'lineNo': station['line_no'],
                              'lat': float(station['lat']), 'lng': float(station['lng'])}
+    # 역 이름을 줬는데 특정되지 않으면 조용히 전체를 검색하지 않고 안내한다.
+    if filters.get('stationName') and station is None:
+        result['stationMissing'] = clean(filters.get('stationName'), 20)
     return result
 
 

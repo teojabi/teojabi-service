@@ -241,6 +241,12 @@ createServer(async (request, response) => {
         return;
       }
       const search=await runAssistant(root,parsed.filters);
+      if (search.stationMissing){
+        send(response,request,{status:'ready',
+          reply:`"${search.stationMissing}" 역을 찾지 못했어요. 역 이름을 정확히 알려주세요. 예) "홍대입구역 300m 이내"`,
+          filters:parsed.filters,chips:[],total:0,groups:[],originTotals:{premium:0,registered:0,disco:0,naver:0},station:null,districts:[],suggestions:[],relaxations:[],unsupported:null,searchedAt:null});
+        return;
+      }
       const result=buildResult(parsed.filters,search,parsed.unsupported);
       if(parsed.source==='spoken'&&parsed.conflicts?.length)result.conditionNote='저장하신 조건과 다른 부분이 있어 말씀하신 조건으로 찾았어요.';
       send(response,request,result);
