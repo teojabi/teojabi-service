@@ -1,0 +1,84 @@
+name: Curation Cleanup
+
+# 등록 매물에서 터잡이픽(게시됨)만 남기고 테스트로 등록한 선별매물을 삭제한다.
+# mode 파일(.github/curation-cleanup-mode.txt) 내용이 purge 이면 삭제, 그 외에는 조회만 한다.
+on:
+  push:
+    branches: [ "main" ]
+    paths:
+      - '.github/curation-cleanup-mode.txt'
+      - '.github/workflows/curation-cleanup.yml'
+  workflow_dispatch:
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Read mode
+        id: mode
+        run: echo "mode=$(tr -d '[:space:]' < .github/curation-cleanup-mode.txt)" >> "$GITHUB_OUTPUT"
+
+      - name: Clean up curation candidates on NCP
+        uses: appleboy/ssh-action@v1.1.0
+        env:
+          MODE: ${{ steps.mode.outputs.mode }}
+        with:
+          host: ${{ secrets.NCP_SSH_HOST }}
+          username: ${{ secrets.NCP_SSH_USER }}
+          password: ${{ secrets.NCP_SSH_PASSWORD }}
+          command_timeout: 10m
+          envs: MODE
+          script: |
+            set -e
+            cd ~/teojabi-runtime/beta-service
+            set -a
+            . ./.env
+            set +a
+            .venv/bin/python - <<'PY'
+            import os, sys, json, subprocess
+            import psycopg2
+            from psycopg2.extras import RealDictCursor
+
+            sys.stdout.reconfigure(encoding='utf-8')
+            mode = (os.environ.get('MODE') or 'report').strip()
+            dsn = os.environ.get('TEOJABI_DATABASE_URL') or os.environ.get('DATABASE_URL')
+            if not dsn:
+                print('ERROR: database url missing'); sys.exit(1)
+
+            TABLE = 'public.teojabi_curation_candidates'
+            NOT_PICK = "COALESCE(snapshot->'teojabiPick'->>'status','') <> 'published'"
+
+            def report(cur):
+                cur.execute(f'SELECT count(*) AS n FROM {TABLE}')
+                total = cur.fetchone()['n']
+                cur.execute(f"SELECT count(*) AS n FROM {TABLE} WHERE {NOT_PICK}")
+                removable = cur.fetchone()['n']
+                cur.execute(f"SELECT count(*) AS n FROM {TABLE} WHERE snapshot->'teojabiPick'->>'status'='published'")
+                published = cur.fetchone()['n']
+                return {"total": total, "published_kept": published, "removable": removable}
+
+            with psycopg2.connect(dsn, connect_timeout=10, options='-c statement_timeout=60000') as conn:
+                with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                    cur.execute('SELECT pg_advisory_xact_lock(174209151)')
+                    before = report(cur)
+                    print('BEFORE', json.dumps(before, ensure_ascii=False))
+
+                    if mode != 'purge':
+                        print('MODE=report 이므로 삭제하지 않았습니다.')
+                    else:
+                        cur.execute(f'DELETE FROM {TABLE} WHERE {NOT_PICK}')
+                        deleted = cur.rowcount
+                        print('DELETED', deleted)
+                        after = report(cur)
+                        print('AFTER', json.dumps(after, ensure_ascii=False))
+
+            if mode == 'purge':
+                # 고객 화면이 읽는 스냅샷을 재생성한다.
+                for script in ('automation/assign_service_numbers.py', 'automation/prepare_selected_preview.py'):
+                    subprocess.run([sys.executable, '-X', 'utf8', script], check=True)
+                print('SNAPSHOT regenerated')
+            PY
