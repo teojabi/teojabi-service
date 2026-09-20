@@ -50,6 +50,8 @@ describe('additional member storage',()=>{
     expect(validateItem('favorite','naver:2647532280',{address:'서울',priceWon:100})).toEqual({id:'naver:2647532280',address:'서울',priceWon:100,areaM2:null,floorAreaM2:null});
     expect(validateItem('favorite','naver-land:123',{address:'서울'}).id).toBe('naver-land:123');
     expect(validateItem('feedback','premium:eb3a7fa1-4e4f-4c75-bc0f-c6dad1326e67',{choice:'like'}).id).toBe('premium:eb3a7fa1-4e4f-4c75-bc0f-c6dad1326e67');
+    expect(validateItem('favorite','disco:4pu1m5ht',{address:'서울',priceWon:100}).id).toBe('disco:4pu1m5ht');
+    expect(validateItem('feedback','disco:4pu1m5ht',{choice:'like'}).id).toBe('disco:4pu1m5ht');
     expect(()=>validateItem('favorite','legacy-id',{})).toThrow();
   });
   it('validates saved parcel areas',()=>{
