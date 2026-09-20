@@ -789,6 +789,9 @@ body.architect-lightbox-open{overflow:hidden}
 .context-far-hint{margin:4px 0 0!important;font-size:12px!important;color:var(--green)}
 .context-far-group{margin-bottom:10px}
 .context-far-group>b{display:block;font-size:12.5px;margin-bottom:4px}
+.context-far-summary{display:flex;flex-wrap:wrap;gap:6px;margin:2px 0 8px}
+.context-far-summary span{font-size:13px;font-weight:700;color:var(--green);background:color-mix(in srgb,var(--green) 12%,var(--card));border:1px solid color-mix(in srgb,var(--green) 30%,var(--line));border-radius:8px;padding:4px 9px}
+.context-far-detail>summary{cursor:pointer;font-size:12px;color:var(--muted)}
 .risk-far{margin:10px 0;border:1px solid var(--line);border-radius:9px;padding:8px 10px;background:var(--selected)}
 .risk-far>summary{cursor:pointer;font-size:12px;font-weight:700}
 .risk-far>summary small{font-weight:400;color:var(--muted);margin-left:4px}

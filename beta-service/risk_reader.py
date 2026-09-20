@@ -173,15 +173,17 @@ def read_risk(connection, source_id, include_registers=True, include_context=Tru
                         far_names.append(value.strip())
                         break
             far_names = sorted(set(far_names))[:20]
-            # 기준(최초) 고시·대표 값 파일·시행지침 (v_district_sources). 뷰가 없으면 조용히 생략한다.
+            # 기준 고시·대표 값 파일·시행지침 (v_district_sources). 뷰가 없으면 조용히 생략한다.
             if far_names:
                 sources = fetch('''
                     SELECT dgm_nm AS "dgmName",
-                           base_notice_no AS "baseNoticeNo", base_notice_date AS "baseNoticeDate",
-                           base_notice_name AS "baseNoticeName", base_notice_url AS "baseNoticeUrl",
+                           std_notice_no AS "baseNoticeNo", std_notice_date AS "baseNoticeDate",
+                           std_notice_name AS "baseNoticeName",
+                           coalesce(std_notice_url_enc, std_notice_url) AS "baseNoticeUrl",
+                           origin_notice_no AS "originNoticeNo", origin_notice_date AS "originNoticeDate",
                            latest_notice_no AS "latestNoticeNo", latest_notice_date AS "latestNoticeDate",
                            rep_kind AS "repKind", rep_group AS "repGroup", rep_name AS "repName",
-                           rep_url AS "repUrl", rep_date AS "repDate", rep_used AS "repUsed",
+                           coalesce(rep_url_enc, rep_url) AS "repUrl", rep_date AS "repDate", rep_used AS "repUsed",
                            guidelines
                     FROM public.v_district_sources
                     WHERE dgm_nm = ANY(%s)
@@ -195,26 +197,33 @@ def read_risk(connection, source_id, include_registers=True, include_context=Tru
                         if not item:
                             continue
                         for key in ('baseNoticeNo', 'baseNoticeDate', 'baseNoticeName', 'baseNoticeUrl',
+                                    'originNoticeNo', 'originNoticeDate',
                                     'latestNoticeNo', 'latestNoticeDate', 'repKind', 'repGroup',
                                     'repName', 'repUrl', 'repDate', 'repUsed', 'guidelines'):
                             row[key] = item.get(key)
+            # 값은 원본 테이블(district_far_regulation)에서 직접 읽고, 근거 파일은 파일목록과 이름으로 연결한다.
+            # (뷰 정의가 바뀌어도 값 표시가 깨지지 않도록 뷰 의존을 두지 않는다.)
             far = fetch('''
-                SELECT dgm_nm AS "dgmName", zone_raw, zone_class, zone_detail,
-                       road_side, label_quality, change_type,
-                       far_standard, far_allowed, far_upper,
-                       far_standard_text, far_allowed_text, far_upper_text,
-                       bcr, bcr_text, height_m, floors,
-                       source_article, method, confidence,
-                       base_notice_no AS "baseNoticeNo", base_notice_date AS "baseNoticeDate",
-                       base_notice_url AS "baseNoticeUrl",
-                       source_file_name AS "sourceFileName", source_file_url AS "sourceFileUrl",
-                       source_group AS "sourceGroup"
-                FROM public.v_far_serving_full
-                WHERE dgm_nm = ANY(%s)
-                ORDER BY dgm_nm,
-                    CASE zone_class WHEN '구역' THEN 0 WHEN '획지' THEN 1 WHEN '용도지역' THEN 2
-                                    WHEN '입지' THEN 3 WHEN '용도' THEN 4 WHEN '기타' THEN 5 ELSE 6 END,
-                    id
+                SELECT f.id, f.dgm_nm AS "dgmName", f.zone_type AS zone_raw, f.zone_norm,
+                       f.zone_class, f.zone_detail, f.road_side, f.road_name, f.label_quality, f.change_type,
+                       f.far_standard, f.far_allowed, f.far_upper,
+                       f.far_standard_text, f.far_allowed_text, f.far_upper_text,
+                       f.bcr, f.bcr_text, f.height_m, f.floors,
+                       f.source_article, f.method, f.confidence,
+                       sf.file_name AS "sourceFileName", sf.file_url AS "sourceFileUrl"
+                FROM public.district_far_regulation f
+                LEFT JOIN LATERAL (
+                    SELECT d.file_name, d.file_url
+                    FROM public.district_file_list d
+                    WHERE d.file_name = regexp_replace(f.source_pdf, '^.*[\\/]', '')
+                    ORDER BY (d.used_far IS TRUE) DESC NULLS LAST
+                    LIMIT 1
+                ) sf ON true
+                WHERE f.dgm_nm = ANY(%s)
+                ORDER BY f.dgm_nm,
+                    CASE f.zone_class WHEN '구역' THEN 0 WHEN '획지' THEN 1 WHEN '용도지역' THEN 2
+                                      WHEN '입지' THEN 3 WHEN '용도' THEN 4 WHEN '기타' THEN 5 ELSE 6 END,
+                    f.id
             ''', (far_names,)) if far_names else {'status': 'mismatch', 'rows': []}
             # Transform the single parcel, keeping source geometries indexed and unchanged.
             education = remote_zone('education_safezones',pnu) if remote_mode() else fetch('''

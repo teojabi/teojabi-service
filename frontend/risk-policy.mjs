@@ -80,6 +80,7 @@ export function normalizeFar(source) {
       if(quality==='noise')continue;
       const item={
         dgmName:text(raw.dgmName||raw.dgm_nm,200),zoneClass:text(raw.zone_class,20)||'기타',
+        zoneRaw:text(raw.zone_raw||raw.zone_type,120)||null,
         zoneDetail:text(raw.zone_detail,80)||null,
         roadSide:text(raw.road_side,20)||null,roadName:text(raw.road_name,80)||null,
         changeType:text(raw.change_type,20)||null,
@@ -140,9 +141,10 @@ export function buildRiskReview(listing,raw) {
         noticeDate:date(row.noticeDate),noticeNumber:text(row.noticeNumber,80),
         relation,
         baseNotice:{no:text(row.baseNoticeNo,80)||null,date:date(row.baseNoticeDate),name:text(row.baseNoticeName,300)||null,url:safePublicDocumentUrl(row.baseNoticeUrl)},
+        originNotice:{no:text(row.originNoticeNo,80)||null,date:date(row.originNoticeDate)},
         latestNotice:{no:text(row.latestNoticeNo,80)||null,date:date(row.latestNoticeDate)},
         representative:row.repUrl||row.repName?{kind:text(row.repKind,30)||null,group:text(row.repGroup,30)||null,name:text(row.repName,300)||null,url:safePublicDocumentUrl(row.repUrl),date:date(row.repDate),used:row.repUsed===true}:null,
-        guidelines:(Array.isArray(row.guidelines)?row.guidelines:[]).map(g=>({name:text(g.name,300)||null,url:safePublicDocumentUrl(g.url),group:text(g.grp,20)||null})).filter(g=>g.url||g.name).slice(0,20),
+        guidelines:(Array.isArray(row.guidelines)?row.guidelines:[]).map(g=>({name:text(g.name,300)||null,url:safePublicDocumentUrl(g.url_enc||g.url),group:text(g.grp,20)||null})).filter(g=>g.url||g.name).slice(0,20),
         pdfUrl:safePublicDocumentUrl(row.pdfUrl),pdfName:text(row.pdfName),documentWarning:documentWarning(row),
         drawings:(Array.isArray(row.drawings)?row.drawings:[]).map(d=>({name:text(d.name)||'계획 도면',url:safePublicDocumentUrl(d.url)})).filter(d=>d.url).slice(0,30),
         far:[],applicabilityConfirmed:false});
