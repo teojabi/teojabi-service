@@ -317,7 +317,7 @@ def search(conn, filters):
         query_params = station_distance_params(station) + params + station_distance_params(station) + [limit]
         row_sql = '''SELECT n."매물번호", n."대지위치", n."거래가격", n."대지면적", n."연면적", n."층정보",
                             n."구", n."동", n."주용도코드명", n."용도지역", n."매물특징", n."도로폭_m",
-                            n."사용승인일자", n.pnu, n.lat, n.lng, s.station_name, s.dist_m,
+                            n."사용승인일자", n.pnu, n.lat, n.lng, n.source_kind, n.source_url, s.station_name, s.dist_m,
                             ''' + origin + ''' AS origin, ''' + pick_no + ''' AS teojabi_no''' + select_point + '''
                      FROM ''' + source + ''' n ''' + join + '''
                      CROSS JOIN LATERAL (
