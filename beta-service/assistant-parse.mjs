@@ -83,7 +83,7 @@ const FAQ_CONTEXT = [
 
 // Free-form text goes to Gemini only when the rule parser found nothing.
 export async function geminiFilters(message, key, condition) {
-  if (!key) return null;
+  if (!key) return { filters: {}, unsupported: null, reply: 'DEBUG no-key' };
   const schema = `{"districts":["자치구"],"q":"동/키워드","budgetWon":숫자(원),"minAreaM2":숫자,"maxAreaM2":숫자,"kind":"land|building","zones":["주거지역|상업지역|공업지역|녹지지역"],"stationName":"역이름","maxDistanceM":숫자,"minRoadWidthM":숫자,"purpose":"new-build"}`;
   const prompt = [
     '너는 터잡이(teojabi.com) 부동산 서비스의 안내 도우미다. 반드시 JSON 객체 하나만 출력한다(설명·인사말·코드블록 금지).',
@@ -105,18 +105,18 @@ export async function geminiFilters(message, key, condition) {
       body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.1, topP: 0.9, maxOutputTokens: 1024, responseMimeType: 'application/json' } }),
       signal: AbortSignal.timeout(15000),
     });
-    if (!response.ok) return null;
+    if (!response.ok) return { filters: {}, unsupported: null, reply: 'DEBUG http ' + response.status };
     const data = await response.json();
     const text = (data?.candidates || []).flatMap(c => c?.content?.parts || []).map(p => p?.text).filter(Boolean).join('\n').trim();
     const match = text.match(/\{[\s\S]*\}/);
-    if (!match) return null;
+    if (!match) return { filters: {}, unsupported: null, reply: 'DEBUG nomatch ' + text.slice(0, 200) };
     const parsed = JSON.parse(match[0]);
     return {
       filters: sanitize(parsed.filters || parsed),
       unsupported: typeof parsed.unsupported === 'string' ? parsed.unsupported.slice(0, 120) : null,
       reply: typeof parsed.reply === 'string' && parsed.reply.trim() ? parsed.reply.trim().slice(0, 500) : null,
     };
-  } catch { return null; }
+  } catch (error) { return { filters: {}, unsupported: null, reply: 'DEBUG err ' + String(error && error.message || error).slice(0, 200) }; }
 }
 
 // Strict whitelist so a model or a client can never inject unknown filters.
