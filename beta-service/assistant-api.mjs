@@ -11,7 +11,7 @@ export function runAssistant(root, filters) {
       (error, stdout) => {
         try {
           const result = JSON.parse(stdout);
-          if (error && result.status !== 'ready') reject(new Error(result.error || result.errorType || 'ASSISTANT_UNAVAILABLE'));
+          if (error && result.status !== 'ready') reject(new Error('ASSISTANT_UNAVAILABLE'));
           else resolve(result);
         } catch {
           reject(new Error('ASSISTANT_UNAVAILABLE'));

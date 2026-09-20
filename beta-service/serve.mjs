@@ -244,7 +244,7 @@ createServer(async (request, response) => {
       const result=buildResult(parsed.filters,search,parsed.unsupported);
       if(parsed.source==='spoken'&&parsed.conflicts?.length)result.conditionNote='저장하신 조건과 다른 부분이 있어 말씀하신 조건으로 찾았어요.';
       send(response,request,result);
-    } catch(error) {send(response,request,{status:'error',message:String(error?.message||'').slice(0,500)},503);}
+    } catch {send(response,request,{status:'error'},503);}
     return;
   }
   if (!['GET','HEAD'].includes(request.method)) { response.writeHead(405).end(); return; }

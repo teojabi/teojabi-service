@@ -71,7 +71,7 @@ def source_from(has_disco):
                       d.use_zone::text AS "용도지역", d.road_width_m::numeric AS "도로폭_m",
                       NULL::text AS "층정보", NULL::text AS "사용승인일자", NULL::text AS "매물특징",
                       d.pnu::text AS pnu, d.lat::double precision AS lat, d.lng::double precision AS lng,
-                      'disco'::text AS source_kind, d.source_url::text AS source_url
+                      'disco'::text AS source_kind, COALESCE(d.source_url, 'https://disco.re/m/' || d.did)::text AS source_url
                FROM public.disco_listing d
                WHERE d.active AND d.lat IS NOT NULL AND d.lng IS NOT NULL AND d.price_manwon IS NOT NULL AND d.price_manwon > 0'''
     return '(' + naver + ' UNION ALL ' + disco + ')'
