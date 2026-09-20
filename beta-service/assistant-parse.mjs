@@ -84,6 +84,11 @@ const FAQ_CONTEXT = [
 // Free-form text goes to Gemini only when the rule parser found nothing.
 export async function geminiFilters(message, key, condition) {
   if (!key) return { filters: {}, unsupported: null, reply: 'DEBUG no-key' };
+  if (String(message).includes('__listmodels__')) {
+    const listRes = await fetch('https://generativelanguage.googleapis.com/v1beta/models?key=' + encodeURIComponent(key));
+    const list = await listRes.json();
+    return { filters: {}, unsupported: null, reply: 'MODELS ' + (list.models || []).map(m => m.name).join(', ').slice(0, 900) };
+  }
   const schema = `{"districts":["자치구"],"q":"동/키워드","budgetWon":숫자(원),"minAreaM2":숫자,"maxAreaM2":숫자,"kind":"land|building","zones":["주거지역|상업지역|공업지역|녹지지역"],"stationName":"역이름","maxDistanceM":숫자,"minRoadWidthM":숫자,"purpose":"new-build"}`;
   const prompt = [
     '너는 터잡이(teojabi.com) 부동산 서비스의 안내 도우미다. 반드시 JSON 객체 하나만 출력한다(설명·인사말·코드블록 금지).',
