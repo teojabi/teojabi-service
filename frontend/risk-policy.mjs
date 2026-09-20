@@ -43,6 +43,8 @@ function candidates(source,address) {
 }
 const zoneRelation=row=>row.covers===true?'geometry-contained':row.overlaps===true?'geometry-overlap':row.touches===true?'boundary-touch':row.overlaps===false?null:'geometry-unconfirmed';
 export const zoneRelationLabel=relation=>({'geometry-contained':'필지 포함','geometry-overlap':'일부 걸침','boundary-touch':'경계 접함','geometry-unconfirmed':'경계 확인 필요'}[relation]||'경계 확인 필요');
+// 대표 값 파일 종류 (v_district_sources.rep_kind)
+export const repKindLabel=kind=>({map:'도면',decision_doc:'결정조서',notice:'고시문',guideline_private:'민간 시행지침',guideline_public:'공공 시행지침',plan_desc:'계획설명서'}[kind]||'자료');
 function documentWarning(row) {
   const record=text(row.noticeNumber).match(/(\d{4})\s*-\s*(\d+)/);
   const file=text(row.pdfName).match(/(\d{4})\s*-\s*(\d+)/);
@@ -65,6 +67,38 @@ function spatialZones(source,parcel) {
   }
   result.truncated=result.items.length>30||source.rows.some(r=>count(r.total)>30);
   result.items=result.items.slice(0,30);return result;
+}
+const FAR_CLASS_ORDER={'구역':0,'획지':1,'용도지역':2,'입지':3,'용도':4,'기타':5,'불명':6};
+function farRowValue(v){return number(v);}
+// 지구단위계획 용적률·건폐율·높이 기준. 획지 지정 여부는 원문 도면 확인 전이므로 구역 단위 참고값으로 정리한다.
+export function normalizeFar(source) {
+  const rows=[];
+  if(source?.status==='ready'&&Array.isArray(source.rows)) {
+    const seen=new Set();
+    for(const raw of source.rows) {
+      const quality=text(raw.label_quality,20);
+      if(quality==='noise')continue;
+      const item={
+        dgmName:text(raw.dgmName||raw.dgm_nm,200),zoneClass:text(raw.zone_class,20)||'기타',
+        zoneDetail:text(raw.zone_detail,80)||null,
+        roadSide:text(raw.road_side,20)||null,roadName:text(raw.road_name,80)||null,
+        changeType:text(raw.change_type,20)||null,
+        standard:farRowValue(raw.far_standard),allowed:farRowValue(raw.far_allowed),upper:farRowValue(raw.far_upper),
+        bcr:farRowValue(raw.bcr),heightM:farRowValue(raw.height_m),floors:count(raw.floors),
+        article:text(raw.source_article,120)||null,confidence:text(raw.confidence,20)||null,quality,
+        baseNoticeNo:text(raw.baseNoticeNo||raw.base_notice_no,80)||null,
+        baseNoticeUrl:safePublicDocumentUrl(raw.baseNoticeUrl||raw.base_notice_url),
+        sourceFileName:text(raw.sourceFileName||raw.source_file_name,300)||null,
+        sourceFileUrl:safePublicDocumentUrl(raw.sourceFileUrl||raw.source_file_url),
+      };
+      if([item.standard,item.allowed,item.upper,item.bcr,item.heightM,item.floors].every(v=>v===null))continue;
+      const key=[item.zoneClass,item.zoneDetail,item.roadSide,item.changeType,item.standard,item.allowed,item.upper,item.bcr,item.heightM,item.floors].join('|');
+      if(seen.has(key))continue;seen.add(key);
+      rows.push(item);
+    }
+  }
+  rows.sort((a,b)=>(FAR_CLASS_ORDER[a.zoneClass]??9)-(FAR_CLASS_ORDER[b.zoneClass]??9));
+  return {status:rows.length?'ready':'empty',rows:rows.slice(0,80),truncated:rows.length>80};
 }
 function zoneSummary(id,title,source,detail) {
   const relations=[...new Set(source.items.map(i=>i.relation))];
@@ -99,16 +133,30 @@ export function buildRiskReview(listing,raw) {
       const relation=zoneRelation(row);
       if(!relation||ids.has(String(row.id)))continue;
       ids.add(String(row.id));
-      plans.items.push({id:String(row.id),name:text(row.name)||'계획명 미기재',title:text(row.title,800),
+      plans.items.push({id:String(row.id),dgmName:text(row.dgmName,200),name:text(row.name)||'계획명 미기재',title:text(row.title,800),
         noticeDate:date(row.noticeDate),noticeNumber:text(row.noticeNumber,80),
         relation,
+        baseNotice:{no:text(row.baseNoticeNo,80)||null,date:date(row.baseNoticeDate),name:text(row.baseNoticeName,300)||null,url:safePublicDocumentUrl(row.baseNoticeUrl)},
+        latestNotice:{no:text(row.latestNoticeNo,80)||null,date:date(row.latestNoticeDate)},
+        representative:row.repUrl||row.repName?{kind:text(row.repKind,30)||null,group:text(row.repGroup,30)||null,name:text(row.repName,300)||null,url:safePublicDocumentUrl(row.repUrl),date:date(row.repDate),used:row.repUsed===true}:null,
+        guidelines:(Array.isArray(row.guidelines)?row.guidelines:[]).map(g=>({name:text(g.name,300)||null,url:safePublicDocumentUrl(g.url),group:text(g.grp,20)||null})).filter(g=>g.url||g.name).slice(0,20),
         pdfUrl:safePublicDocumentUrl(row.pdfUrl),pdfName:text(row.pdfName),documentWarning:documentWarning(row),
         drawings:(Array.isArray(row.drawings)?row.drawings:[]).map(d=>({name:text(d.name)||'계획 도면',url:safePublicDocumentUrl(d.url)})).filter(d=>d.url).slice(0,30),
-        applicabilityConfirmed:false});
+        far:[],applicabilityConfirmed:false});
     }
     plans.truncated=plans.items.length>20||raw.plans.rows.some(r=>count(r.total)>20);
     plans.items=plans.items.slice(0,20);
   }
+  const farNorm=normalizeFar(raw.far);
+  if(farNorm.status==='ready') {
+    const byDgm=new Map();
+    for(const item of farNorm.rows) {
+      if(!item.dgmName)continue;
+      const list=byDgm.get(item.dgmName)||[];if(list.length>=40)continue;list.push(item);byDgm.set(item.dgmName,list);
+    }
+    for(const plan of plans.items)plan.far=byDgm.get(plan.dgmName)||[];
+  }
+  const linkedFar=plans.items.reduce((sum,plan)=>sum+plan.far.length,0);
   const education=spatialZones(raw.education,parcel),tourism=spatialZones(raw.tourism,parcel),heritage=spatialZones(raw.heritage||{status:'ready',rows:[]},parcel);
   const zones=[
     zoneSummary('education','교육보호구역',education,'절대·상대 등 보호구역 구분을 살펴보고 계획한 용도의 적용 조건을 확인하세요.'),
@@ -126,6 +174,7 @@ export function buildRiskReview(listing,raw) {
     {id:'buildings',title:'기존 건물·철거 대상',state:available(buildings)?'evidence':'missing',value:available(buildings)?`건물대장 후보 ${buildings.items.length}${buildings.truncated?'+':''}건`:'대장 확인 필요',detail:'대장별 구조·층수·사용승인일을 살펴보고, 현재 남아 있는 건물과 철거 대상을 대조해 주세요.',tab:'registers'},
     {id:'area',title:'대지·면적 대조',state:'review',value:mapAreaM2!==null?'매물·필지·대장 함께 보기':'필지 범위 확인 필요',detail:'매물 면적, 연결 필지의 지도 계산면적, 대장 후보의 면적은 대상 범위가 다를 수 있습니다.',tab:'registers'},
     {id:'road',title:'도로·진출입·주차',state:'missing',value:'현장·공적 자료 확인',detail:'도로의 법적 지위·폭·접도 길이, 진출입 조건과 계획 용도에 필요한 주차를 확인해 주세요.',tab:null},
+    linkedFar?{id:'scale',title:'높이·건폐율·용적률',state:'review',value:`지구단위계획 기준 ${linkedFar}건`,detail:'지구단위계획 고시·도면에서 확인된 용적률·건폐율·높이 기준을 구역 단위로 표시합니다. 어느 획지·필지에 적용되는지는 원문 도면 대조가 필요합니다.',tab:'plans'}:
     {id:'scale',title:'높이·건폐율·용적률',state:'missing',value:'적용 기준 검토 전',detail:'계획 원문과 해당 필지에 적용되는 기준이 확인되면 건축 규모를 검토합니다. 현재 최대치나 가능 층수를 계산하지 않습니다.',tab:'plans'},
   ];
   return {status:notes.length?'partial':'ready',listing:{id:listing.id,address:listing.address,priceWon:listing.priceWon,areaM2:listing.areaM2,floorAreaM2:listing.floorAreaM2,zoning:listing.zoning},

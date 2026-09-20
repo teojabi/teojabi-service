@@ -1,5 +1,5 @@
 import { apiFetch } from './api-client.mjs';
-import { safePublicDocumentUrl, TOURISM_NOTICE } from './risk-policy.mjs';
+import { safePublicDocumentUrl, repKindLabel, TOURISM_NOTICE } from './risk-policy.mjs';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const link=(url,label)=>safePublicDocumentUrl(url)?`<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(label)} ↗</a>`:'';
 function heightLines(zone) {
@@ -12,15 +12,54 @@ function heightLines(zone) {
     return `<div class="context-height"><b>${esc(i.name)}${i.relation==='geometry-overlap'?' · 일부 걸침':''}</b>${limits.length?`<p>높이제한: ${esc(limits.join(' · '))}</p>`:''}${note?`<small>${esc(note)}</small>`:''}<small>저장된 문화재 구역 기준 · 원문 적용 조건 확인</small></div>`;
   }).join('');
 }
+// 지구단위계획 용적률·건폐율·높이 기준 한 줄 표기.
+function farRowLine(item) {
+  const parts=[];
+  if(item.standard!=null)parts.push(`기준 ${item.standard}%`);
+  if(item.allowed!=null)parts.push(`허용 ${item.allowed}%`);
+  if(item.upper!=null)parts.push(`상한 ${item.upper}%`);
+  if(item.bcr!=null)parts.push(`건폐율 ${item.bcr}%`);
+  if(item.heightM!=null)parts.push(`높이 ${item.heightM}m`);
+  if(item.floors!=null)parts.push(`${item.floors}층`);
+  if(!parts.length)return '';
+  const label=item.zoneDetail||item.roadSide||item.zoneClass||'기준';
+  const meta=[item.zoneDetail&&item.roadSide?item.roadSide:null,item.changeType].filter(Boolean).join(' · ');
+  const labelHtml=item.sourceFileUrl?`<a href="${esc(item.sourceFileUrl)}" target="_blank" rel="noopener noreferrer" title="${esc(item.sourceFileName||'근거 파일')}">${esc(label)} ↗</a>`:esc(label);
+  return `<li><b>${labelHtml}</b> ${esc(parts.join(' · '))}${meta?` <small>${esc(meta)}</small>`:''}</li>`;
+}
+export function renderFarBlock(plan) {
+  const rows=(plan?.far||[]).filter(i=>farRowLine(i));
+  if(!rows.length)return '';
+  const shown=rows.slice(0,12);
+  return `<div class="context-far"><p class="context-far-title">지구단위계획 건축 기준 <small>구역 단위 기준 · 해당 획지 적용은 도면 확인</small></p><ul class="context-far-list">${shown.map(farRowLine).join('')}</ul>${rows.length>shown.length?`<p class="context-far-more">그 밖에 ${rows.length-shown.length}건</p>`:''}<small class="context-far-note">용적률·건폐율·높이는 고시·도면에서 정한 기준이며 실제 허가 규모와 다를 수 있어요.</small></div>`;
+}
+export function renderFarSummary(plans) {
+  const withFar=(plans||[]).filter(p=>renderFarBlock(p));
+  if(!withFar.length)return '';
+  return withFar.map(p=>`<div class="context-far-group"><b>${esc(p.name)}</b>${renderFarBlock(p)}</div>`).join('');
+}
+// 기준(최초) 고시 + 대표 값 파일 + 시행지침 링크.
+function planSources(p) {
+  const parts=[];
+  if(p.baseNotice?.url)parts.push(`<a href="${esc(p.baseNotice.url)}" target="_blank" rel="noopener noreferrer">기준 고시 ${esc(p.baseNotice.no||'')}${p.baseNotice.date?` (${esc(p.baseNotice.date)})`:''} ↗</a>`);
+  else if(p.baseNotice?.no)parts.push(`<span>기준 고시 ${esc(p.baseNotice.no)}</span>`);
+  if(p.representative?.url)parts.push(`<span class="context-plan-rep"><span class="context-plan-badge">${esc(repKindLabel(p.representative.kind))}</span><a href="${esc(p.representative.url)}" target="_blank" rel="noopener noreferrer">${esc(p.representative.name||'대표 자료')}${p.representative.used?' · 값 근거':''} ↗</a></span>`);
+  const gl=(p.guidelines||[]).filter(g=>g.url);
+  const glHtml=gl.length?`<details class="context-plan-guide"><summary>시행지침 ${gl.length}개</summary>${gl.map(g=>link(g.url,g.name||'시행지침')).join('')}</details>`:'';
+  if(!parts.length&&!glHtml)return '';
+  return `<div class="context-plan-sources">${parts.join('')}${glHtml}</div>`;
+}
 function zoneLine(zone) {
   if(!zone)return '';
   const items=zone.items||[],names=[...new Set(items.map(i=>i.name))];
+  const farCount=items.reduce((sum,item)=>sum+(item.far?.length||0),0);
   const included=items.some(i=>i.relation==='geometry-contained'),overlap=items.some(i=>i.relation==='geometry-overlap'),touch=items.some(i=>i.relation==='boundary-touch');
   if(included||overlap) {
     const title=zone.id==='education'?'교육보호구역':zone.id==='heritage'?'문화재보존구역':zone.id==='tourism'?'관광숙박특화구역':'지구단위계획구역';
     const text=zone.id==='district-plan'?`이 필지${included?'는':' 일부는'} ${names.join(' · ')}에 속해 있어요.`:
       `${included?'':'필지 일부가 '}${title}이에요.${['education','heritage'].includes(zone.id)&&names.length?' ('+names.join(' · ')+')':''}`;
-    return `<li><span class="context-dot"></span><div><p>${esc(text)}</p>${heightLines(zone)}${zone.id==='tourism'?link(TOURISM_NOTICE.url,'관광숙박 고시 보기'):''}</div></li>`;
+    const farHint=zone.id==='district-plan'&&farCount?`<p class="context-far-hint">지구단위계획상 용적률·건폐율·높이 기준 ${farCount}건이 있어요.</p>`:'';
+    return `<li><span class="context-dot"></span><div><p>${esc(text)}</p>${farHint}${heightLines(zone)}${zone.id==='tourism'?link(TOURISM_NOTICE.url,'관광숙박 고시 보기'):''}</div></li>`;
   }
   if(touch)return `<li><span class="context-dot"></span><p>${esc(zone.title)} 경계에 닿아 있어요.</p></li>`;
   if(zone.status!=='ready'||items.length||zone.excluded)return `<li class="context-pending"><span class="context-dot"></span><p>${esc(zone.title)} 여부를 확인하지 못했어요.</p></li>`;
@@ -30,7 +69,7 @@ export function renderInlineContext(data) {
   const zones=data.zones||[],road=data.road;
   const zoneRows=zones.map(zoneLine).join('');
   const plans=zones.find(z=>z.id==='district-plan')?.items||[];
-  return `<ul class="context-facts">${zoneRows}<li><span class="context-dot"></span><div><p>${road?.widthM>0?`인접 도로폭은 약 <b>${esc(road.widthM)}m</b>로 기록되어 있어요.`:'인접 도로폭은 확인이 필요해요.'}</p>${road?.widthM>0?'<small title="주변 10m 이내 도로 중 최소 폭으로 적재된 참고값입니다.">주변 도로 자료 기준 · 실제 접도 확인 필요</small>':''}</div></li></ul>${plans.length?`<details class="context-plans"><summary>지구단위계획을 확인해볼까요?</summary><div>${plans.map(p=>`<article><b>${esc(p.name)}</b><p>${esc(p.noticeDate||'고시일 미기재')}${p.noticeNumber?' · '+esc(p.noticeNumber):''}</p>${p.documentWarning?`<p>${esc(p.documentWarning)}</p>`:''}${link(p.pdfUrl,'고시 원문 보기')||'<p>연결된 고시 원문이 없어요.</p>'}${p.drawings?.length?`<details><summary>도면 ${p.drawings.length}개 보기</summary>${p.drawings.map(d=>link(d.url,d.name)).join('')}</details>`:''}</article>`).join('')}</div></details>`:''}<p class="context-source">연결된 필지의 저장 자료 기준이에요.</p>`;
+  return `<ul class="context-facts">${zoneRows}<li><span class="context-dot"></span><div><p>${road?.widthM>0?`인접 도로폭은 약 <b>${esc(road.widthM)}m</b>로 기록되어 있어요.`:'인접 도로폭은 확인이 필요해요.'}</p>${road?.widthM>0?'<small title="주변 10m 이내 도로 중 최소 폭으로 적재된 참고값입니다.">주변 도로 자료 기준 · 실제 접도 확인 필요</small>':''}</div></li></ul>${plans.length?`<details class="context-plans"><summary>지구단위계획을 확인해볼까요?</summary><div>${plans.map(p=>`<article><b>${esc(p.name)}</b><p>${esc(p.noticeDate||'고시일 미기재')}${p.noticeNumber?' · '+esc(p.noticeNumber):''}</p>${planSources(p)}${p.documentWarning?`<p>${esc(p.documentWarning)}</p>`:''}${renderFarBlock(p)}${link(p.pdfUrl,'고시 원문 보기')||'<p>연결된 고시 원문이 없어요.</p>'}${p.drawings?.length?`<details><summary>도면 ${p.drawings.length}개 보기</summary>${p.drawings.map(d=>link(d.url,d.name)).join('')}</details>`:''}</article>`).join('')}</div></details>`:''}<p class="context-source">연결된 필지의 저장 자료 기준이에요.</p>`;
 }
 export function mountInlineContext(host,listing) {
   const abort=new AbortController();let disposed=false,busy=false;
