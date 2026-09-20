@@ -21,6 +21,13 @@ const STEPS = [
   '도로폭 등 주변 조건을 확인하는 중이에요…',
   '조건에 맞는 매물을 정리하고 있어요…',
 ];
+// 인사·FAQ처럼 대화로 보이는 말인지 판단한다. 아니면 매물 검색으로 보고 즉시 검색 상태창을 띄운다.
+function looksConversational(text) {
+  const t = String(text || '');
+  if (/안녕|반갑|반가|잘\s*부탁|고마|감사|수고|하이|헬로|hello|\bhi\b/i.test(t)) return true;
+  if (/어떻게|어떤|뭐|무엇|뜻|의미|사용법|안내|가능한가요|되나요|인가요|있나요|알려주세요/.test(t) && !/찾아|찾고|검색|보여|추천|구해/.test(t)) return true;
+  return false;
+}
 const BUDGET_PRESETS = [10, 20, 30, 50, 100, 200];
 const AREA_PRESETS = [50, 100, 200, 300, 500];
 const ROAD_PRESETS = [4, 6, 8, 12];
@@ -342,9 +349,11 @@ export function mountAssistant({ onResults, onAnalyze } = {}) {
     busy = true;
     if (message) addUser(message);
     const started = Date.now();
-    const scan = addBot(`<div class="assistant-scan"><span class="assistant-spinner"></span><b>잠시만요…</b></div>`);
+    const guessSearch = !message || !looksConversational(message);
+    const scan = addBot(guessSearch
+      ? `<div class="assistant-scan"><span class="assistant-spinner"></span><b>AI 공간 분석 중…</b><ul class="assistant-steps"></ul><div class="assistant-bar"><i></i></div></div>`
+      : `<div class="assistant-scan"><span class="assistant-spinner"></span><b>잠시만요…</b></div>`);
     let timers = [];
-    // 결과 목록이 있을 때만 매물 검색 단계 애니메이션을 보여준다.
     const playSteps = () => {
       scan.innerHTML = `<div class="assistant-scan"><span class="assistant-spinner"></span><b>AI 공간 분석 중…</b><ul class="assistant-steps"></ul><div class="assistant-bar"><i></i></div></div>`;
       const stepsEl = scan.querySelector('.assistant-steps');
@@ -355,14 +364,18 @@ export function mountAssistant({ onResults, onAnalyze } = {}) {
         if (bar) bar.style.width = `${Math.round(((i + 1) / STEPS.length) * 92)}%`;
       }, i * interval));
     };
+    if (guessSearch) playSteps();
     const condition = savedCondition();
     const payload = { message: message || '', condition, filters: editedFilters || undefined };
     try {
       const response = await apiFetch('/api/assistant', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
       const data = await response.json();
       const isSearch = Array.isArray(data.groups) && data.groups.length > 0;
-      // 검색이면 단계 애니메이션을 처음부터 끝까지 보여준 뒤 결과를 표시한다.
-      if (isSearch) { playSteps(); await new Promise(resolve => setTimeout(resolve, SCAN_MS)); }
+      if (isSearch && !guessSearch) playSteps();
+      if (isSearch) {
+        const target = guessSearch ? SCAN_MS : Math.max(SCAN_MS, (Date.now() - started) + 1500);
+        await new Promise(resolve => setTimeout(resolve, Math.max(0, target - (Date.now() - started))));
+      }
       const bar = scan.querySelector('.assistant-bar i'); if (bar) bar.style.width = '100%';
       timers.forEach(clearTimeout);
       scan.remove();
