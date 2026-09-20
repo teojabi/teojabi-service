@@ -102,7 +102,7 @@ function editorMarkup(filters) {
   </form>`;
 }
 
-export function mountAssistant({ onResults, onAnalyze } = {}) {
+export function mountAssistant({ onResults, onAnalyze, onEditConditions } = {}) {
   if (document.querySelector('#assistant-fab')) return () => {};
   const fab = document.createElement('button');
   fab.id = 'assistant-fab'; fab.className = 'assistant-fab'; fab.type = 'button';
@@ -111,9 +111,10 @@ export function mountAssistant({ onResults, onAnalyze } = {}) {
   const panel = document.createElement('section');
   panel.id = 'assistant-panel'; panel.className = 'assistant-panel is-closed';
   panel.setAttribute('aria-label', 'AI 부동산 비서');
-  panel.innerHTML = `<header class="assistant-head"><span class="assistant-avatar">${ROBOT}</span><div><b>AI 부동산 비서</b><small>조건을 말하면 매물을 찾아드려요</small></div><button type="button" class="assistant-close" aria-label="비서 닫기">×</button></header>
+  panel.innerHTML = `<header class="assistant-head"><span class="assistant-avatar">${ROBOT}</span><div><b>AI 부동산 비서</b><small>터잡이 사용법·기능을 안내해 드려요</small></div><button type="button" class="assistant-close" aria-label="비서 닫기">×</button></header>
     <div class="assistant-log" aria-live="polite"></div>
-    <form class="assistant-form"><input name="message" type="text" autocomplete="off" maxlength="200" placeholder="예: 종로구 상업지역 100억 이하 도로 6m" aria-label="조건 입력"><button type="submit">전송</button></form>`;
+    <form class="assistant-form"><input name="message" type="text" autocomplete="off" maxlength="200" placeholder="터잡이 사용법·기능을 물어보세요" aria-label="메시지 입력"><button type="submit">전송</button></form>
+    <div class="assistant-edit-row"><button type="button" class="outline" data-edit-conditions>검색 조건 바꾸기</button></div>`;
   document.body.append(fab, panel);
 
   const log = panel.querySelector('.assistant-log');
@@ -233,8 +234,8 @@ export function mountAssistant({ onResults, onAnalyze } = {}) {
   const welcome = () => {
     if (!signedIn()) { renderLocked(); return; }
     const condition = savedCondition();
-    addBot(`안녕하세요, AI 부동산 비서예요. 원하는 조건을 편하게 말해주세요.<br><small>예: "종로구 상업지역 100억 이하 50평 이상 도로 6m", "홍대입구역 도보 3분"</small>`);
-    if (condition && hasUsableFilters(condition)) addBot(`<p>저장하신 조건이 있어요.</p><p class="assistant-saved-condition">${esc(conditionLabel(condition))}</p><small>말씀하신 조건이 있으면 그 조건으로 먼저 찾아드려요.</small><div class="assistant-chiprow"><button type="button" class="assistant-chip" data-send="저장한 조건으로 찾아줘">이 조건으로 찾기</button></div>`);
+    addBot(`안녕하세요, AI 부동산 비서예요. 터잡이 사용법·기능에 대해 편하게 물어보세요.<div class="assistant-chiprow"><button type="button" class="assistant-chip assistant-chip-primary" data-edit-conditions>검색 조건 바꾸기</button></div>`);
+    if (condition && hasUsableFilters(condition)) addBot(`<p>현재 저장하신 검색 조건이에요.</p><p class="assistant-saved-condition">${esc(conditionLabel(condition))}</p><small>조건을 바꾸려면 [검색 조건 바꾸기]를 눌러주세요.</small>`);
   };
 
   function renderResult(body, data, openEditor) {
@@ -379,8 +380,11 @@ export function mountAssistant({ onResults, onAnalyze } = {}) {
       const bar = scan.querySelector('.assistant-bar i'); if (bar) bar.style.width = '100%';
       timers.forEach(clearTimeout);
       scan.remove();
-      lastFilters = { ...(data.filters || {}) };
-      renderResult(null, data, !message && Boolean(editedFilters));
+      if (isSearch) {
+        addBot(`말씀하신 조건으로 매물을 찾으시려면 <b>[검색 조건 바꾸기]</b>에서 조건을 설정해 주세요.<div class="assistant-chiprow"><button type="button" class="assistant-chip assistant-chip-primary" data-edit-conditions>검색 조건 바꾸기</button></div>`);
+      } else {
+        addBot(esc(data.reply || '답변을 준비하지 못했어요. 다시 시도해 주세요.').replace(/\n/g, '<br>'));
+      }
     } catch {
       timers.forEach(clearTimeout); scan.remove();
       addBot('매물 자료를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.');
@@ -388,6 +392,7 @@ export function mountAssistant({ onResults, onAnalyze } = {}) {
   }
 
   panel.addEventListener('click', event => {
+    if (event.target.closest('[data-edit-conditions]')) { onEditConditions?.(); return; }
     const chip = event.target.closest('[data-send]');
     if (chip) { runSearch(chip.dataset.send); return; }
     if (event.target.closest('.assistant-close')) { closePanel(); return; }
