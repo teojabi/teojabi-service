@@ -20,60 +20,58 @@ function bars(items) {
   }).join('')}</div>`;
 }
 
-// 분기별 세로 막대. 값은 억 단위 정수, 라벨은 24Q3 형식.
-function columns(items) {
+// 분기별 세로 막대. valueFormat 은 막대 위 숫자, display 는 title 문구.
+function columns(items, valueFormat, displayFn) {
   const max = Math.max(...items.map(i => Number(i.value) || 0), 1);
   const last = items.length - 1;
   return `<div class="commercial-columns">${items.map((i, idx) => {
     const height = Math.max(3, Math.round((Number(i.value) || 0) / max * 100));
-    const value = Number(i.value) > 0 ? Math.round(Number(i.value) / 1e8) : '';
-    return `<div class="commercial-col${idx === last ? ' is-current' : ''}" title="${esc(i.label)} ${eok(i.value) || '자료 없음'}"><b>${value}</b><span class="commercial-col-track"><i class="commercial-col-bar" style="height:${height}%"></i></span><small>${esc(i.label)}</small></div>`;
+    const value = Number(i.value) > 0 ? valueFormat(i.value) : '';
+    return `<div class="commercial-col${idx === last ? ' is-current' : ''}" title="${esc(i.label)} ${displayFn(i.value) || '자료 없음'}"><b>${value}</b><span class="commercial-col-track"><i class="commercial-col-bar" style="height:${height}%"></i></span><small>${esc(i.label)}</small></div>`;
   }).join('')}</div>`;
 }
 
-function halfYearTrend(trend) {
+function halfYearGroups(trend, key) {
   const groups = new Map();
   for (const item of trend || []) {
     const q = String(item.quarter || '');
     const year = q.slice(0, 4), qn = Number(q.slice(4)) || 0;
     if (!year || !qn) continue;
-    const key = `${year}-${qn <= 2 ? 1 : 2}`;
-    groups.set(key, (groups.get(key) || 0) + (Number(item.salesWon) || 0));
+    const k = `${year}-${qn <= 2 ? 1 : 2}`;
+    groups.set(k, (groups.get(k) || 0) + (Number(item[key]) || 0));
   }
-  return [...groups.entries()].map(([key, value]) => {
-    const [year, half] = key.split('-');
+  return [...groups.entries()].map(([k, value]) => {
+    const [year, half] = k.split('-');
     return { label: `${year} ${half === '1' ? '상반기' : '하반기'}`, value };
   }).slice(-4);
 }
 
-function quarterTrend(trend) {
+function quarterGroups(trend, key) {
   return (trend || []).map(item => {
     const q = String(item.quarter || '');
-    return { quarter: q, label: q.length === 5 ? `${q.slice(2, 4)}Q${q.slice(4)}` : q, value: Number(item.salesWon) || 0 };
+    return { quarter: q, label: q.length === 5 ? `${q.slice(2, 4)}Q${q.slice(4)}` : q, value: Number(item[key]) || 0 };
   }).slice(-9);
 }
 
-function halfTrendMarkup(trend) {
-  const groups = halfYearTrend(trend);
-  if (groups.length < 2) return '';
-  const items = groups.map((g, i) => ({ label: g.label, value: g.value, display: eok(g.value) || '자료 없음', current: i === groups.length - 1 }));
-  let change = '';
-  if (groups.length >= 3) {
-    const last = groups[groups.length - 1], prev = groups[groups.length - 3];
-    if (prev.value > 0) change = `<p class="commercial-change">${esc(last.label)} · 전년동기 대비 ${arrow(last.value - prev.value)} ${pct((last.value - prev.value) / prev.value * 100)}%</p>`;
-  }
-  return `<p class="commercial-block-title">매출 추이 · 반기별 (상권 합계)</p>${bars(items)}${change}`;
+function changeLine(last, prev) {
+  if (!(prev && prev.value > 0)) return '';
+  const diff = last.value - prev.value;
+  return `<p class="commercial-change">${esc(last.label)} · 전년동기 대비 ${arrow(diff)} ${pct(diff / prev.value * 100)}%</p>`;
 }
 
-function quarterTrendMarkup(trend) {
-  const items = quarterTrend(trend);
+function halfTrendMarkup(trend, key, title, displayFn) {
+  const groups = halfYearGroups(trend, key);
+  if (groups.length < 2) return '';
+  const items = groups.map((g, i) => ({ label: g.label, value: g.value, display: displayFn(g.value) || '자료 없음', current: i === groups.length - 1 }));
+  const change = groups.length >= 3 ? changeLine(groups[groups.length - 1], groups[groups.length - 3]) : '';
+  return `<p class="commercial-block-title">${title}</p>${bars(items)}${change}`;
+}
+
+function quarterTrendMarkup(trend, key, title, valueFormat, displayFn) {
+  const items = quarterGroups(trend, key);
   if (items.length < 2) return '';
-  let change = '';
-  if (items.length >= 5) {
-    const last = items[items.length - 1], prev = items[items.length - 5];
-    if (prev.value > 0) change = `<p class="commercial-change">${esc(last.label)} · 전년동기 대비 ${arrow(last.value - prev.value)} ${pct((last.value - prev.value) / prev.value * 100)}%</p>`;
-  }
-  return `<p class="commercial-block-title">분기별 월 추정매출 (상권 합계, 억원)</p>${columns(items)}${change}`;
+  const change = items.length >= 5 ? changeLine(items[items.length - 1], items[items.length - 5]) : '';
+  return `<p class="commercial-block-title">${title}</p>${columns(items, valueFormat, displayFn)}${change}`;
 }
 
 function metrics(area, { sales = true } = {}) {
@@ -103,18 +101,25 @@ export function renderCommercial(data, { trend = 'half', nearby = true, collapsi
     current: d.code === n.code,
   }));
   const near = n.distanceM != null ? `<span class="commercial-distance">${n.distanceM}m</span>` : '';
-  const trendBlock = trend === 'quarter' ? quarterTrendMarkup(n.trend) : halfTrendMarkup(n.trend);
+  const quarter = trend === 'quarter';
+  const salesTrend = quarter
+    ? quarterTrendMarkup(n.trend, 'salesWon', '분기별 월 추정매출 (상권 합계, 억원)', v => Math.round(v / 1e8), eok)
+    : halfTrendMarkup(n.trend, 'salesWon', '매출 추이 · 반기별 (상권 합계)', eok);
+  const popTrend = quarter
+    ? quarterTrendMarkup(n.populationTrend, 'population', '분기별 유동인구 (상권 합계, 만명)', v => Math.round(v / 1e4), man)
+    : halfTrendMarkup(n.populationTrend, 'population', '유동인구 추이 · 반기별 (상권 합계)', man);
   const summary = `<div class="commercial-head"><span class="commercial-icon" aria-hidden="true">🏪</span><div><b>${esc(n.name)}</b><small>${esc(n.type || '')}${n.gu ? ` · ${esc(n.gu)}` : ''}</small></div>${near}</div>
-    ${metrics(n, { sales: trend !== 'quarter' })}`;
+    ${metrics(n, { sales: !quarter })}`;
   const details = `${catBars.length ? `<p class="commercial-block-title">주요 업종 · 이 상권 매출 비중</p>${bars(catBars)}` : ''}
-    ${trendBlock}
+    ${salesTrend}
+    ${popTrend}
     ${nearby && cmpBars.length ? `<p class="commercial-block-title">반경 안 상권 월 추정매출 · 상권별 합계</p>${bars(cmpBars)}` : ''}`;
   const ask = `<button type="button" class="outline commercial-ask" data-commercial-ask="${esc(n.name)} 상권">이 상권에서 매물 찾기</button>`;
   const body = collapsible
     ? `${summary}<details class="commercial-more"><summary>상권 자세히 보기</summary><div class="commercial-more-body">${details}</div></details>${ask}`
     : `${summary}${details}${ask}`;
   return `<div class="commercial-card">${body}</div>
-  <p class="commercial-source">월 추정매출은 상권 하나의 합계(모든 업종)예요 · 서울시 상권분석서비스 · 기준 ${esc(data.basis?.quarter || '')} · 대표점 기준</p>`;
+  <p class="commercial-source">월 추정매출·유동인구는 상권 하나의 합계예요 · 서울시 상권분석서비스 · 기준 ${esc(data.basis?.quarter || '')} · 대표점 기준</p>`;
 }
 
 export function mountCommercial(host, listing) {

@@ -87,6 +87,11 @@ def read_commercial(connection, query):
                    WHERE 상권코드=%s GROUP BY 기준년분기 ORDER BY 기준년분기''',
                 (base['code'],))
             nearest['trend'] = [{'quarter': r[0], 'salesWon': int(r[1] or 0)} for r in cursor.fetchall()]
+            cursor.execute(
+                '''SELECT 기준년분기, 유동인구수 FROM public.commercial_population
+                   WHERE 상권코드=%s ORDER BY 기준년분기''',
+                (base['code'],))
+            nearest['populationTrend'] = [{'quarter': r[0], 'population': int(r[1] or 0)} for r in cursor.fetchall()]
     return {
         'status': 'ready',
         'basis': {'quarter': quarter, 'radiusM': radius, 'locationQuality': 'listing-coords'},
