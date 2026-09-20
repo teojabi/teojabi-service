@@ -8,13 +8,13 @@ export function runAssistant(root, filters) {
       process.env.TEOJABI_PYTHON || 'C:/Users/yoon/AppData/Local/Programs/Python/Python310/python.exe',
       ['-X', 'utf8', join(root, 'automation/assistant.py')],
       { windowsHide: true, timeout: 30000, maxBuffer: 32 * 1024 * 1024, encoding: 'utf8' },
-      (error, stdout) => {
+      (error, stdout, stderr) => {
         try {
           const result = JSON.parse(stdout);
           if (error && result.status !== 'ready') reject(new Error(result.error || result.errorType || 'ASSISTANT_UNAVAILABLE'));
           else resolve(result);
         } catch {
-          reject(new Error('ASSISTANT_UNAVAILABLE'));
+          reject(new Error('ASSISTANT_UNAVAILABLE ' + String(stderr || stdout || '').replace(/\s+/g, ' ').slice(0, 400)));
         }
       },
     );
