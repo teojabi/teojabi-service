@@ -236,7 +236,10 @@ export function buildResult(filters, search, unsupported) {
     : (search.groups || []).map(group => group.representative).filter(Boolean);
   const rows = sourceRows.map(viewRow);
   const buckets = groupByOrigin(rows);
-  const ordered = [...buckets.premium, ...buckets.registered, ...buckets.disco, ...buckets.naver];
+  // 디스코를 앞세우지 않고 네이버와 무작위로 섞는다. 터잡이 추천·등록은 먼저 보여준다.
+  const mixed = [...buckets.disco, ...buckets.naver];
+  for (let i = mixed.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); const tmp = mixed[i]; mixed[i] = mixed[j]; mixed[j] = tmp; }
+  const ordered = [...buckets.premium, ...buckets.registered, ...mixed];
   const groups = ordered.map(listing => ({ key: listing.id, pnu: listing.pnu, representative: listing, listings: [listing] }));
   const described = describe(filters);
   const totals = search.originTotals || {};
