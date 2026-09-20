@@ -240,8 +240,9 @@ createServer(async (request, response) => {
           filters:parsed.filters,chips:[],total:0,groups:[],originTotals:{premium:0,registered:0,disco:0,naver:0},station:null,districts:[],suggestions:[],relaxations:[],unsupported:parsed.unsupported||null,searchedAt:null});
         return;
       }
-      // 관광숙박특화구역·교육보호구역·문화재보존구역은 실시간 공간 질의가 너무 무거워 안내로 대체한다.
-      if (parsed.filters && (parsed.filters.preferTourism || parsed.filters.excludeEducation || parsed.filters.excludeHeritage)) {
+      // 관광숙박특화구역·교육보호구역·문화재보존구역은 실시간 공간 질의가 너무 무거워 자연어 요청만 안내로 대체한다.
+      // 저장 조건("이 조건으로 찾기")은 사용자가 설정한 조건 그대로 검색한다.
+      if (parsed.source !== 'edited' && parsed.filters && (parsed.filters.preferTourism || parsed.filters.excludeEducation || parsed.filters.excludeHeritage)) {
         send(response,request,{status:'ready',
           reply:'관광숙박특화구역·교육보호구역·문화재보존구역 조건은 메인 화면의 "건물 찾기 > 신축 검토"에서 설정하면 결과를 볼 수 있어요. 여기서는 지역·예산·면적·용도지역·역거리·도로폭으로 찾아드릴게요.',
           filters:parsed.filters,chips:[],total:0,groups:[],originTotals:{premium:0,registered:0,disco:0,naver:0},station:null,districts:[],suggestions:[],relaxations:[],unsupported:null,searchedAt:null});
