@@ -45,6 +45,19 @@ function hasUsableFilters(filters) {
   return Object.entries(filters || {}).some(([key, value]) => key !== 'limit' && (Array.isArray(value) ? value.length : value !== null && value !== undefined && value !== ''));
 }
 
+// 실제 매물 조건(지역·예산·면적·용도지역·역·도로 등)이 있을 때만 검색 로딩을 띄운다.
+function needsSearch(message) {
+  const t = String(message || '');
+  return DISTRICTS.some(d => t.includes(d) || (d.endsWith('구') && d.length >= 3 && t.includes(d.slice(0, -1)))) ||
+    /[가-힣A-Za-z0-9]{2,12}\s*역/.test(t) ||
+    /\d+(?:\.\d+)?\s*(?:억|만원)/.test(t) ||
+    /\d+(?:\.\d+)?\s*(?:평|㎡|m2|m²|제곱미터)/.test(t) ||
+    /(?:주거지역|상업지역|공업지역|녹지지역)/.test(t) ||
+    /도로\s*(?:폭)?\s*\d+/.test(t) ||
+    /도보\s*\d+\s*분/.test(t) ||
+    /(?:토지|땅|필지|건물|빌딩|상가|주택|근린|신축)/.test(t);
+}
+
 function cardMarkup(listing, hidden = false) {
   const station = listing.station ? `<span class="assistant-station">📍 ${esc(listing.station.name)}역 · 도보 약 ${listing.station.walkMin}분 · ${listing.station.distM}m</span>` : '';
   return `<article class="assistant-card${hidden ? ' is-hidden' : ''}" data-open="${esc(listing.id)}" data-origin="${esc(listing.origin)}">
@@ -104,7 +117,7 @@ export function mountAssistant({ onResults, onAnalyze } = {}) {
   const panel = document.createElement('section');
   panel.id = 'assistant-panel'; panel.className = 'assistant-panel is-closed';
   panel.setAttribute('aria-label', 'AI 부동산 비서');
-  panel.innerHTML = `<header class="assistant-head"><span class="assistant-avatar">${ROBOT}</span><div><b>AI 부동산 비서</b><small>조건을 말하면 매물을 찾아드려요</small></div><button type="button" class="assistant-close" aria-label="비서 닫기">×</button></header>
+  panel.innerHTML = `<header class="assistant-head"><span class="assistant-avatar">${ROBOT}</span><div><b>AI 부동산 비서</b><small>매물 검색과 이용 안내를 도와드려요</small></div><button type="button" class="assistant-close" aria-label="비서 닫기">×</button></header>
     <div class="assistant-log" aria-live="polite"></div>
     <form class="assistant-form"><input name="message" type="text" autocomplete="off" maxlength="200" placeholder="예: 종로구 상업지역 100억 이하 도로 6m" aria-label="조건 입력"><button type="submit">전송</button></form>`;
   document.body.append(fab, panel);
@@ -226,7 +239,7 @@ export function mountAssistant({ onResults, onAnalyze } = {}) {
   const welcome = () => {
     if (!signedIn()) { renderLocked(); return; }
     const condition = savedCondition();
-    addBot(`안녕하세요, AI 부동산 비서예요. 원하는 조건을 편하게 말해주세요.<br><small>예: "종로구 상업지역 100억 이하 50평 이상 도로 6m", "홍대입구역 도보 3분"</small>`);
+    addBot(`안녕하세요, AI 부동산 비서예요. 원하는 조건을 편하게 말해주세요. 터잡이 이용 방법도 물어볼 수 있어요.<br><small>예: "종로구 상업지역 100억 이하 50평 이상 도로 6m", "홍대입구역 도보 3분", "실거래는 어떻게 봐요?"</small>`);
     if (condition && hasUsableFilters(condition)) addBot(`<p>저장하신 조건이 있어요.</p><p class="assistant-saved-condition">${esc(conditionLabel(condition))}</p><small>말씀하신 조건이 있으면 그 조건으로 먼저 찾아드려요.</small><div class="assistant-chiprow"><button type="button" class="assistant-chip" data-condition="1">이 조건으로 찾기</button></div>`);
   };
 
@@ -241,7 +254,7 @@ export function mountAssistant({ onResults, onAnalyze } = {}) {
     if (data.unsupported) reply += `<p class="assistant-note">${esc(data.unsupported)}</p>`;
     const chips = [];
     if (groups.length) chips.push(`<button type="button" class="assistant-chip assistant-chip-primary" data-map="1">지도에서 보기</button>`);
-    chips.push(`<button type="button" class="assistant-chip" data-editor="1">조건 바꾸기</button>`);
+    if (groups.length || data.chips?.length) chips.push(`<button type="button" class="assistant-chip" data-editor="1">조건 바꾸기</button>`);
     if (data.conditionNote) chips.push(`<button type="button" class="assistant-chip" data-condition="1">저장 조건으로 찾기</button>`);
     (data.suggestions || []).forEach(s => chips.push(`<button type="button" class="assistant-chip" data-send="${esc(s.message)}">${esc(s.label)}</button>`));
     if (chips.length) reply += `<div class="assistant-chiprow">${chips.join('')}</div>`;
@@ -341,8 +354,8 @@ export function mountAssistant({ onResults, onAnalyze } = {}) {
     if (busy) return;
     busy = true;
     if (message) addUser(message);
-    // 자연어·저장 조건 모두 분석 로딩을 보여준다.
-    const showScan = true;
+    // 실제 매물 조건을 말했을 때만 검색 로딩을 보여준다. 인사·사이트 질문은 바로 답한다.
+    const showScan = message ? needsSearch(message) : true;
     const started = Date.now();
     let scan = null;
     let bar = null;

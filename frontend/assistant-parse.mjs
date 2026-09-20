@@ -75,6 +75,7 @@ export function conflicts(spoken, saved) {
 }
 
 const FAQ_CONTEXT = [
+  'Q. 터잡이는 어떤 서비스인가요? → 지도 기반으로 매물을 찾고, 용도지역·도로·구역 같은 공공자료와 주변 실거래를 결합해 공간을 고를 때 필요한 정보를 한곳에 모아 보여주는 부동산 서비스예요.',
   'Q. 어떤 매물을 찾을 수 있나요? → 터잡이가 선별한 매물과 기존 등록 매물을 함께 볼 수 있어요. 목적·예산·지역·대지면적·용도지역으로 찾고, 가격과 판매 여부는 상담 때 확인해요.',
   'Q. 검색 조건을 바꾸려면? → 목록 위 예산·지역·목적 조건을 누르면 바로 바뀌고, 가격순 정렬·목록 접기로 지도를 넓게 볼 수 있어요. 같은 브라우저는 마지막 조건을 기억해요.',
   'Q. 가격 비교는? → 매물 상세에서 가까운 필지 실거래를 최대 5곳 확인해요. 최근 36개월, 반경 500m에서 부족하면 1km까지. 거리순 참고자료이며 시세를 보증하지 않아요.',
@@ -82,7 +83,44 @@ const FAQ_CONTEXT = [
   'Q. 신축 조건? → 신축 목적 선택 시 용도·도로폭·교육보호구역/문화재보존구역 제외, 호텔은 관광숙박특화구역 우선 조건을 고를 수 있어요. 실제 건축 가능 여부는 별도 검토가 필요해요.',
   'Q. 기존 건물·여러 필지 검토? → 건물·토지에서 지도로 필지를 선택하면 주소가 자동 입력되고, 여러 필지 선택과 공부상 면적 합계 적용이 가능해요.',
   'Q. 공사비 계산? → 대지면적×용적률 검토 연면적 기준, 평당 공사비 기본 1,000만원(변경 가능), 설계비는 공사비의 5%로 표시해요. 토지비·철거비·세금을 포함한 총사업비는 아니에요.',
+  'Q. 대장 보기? → 서비스가 보유한 건축물대장·토지대장 표제부 자료를 매물 상세에서 확인할 수 있어요. 등기사항증명서는 주소를 복사해 인터넷등기소에서 직접 열람·발급해요.',
+  'Q. 저장·찜 기능? → 비회원의 검색 조건과 찜은 현재 브라우저에 임시 저장돼요. 로그인하면 관심 조건·찜한 매물·매물 의견·신축 검토 기록을 계정에서 관리할 수 있어요.',
+  'Q. 회원가입·로그인? → 로그인하거나 3초 간편가입으로 시작할 수 있어요. 로그인하면 찜한 매물과 저장 조건, 신축 검토 기록을 계정에서 이어서 볼 수 있어요.',
+  'Q. 요금·구독·결제·환불? → 지금은 베타 서비스로 신규 유료 구독 신청과 결제를 받지 않아요. 기존 결제·환불 문의는 teojabi@gmail.com 또는 카카오톡 상담으로 연락해 주세요.',
+  'Q. 상담·문의? → 터잡이 고객센터는 teojabi@gmail.com, 070-8919-4609, 카카오톡 상담 채널이에요. 매물 상세에서 상담 정보를 복사해 문의할 수도 있어요.',
+  'Q. 개인정보·약관? → 이용약관·개인정보처리방침·환불정책은 페이지 하단 "이용 정책"에서 확인할 수 있어요.',
 ].join('\n');
+
+const SPATIAL_KEYS = ['preferTourism', 'excludeEducation', 'excludeHeritage'];
+
+// 자주 묻는 간단한 사이트 질문은 모델 없이 바로 답한다(빠르고 정확하게).
+const SITE_FAQ = [
+  { re: /대장|건축물대장|토지대장|등기/, reply: '건축물대장·토지대장은 매물 상세에서 펼쳐볼 수 있어요. 등기사항증명서는 주소를 복사해 인터넷등기소에서 직접 열람·발급해요. 보유 자료라 원본 발급 서류는 아니에요.' },
+  { re: /신축|공사비|건폐율|용적률|설계비|건축\s*가능/, reply: '신축 검토는 대지면적·용적률·건폐율·높이로 규모와 공사비를 개략 계산한 참고 자료예요. 평당 공사비 기본 1,000만원, 설계비는 공사비의 5%로 표시해요. 실제 건축 가능 여부는 별도 검토가 필요해요.' },
+  { re: /실거래|거래가|시세\s*비교/, reply: '매물 상세에서 가까운 실거래를 최대 5건까지 볼 수 있어요. 거래일·대지면적·거래가격을 함께 비교할 수 있고, 거리순 참고자료라 시세를 보증하지는 않아요.' },
+  { re: /가격|호가|시세|판매\s*여부/, reply: '표시 가격은 수집·등록 당시의 매매 호가예요. 가격 변경이나 거래 완료 여부는 상담 과정에서 다시 확인해요. 실제 거래 조건은 담당자에게 확인해 주세요.' },
+  { re: /보호구역|규제|용도지역|지구단위|문화재|도로폭/, reply: '보유한 공공데이터로 용도지역·도로폭·교육환경보호구역·문화재 관련 구역·관광숙박특화구역·지구단위계획 정보를 보여드려요. 교육보호구역·문화재보존구역 제외나 관광숙박특화구역 우선 조건은 메인 화면의 "건물 찾기 > 신축 검토"에서 설정해요.' },
+  { re: /저장|찜|보관|북마크/, reply: '비회원의 검색 조건과 찜은 현재 브라우저에 임시 저장돼요. 로그인하면 관심 조건·찜한 매물·매물 의견·신축 검토 기록을 계정에서 관리할 수 있어요.' },
+  { re: /회원|로그인|가입|계정/, reply: '로그인하거나 3초 간편가입으로 시작할 수 있어요. 로그인하면 찜한 매물과 저장 조건, 신축 검토 기록을 계정에서 이어서 볼 수 있어요.' },
+  { re: /요금|가격표|구독|결제|유료|환불|무료/, reply: '지금은 베타 서비스로 신규 유료 구독 신청과 결제를 받지 않아요. 기존 결제·환불 문의는 teojabi@gmail.com 또는 카카오톡 상담으로 연락해 주세요.' },
+  { re: /상담|문의|연락|전화|카카오|이메일|고객센터/, reply: '터잡이 고객센터는 teojabi@gmail.com, 070-8919-4609, 카카오톡 상담 채널이에요. 매물 상세에서 상담 정보를 복사해 문의할 수도 있어요.' },
+  { re: /개인정보|약관|정책/, reply: '이용약관·개인정보처리방침·구독서비스·환불정책은 페이지 하단 "이용 정책"에서 확인할 수 있어요.' },
+  { re: /추천|선별|별표/, reply: '터잡이 추천은 터잡이가 직접 검토해 별표로 구분한 매물이에요. 지도 상단의 "터잡이 추천 전체" 버튼으로 위치를 한 번에 볼 수 있어요.' },
+  { re: /(검색|조건|필터).*(방법|어떻게|바꾸|설정|변경|추가|삭제)|어떻게\s*(찾|검색|이용|사용)/, reply: '목록 위 예산·지역·목적 조건을 누르면 바로 바뀌고, 가격순 정렬과 목록 접기로 지도를 넓게 볼 수 있어요. 로그인하면 마지막 조건을 계정에 저장해 이어서 볼 수 있어요.' },
+  { re: /(매물|물건).*(종류|뭐가|무엇|어떤|얼마나)/, reply: '터잡이가 검토해 등록한 선별 매물과 터잡이 추천 매물을 볼 수 있어요. 목적·예산·지역·대지면적·용도지역 조건으로 결과를 좁힐 수 있어요.' },
+  { re: /터잡이|이\s*사이트|서비스|(무엇|뭐|어떤).*(할\s*수|가능|있어요)/, reply: '터잡이는 지도 기반으로 매물을 찾고, 용도지역·도로·구역 같은 공공자료와 주변 실거래를 결합해 공간을 고를 때 필요한 정보를 한곳에 모아 보여주는 부동산 서비스예요. 원하는 지역·예산·면적 조건을 말씀해 주시면 매물도 찾아드릴게요.' },
+];
+
+function isSiteQuestion(text) {
+  return /\?|？|뭐|무엇|어떻게|어떤|왜|어디|언제|얼마|가능|되나|인가|있나|없나|알려|궁금|차이|뜻|의미|소개|사용법|이용\s*방법/.test(text);
+}
+
+export function siteFaqAnswer(text) {
+  const t = String(text || '');
+  if (!isSiteQuestion(t)) return null;
+  const hit = SITE_FAQ.find(item => item.re.test(t));
+  return hit ? hit.reply : null;
+}
 
 // Free-form text goes to Gemini only when the rule parser found nothing.
 export async function geminiFilters(message, key, condition) {
@@ -287,6 +325,8 @@ export async function parseAssistant(message, condition, geminiKey, editedFilter
     return { filters, unsupported: null, source: 'edited' };
   }
   const saved = sanitize(condition || {});
+  // 저장 조건의 신축 구역 플래그는 비서 검색에서 다루지 않으므로 제외한다(메인 '신축 검토'에서 처리).
+  for (const key of SPATIAL_KEYS) delete saved[key];
   const spoken = ruleFilters(message);
   let merged = mergeFilters(spoken, saved);
   let unsupported = null;
@@ -295,13 +335,20 @@ export async function parseAssistant(message, condition, geminiKey, editedFilter
   const strongKeys = ['districts', 'budgetWon', 'minAreaM2', 'maxAreaM2', 'zones', 'stationName', 'maxDistanceM', 'minRoadWidthM'];
   const hasStrong = strongKeys.some(key => { const value = spoken[key]; return Array.isArray(value) ? value.length > 0 : value !== undefined && value !== null && value !== ''; });
   const conversational = /안녕|반갑|반가|잘\s*부탁|고마|감사|수고|하이|헬로|hello|\bhi\b/i.test(String(message || ''));
+  const bare = !hasMeaningfulFilters(spoken);
   if (!hasStrong) {
-    // 구체 조건(지역·예산·면적·용도지역 등)이 없으면 Gemini가 매물 검색인지 대화인지 판단한다.
+    // 인사·감사는 검색 없이 바로 답한다.
+    if (conversational && bare) {
+      return { filters: {}, unsupported: null, source: 'chat', conflicts: [], reply: '안녕하세요! 터잡이 AI 부동산 비서예요. 터잡이 이용 방법이 궁금하면 물어봐 주세요. 원하시는 지역·예산·면적·용도지역을 알려주시면 매물을 찾아드릴게요.' };
+    }
+    // 사이트 사용법·기능 같은 간단한 질문은 모델 없이 바로 답한다.
+    if (bare) {
+      const faq = siteFaqAnswer(message);
+      if (faq) return { filters: {}, unsupported: null, source: 'faq', conflicts: [], reply: faq };
+    }
+    // 그 외 자유 문장만 Gemini가 매물 검색인지 대화인지 판단한다.
     const gem = await geminiFilters(message, geminiKey, condition);
-    if (conversational) {
-      reply = (gem && gem.reply) || '안녕하세요! 터잡이 AI 부동산 비서예요. 찾으시는 지역·예산·용도 같은 조건을 알려주시면 매물을 찾아드릴게요.';
-      merged = {}; source = 'none';
-    } else if (gem && hasMeaningfulFilters(gem.filters)) {
+    if (gem && hasMeaningfulFilters(gem.filters)) {
       merged = mergeFilters({ ...spoken, ...gem.filters }, saved); source = 'gemini';
     } else if (gem) {
       merged = {}; unsupported = gem.unsupported; reply = gem.reply; source = 'none';
@@ -312,7 +359,7 @@ export async function parseAssistant(message, condition, geminiKey, editedFilter
   }
   const filters = sanitize(merged); filters.limit = 60;
   // 규칙이 잡은 신축 공간 조건은 Gemini 응답이 덮어써도 보존한다(공간 안내에 필요).
-  for (const key of ['preferTourism', 'excludeEducation', 'excludeHeritage']) if (spoken[key]) filters[key] = true;
+  for (const key of SPATIAL_KEYS) if (spoken[key]) filters[key] = true;
   return { filters, unsupported, source, conflicts: conflicts(spoken, saved), reply };
 }
 
