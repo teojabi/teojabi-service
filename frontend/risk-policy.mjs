@@ -85,14 +85,17 @@ export function normalizeFar(source) {
         changeType:text(raw.change_type,20)||null,
         standard:farRowValue(raw.far_standard),allowed:farRowValue(raw.far_allowed),upper:farRowValue(raw.far_upper),
         bcr:farRowValue(raw.bcr),heightM:farRowValue(raw.height_m),floors:count(raw.floors),
+        standardText:text(raw.far_standard_text,60)||null,allowedText:text(raw.far_allowed_text,60)||null,
+        upperText:text(raw.far_upper_text,120)||null,bcrText:text(raw.bcr_text,60)||null,
         article:text(raw.source_article,120)||null,confidence:text(raw.confidence,20)||null,quality,
         baseNoticeNo:text(raw.baseNoticeNo||raw.base_notice_no,80)||null,
         baseNoticeUrl:safePublicDocumentUrl(raw.baseNoticeUrl||raw.base_notice_url),
         sourceFileName:text(raw.sourceFileName||raw.source_file_name,300)||null,
         sourceFileUrl:safePublicDocumentUrl(raw.sourceFileUrl||raw.source_file_url),
       };
-      if([item.standard,item.allowed,item.upper,item.bcr,item.heightM,item.floors].every(v=>v===null))continue;
-      const key=[item.zoneClass,item.zoneDetail,item.roadSide,item.changeType,item.standard,item.allowed,item.upper,item.bcr,item.heightM,item.floors].join('|');
+      if([item.standard,item.allowed,item.upper,item.bcr,item.heightM,item.floors].every(v=>v===null)
+         && !(item.standardText||item.allowedText||item.upperText||item.bcrText))continue;
+      const key=[item.zoneClass,item.zoneDetail,item.roadSide,item.changeType,item.standard,item.allowed,item.upper,item.bcr,item.heightM,item.floors,item.standardText,item.allowedText,item.upperText,item.bcrText].join('|');
       if(seen.has(key))continue;seen.add(key);
       rows.push(item);
     }
