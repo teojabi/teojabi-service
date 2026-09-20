@@ -742,6 +742,12 @@ body.architect-lightbox-open{overflow:hidden}
 .commercial-bar.is-current .commercial-bar-track i{background:var(--primary)}
 .commercial-bar b{font-variant-numeric:tabular-nums;font-size:12px;white-space:nowrap}
 .commercial-change{margin:6px 0 0;font-size:12px;font-weight:700;color:var(--muted)}
+.commercial-more{margin-top:8px}
+.commercial-more>summary{cursor:pointer;list-style:none;font-size:12.5px;font-weight:700;color:var(--primary);padding:6px 0;display:flex;align-items:center;gap:6px}
+.commercial-more>summary::-webkit-details-marker{display:none}
+.commercial-more>summary::after{content:'⌄';transition:transform .2s}
+.commercial-more[open]>summary::after{transform:rotate(180deg)}
+.commercial-more-body{padding-top:2px}
 .commercial-ask{margin-top:10px}
 .commercial-section .commercial-ask{width:100%}
 .commercial-others{margin-top:10px}

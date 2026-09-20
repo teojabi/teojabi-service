@@ -85,7 +85,7 @@ function metrics(area, { sales = true } = {}) {
   return items.length ? `<div class="commercial-metrics">${items.join('')}</div>` : '';
 }
 
-export function renderCommercial(data, { trend = 'half', nearby = true } = {}) {
+export function renderCommercial(data, { trend = 'half', nearby = true, collapsible = false } = {}) {
   if (!data || data.status !== 'ready' || !data.nearest) {
     return '<p class="case-note">반경 안에서 연결되는 상권 자료를 찾지 못했어요.</p>';
   }
@@ -104,14 +104,16 @@ export function renderCommercial(data, { trend = 'half', nearby = true } = {}) {
   }));
   const near = n.distanceM != null ? `<span class="commercial-distance">${n.distanceM}m</span>` : '';
   const trendBlock = trend === 'quarter' ? quarterTrendMarkup(n.trend) : halfTrendMarkup(n.trend);
-  return `<div class="commercial-card">
-    <div class="commercial-head"><span class="commercial-icon" aria-hidden="true">🏪</span><div><b>${esc(n.name)}</b><small>${esc(n.type || '')}${n.gu ? ` · ${esc(n.gu)}` : ''}</small></div>${near}</div>
-    ${metrics(n, { sales: trend !== 'quarter' })}
-    ${catBars.length ? `<p class="commercial-block-title">주요 업종 · 이 상권 매출 비중</p>${bars(catBars)}` : ''}
+  const summary = `<div class="commercial-head"><span class="commercial-icon" aria-hidden="true">🏪</span><div><b>${esc(n.name)}</b><small>${esc(n.type || '')}${n.gu ? ` · ${esc(n.gu)}` : ''}</small></div>${near}</div>
+    ${metrics(n, { sales: trend !== 'quarter' })}`;
+  const details = `${catBars.length ? `<p class="commercial-block-title">주요 업종 · 이 상권 매출 비중</p>${bars(catBars)}` : ''}
     ${trendBlock}
-    ${nearby && cmpBars.length ? `<p class="commercial-block-title">반경 안 상권 월 추정매출 · 상권별 합계</p>${bars(cmpBars)}` : ''}
-    <button type="button" class="outline commercial-ask" data-commercial-ask="${esc(n.name)} 상권">이 상권에서 매물 찾기</button>
-  </div>
+    ${nearby && cmpBars.length ? `<p class="commercial-block-title">반경 안 상권 월 추정매출 · 상권별 합계</p>${bars(cmpBars)}` : ''}`;
+  const ask = `<button type="button" class="outline commercial-ask" data-commercial-ask="${esc(n.name)} 상권">이 상권에서 매물 찾기</button>`;
+  const body = collapsible
+    ? `${summary}<details class="commercial-more"><summary>상권 자세히 보기</summary><div class="commercial-more-body">${details}</div></details>${ask}`
+    : `${summary}${details}${ask}`;
+  return `<div class="commercial-card">${body}</div>
   <p class="commercial-source">월 추정매출은 상권 하나의 합계(모든 업종)예요 · 서울시 상권분석서비스 · 기준 ${esc(data.basis?.quarter || '')} · 대표점 기준</p>`;
 }
 
@@ -125,7 +127,7 @@ export function mountCommercial(host, listing) {
   host.innerHTML = '<p class="case-note">반경 500m 상권을 확인하고 있어요.</p>';
   apiFetch(`/api/commercial?lat=${position.lat}&lng=${position.lng}&radius=500`)
     .then(response => response.json())
-    .then(data => { if (!cancelled) host.innerHTML = renderCommercial(data); })
+    .then(data => { if (!cancelled) host.innerHTML = renderCommercial(data, { collapsible: true }); })
     .catch(() => { if (!cancelled) host.innerHTML = '<p class="case-note">상권 자료를 불러오지 못했어요.</p>'; });
   return () => { cancelled = true; };
 }
