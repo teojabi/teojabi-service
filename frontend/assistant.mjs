@@ -341,8 +341,8 @@ export function mountAssistant({ onResults, onAnalyze } = {}) {
     if (busy) return;
     busy = true;
     if (message) addUser(message);
-    // 자연어로 물어볼 때만 분석 로딩을 보여주고, 조건 편집·"이 조건으로 찾기"는 결과를 바로 보여준다.
-    const showScan = Boolean(message);
+    // 자연어·저장 조건 모두 분석 로딩을 보여준다.
+    const showScan = true;
     const started = Date.now();
     let scan = null;
     let bar = null;
