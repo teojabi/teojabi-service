@@ -121,6 +121,7 @@ body.map-results-open{height:100dvh;min-height:0;overflow:hidden;display:flex;fl
 .nearby-summary::after{content:'⌄';color:var(--muted);transition:transform .2s}
 .nearby-details[open] .nearby-summary::after{transform:rotate(180deg)}
 .nearby-body{padding-top:8px}
+.pick-badge.disco-badge{color:#0e7490;border-color:#0e7490}
 .site-unit-controls{display:flex;gap:6px;margin-bottom:15px}.site-unit-controls button{padding:6px 16px}.site-unit-controls [aria-pressed=true]{background:var(--primary);color:white}.site-cost{margin:20px 0;padding:15px;border:1px solid var(--line);border-radius:10px}.site-cost label{display:block;font-size:14px}.site-cost input{width:100%;min-width:0;margin:8px 0;padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--text)}.site-cost-result{font-size:14px;line-height:1.9}.site-cost small{display:block;margin-top:8px;color:var(--muted);font-size:11px}
 /* Compact the My Building & Land introduction. */
 .site-review{padding-top:14px}.site-review>.back{margin:0;padding:3px 0;min-height:28px;font-size:12px}.site-heading{margin:8px 0 14px}.site-heading .eyebrow{font-size:10px;letter-spacing:.08em}.site-heading h1{font-size:25px;margin:3px 0 4px}.site-heading p{font-size:13px;line-height:1.5}
