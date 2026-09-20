@@ -30,14 +30,15 @@ const detailFacts=row=>{
   if(facts.approvalDate)items.push(['사용승인',esc(facts.approvalDate)]);
   return items.length?`<ul class="listing-facts">${items.map(([label,value])=>`<li><b>${label}:</b> ${value}</li>`).join('')}</ul>`:'';
 };
-export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnalyze,initialId,initialSource,assistant}={}) {
+export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnalyze,initialId,initialSource,assistant,picksOnly}={}) {
   document.body.classList.add('map-results-open');
+  const picksOnlyMode=Boolean(picksOnly);
   const abort=new AbortController();let disposed=false,version=0,detailVersion=0,closeStreet,closeContext,closeRecords,closeLand;
   let result=null,selected=null,detail=null,parcel=null,limit=5,bounds=conditions?.bounds||null,query='',sort=conditions?.sort==='price-desc'?'price-desc':'price',mapView=null;
   let assistantResult=assistant&&Array.isArray(assistant.groups)?assistant:null;
   let source=assistantResult?'assistant':initialSource==='favorites'?'favorites':'conditions';
   let criteria={purpose:conditions?.purpose||null,minArea:conditions?.minArea||'',maxArea:conditions?.maxArea||'',areaUnit:conditions?.areaUnit||'pyeong',zones:conditions?.zones||[],minAreaM2:conditions?.minAreaM2??null,maxAreaM2:conditions?.maxAreaM2??null,...BUILD_DEFAULTS,...(validateBuildCriteria(conditions||{}).value||{})};
-  const defaultTitle=()=>source==='assistant'?'AI 비서 결과':source==='favorites'?'찜한 매물':conditions?'내 조건으로 살펴보기':'지도에서 매물 살펴보기';
+  const defaultTitle=()=>source==='assistant'?'AI 비서 결과':source==='favorites'?'찜한 매물':picksOnlyMode?'터잡이 선별 매물':conditions?'내 조건으로 살펴보기':'지도에서 매물 살펴보기';
   const title=defaultTitle();
   root.innerHTML=`<section class="explore-page"><div class="result-head"><div><span class="eyebrow">EXPLORE TEOJABI</span><h1>${title}</h1></div><button class="outline" data-explore="back-conditions" hidden>내 조건으로 보기</button><button class="outline" data-explore="edit">검색 조건 바꾸기</button></div>
     <form class="explore-search" id="explore-filters"><div class="explore-filters"><label><span>정렬</span><select name="sort"><option value="price" ${sort==='price'?'selected':''}>가격 낮은 순</option><option value="price-desc" ${sort==='price-desc'?'selected':''}>가격 높은 순</option></select></label><button class="primary" type="submit">이 조건 검색</button></div></form>
@@ -53,6 +54,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
   const compared=new Map();let closeComparison,showPins=true,showTransactions=true,showAllPicks=false,pickGroups=null,nearby=null,loadTimer=null,quickFilters;
   $('.map-controls').insertAdjacentHTML('beforeend','<button class="outline" data-explore="transactions" aria-pressed="true" hidden>실거래</button><button class="outline return-detail" data-explore="return-detail">매물 상세로 돌아가기</button>');
   $('.explore-toolbar').insertAdjacentHTML('afterend','<div class="discovery-actions"><button class="outline" data-explore="compare-open" disabled>비교할 매물을 골라주세요 (최대 3개)</button><button class="outline" data-explore="compare-clear" hidden>비교 선택 지우기</button><button class="outline" data-explore="pins" aria-pressed="true">지도 매물 표시</button><span class="discovery-notice" role="status"></span></div><div class="search-suggestions" aria-live="polite"></div>');
+  if(picksOnlyMode)$('[data-explore="all-picks"]').setAttribute('aria-pressed','true');
   function drawCompare(){const n=compared.size,b=$('[data-explore=compare-open]');b.disabled=n<2;b.textContent=n?`선택 ${n}개 비교하기`:'비교할 매물을 골라주세요 (최대 3개)';$('[data-explore=compare-clear]').hidden=!n;}
   function applySourceUi(){
     const simpleMode=source==='favorites'||source==='assistant';
@@ -165,7 +167,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     if(source==='assistant')return loadAssistant();
     if(source==='favorites')return loadFavorites({fit});
     quickFilters.setRemembered(onConditionsChange?.(currentConditions())!==false);
-    const current=++version;const params=new URLSearchParams({limit,sort});
+    const current=++version;const params=new URLSearchParams({limit,sort});if(picksOnlyMode)params.set('cohort','existing');
     if(conditions?.budgetWon)params.set('budgetWon',conditions.budgetWon);conditions?.districts?.forEach(d=>params.append('district',d));
     if(criteria.purpose)params.set('purpose',criteria.purpose);
     appendBuildQuery(params,criteria);
