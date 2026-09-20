@@ -71,16 +71,30 @@ export function conflicts(spoken, saved) {
   return out;
 }
 
+const FAQ_CONTEXT = [
+  'Q. 어떤 매물을 찾을 수 있나요? → 터잡이가 선별한 매물과 기존 등록 매물을 함께 볼 수 있어요. 목적·예산·지역·대지면적·용도지역으로 찾고, 가격과 판매 여부는 상담 때 확인해요.',
+  'Q. 검색 조건을 바꾸려면? → 목록 위 예산·지역·목적 조건을 누르면 바로 바뀌고, 가격순 정렬·목록 접기로 지도를 넓게 볼 수 있어요. 같은 브라우저는 마지막 조건을 기억해요.',
+  'Q. 가격 비교는? → 매물 상세에서 가까운 필지 실거래를 최대 5곳 확인해요. 최근 36개월, 반경 500m에서 부족하면 1km까지. 거리순 참고자료이며 시세를 보증하지 않아요.',
+  'Q. 방문 전 확인? → 지도·네이버 거리뷰로 주변을 보고, 보유 토지대장·건축물대장을 펼쳐볼 수 있어요. 원본 발급 서류는 아니에요.',
+  'Q. 신축 조건? → 신축 목적 선택 시 용도·도로폭·교육보호구역/문화재보존구역 제외, 호텔은 관광숙박특화구역 우선 조건을 고를 수 있어요. 실제 건축 가능 여부는 별도 검토가 필요해요.',
+  'Q. 기존 건물·여러 필지 검토? → 건물·토지에서 지도로 필지를 선택하면 주소가 자동 입력되고, 여러 필지 선택과 공부상 면적 합계 적용이 가능해요.',
+  'Q. 공사비 계산? → 대지면적×용적률 검토 연면적 기준, 평당 공사비 기본 1,000만원(변경 가능), 설계비는 공사비의 5%로 표시해요. 토지비·철거비·세금을 포함한 총사업비는 아니에요.',
+].join('\n');
+
 // Free-form text goes to Gemini only when the rule parser found nothing.
 export async function geminiFilters(message, key, condition) {
   if (!key) return null;
   const schema = `{"districts":["자치구"],"q":"동/키워드","budgetWon":숫자(원),"minAreaM2":숫자,"maxAreaM2":숫자,"kind":"land|building","zones":["주거지역|상업지역|공업지역|녹지지역"],"stationName":"역이름","maxDistanceM":숫자,"minRoadWidthM":숫자,"purpose":"new-build"}`;
   const prompt = [
-    '너는 터잡이 부동산 매물 검색 도우미다.',
-    '사용자 문장에서 매물 검색 조건만 추출해 아래 JSON 스키마로만 답한다. 설명·인사말·코드블록 없이 JSON 객체 하나만 출력한다.',
-    '값이 없는 항목은 넣지 않는다. 도보 N분은 maxDistanceM = N*80(미터), N미터는 그대로. 가격 "N억"은 원 단위로 바꾼다(예: 30억 → 3000000000). 평은 그대로 넣지 말고 ㎡로 환산한다(1평=3.305785㎡).',
-    '매물 검색으로 표현할 수 없는 요청(상권, 임대료, 건물 상태 등)은 filters를 비우고 "unsupported"에 이유를 적는다.',
-    `스키마: ${schema}`,
+    '너는 터잡이(teojabi.com) 부동산 서비스의 안내 도우미다. 반드시 JSON 객체 하나만 출력한다(설명·인사말·코드블록 금지).',
+    '하는 일은 두 가지뿐이다: (1) 매물 검색 조건 추출, (2) 터잡이 서비스 사용법·기능 안내.',
+    '매물 검색이면 filters에 조건만 넣는다. 값이 없는 항목은 넣지 않는다. 도보 N분은 maxDistanceM = N*80(미터), N미터는 그대로. 가격 "N억"은 원 단위로 바꾼다(예: 30억 → 3000000000). 평은 그대로 넣지 말고 ㎡로 환산한다(1평=3.305785㎡).',
+    '터잡이 서비스 사용법·기능 질문이면 filters를 비우고 reply에 아래 [서비스 안내] 내용만 근거로 2~3문장으로 친절히 답한다. 안내에 없는 내용은 지어내지 말고 "정확한 내용은 터잡이 상담으로 확인해 주세요"라고 답한다.',
+    '그 외 요청(외부 정보·인터넷 검색, 일반 상식·잡담, 시세 전망, 투자·법률·세무 조언, 다른 서비스)은 filters를 비우고 reply에 "터잡이 매물 찾기와 서비스 안내만 도와드릴 수 있어요. 원하는 조건을 알려주시면 매물을 찾아드릴게요."라고 답한다.',
+    'reply는 한국어 300자 이내, 확정적 투자·법률 조언 금지. 매물 검색으로 표현할 수 없는 요청은 filters를 비우고 "unsupported"에 이유를 적는다.',
+    `스키마: {"filters":{...},"unsupported":"이유","reply":"답변"}  (filters 스키마: ${schema})`,
+    '[서비스 안내]',
+    FAQ_CONTEXT,
     condition ? `회원 저장 조건(참고용, 사용자가 말한 조건과 충돌하면 무시): ${JSON.stringify(condition)}` : '',
     `사용자 문장: ${String(message).slice(0, 400)}`,
   ].filter(Boolean).join('\n');
@@ -97,7 +111,11 @@ export async function geminiFilters(message, key, condition) {
     const match = text.match(/\{[\s\S]*\}/);
     if (!match) return null;
     const parsed = JSON.parse(match[0]);
-    return { filters: sanitize(parsed.filters || parsed), unsupported: typeof parsed.unsupported === 'string' ? parsed.unsupported.slice(0, 120) : null };
+    return {
+      filters: sanitize(parsed.filters || parsed),
+      unsupported: typeof parsed.unsupported === 'string' ? parsed.unsupported.slice(0, 120) : null,
+      reply: typeof parsed.reply === 'string' && parsed.reply.trim() ? parsed.reply.trim().slice(0, 500) : null,
+    };
   } catch { return null; }
 }
 
@@ -260,13 +278,14 @@ export async function parseAssistant(message, condition, geminiKey, editedFilter
   const spoken = ruleFilters(message);
   let merged = mergeFilters(spoken, saved);
   let unsupported = null;
+  let reply = null;
   let source = Object.keys(spoken).length ? 'spoken' : Object.keys(saved).length ? 'saved' : 'none';
   if (!hasMeaningfulFilters(spoken) && !hasMeaningfulFilters(saved)) {
     const gem = await geminiFilters(message, geminiKey, condition);
-    if (gem) { merged = mergeFilters(gem.filters, saved); unsupported = gem.unsupported; source = Object.keys(gem.filters || {}).length ? 'gemini' : 'none'; }
+    if (gem) { merged = mergeFilters(gem.filters, saved); unsupported = gem.unsupported; reply = gem.reply; source = Object.keys(gem.filters || {}).length ? 'gemini' : 'none'; }
   }
   const filters = sanitize(merged); filters.limit = 60;
-  return { filters, unsupported, source, conflicts: conflicts(spoken, saved) };
+  return { filters, unsupported, source, conflicts: conflicts(spoken, saved), reply };
 }
 
 export { ORIGIN_LABEL };
