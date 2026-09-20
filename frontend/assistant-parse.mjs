@@ -2,7 +2,7 @@ import { DISTRICTS } from './policy.mjs';
 
 export const WALK_METERS_PER_MIN = 80;
 const BROAD_ZONE = [['주거지역', '주거'], ['상업지역', '상업'], ['공업지역', '공업'], ['녹지지역', '녹지']];
-const ORIGIN_LABEL = { premium: '터잡이 추천 매물', registered: '터잡이 등록 매물', naver: '네이버 매물' };
+const ORIGIN_LABEL = { premium: '터잡이 추천 매물', registered: '터잡이 등록 매물', disco: '디스코 매물', naver: '네이버 매물' };
 const won = value => Math.round(Number(value) * 100000000);
 const m2 = (value, unit) => Math.round((unit === '평' ? Number(value) * 3.305785 : Number(value)) * 100) / 100;
 
@@ -133,14 +133,14 @@ export function sanitize(raw) {
   return out;
 }
 
-const originOf = row => ['premium', 'registered', 'naver'].includes(row.origin) ? row.origin : 'naver';
+const originOf = row => ['premium', 'registered', 'disco', 'naver'].includes(row.origin) ? row.origin : 'naver';
 
 export function viewRow(row) {
   const broad = BROAD_ZONE.find(z => String(row.zoning || '').includes(z[1]));
   const zoning = row.zoning ? { status: 'matched', groups: broad ? [broad[0]] : [], entries: [{ name: row.zoning }] } : { status: 'missing', groups: [], entries: [] };
   const origin = originOf(row);
   return {
-    id: row.id, source: 'naver', sourceId: row.sourceId, cohort: origin === 'naver' ? 'curated' : 'existing',
+    id: row.id, source: row.source || 'naver', sourceId: row.sourceId, sourceUrl: row.sourceUrl || '', cohort: origin === 'naver' ? 'curated' : origin === 'disco' ? 'disco' : 'existing',
     district: row.district, neighborhood: row.neighborhood, address: row.address,
     pnu: row.pnu || null, position: row.position, priceWon: row.priceWon, teojabiNo: row.teojabiNo || null,
     areaM2: row.areaM2, floorAreaM2: row.floorAreaM2, description: row.description || '', floorInfo: row.floorInfo || '',
@@ -199,7 +199,7 @@ export function suggestions(filters, search) {
 }
 
 function groupByOrigin(rows) {
-  const buckets = { premium: [], registered: [], naver: [] };
+  const buckets = { premium: [], registered: [], disco: [], naver: [] };
   for (const row of rows) buckets[originOf(row)].push(row);
   return buckets;
 }
@@ -212,11 +212,11 @@ export function buildResult(filters, search, unsupported) {
     : (search.groups || []).map(group => group.representative).filter(Boolean);
   const rows = sourceRows.map(viewRow);
   const buckets = groupByOrigin(rows);
-  const ordered = [...buckets.premium, ...buckets.registered, ...buckets.naver];
+  const ordered = [...buckets.premium, ...buckets.registered, ...buckets.disco, ...buckets.naver];
   const groups = ordered.map(listing => ({ key: listing.id, pnu: listing.pnu, representative: listing, listings: [listing] }));
   const described = describe(filters);
   const totals = search.originTotals || {};
-  const premium = Number(totals.premium || 0), registered = Number(totals.registered || 0), naver = Number(totals.naver || total - premium - registered);
+  const premium = Number(totals.premium || 0), registered = Number(totals.registered || 0), disco = Number(totals.disco || 0), naver = Number(totals.naver || total - premium - registered - disco);
   const shownCount = Math.min(5, groups.length);
   let reply;
   if (total === 0) {
@@ -230,18 +230,19 @@ export function buildResult(filters, search, unsupported) {
   } else {
     reply = `조건에 맞는 매물 ${total}건 중 ${shownCount}건을 보여드릴게요. 10건 이하로 조건 설정을 맞추는 것을 추천드려요.`;
   }
-  if (total > 0 && (premium || registered)) {
+  if (total > 0 && (premium || registered || disco)) {
     const lines = [];
     if (premium) lines.push(`터잡이 추천 매물 ${premium}건`);
     if (registered) lines.push(`터잡이 등록 매물 ${registered}건`);
+    if (disco) lines.push(`디스코 매물 ${disco.toLocaleString('ko-KR')}건`);
     lines.push(`네이버 매물 ${naver.toLocaleString('ko-KR')}건`);
-    reply += `\n터잡이 매물을 먼저 확인해 보세요. ${lines.join(' · ')}이에요.`;
+    reply += `\n터잡이·디스코 매물을 먼저 확인해 보세요. ${lines.join(' · ')}이에요.`;
   } else if (total > 0 && naver > 0) {
-    reply += `\n조건에 맞는 터잡이 추천·등록 매물은 아직 없어서, 네이버 매물 ${naver.toLocaleString('ko-KR')}건을 추천드려요.`;
+    reply += `\n조건에 맞는 터잡이·디스코 매물은 아직 없어서, 네이버 매물 ${naver.toLocaleString('ko-KR')}건을 추천드려요.`;
   }
   return {
     status: 'ready', reply, filters, chips: chipList(filters), total, groups,
-    originTotals: { premium, registered, naver },
+    originTotals: { premium, registered, disco, naver },
     station: search.station || null, districts: search.districts || [],
     suggestions: total > 30 ? suggestions(filters, search) : total > 5 ? suggestions(filters, search).slice(0, 3) : [],
     relaxations: Array.isArray(search.relaxations) ? search.relaxations : [],

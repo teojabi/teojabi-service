@@ -37,17 +37,44 @@ def clean(value, max_len=60):
     return str(value or '').strip()[:max_len]
 
 
-def origin_expression():
-    """터잡이 매물 판정은 후보 테이블(teojabi_curation_candidates)의 존재 여부로 한다.
+def origin_expression(has_curation, has_disco):
+    """터잡이 매물은 후보 테이블 존재 여부, 디스코 매물은 disco_listing 출처로 구분한다.
 
-    후보가 있으면 터잡이 등록·추천 매물, 없으면 네이버 수집 매물이다. 매물번호 보관 테이블은
-    삭제된 후보의 번호가 남을 수 있어 판정 기준으로 쓰지 않는다(유령 매물 방지).
-    터잡이 추천(픽)만 후보 테이블의 published 상태로 따로 구분한다.
+    매물번호 보관 테이블은 삭제된 후보의 번호가 남을 수 있어 판정 기준으로 쓰지 않는다(유령 매물 방지).
     """
-    return '''CASE
-        WHEN c.snapshot->'teojabiPick'->>'status' = 'published' THEN 'premium'
-        WHEN c.id IS NOT NULL THEN 'registered'
-        ELSE 'naver' END'''
+    clauses = []
+    if has_disco:
+        clauses.append("WHEN n.source_kind = 'disco' THEN 'disco'")
+    if has_curation:
+        clauses.append("WHEN c.snapshot->'teojabiPick'->>'status' = 'published' THEN 'premium'")
+        clauses.append("WHEN c.id IS NOT NULL THEN 'registered'")
+    clauses.append("ELSE 'naver'")
+    return 'CASE ' + ' '.join(clauses) + ' END'
+
+
+def source_from(has_disco):
+    """네이버 매물과 디스코 매물을 같은 컬럼 이름으로 맞춘 검색 소스."""
+    naver = '''SELECT "매물번호"::text AS "매물번호", "상태"::text AS "상태", "거래가격"::numeric AS "거래가격",
+                      "대지면적"::numeric AS "대지면적", "연면적"::numeric AS "연면적", "대지위치"::text AS "대지위치",
+                      "구"::text AS "구", "동"::text AS "동", "주용도코드명"::text AS "주용도코드명",
+                      "용도지역"::text AS "용도지역", "도로폭_m"::numeric AS "도로폭_m", "층정보"::text AS "층정보",
+                      "사용승인일자"::text AS "사용승인일자", "매물특징"::text AS "매물특징",
+                      pnu::text AS pnu, lat::double precision AS lat, lng::double precision AS lng,
+                      'naver'::text AS source_kind, NULL::text AS source_url
+               FROM public.naver'''
+    if not has_disco:
+        return '(' + naver + ')'
+    disco = '''SELECT d.did::text AS "매물번호", '신규'::text AS "상태", (d.price_manwon/10000.0)::numeric AS "거래가격",
+                      d.land_area_m2::numeric AS "대지면적", d.floor_area_m2::numeric AS "연면적", d.address::text AS "대지위치",
+                      d.gu::text AS "구", d.dong::text AS "동",
+                      (CASE d.ts WHEN 1 THEN '토지' ELSE '건물' END)::text AS "주용도코드명",
+                      d.use_zone::text AS "용도지역", d.road_width_m::numeric AS "도로폭_m",
+                      NULL::text AS "층정보", NULL::text AS "사용승인일자", NULL::text AS "매물특징",
+                      d.pnu::text AS pnu, d.lat::double precision AS lat, d.lng::double precision AS lng,
+                      'disco'::text AS source_kind, d.source_url::text AS source_url
+               FROM public.disco_listing d
+               WHERE d.active AND d.lat IS NOT NULL AND d.lng IS NOT NULL AND d.price_manwon IS NOT NULL AND d.price_manwon > 0'''
+    return '(' + naver + ' UNION ALL ' + disco + ')'
 
 
 def resolve_station(cur, name):
@@ -169,9 +196,12 @@ def station_distance_params(station):
 
 
 def row_dto(row, station, requested):
+    is_disco = row.get('source_kind') == 'disco'
     out = {
-        'id': 'naver:' + str(row['매물번호']),
+        'id': ('disco:' if is_disco else 'naver:') + str(row['매물번호']),
+        'source': 'disco' if is_disco else 'naver',
         'sourceId': str(row['매물번호']),
+        'sourceUrl': row.get('source_url') or '',
         'address': row['대지위치'] or '',
         'district': row['구'] or '',
         'neighborhood': row['동'] or '',
@@ -199,12 +229,12 @@ def row_dto(row, station, requested):
     return out
 
 
-def count(cur, where, params):
-    cur.execute('SELECT count(*) AS total FROM public.naver n WHERE ' + ' AND '.join(where), params)
+def count(cur, source, where, params):
+    cur.execute('SELECT count(*) AS total FROM ' + source + ' n WHERE ' + ' AND '.join(where), params)
     return int(cur.fetchone()['total'])
 
 
-def relaxations(cur, filters, station, base_where, base_params, base_total):
+def relaxations(cur, source, filters, station, base_where, base_params, base_total):
     """Offer concrete alternatives that change the result count, cheapest first."""
     out = []
     step = number(filters.get('budgetWon'))
@@ -213,7 +243,7 @@ def relaxations(cur, filters, station, base_where, base_params, base_total):
             bigger = int(round(step * factor / 1e7) * 1e7)
             trial = dict(filters); trial['budgetWon'] = bigger
             where, params = build_where(trial, station)
-            total = count(cur, where, params)
+            total = count(cur, source, where, params)
             if total != base_total:
                 out.append({'label': f'예산 {round(bigger/1e8):g}억{label}', 'patch': {'budgetWon': bigger}, 'count': total})
                 break
@@ -222,7 +252,7 @@ def relaxations(cur, filters, station, base_where, base_params, base_total):
         for bigger in (round(distance * 1.5), round(distance * 2)):
             trial = dict(filters); trial['maxDistanceM'] = bigger
             where, params = build_where(trial, station)
-            total = count(cur, where, params)
+            total = count(cur, source, where, params)
             if total != base_total:
                 out.append({'label': f'{station["station_name"]}역 {bigger}m까지', 'patch': {'maxDistanceM': bigger}, 'count': total})
                 break
@@ -230,25 +260,25 @@ def relaxations(cur, filters, station, base_where, base_params, base_total):
     if road:
         trial = dict(filters); trial.pop('minRoadWidthM', None)
         where, params = build_where(trial, station)
-        total = count(cur, where, params)
+        total = count(cur, source, where, params)
         if total != base_total:
             out.append({'label': '도로폭 조건 빼기', 'patch': {'minRoadWidthM': None}, 'count': total})
     if filters.get('zones'):
         trial = dict(filters); trial.pop('zones', None)
         where, params = build_where(trial, station)
-        total = count(cur, where, params)
+        total = count(cur, source, where, params)
         if total != base_total:
             out.append({'label': '용도지역 조건 빼기', 'patch': {'zones': None}, 'count': total})
     if filters.get('districts'):
         trial = dict(filters); trial.pop('districts', None)
         where, params = build_where(trial, station)
-        total = count(cur, where, params)
+        total = count(cur, source, where, params)
         if total != base_total:
             out.append({'label': '서울 전체로 넓히기', 'patch': {'districts': None}, 'count': total})
     if filters.get('kind') == 'land':
         trial = dict(filters); trial['kind'] = 'building'
         where, params = build_where(trial, station)
-        total = count(cur, where, params)
+        total = count(cur, source, where, params)
         out.append({'label': '건물도 함께 보기', 'patch': {'kind': 'building'}, 'count': total})
     return out
 
@@ -260,16 +290,18 @@ def search(conn, filters):
         station = resolve_station(cur, filters.get('stationName')) if filters.get('stationName') else None
         where, params = build_where(filters, station)
         where_sql = ' AND '.join(where)
-        total = count(cur, where, params)
-        cur.execute('SELECT "구", count(*) AS n FROM public.naver n WHERE ' + where_sql + ' GROUP BY "구" ORDER BY n DESC LIMIT 6', params)
-        districts = [{'name': r['구'], 'count': int(r['n'])} for r in cur.fetchall() if r['구']]
-        cur.execute("SELECT to_regclass('public.teojabi_curation_candidates') AS a, to_regclass('public.teojabi_listing_number') AS b")
+        cur.execute("SELECT to_regclass('public.teojabi_curation_candidates') AS a, to_regclass('public.teojabi_listing_number') AS b, to_regclass('public.disco_listing') AS d")
         rel = cur.fetchone()
         has_curation = bool(rel['a'] and rel['b'])
+        has_disco = bool(rel['d'])
+        source = source_from(has_disco)
+        total = count(cur, source, where, params)
+        cur.execute('SELECT "구", count(*) AS n FROM ' + source + ' n WHERE ' + where_sql + ' GROUP BY "구" ORDER BY n DESC LIMIT 6', params)
+        districts = [{'name': r['구'], 'count': int(r['n'])} for r in cur.fetchall() if r['구']]
         join = '' if not has_curation else ('LEFT JOIN public.teojabi_curation_candidates c ON c.source_id=n."매물번호" AND c.source_table IN (\'naver\',\'naver_land\') '
             'LEFT JOIN public.teojabi_listing_number ln ON ln.listing_id = \'naver:\' || n."매물번호"')
-        origin = "'naver'" if not has_curation else origin_expression()
-        pick_no = "NULL" if not has_curation else "CASE WHEN c.id IS NOT NULL THEN COALESCE(c.snapshot->'teojabiPick'->>'pickNo', ln.teojabi_no) ELSE NULL END"
+        origin = origin_expression(has_curation, has_disco)
+        pick_no = "NULL" if not has_curation else "CASE WHEN n.source_kind='disco' THEN NULL WHEN c.id IS NOT NULL THEN COALESCE(c.snapshot->'teojabiPick'->>'pickNo', ln.teojabi_no) ELSE NULL END"
         select_point = ''
         if station:
             # 요청한 역까지의 거리를 결과에 실어 보낸다. ORDER BY와 같은 좌표를 두 번 쓰지 않는다.
@@ -287,7 +319,7 @@ def search(conn, filters):
                             n."구", n."동", n."주용도코드명", n."용도지역", n."매물특징", n."도로폭_m",
                             n."사용승인일자", n.pnu, n.lat, n.lng, s.station_name, s.dist_m,
                             ''' + origin + ''' AS origin, ''' + pick_no + ''' AS teojabi_no''' + select_point + '''
-                     FROM public.naver n ''' + join + '''
+                     FROM ' + source + ' n ''' + join + '''
                      CROSS JOIN LATERAL (
                          SELECT station_name,
                                 ST_Distance(ST_SetSRID(ST_MakePoint(lng,lat),4326)::geography,
@@ -303,11 +335,11 @@ def search(conn, filters):
                      LIMIT %s'''
         cur.execute(row_sql, query_params)
         rows = [row_dto(r, station, station) for r in cur.fetchall()]
-        grouped = {'premium': [], 'registered': [], 'naver': []}
+        grouped = {'premium': [], 'registered': [], 'disco': [], 'naver': []}
         for row in rows:
             grouped[row['origin']].append(row)
-        # 터잡이 추천·등록을 먼저 보여주고, 남은 자리를 네이버로 채운다.
-        ordered = grouped['premium'] + grouped['registered'] + grouped['naver']
+        # 터잡이 추천·등록 → 디스코 → 네이버 순으로 보여준다.
+        ordered = grouped['premium'] + grouped['registered'] + grouped['disco'] + grouped['naver']
         groups = [{'key': row['id'], 'pnu': row.get('pnu'), 'representative': None, 'listings': []} for row in ordered[:limit]]
         for group, row in zip(groups, ordered[:limit]):
             group['representative'] = row
@@ -320,15 +352,23 @@ def search(conn, filters):
             trial_where = where + [clause]
             trial_params = params + []
             try:
-                cur.execute('SELECT count(*) AS total FROM public.naver n '
+                cur.execute('SELECT count(*) AS total FROM ' + source + ' n '
                             'LEFT JOIN public.teojabi_curation_candidates c ON c.source_id=n."매물번호" AND c.source_table IN (\'naver\',\'naver_land\') '
                             'LEFT JOIN public.teojabi_listing_number ln ON ln.listing_id = \'naver:\' || n."매물번호" '
                             'WHERE ' + ' AND '.join(trial_where), trial_params)
                 origin_totals[key] = int(cur.fetchone()['total'])
             except Exception:
                 conn.rollback(); origin_totals[key] = 0
-        origin_totals['naver'] = total - origin_totals.get('premium', 0) - origin_totals.get('registered', 0)
-        relax = relaxations(cur, filters, station, where, params, total) if total == 0 else []
+        if has_disco:
+            try:
+                cur.execute('SELECT count(*) AS total FROM ' + source + ' n WHERE ' + ' AND '.join(where + ["n.source_kind='disco'"]), params)
+                origin_totals['disco'] = int(cur.fetchone()['total'])
+            except Exception:
+                conn.rollback(); origin_totals['disco'] = 0
+        else:
+            origin_totals['disco'] = 0
+        origin_totals['naver'] = total - origin_totals.get('premium', 0) - origin_totals.get('registered', 0) - origin_totals.get('disco', 0)
+        relax = relaxations(cur, source, filters, station, where, params, total) if total == 0 else []
     result = {'status': 'ready', 'total': total, 'groups': groups, 'districts': districts,
               'originTotals': origin_totals, 'relaxations': relax,
               'searchedAt': datetime.now(timezone.utc).isoformat()}
