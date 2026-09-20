@@ -10,9 +10,12 @@ const m2 = (value, unit) => Math.round((unit === '평' ? Number(value) * 3.30578
 export function ruleFilters(text) {
   const t = String(text || '').slice(0, 500);
   const filters = {};
-  const districts = DISTRICTS.filter(name => t.includes(name));
+  const districts = DISTRICTS.filter(name => t.includes(name) || (name.endsWith('구') && name.length >= 3 && t.includes(name.slice(0, -1))));
   if (districts.length) filters.districts = districts;
-  const station = t.match(/([가-힣A-Za-z0-9]{2,12})\s*역/);
+  // "상업지역", "특화구역" 같은 용도·구역 표현을 역 이름으로 잘못 잡지 않도록 제거한 뒤 역을 찾는다.
+  // "홍대입구역"의 "입구역"처럼 역 이름 안의 글자를 지우지 않도록 구역은 알려진 접미사만 지운다.
+  const stationText = t.replace(/[가-힣]{0,8}지역/g, ' ').replace(/(특화|보호|보존|계획|정비|개발|관리|시설|유원)구역/g, ' ');
+  const station = stationText.match(/([가-힣A-Za-z0-9]{2,12})\s*역/);
   if (station) filters.stationName = station[1];
   const walk = t.match(/도보\s*(\d+)\s*분/);
   if (walk) filters.maxDistanceM = Number(walk[1]) * WALK_METERS_PER_MIN;
@@ -71,33 +74,57 @@ export function conflicts(spoken, saved) {
   return out;
 }
 
+const FAQ_CONTEXT = [
+  'Q. 어떤 매물을 찾을 수 있나요? → 터잡이가 선별한 매물과 기존 등록 매물을 함께 볼 수 있어요. 목적·예산·지역·대지면적·용도지역으로 찾고, 가격과 판매 여부는 상담 때 확인해요.',
+  'Q. 검색 조건을 바꾸려면? → 목록 위 예산·지역·목적 조건을 누르면 바로 바뀌고, 가격순 정렬·목록 접기로 지도를 넓게 볼 수 있어요. 같은 브라우저는 마지막 조건을 기억해요.',
+  'Q. 가격 비교는? → 매물 상세에서 가까운 필지 실거래를 최대 5곳 확인해요. 최근 36개월, 반경 500m에서 부족하면 1km까지. 거리순 참고자료이며 시세를 보증하지 않아요.',
+  'Q. 방문 전 확인? → 지도·네이버 거리뷰로 주변을 보고, 보유 토지대장·건축물대장을 펼쳐볼 수 있어요. 원본 발급 서류는 아니에요.',
+  'Q. 신축 조건? → 신축 목적 선택 시 용도·도로폭·교육보호구역/문화재보존구역 제외, 호텔은 관광숙박특화구역 우선 조건을 고를 수 있어요. 실제 건축 가능 여부는 별도 검토가 필요해요.',
+  'Q. 기존 건물·여러 필지 검토? → 건물·토지에서 지도로 필지를 선택하면 주소가 자동 입력되고, 여러 필지 선택과 공부상 면적 합계 적용이 가능해요.',
+  'Q. 공사비 계산? → 대지면적×용적률 검토 연면적 기준, 평당 공사비 기본 1,000만원(변경 가능), 설계비는 공사비의 5%로 표시해요. 토지비·철거비·세금을 포함한 총사업비는 아니에요.',
+].join('\n');
+
 // Free-form text goes to Gemini only when the rule parser found nothing.
 export async function geminiFilters(message, key, condition) {
   if (!key) return null;
   const schema = `{"districts":["자치구"],"q":"동/키워드","budgetWon":숫자(원),"minAreaM2":숫자,"maxAreaM2":숫자,"kind":"land|building","zones":["주거지역|상업지역|공업지역|녹지지역"],"stationName":"역이름","maxDistanceM":숫자,"minRoadWidthM":숫자,"purpose":"new-build"}`;
   const prompt = [
-    '너는 터잡이 부동산 매물 검색 도우미다.',
-    '사용자 문장에서 매물 검색 조건만 추출해 아래 JSON 스키마로만 답한다. 설명·인사말·코드블록 없이 JSON 객체 하나만 출력한다.',
-    '값이 없는 항목은 넣지 않는다. 도보 N분은 maxDistanceM = N*80(미터), N미터는 그대로. 가격 "N억"은 원 단위로 바꾼다(예: 30억 → 3000000000). 평은 그대로 넣지 말고 ㎡로 환산한다(1평=3.305785㎡).',
-    '매물 검색으로 표현할 수 없는 요청(상권, 임대료, 건물 상태 등)은 filters를 비우고 "unsupported"에 이유를 적는다.',
-    `스키마: ${schema}`,
+    '너는 터잡이(teojabi.com) 부동산 서비스의 안내 도우미다. 반드시 JSON 객체 하나만 출력한다(설명·인사말·코드블록 금지).',
+    '하는 일은 두 가지뿐이다: (1) 매물 검색 조건 추출, (2) 터잡이 서비스 사용법·기능 안내.',
+    '매물 검색이면 filters에 조건만 넣는다. 값이 없는 항목은 넣지 않는다. 도보 N분은 maxDistanceM = N*80(미터), N미터는 그대로. 가격 "N억"은 원 단위로 바꾼다(예: 30억 → 3000000000). 평은 그대로 넣지 말고 ㎡로 환산한다(1평=3.305785㎡).',
+    '터잡이 서비스 사용법·기능 질문이면 filters를 비우고 reply에 아래 [서비스 안내] 내용만 근거로 2~3문장으로 친절히 답한다. 안내에 없는 내용은 지어내지 말고 "정확한 내용은 터잡이 상담으로 확인해 주세요"라고 답한다.',
+    '간단한 인사·감사·안부는 reply로 한두 문장 친근하게 답하고, 이어서 원하는 매물 조건이나 궁금한 점을 물어보게 안내한다.',
+    '그 외 요청(외부 정보·인터넷 검색, 일반 상식·잡담, 시세 전망, 투자·법률·세무 조언, 다른 서비스)은 filters를 비우고 reply에 "터잡이 매물 찾기와 서비스 안내만 도와드릴 수 있어요. 원하는 조건을 알려주시면 매물을 찾아드릴게요."라고 답한다.',
+    'reply는 한국어 300자 이내, 확정적 투자·법률 조언 금지. 매물 검색으로 표현할 수 없는 요청은 filters를 비우고 "unsupported"에 이유를 적는다.',
+    `스키마: {"filters":{...},"unsupported":"이유","reply":"답변"}  (filters 스키마: ${schema})`,
+    '[서비스 안내]',
+    FAQ_CONTEXT,
     condition ? `회원 저장 조건(참고용, 사용자가 말한 조건과 충돌하면 무시): ${JSON.stringify(condition)}` : '',
     `사용자 문장: ${String(message).slice(0, 400)}`,
   ].filter(Boolean).join('\n');
   try {
-    const model = process.env.GEMINI_MODEL || 'gemini-2.5-flash-lite';
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.1, topP: 0.9, maxOutputTokens: 1024, responseMimeType: 'application/json' } }),
-      signal: AbortSignal.timeout(15000),
-    });
-    if (!response.ok) return null;
+    const models = [...new Set([process.env.GEMINI_MODEL, 'gemini-2.5-flash-lite', 'gemini-2.5-flash', 'gemini-flash-lite-latest', 'gemini-flash-latest'].filter(Boolean))];
+    let response = null;
+    for (const model of models) {
+      response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.1, topP: 0.9, maxOutputTokens: 1024, responseMimeType: 'application/json' } }),
+        signal: AbortSignal.timeout(15000),
+      });
+      if (response.ok) break;
+      if (![404, 429, 500, 503].includes(response.status)) break;
+    }
+    if (!response || !response.ok) return null;
     const data = await response.json();
     const text = (data?.candidates || []).flatMap(c => c?.content?.parts || []).map(p => p?.text).filter(Boolean).join('\n').trim();
     const match = text.match(/\{[\s\S]*\}/);
     if (!match) return null;
     const parsed = JSON.parse(match[0]);
-    return { filters: sanitize(parsed.filters || parsed), unsupported: typeof parsed.unsupported === 'string' ? parsed.unsupported.slice(0, 120) : null };
+    return {
+      filters: sanitize(parsed.filters || parsed),
+      unsupported: typeof parsed.unsupported === 'string' ? parsed.unsupported.slice(0, 120) : null,
+      reply: typeof parsed.reply === 'string' && parsed.reply.trim() ? parsed.reply.trim().slice(0, 500) : null,
+    };
   } catch { return null; }
 }
 
@@ -212,7 +239,10 @@ export function buildResult(filters, search, unsupported) {
     : (search.groups || []).map(group => group.representative).filter(Boolean);
   const rows = sourceRows.map(viewRow);
   const buckets = groupByOrigin(rows);
-  const ordered = [...buckets.premium, ...buckets.registered, ...buckets.disco, ...buckets.naver];
+  // 디스코를 앞세우지 않고 네이버와 무작위로 섞는다. 터잡이 추천·등록은 먼저 보여준다.
+  const mixed = [...buckets.disco, ...buckets.naver];
+  for (let i = mixed.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); const tmp = mixed[i]; mixed[i] = mixed[j]; mixed[j] = tmp; }
+  const ordered = [...buckets.premium, ...buckets.registered, ...mixed];
   const groups = ordered.map(listing => ({ key: listing.id, pnu: listing.pnu, representative: listing, listings: [listing] }));
   const described = describe(filters);
   const totals = search.originTotals || {};
@@ -260,13 +290,28 @@ export async function parseAssistant(message, condition, geminiKey, editedFilter
   const spoken = ruleFilters(message);
   let merged = mergeFilters(spoken, saved);
   let unsupported = null;
+  let reply = null;
   let source = Object.keys(spoken).length ? 'spoken' : Object.keys(saved).length ? 'saved' : 'none';
-  if (!hasMeaningfulFilters(spoken) && !hasMeaningfulFilters(saved)) {
+  const strongKeys = ['districts', 'budgetWon', 'minAreaM2', 'maxAreaM2', 'zones', 'stationName', 'maxDistanceM', 'minRoadWidthM'];
+  const hasStrong = strongKeys.some(key => { const value = spoken[key]; return Array.isArray(value) ? value.length > 0 : value !== undefined && value !== null && value !== ''; });
+  const conversational = /안녕|반갑|반가|잘\s*부탁|고마|감사|수고|하이|헬로|hello|\bhi\b/i.test(String(message || ''));
+  if (!hasStrong) {
+    // 구체 조건(지역·예산·면적·용도지역 등)이 없으면 Gemini가 매물 검색인지 대화인지 판단한다.
     const gem = await geminiFilters(message, geminiKey, condition);
-    if (gem) { merged = mergeFilters(gem.filters, saved); unsupported = gem.unsupported; source = Object.keys(gem.filters || {}).length ? 'gemini' : 'none'; }
+    if (conversational) {
+      reply = (gem && gem.reply) || '안녕하세요! 터잡이 AI 부동산 비서예요. 찾으시는 지역·예산·용도 같은 조건을 알려주시면 매물을 찾아드릴게요.';
+      merged = {}; source = 'none';
+    } else if (gem && hasMeaningfulFilters(gem.filters)) {
+      merged = mergeFilters(gem.filters, saved); source = 'gemini';
+    } else if (gem) {
+      merged = {}; unsupported = gem.unsupported; reply = gem.reply; source = 'none';
+    } else {
+      // Gemini를 쓸 수 없으면 규칙 결과로 최선을 다한다.
+      merged = mergeFilters(spoken, saved);
+    }
   }
   const filters = sanitize(merged); filters.limit = 60;
-  return { filters, unsupported, source, conflicts: conflicts(spoken, saved) };
+  return { filters, unsupported, source, conflicts: conflicts(spoken, saved), reply };
 }
 
 export { ORIGIN_LABEL };
