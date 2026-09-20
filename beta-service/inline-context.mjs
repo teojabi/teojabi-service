@@ -37,8 +37,15 @@ export function mountInlineContext(host,listing) {
   async function load() {
     if(busy)return;busy=true;host.setAttribute('aria-busy','true');host.innerHTML='<p class="case-note">이 필지의 구역과 도로를 확인하고 있어요.</p>';
     try {
-      const response=await apiFetch(`/api/site-context/${encodeURIComponent(listing.id)}`,{signal:abort.signal});
-      const data=await response.json();if(!response.ok||!['ready','partial'].includes(data.status))throw new Error();
+      let data=null;
+      const contextResponse=await apiFetch(`/api/site-context/${encodeURIComponent(listing.id)}`,{signal:abort.signal});
+      if(contextResponse.ok){const parsed=await contextResponse.json();if(['ready','partial'].includes(parsed.status))data=parsed;}
+      // 디스코 등 카탈로그에 없는 매물은 필지 컨텍스트로 폴백한다.
+      if(!data && listing.pnu && /^11\d{17}$/.test(String(listing.pnu))){
+        const parcelResponse=await apiFetch(`/api/parcel-context/${encodeURIComponent(listing.pnu)}`,{signal:abort.signal});
+        if(parcelResponse.ok){const parsed=await parcelResponse.json();if(['ready','partial'].includes(parsed.status))data=parsed;}
+      }
+      if(!data)throw new Error();
       if(disposed)return;
       host.innerHTML=renderInlineContext(data)+(data.status==='partial'?'<button class="context-retry">자료 다시 확인</button>':'');
     } catch {if(!disposed)host.innerHTML='<p class="case-note">구역과 도로 자료를 불러오지 못했어요.</p><button class="context-retry">다시 확인하기</button>';}
