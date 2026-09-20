@@ -55,7 +55,7 @@ def origin_expression(has_curation, has_disco):
 def source_from(has_disco):
     """네이버 매물과 디스코 매물을 같은 컬럼 이름으로 맞춘 검색 소스."""
     naver = '''SELECT "매물번호"::text AS "매물번호", "상태"::text AS "상태", "거래가격"::numeric AS "거래가격",
-                      "대지면적"::numeric AS "대지면적", "연면적"::numeric AS "연면적", "대지위치"::text AS "대지위치",
+                      "대지면적"::numeric AS "대지면적", "연면적"::text AS "연면적", "대지위치"::text AS "대지위치",
                       "구"::text AS "구", "동"::text AS "동", "주용도코드명"::text AS "주용도코드명",
                       "용도지역"::text AS "용도지역", "도로폭_m"::numeric AS "도로폭_m", "층정보"::text AS "층정보",
                       "사용승인일자"::text AS "사용승인일자", "매물특징"::text AS "매물특징",
@@ -65,7 +65,7 @@ def source_from(has_disco):
     if not has_disco:
         return '(' + naver + ')'
     disco = '''SELECT d.did::text AS "매물번호", '신규'::text AS "상태", (d.price_manwon/10000.0)::numeric AS "거래가격",
-                      d.land_area_m2::numeric AS "대지면적", d.floor_area_m2::numeric AS "연면적", d.address::text AS "대지위치",
+                      d.land_area_m2::numeric AS "대지면적", d.floor_area_m2::text AS "연면적", d.address::text AS "대지위치",
                       d.gu::text AS "구", d.dong::text AS "동",
                       (CASE d.ts WHEN 1 THEN '토지' ELSE '건물' END)::text AS "주용도코드명",
                       d.use_zone::text AS "용도지역", d.road_width_m::numeric AS "도로폭_m",
@@ -391,5 +391,5 @@ if __name__ == '__main__':
     try:
         main()
     except Exception as exc:
-        print(json.dumps({'status': 'error', 'errorType': type(exc).__name__}, ensure_ascii=False))
+        print(json.dumps({'status': 'error', 'errorType': type(exc).__name__, 'error': str(exc)[:500]}, ensure_ascii=False))
         sys.exit(1)
