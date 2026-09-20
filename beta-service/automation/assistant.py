@@ -327,14 +327,13 @@ def search(conn, filters):
             # 요청한 역까지의 거리를 결과에 실어 보낸다. ORDER BY와 같은 좌표를 두 번 쓰지 않는다.
             select_point = ''', ST_Distance(ST_SetSRID(ST_MakePoint(n.lng,n.lat),4326)::geography,
                           ST_SetSRID(ST_MakePoint(%s,%s),4326)::geography) AS requested_dist_m'''
-        order = 'CASE WHEN ' + origin + "='naver' THEN 1 ELSE 0 END, n.\"거래가격\""
+        # 디스코를 앞세우지 않도록 출처는 무작위로 섞고, 터잡이 추천·등록만 먼저 둔다.
+        order = "CASE WHEN " + origin + " IN ('premium','registered') THEN 0 ELSE 1 END, random()"
         if filters.get('preferTourism'):
             # 관광숙박특화구역에 포함·걸친 매물을 먼저 보여준다. 조건이 아니라 정렬 우선순위다.
             order = tourism_rank_sql() + ', ' + order
-        if station:
-            order = 'ST_Distance(ST_SetSRID(ST_MakePoint(n.lng,n.lat),4326)::geography, ST_SetSRID(ST_MakePoint(%s,%s),4326)::geography), ' + order
-        # SQL 파라미터 순서는 SELECT(요청 역 거리) → WHERE → ORDER BY(역 기준 정렬) → LIMIT 이다.
-        query_params = station_distance_params(station) + params + station_distance_params(station) + [limit]
+        # SQL 파라미터 순서는 SELECT(요청 역 거리) → WHERE → LIMIT 이다.
+        query_params = station_distance_params(station) + params + [limit]
         row_sql = '''SELECT n."매물번호", n."대지위치", n."거래가격", n."대지면적", n."연면적", n."층정보",
                             n."구", n."동", n."주용도코드명", n."용도지역", n."매물특징", n."도로폭_m",
                             n."사용승인일자", n.pnu, n.lat, n.lng, n.source_kind, n.source_url, s.station_name, s.dist_m,
