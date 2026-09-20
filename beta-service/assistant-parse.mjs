@@ -115,6 +115,11 @@ export function sanitize(raw) {
     if (Number.isFinite(value) && value > 0 && value <= max) out[key] = Math.round(value * 100) / 100;
   }
   if (raw.kind === 'land' || raw.kind === 'building') out.kind = raw.kind;
+  // 편집기가 유형을 배열로 보내더라도 하나로 받아준다.
+  else if (Array.isArray(raw.kind)) {
+    if (raw.kind.includes('land')) out.kind = 'land';
+    else if (raw.kind.includes('building')) out.kind = 'building';
+  }
   if (raw.purpose === 'new-build') out.purpose = 'new-build';
   // 신축 구역 조건은 기존 검색기와 같은 플래그 이름을 쓴다.
   for (const key of ['preferTourism', 'excludeEducation', 'excludeHeritage']) {
@@ -217,7 +222,7 @@ export function buildResult(filters, search, unsupported) {
   if (total === 0) {
     reply = described.length
       ? `${described.join(' · ')} 조건에 맞는 매물을 찾지 못했어요. 아래에서 조건을 바꿔볼까요?`
-      : '조건을 이해하지 못했어요. 예) "종로구 상업지역 100억 이하 50평 이상 도로 6m"처럼 알려주세요.';
+      : '조건에 맞는 매물을 찾지 못했어요. 아래에서 조건을 바꿔보세요.';
   } else if (total <= 5) {
     reply = `${described.join(' · ') || '요청하신'} 조건에 맞는 매물 ${total}건을 찾았어요${stationNote}.`;
   } else if (total <= 30) {

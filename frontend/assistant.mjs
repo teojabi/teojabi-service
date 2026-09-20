@@ -40,6 +40,10 @@ function conditionLabel(payload) {
   return parts.join(' · ') || '저장된 조건';
 }
 
+function hasUsableFilters(filters) {
+  return Object.entries(filters || {}).some(([key, value]) => key !== 'limit' && (Array.isArray(value) ? value.length : value !== null && value !== undefined && value !== ''));
+}
+
 function cardMarkup(listing) {
   const station = listing.station ? `<span class="assistant-station">📍 ${esc(listing.station.name)}역 · 도보 약 ${listing.station.walkMin}분 · ${listing.station.distM}m</span>` : '';
   return `<article class="assistant-card" data-open="${esc(listing.id)}" data-origin="${esc(listing.origin)}">
@@ -222,7 +226,7 @@ export function mountAssistant({ onResults, onAnalyze } = {}) {
     if (!signedIn()) { renderLocked(); return; }
     const condition = savedCondition();
     addBot(`안녕하세요, AI 부동산 비서예요. 원하는 조건을 편하게 말해주세요.<br><small>예: "종로구 상업지역 100억 이하 50평 이상 도로 6m", "홍대입구역 도보 3분"</small>`);
-    if (condition) addBot(`<p>저장하신 조건이 있어요.</p><p class="assistant-saved-condition">${esc(conditionLabel(condition))}</p><small>말씀하신 조건이 있으면 그 조건으로 먼저 찾아드려요.</small><div class="assistant-chiprow"><button type="button" class="assistant-chip" data-send="저장한 조건으로 찾아줘">이 조건으로 찾기</button></div>`);
+    if (condition && hasUsableFilters(condition)) addBot(`<p>저장하신 조건이 있어요.</p><p class="assistant-saved-condition">${esc(conditionLabel(condition))}</p><small>말씀하신 조건이 있으면 그 조건으로 먼저 찾아드려요.</small><div class="assistant-chiprow"><button type="button" class="assistant-chip" data-send="저장한 조건으로 찾아줘">이 조건으로 찾기</button></div>`);
   };
 
   function renderResult(body, data, openEditor) {
@@ -275,6 +279,12 @@ export function mountAssistant({ onResults, onAnalyze } = {}) {
       const pick = event.target.closest('[data-pick]');
       if (pick) {
         const key = pick.dataset.pick, value = pick.dataset.value;
+        // 유형(kind)은 값이 하나다. 배열로 넣으면 서버 sanitize에서 통째로 버려진다.
+        if (key === 'kind') {
+          if (lastFilters.kind === value) delete lastFilters.kind; else lastFilters.kind = value;
+          openEditorUi();
+          return;
+        }
         const list = Array.isArray(lastFilters[key]) ? lastFilters[key] : (lastFilters[key] ? [lastFilters[key]] : []);
         const next = list.includes(value) ? list.filter(v => v !== value) : [...list, value];
         if (next.length) lastFilters[key] = next; else delete lastFilters[key];
@@ -309,6 +319,10 @@ export function mountAssistant({ onResults, onAnalyze } = {}) {
     });
     slot.addEventListener('submit', event => {
       event.preventDefault();
+      if (!hasUsableFilters(lastFilters)) {
+        addBot('조건을 하나 이상 선택해 주세요. 예) 지역·유형·예산 중 하나를 골라주세요.');
+        return;
+      }
       runSearch(null, lastFilters || {});
     });
   }
