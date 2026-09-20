@@ -212,23 +212,23 @@ export function buildResult(filters, search, unsupported) {
     : (search.groups || []).map(group => group.representative).filter(Boolean);
   const rows = sourceRows.map(viewRow);
   const buckets = groupByOrigin(rows);
-  const shown = [...buckets.premium, ...buckets.registered, ...buckets.naver].slice(0, 5);
-  const groups = shown.map(listing => ({ key: listing.id, pnu: listing.pnu, representative: listing, listings: [listing] }));
+  const ordered = [...buckets.premium, ...buckets.registered, ...buckets.naver];
+  const groups = ordered.map(listing => ({ key: listing.id, pnu: listing.pnu, representative: listing, listings: [listing] }));
   const described = describe(filters);
   const totals = search.originTotals || {};
   const premium = Number(totals.premium || 0), registered = Number(totals.registered || 0), naver = Number(totals.naver || total - premium - registered);
-  const stationNote = search.station ? ` (${search.station.name}역 직선거리 기준)` : '';
+  const shownCount = Math.min(5, groups.length);
   let reply;
   if (total === 0) {
     reply = described.length
       ? `${described.join(' · ')} 조건에 맞는 매물을 찾지 못했어요. 아래에서 조건을 바꿔볼까요?`
       : '조건에 맞는 매물을 찾지 못했어요. 아래에서 조건을 바꿔보세요.';
-  } else if (total <= 5) {
-    reply = `${described.join(' · ') || '요청하신'} 조건에 맞는 매물 ${total}건을 찾았어요${stationNote}.`;
-  } else if (total <= 30) {
-    reply = `${described.join(' · ') || '요청하신'} 조건에 맞는 매물 ${total}건을 찾았어요${stationNote}. 아래 ${shown.length}건을 먼저 보여드려요. 더 좁혀볼까요?`;
+  } else if (total <= shownCount) {
+    reply = `조건에 맞는 매물 ${total}건을 찾았어요.`;
+  } else if (total <= 10) {
+    reply = `조건에 맞는 매물 ${total}건 중 ${shownCount}건을 보여드릴게요.`;
   } else {
-    reply = `${described.join(' · ') || '요청하신'} 조건에 맞는 매물이 많아요(${total.toLocaleString('ko-KR')}건). 아래 ${shown.length}건을 먼저 보여드려요. 좁혀서 볼까요?`;
+    reply = `조건에 맞는 매물 ${total}건 중 ${shownCount}건을 보여드릴게요. 10건 이하로 조건 설정을 맞추는 것을 추천드려요.`;
   }
   if (total > 0 && (premium || registered)) {
     const lines = [];
