@@ -396,7 +396,7 @@ export function mountAssistant({ onResults, onAnalyze, onEditConditions, onSearc
   }
 
   panel.addEventListener('click', event => {
-    if (event.target.closest('[data-search-condition]')) { onSearchCondition?.(savedCondition()); return; }
+    if (event.target.closest('[data-search-condition]')) { runSearch(null, savedCondition()); return; }
     const edit = event.target.closest('[data-edit-conditions]');
     if (edit) { onEditConditions?.(edit.hasAttribute('data-intent') ? intentFilters : null); return; }
     const chip = event.target.closest('[data-send]');
