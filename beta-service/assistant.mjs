@@ -55,15 +55,17 @@ function needsSearch(message) {
     /(?:주거지역|상업지역|공업지역|녹지지역)/.test(t) ||
     /도로\s*(?:폭)?\s*\d+/.test(t) ||
     /도보\s*\d+\s*분/.test(t) ||
+    /(?:골목상권|전통시장|발달상권|관광특구|상권|월매출|유동인구)/.test(t) ||
     /(?:토지|땅|필지|건물|빌딩|상가|주택|근린|신축)/.test(t);
 }
 
 function cardMarkup(listing, hidden = false) {
   const station = listing.station ? `<span class="assistant-station">📍 ${esc(listing.station.name)}역 · 도보 약 ${listing.station.walkMin}분 · ${listing.station.distM}m</span>` : '';
+  const commercial = listing.commercial ? `<span class="assistant-commercial">🏪 ${esc(listing.commercial.name)}${listing.commercial.type ? ` (${esc(listing.commercial.type)})` : ''}${listing.commercial.distM != null ? ` · ${listing.commercial.distM}m` : ''}</span>` : '';
   return `<article class="assistant-card${hidden ? ' is-hidden' : ''}" data-open="${esc(listing.id)}" data-origin="${esc(listing.origin)}">
     <div class="assistant-card-top"><span class="assistant-origin origin-${esc(listing.origin)}">${esc(originLabel(listing.origin))}</span><b>${money(listing.priceWon)}</b></div>
     <p class="assistant-card-address">${esc(listing.district)} ${esc(listing.neighborhood || '')} · ${esc(listing.address)}</p>
-    <div class="assistant-card-meta"><span>대지 ${area(listing.areaM2)}</span><span>${esc(listing.kind === 'land' ? '토지' : listing.mainUse || '건물')}</span></div>${station}
+    <div class="assistant-card-meta"><span>대지 ${area(listing.areaM2)}</span><span>${esc(listing.kind === 'land' ? '토지' : listing.mainUse || '건물')}</span></div>${station}${commercial}
     <button type="button" class="assistant-card-ask" data-ask="${esc(listing.id)}">이 매물 물어보기</button>
   </article>`;
 }
@@ -79,6 +81,7 @@ function askMenuMarkup(listing) {
       ${item('detail', '📋 상세페이지 보기', true, '')}
       ${item('station', '📍 역까지 거리', Boolean(listing.station), '역 거리를 확인할 수 없어요')}
       ${item('nearby', '📊 주변 실거래', true, '')}
+      ${item('commercial', '🏪 이 상권에서 매물 찾기', Boolean(listing.commercial), '인근 상권 정보가 없어요')}
       ${item('zoning', '🗺️ 용도지역·규제', hasPnu, '필지 정보가 없어 확인할 수 없어요')}
       ${item('similar', '🔎 비슷한 매물 찾기', true, '')}
       ${item('analyze', '🏗️ 신축 검토하기', true, '')}
@@ -198,6 +201,12 @@ export function mountAssistant({ onResults, onAnalyze } = {}) {
         await runSearch(null, filters);
         return;
       }
+      if (key === 'commercial') {
+        // 상권 조건 검색은 AI 채팅에서만 제공한다. 상권 반경 안의 매물을 다시 찾는다.
+        scan.remove(); busy = false;
+        await runSearch(null, { commercialCode: listing.commercial.code, commercialRadiusM: 500, limit: 60 });
+        return;
+      }
       let html;
       if (key === 'station') {
         const s = listing.station;
@@ -239,7 +248,12 @@ export function mountAssistant({ onResults, onAnalyze } = {}) {
   const welcome = () => {
     if (!signedIn()) { renderLocked(); return; }
     const condition = savedCondition();
-    addBot(`안녕하세요, AI 부동산 비서예요. 원하는 조건을 편하게 말해주세요. 터잡이 이용 방법도 물어볼 수 있어요.<br><small>예: "종로구 상업지역 100억 이하 50평 이상 도로 6m", "홍대입구역 도보 3분", "실거래는 어떻게 봐요?"</small>`);
+    addBot(`안녕하세요, AI 부동산 비서예요. 원하는 조건을 편하게 말해주세요. 터잡이 이용 방법도 물어볼 수 있어요.<br><small>예: "종로구 상업지역 100억 이하 50평 이상 도로 6m", "홍대입구역 도보 3분", "강남구 골목상권 월매출 5억 이상"</small>
+      <div class="assistant-chiprow">
+        <button type="button" class="assistant-chip" data-send="강남구 골목상권 월매출 5억 이상">🏪 골목상권 매출 5억 이상</button>
+        <button type="button" class="assistant-chip" data-send="유동인구 30만 이상 발달상권">🏪 유동인구 많은 발달상권</button>
+        <button type="button" class="assistant-chip" data-send="화랑대역 7번 상권">🏪 상권 이름으로 찾기</button>
+      </div>`);
     if (condition && hasUsableFilters(condition)) addBot(`<p>저장하신 조건이 있어요.</p><p class="assistant-saved-condition">${esc(conditionLabel(condition))}</p><small>말씀하신 조건이 있으면 그 조건으로 먼저 찾아드려요.</small><div class="assistant-chiprow"><button type="button" class="assistant-chip" data-condition="1">이 조건으로 찾기</button></div>`);
   };
 
@@ -250,10 +264,18 @@ export function mountAssistant({ onResults, onAnalyze } = {}) {
     if (data.conditionNote) reply += `<p class="assistant-note">${esc(data.conditionNote)}</p>`;
     if (cards) reply += `<div class="assistant-cards">${cards}</div>`;
     if (groups.length > 5) reply += `<button type="button" class="assistant-chip assistant-more" data-more>더보기 (남은 ${groups.length - 5}건)</button>`;
+    if (data.commercial) {
+      const c = data.commercial;
+      const sales = c.monthlySalesWon ? `${(c.monthlySalesWon / 1e8).toLocaleString('ko-KR', { maximumFractionDigits: 1 })}억` : '자료 없음';
+      const pop = c.population ? `${Math.round(c.population / 10000).toLocaleString('ko-KR')}만` : '-';
+      const cats = (c.topCategories || []).map(x => `${esc(x.name)} ${(x.salesWon / 1e8).toLocaleString('ko-KR', { maximumFractionDigits: 1 })}억`).join(' · ');
+      reply += `<div class="assistant-commercial-card"><div class="assistant-commercial-head"><b>🏪 ${esc(c.name)}</b><span>${esc(c.type || '')}${c.district ? ` · ${esc(c.district)}` : ''}</span></div><div class="assistant-facts"><div class="assistant-fact"><span>월 추정매출</span><b>${sales}</b></div><div class="assistant-fact"><span>유동인구</span><b>${pop}</b></div><div class="assistant-fact"><span>변화지표</span><b>${esc(c.changeIndex || '-')}</b></div></div>${cats ? `<p class="assistant-note">주요 업종 · ${cats}</p>` : ''}<p class="assistant-note">골목=생활권 · 발달=중심상권 · 전통시장 · 관광특구 · 서울시 상권분석서비스(추정매출)</p></div>`;
+    }
     if (data.chips?.length) reply += `<p class="assistant-conditions">조건 · ${data.chips.map(c => esc(c.label)).join(' / ')}</p>`;
     if (data.unsupported) reply += `<p class="assistant-note">${esc(data.unsupported)}</p>`;
     const chips = [];
     if (groups.length) chips.push(`<button type="button" class="assistant-chip assistant-chip-primary" data-map="1">지도에서 보기</button>`);
+    if (data.commercial) chips.push(`<button type="button" class="assistant-chip assistant-chip-primary" data-commercial="${esc(data.commercial.code)}">🏪 이 상권에서 매물 찾기</button>`);
     if (groups.length || data.chips?.length) chips.push(`<button type="button" class="assistant-chip" data-editor="1">조건 바꾸기</button>`);
     if (data.conditionNote) chips.push(`<button type="button" class="assistant-chip" data-condition="1">저장 조건으로 찾기</button>`);
     (data.suggestions || []).forEach(s => chips.push(`<button type="button" class="assistant-chip" data-send="${esc(s.message)}">${esc(s.label)}</button>`));
@@ -289,6 +311,7 @@ export function mountAssistant({ onResults, onAnalyze } = {}) {
       else event.currentTarget.textContent = `더보기 (남은 ${remaining}건)`;
     });
     const slot = bubble.querySelector('.assistant-editor-slot');
+    bubble.querySelector('[data-commercial]')?.addEventListener('click', () => runSearch(null, { commercialCode: bubble.querySelector('[data-commercial]').dataset.commercial, commercialRadiusM: 500, limit: 60 }));
     const openEditorUi = () => {
       slot.hidden = false;
       slot.innerHTML = editorMarkup(lastFilters || {});
