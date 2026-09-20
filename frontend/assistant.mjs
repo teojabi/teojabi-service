@@ -227,7 +227,7 @@ export function mountAssistant({ onResults, onAnalyze } = {}) {
     if (!signedIn()) { renderLocked(); return; }
     const condition = savedCondition();
     addBot(`안녕하세요, AI 부동산 비서예요. 원하는 조건을 편하게 말해주세요.<br><small>예: "종로구 상업지역 100억 이하 50평 이상 도로 6m", "홍대입구역 도보 3분"</small>`);
-    if (condition && hasUsableFilters(condition)) addBot(`<p>저장하신 조건이 있어요.</p><p class="assistant-saved-condition">${esc(conditionLabel(condition))}</p><small>말씀하신 조건이 있으면 그 조건으로 먼저 찾아드려요.</small><div class="assistant-chiprow"><button type="button" class="assistant-chip" data-send="저장한 조건으로 찾아줘">이 조건으로 찾기</button></div>`);
+    if (condition && hasUsableFilters(condition)) addBot(`<p>저장하신 조건이 있어요.</p><p class="assistant-saved-condition">${esc(conditionLabel(condition))}</p><small>말씀하신 조건이 있으면 그 조건으로 먼저 찾아드려요.</small><div class="assistant-chiprow"><button type="button" class="assistant-chip" data-condition="1">이 조건으로 찾기</button></div>`);
   };
 
   function renderResult(body, data, openEditor) {
@@ -242,7 +242,7 @@ export function mountAssistant({ onResults, onAnalyze } = {}) {
     const chips = [];
     if (groups.length) chips.push(`<button type="button" class="assistant-chip assistant-chip-primary" data-map="1">지도에서 보기</button>`);
     chips.push(`<button type="button" class="assistant-chip" data-editor="1">조건 바꾸기</button>`);
-    if (data.conditionNote) chips.push(`<button type="button" class="assistant-chip" data-send="저장한 조건으로 찾아줘">저장 조건으로 찾기</button>`);
+    if (data.conditionNote) chips.push(`<button type="button" class="assistant-chip" data-condition="1">저장 조건으로 찾기</button>`);
     (data.suggestions || []).forEach(s => chips.push(`<button type="button" class="assistant-chip" data-send="${esc(s.message)}">${esc(s.label)}</button>`));
     if (chips.length) reply += `<div class="assistant-chiprow">${chips.join('')}</div>`;
     reply += `<div class="assistant-editor-slot" hidden></div>`;
@@ -341,34 +341,49 @@ export function mountAssistant({ onResults, onAnalyze } = {}) {
     if (busy) return;
     busy = true;
     if (message) addUser(message);
-    const scan = addBot(`<div class="assistant-scan"><span class="assistant-spinner"></span><b>AI 공간 분석 중…</b><ul class="assistant-steps"></ul><div class="assistant-bar"><i></i></div></div>`);
-    const stepsEl = scan.querySelector('.assistant-steps');
-    const bar = scan.querySelector('.assistant-bar i');
+    // 자연어로 물어볼 때만 분석 로딩을 보여주고, 조건 편집·"이 조건으로 찾기"는 결과를 바로 보여준다.
+    const showScan = Boolean(message);
     const started = Date.now();
-    const interval = Math.floor(SCAN_MS * 0.9 / STEPS.length);
-    const timers = STEPS.map((text, i) => setTimeout(() => {
-      stepsEl.insertAdjacentHTML('beforeend', `<li>${esc(text)}</li>`); scroll();
-      if (bar) bar.style.width = `${Math.round(((i + 1) / STEPS.length) * 92)}%`;
-    }, 250 + i * interval));
+    let scan = null;
+    let bar = null;
+    let timers = [];
+    if (showScan) {
+      scan = addBot(`<div class="assistant-scan"><span class="assistant-spinner"></span><b>AI 공간 분석 중…</b><ul class="assistant-steps"></ul><div class="assistant-bar"><i></i></div></div>`);
+      const stepsEl = scan.querySelector('.assistant-steps');
+      bar = scan.querySelector('.assistant-bar i');
+      const interval = Math.floor(SCAN_MS * 0.9 / STEPS.length);
+      timers = STEPS.map((text, i) => setTimeout(() => {
+        stepsEl.insertAdjacentHTML('beforeend', `<li>${esc(text)}</li>`); scroll();
+        if (bar) bar.style.width = `${Math.round(((i + 1) / STEPS.length) * 92)}%`;
+      }, 250 + i * interval));
+    }
     const condition = savedCondition();
     const payload = { message: message || '', condition, filters: editedFilters || undefined };
     try {
       const response = await apiFetch('/api/assistant', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
       const data = await response.json();
-      const wait = Math.max(0, SCAN_MS - (Date.now() - started));
-      await new Promise(resolve => setTimeout(resolve, wait));
-      if (bar) bar.style.width = '100%';
-      timers.forEach(clearTimeout);
-      scan.remove();
+      if (showScan) {
+        const wait = Math.max(0, SCAN_MS - (Date.now() - started));
+        await new Promise(resolve => setTimeout(resolve, wait));
+        if (bar) bar.style.width = '100%';
+        timers.forEach(clearTimeout);
+        scan.remove();
+      }
       lastFilters = { ...(data.filters || {}) };
       renderResult(null, data, !message && Boolean(editedFilters));
     } catch {
-      timers.forEach(clearTimeout); scan.remove();
+      timers.forEach(clearTimeout); if (scan) scan.remove();
       addBot('매물 자료를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.');
     } finally { busy = false; }
   }
 
   panel.addEventListener('click', event => {
+    if (event.target.closest('[data-condition]')) {
+      const condition = savedCondition();
+      if (condition && hasUsableFilters(condition)) runSearch(null, condition);
+      else addBot('저장된 조건이 없어요. 지역·예산 같은 조건을 말씀해 주세요.');
+      return;
+    }
     const chip = event.target.closest('[data-send]');
     if (chip) { runSearch(chip.dataset.send); return; }
     if (event.target.closest('.assistant-close')) { closePanel(); return; }
