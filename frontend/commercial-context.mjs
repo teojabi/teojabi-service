@@ -9,20 +9,22 @@ export function commercialAsk(message) {
   window.dispatchEvent(new CustomEvent('teojabi-ask', { detail: String(message || '') }));
 }
 
-function metrics(area) {
+// 의존성 없는 가로 막대. value 는 최대값 대비 길이, display 는 오른쪽 라벨.
+function bars(items) {
+  const max = Math.max(...items.map(i => Number(i.value) || 0), 1);
+  return `<div class="commercial-bars">${items.map(i => {
+    const width = Math.max(2, Math.round((Number(i.value) || 0) / max * 100));
+    return `<div class="commercial-bar${i.current ? ' is-current' : ''}"><span class="commercial-bar-label" title="${esc(i.label)}">${esc(i.label)}</span><span class="commercial-bar-track"><i style="width:${width}%"></i></span><b>${esc(i.display)}</b></div>`;
+  }).join('')}</div>`;
+}
+
+function metrics(area, { sales = true } = {}) {
   const items = [];
-  const sales = eok(area.monthlySalesWon);
-  if (sales) items.push(`<span>월 추정매출 <b>${sales}</b></span>`);
+  if (sales) { const s = eok(area.monthlySalesWon); if (s) items.push(`<span>월 추정매출 <b>${s}</b></span>`); }
   const population = man(area.population);
   if (population) items.push(`<span>유동인구 <b>${population}</b></span>`);
   if (area.changeIndex) items.push(`<span>변화지표 <b>${esc(area.changeIndex)}</b></span>`);
   return items.length ? `<div class="commercial-metrics">${items.join('')}</div>` : '';
-}
-
-function categories(list) {
-  if (!Array.isArray(list) || !list.length) return '';
-  const text = list.map(c => `${esc(c.name)} ${eok(c.salesWon) || ''}`.trim()).join(' · ');
-  return `<p class="commercial-cats">주요 업종 · ${text}</p>`;
 }
 
 export function renderCommercial(data) {
@@ -30,20 +32,27 @@ export function renderCommercial(data) {
     return '<p class="case-note">반경 안에서 연결되는 상권 자료를 찾지 못했어요.</p>';
   }
   const n = data.nearest;
-  const others = (data.districts || []).filter(d => d.code !== n.code).slice(0, 4);
+  const total = Number(n.monthlySalesWon) || 0;
+  const catBars = (n.topCategories || []).map(c => ({
+    label: c.name,
+    value: Number(c.salesWon) || 0,
+    display: `${eok(c.salesWon) || '-'}${total ? ` · ${Math.round((Number(c.salesWon) || 0) / total * 100)}%` : ''}`,
+  }));
+  const cmpBars = (data.districts || []).map(d => ({
+    label: d.name,
+    value: Number(d.monthlySalesWon) || 0,
+    display: eok(d.monthlySalesWon) || '자료 없음',
+    current: d.code === n.code,
+  }));
   const near = n.distanceM != null ? `<span class="commercial-distance">${n.distanceM}m</span>` : '';
-  const otherRows = others.map(d => {
-    const sales = eok(d.monthlySalesWon);
-    return `<li><b>${esc(d.name)}</b><span>${esc(d.type || '')}${d.distanceM != null ? ` · ${d.distanceM}m` : ''}${sales ? ` · 월 ${sales}` : ''}</span></li>`;
-  }).join('');
   return `<div class="commercial-card">
     <div class="commercial-head"><span class="commercial-icon" aria-hidden="true">🏪</span><div><b>${esc(n.name)}</b><small>${esc(n.type || '')}${n.gu ? ` · ${esc(n.gu)}` : ''}</small></div>${near}</div>
-    ${metrics(n)}
-    ${categories(n.topCategories)}
+    ${metrics(n, { sales: false })}
+    ${catBars.length ? `<p class="commercial-block-title">주요 업종 · 이 상권 매출 비중</p>${bars(catBars)}` : ''}
+    ${cmpBars.length ? `<p class="commercial-block-title">반경 안 상권 월 추정매출 · 상권별 합계</p>${bars(cmpBars)}` : ''}
     <button type="button" class="outline commercial-ask" data-commercial-ask="${esc(n.name)} 상권">이 상권에서 매물 찾기</button>
   </div>
-  ${otherRows ? `<div class="commercial-others"><p class="commercial-others-title">반경 안 다른 상권</p><ul>${otherRows}</ul></div>` : ''}
-  <p class="commercial-source">서울시 상권분석서비스 · 기준 ${esc(data.basis?.quarter || '')} · 상권 대표점 기준</p>`;
+  <p class="commercial-source">월 추정매출은 상권 하나의 합계(모든 업종)예요 · 서울시 상권분석서비스 · 기준 ${esc(data.basis?.quarter || '')} · 대표점 기준</p>`;
 }
 
 export function commercialPopupMarkup(area) {
