@@ -2,6 +2,7 @@ import { DISTRICTS } from './policy.mjs';
 
 export const WALK_METERS_PER_MIN = 80;
 const BROAD_ZONE = [['주거지역', '주거'], ['상업지역', '상업'], ['공업지역', '공업'], ['녹지지역', '녹지']];
+const COMMERCIAL_TYPES = ['골목상권', '전통시장', '발달상권', '관광특구'];
 const ORIGIN_LABEL = { premium: '터잡이 추천 매물', registered: '터잡이 등록 매물', disco: '디스코 매물', naver: '네이버 매물' };
 const won = value => Math.round(Number(value) * 100000000);
 const m2 = (value, unit) => Math.round((unit === '평' ? Number(value) * 3.305785 : Number(value)) * 100) / 100;
@@ -12,18 +13,31 @@ export function ruleFilters(text) {
   const filters = {};
   const districts = DISTRICTS.filter(name => t.includes(name) || (name.endsWith('구') && name.length >= 3 && t.includes(name.slice(0, -1))));
   if (districts.length) filters.districts = districts;
+  // 상권 조건: 유형 / 월매출 / 유동인구 / 상권명. (상권 검색은 AI 채팅에서만 노출된다)
+  const commercialTypes = COMMERCIAL_TYPES.filter(type => t.includes(type));
+  if (commercialTypes.length) filters.commercialType = commercialTypes;
+  const salesMatch = t.match(/(?:월\s*매출|상권\s*매출|매출)\s*(\d+(?:\.\d+)?)\s*억/);
+  if (salesMatch) filters.minCommercialSalesWon = won(salesMatch[1]);
+  const popMatch = t.match(/(?:유동\s*인구|유동인구)\s*(\d+(?:\.\d+)?)\s*만/);
+  if (popMatch) filters.minCommercialPopulation = Math.round(Number(popMatch[1]) * 10000);
+  const cname = t.match(/([가-힣A-Za-z0-9]{2,20}(?:\s*\d+번)?)\s*상권/);
+  if (cname && !COMMERCIAL_TYPES.some(type => cname[1].includes(type.replace('상권', '')))) {
+    filters.commercialName = cname[1].trim();
+  }
   // "상업지역", "특화구역" 같은 용도·구역 표현을 역 이름으로 잘못 잡지 않도록 제거한 뒤 역을 찾는다.
   // "홍대입구역"의 "입구역"처럼 역 이름 안의 글자를 지우지 않도록 구역은 알려진 접미사만 지운다.
   const stationText = t.replace(/[가-힣]{0,8}지역/g, ' ').replace(/(특화|보호|보존|계획|정비|개발|관리|시설|유원)구역/g, ' ');
   const station = stationText.match(/([가-힣A-Za-z0-9]{2,12})\s*역/);
-  if (station) filters.stationName = station[1];
+  if (station && !filters.commercialName) filters.stationName = station[1];
   const walk = t.match(/도보\s*(\d+)\s*분/);
   if (walk) filters.maxDistanceM = Number(walk[1]) * WALK_METERS_PER_MIN;
   else {
     const meters = t.match(/(\d+)\s*(?:m|미터)\s*(?:안|이내|이하)?/);
     if (meters && filters.stationName) filters.maxDistanceM = Number(meters[1]);
   }
-  const budget = t.match(/(\d+(?:\.\d+)?)\s*억/);
+  // 매출 억은 예산으로 해석하지 않는다.
+  const budgetText = t.replace(/(?:월\s*매출|상권\s*매출|매출)\s*\d+(?:\.\d+)?\s*억/g, '');
+  const budget = budgetText.match(/(\d+(?:\.\d+)?)\s*억/);
   if (budget) filters.budgetWon = won(budget[1]);
   const area = t.match(/(\d+(?:\.\d+)?)\s*(평|㎡|m2|제곱미터)/);
   if (area) {
@@ -125,11 +139,12 @@ export function siteFaqAnswer(text) {
 // Free-form text goes to Gemini only when the rule parser found nothing.
 export async function geminiFilters(message, key, condition) {
   if (!key) return null;
-  const schema = `{"districts":["자치구"],"q":"동/키워드","budgetWon":숫자(원),"minAreaM2":숫자,"maxAreaM2":숫자,"kind":"land|building","zones":["주거지역|상업지역|공업지역|녹지지역"],"stationName":"역이름","maxDistanceM":숫자,"minRoadWidthM":숫자,"purpose":"new-build"}`;
+  const schema = `{"districts":["자치구"],"q":"동/키워드","budgetWon":숫자(원),"minAreaM2":숫자,"maxAreaM2":숫자,"kind":"land|building","zones":["주거지역|상업지역|공업지역|녹지지역"],"stationName":"역이름","maxDistanceM":숫자,"minRoadWidthM":숫자,"purpose":"new-build","commercialType":["골목상권|전통시장|발달상권|관광특구"],"commercialName":"상권이름","minCommercialSalesWon":숫자(원),"minCommercialPopulation":숫자,"commercialRadiusM":숫자}`;
   const prompt = [
     '너는 터잡이(teojabi.com) 부동산 서비스의 안내 도우미다. 반드시 JSON 객체 하나만 출력한다(설명·인사말·코드블록 금지).',
     '하는 일은 두 가지뿐이다: (1) 매물 검색 조건 추출, (2) 터잡이 서비스 사용법·기능 안내.',
     '매물 검색이면 filters에 조건만 넣는다. 값이 없는 항목은 넣지 않는다. 도보 N분은 maxDistanceM = N*80(미터), N미터는 그대로. 가격 "N억"은 원 단위로 바꾼다(예: 30억 → 3000000000). 평은 그대로 넣지 말고 ㎡로 환산한다(1평=3.305785㎡).',
+    '상권 조건(골목상권·전통시장·발달상권·관광특구, 상권 월매출, 상권 유동인구, 상권 이름)은 commercialType·minCommercialSalesWon·minCommercialPopulation·commercialName 으로 넣는다. 매출 "5억 이상"은 minCommercialSalesWon=500000000, 유동인구 "30만 이상"은 minCommercialPopulation=300000 이다.',
     '터잡이 서비스 사용법·기능 질문이면 filters를 비우고 reply에 아래 [서비스 안내] 내용만 근거로 2~3문장으로 친절히 답한다. 안내에 없는 내용은 지어내지 말고 "정확한 내용은 터잡이 상담으로 확인해 주세요"라고 답한다.',
     '간단한 인사·감사·안부는 reply로 한두 문장 친근하게 답하고, 이어서 원하는 매물 조건이나 궁금한 점을 물어보게 안내한다.',
     '그 외 요청(외부 정보·인터넷 검색, 일반 상식·잡담, 시세 전망, 투자·법률·세무 조언, 다른 서비스)은 filters를 비우고 reply에 "터잡이 매물 찾기와 서비스 안내만 도와드릴 수 있어요. 원하는 조건을 알려주시면 매물을 찾아드릴게요."라고 답한다.',
@@ -195,6 +210,17 @@ export function sanitize(raw) {
     if (list.length) out.zones = list;
   }
   if (typeof raw.stationName === 'string' && raw.stationName.trim()) out.stationName = raw.stationName.trim().slice(0, 12);
+  // 상권 조건 (AI 채팅 전용)
+  if (typeof raw.commercialName === 'string' && raw.commercialName.trim()) out.commercialName = raw.commercialName.trim().slice(0, 30);
+  if (typeof raw.commercialCode === 'string' && raw.commercialCode.trim()) out.commercialCode = raw.commercialCode.trim().slice(0, 20);
+  if (Array.isArray(raw.commercialType)) {
+    const list = COMMERCIAL_TYPES.filter(type => raw.commercialType.includes(type));
+    if (list.length) out.commercialType = [...new Set(list)];
+  }
+  for (const [key, max] of [['minCommercialSalesWon', 1e13], ['minCommercialPopulation', 1e9], ['commercialRadiusM', 2000]]) {
+    const value = Number(raw[key]);
+    if (Number.isFinite(value) && value > 0 && value <= max) out[key] = Math.round(value);
+  }
   return out;
 }
 
@@ -212,6 +238,7 @@ export function viewRow(row) {
     kind: row.kind, kindConfirmed: true, areaSource: 'listing', floorAreaSource: 'listing', locationStatus: 'pin-estimated',
     zoning, development: null, nearbyTransactions: { status: 'unavailable', cases: [] },
     station: row.station || null, origin, groupKey: row.id,
+    commercial: row.commercial || null,
   };
 }
 
@@ -230,6 +257,12 @@ export function describe(filters) {
   if (filters.preferTourism) parts.push('관광숙박특화구역 먼저');
   if (filters.excludeEducation) parts.push('교육보호구역 제외');
   if (filters.excludeHeritage) parts.push('문화재보존구역 제외');
+  if (filters.commercialName) parts.push(`${filters.commercialName} 상권 인근`);
+  else if (filters.commercialType?.length) parts.push(`${filters.commercialType.join('·')} 인근`);
+  else if (filters.commercialCode) parts.push('선택한 상권 인근');
+  if (filters.minCommercialSalesWon) parts.push(`상권 월매출 ${(filters.minCommercialSalesWon / 1e8).toLocaleString('ko-KR')}억 이상`);
+  if (filters.minCommercialPopulation) parts.push(`상권 유동인구 ${Math.round(filters.minCommercialPopulation / 10000).toLocaleString('ko-KR')}만 이상`);
+  if (filters.commercialRadiusM && (filters.commercialName || filters.commercialCode || filters.commercialType?.length)) parts.push(`반경 ${filters.commercialRadiusM}m`);
   return parts;
 }
 
@@ -249,6 +282,11 @@ export function chipList(filters) {
   if (filters.preferTourism) chips.push({ key: 'preferTourism', value: true, label: '관광숙박특화구역 먼저', kind: 'value' });
   if (filters.excludeEducation) chips.push({ key: 'excludeEducation', value: true, label: '교육보호구역 제외', kind: 'value' });
   if (filters.excludeHeritage) chips.push({ key: 'excludeHeritage', value: true, label: '문화재보존구역 제외', kind: 'value' });
+  if (filters.commercialName) chips.push({ key: 'commercialName', value: filters.commercialName, label: `${filters.commercialName} 상권`, kind: 'value' });
+  (filters.commercialType || []).forEach(type => chips.push({ key: 'commercialType', value: type, label: `${type} 인근`, kind: 'list' }));
+  if (filters.minCommercialSalesWon) chips.push({ key: 'minCommercialSalesWon', value: filters.minCommercialSalesWon, label: `상권 월매출 ${(filters.minCommercialSalesWon / 1e8).toLocaleString('ko-KR')}억 이상`, kind: 'value' });
+  if (filters.minCommercialPopulation) chips.push({ key: 'minCommercialPopulation', value: filters.minCommercialPopulation, label: `상권 유동 ${Math.round(filters.minCommercialPopulation / 10000).toLocaleString('ko-KR')}만 이상`, kind: 'value' });
+  if (filters.commercialRadiusM) chips.push({ key: 'commercialRadiusM', value: filters.commercialRadiusM, label: `상권 반경 ${filters.commercialRadiusM}m`, kind: 'value' });
   return chips;
 }
 
@@ -308,10 +346,19 @@ export function buildResult(filters, search, unsupported) {
   } else if (total > 0 && naver > 0) {
     reply += `\n조건에 맞는 터잡이·디스코 매물은 아직 없어서, 네이버 매물 ${naver.toLocaleString('ko-KR')}건을 추천드려요.`;
   }
+  const commercial = search.commercial || null;
+  if (total > 0 && commercial) {
+    const sales = commercial.monthlySalesWon ? `월매출 ${(commercial.monthlySalesWon / 1e8).toLocaleString('ko-KR', { maximumFractionDigits: 1 })}억` : '월매출 자료 없음';
+    const pop = commercial.population ? `유동인구 ${Math.round(commercial.population / 10000).toLocaleString('ko-KR')}만` : '';
+    reply += `\n🏪 ${commercial.name}(${commercial.type}) 기준이에요. ${[sales, pop, commercial.changeIndex].filter(Boolean).join(' · ')}.`;
+  } else if (total > 0 && (filters.commercialType?.length || filters.minCommercialSalesWon || filters.minCommercialPopulation)) {
+    reply += `\n🏪 조건에 맞는 상권 반경 ${filters.commercialRadiusM || 500}m 안의 매물이에요.`;
+  }
   return {
     status: 'ready', reply, filters, chips: chipList(filters), total, groups,
     originTotals: { premium, registered, disco, naver },
     station: search.station || null, districts: search.districts || [],
+    commercial,
     suggestions: total > 30 ? suggestions(filters, search) : total > 5 ? suggestions(filters, search).slice(0, 3) : [],
     relaxations: Array.isArray(search.relaxations) ? search.relaxations : [],
     unsupported: unsupported || null, searchedAt: search.searchedAt || null,
@@ -332,7 +379,7 @@ export async function parseAssistant(message, condition, geminiKey, editedFilter
   let unsupported = null;
   let reply = null;
   let source = Object.keys(spoken).length ? 'spoken' : Object.keys(saved).length ? 'saved' : 'none';
-  const strongKeys = ['districts', 'budgetWon', 'minAreaM2', 'maxAreaM2', 'zones', 'stationName', 'maxDistanceM', 'minRoadWidthM'];
+  const strongKeys = ['districts', 'budgetWon', 'minAreaM2', 'maxAreaM2', 'zones', 'stationName', 'maxDistanceM', 'minRoadWidthM', 'commercialName', 'commercialCode', 'commercialType', 'minCommercialSalesWon', 'minCommercialPopulation'];
   const hasStrong = strongKeys.some(key => { const value = spoken[key]; return Array.isArray(value) ? value.length > 0 : value !== undefined && value !== null && value !== ''; });
   const conversational = /안녕|반갑|반가|잘\s*부탁|고마|감사|수고|하이|헬로|hello|\bhi\b/i.test(String(message || ''));
   const bare = !hasMeaningfulFilters(spoken);

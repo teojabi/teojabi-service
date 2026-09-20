@@ -23,6 +23,9 @@ BROAD = {'주거지역': '주거', '상업지역': '상업', '공업지역': '�
 WALK_METERS_PER_MIN = 80
 MAX_LIMIT = 60
 PREVIEW = 5
+COMMERCIAL_TYPES = ('골목상권', '전통시장', '발달상권', '관광특구')
+DEFAULT_COMMERCIAL_RADIUS = 500
+LATEST_SALES_QUARTER = '(SELECT max(기준년분기) FROM public.commercial_sales)'
 
 
 def number(value):
@@ -107,6 +110,75 @@ def resolve_station(cur, name):
     return cur.fetchone()
 
 
+def resolve_commercial(cur, name):
+    token = re.sub(r'\s+', '', clean(name, 30))
+    token = re.sub(r'상권$', '', token)
+    if not token:
+        return None
+    cur.execute('''SELECT 상권코드, 상권명, 상권유형, 자치구, 유동인구수, 변화지표
+                   FROM public.commercial_districts
+                   WHERE replace(상권명,' ','') LIKE %s AND geom IS NOT NULL
+                   ORDER BY length(상권명) LIMIT 1''', ('%' + token + '%',))
+    return cur.fetchone()
+
+
+def commercial_clause(filters, params, target_code=None):
+    """매물이 조건에 맞는 상권의 반경 안에 있는지 EXISTS 절로 만든다.
+
+    - commercialCode/commercialName: 특정 상권 반경
+    - commercialType: 해당 유형 상권 중 하나의 반경
+    - minCommercialSalesWon: 반경 내 상권 최신분기 월매출(사전집계 최신월매출) 기준
+    - minCommercialPopulation: 반경 내 상권 유동인구 기준
+    상권 좌표는 대표점(4326)이며, 매물 좌표(n.lng/n.lat)와 geography 거리로 비교한다.
+    """
+    radius = number(filters.get('commercialRadiusM')) or DEFAULT_COMMERCIAL_RADIUS
+    radius = max(100, min(2000, radius))
+    types = [t for t in (filters.get('commercialType') or []) if t in COMMERCIAL_TYPES]
+    code = clean(target_code or filters.get('commercialCode'), 20)
+    min_sales = number(filters.get('minCommercialSalesWon'))
+    min_pop = number(filters.get('minCommercialPopulation'))
+    if not (code or types or min_sales or min_pop):
+        return None
+    sub = [
+        'c.geom IS NOT NULL',
+        'ST_DWithin(c.geom::geography, ST_SetSRID(ST_MakePoint(n.lng,n.lat),4326)::geography, %s)',
+    ]
+    params.append(radius)
+    if code:
+        sub.append('c.상권코드 = %s')
+        params.append(code)
+    if types:
+        sub.append('c.상권유형 = ANY(%s)')
+        params.append(types)
+    if min_pop:
+        sub.append('c.유동인구수 >= %s')
+        params.append(min_pop)
+    if min_sales:
+        sub.append('c.최신월매출 >= %s')
+        params.append(min_sales)
+    return 'EXISTS (SELECT 1 FROM public.commercial_districts c WHERE ' + ' AND '.join(sub) + ')'
+
+
+def commercial_summary(cur, code):
+    """특정 상권의 요약(유형·유동인구·변화지표·최신분기 월매출·주요 업종)."""
+    cur.execute('''SELECT c.상권코드, c.상권명, c.상권유형, c.자치구, c.유동인구수, c.변화지표,
+                          c.최신월매출 AS monthly
+                   FROM public.commercial_districts c WHERE c.상권코드 = %s''', (code,))
+    row = cur.fetchone()
+    if not row:
+        return None
+    cur.execute('''SELECT 업종명, sum(월매출금액) AS sales FROM public.commercial_sales
+                   WHERE 상권코드 = %s AND 기준년분기 = ''' + LATEST_SALES_QUARTER + '''
+                   GROUP BY 업종명 ORDER BY sales DESC LIMIT 3''', (code,))
+    cats = [{'name': r['업종명'], 'salesWon': int(r['sales'] or 0)} for r in cur.fetchall()]
+    return {
+        'code': row['상권코드'], 'name': row['상권명'], 'type': row['상권유형'],
+        'district': row['자치구'], 'population': int(row['유동인구수']) if row['유동인구수'] is not None else None,
+        'changeIndex': row['변화지표'] or '', 'monthlySalesWon': int(row['monthly'] or 0),
+        'topCategories': cats,
+    }
+
+
 def zone_overlap_sql(key):
     """기존 검색기(refresh-development.py)와 같은 구역 판정. 매물 PNU 필지가 구역과 겹치면 제외한다.
 
@@ -153,7 +225,7 @@ def tourism_rank_sql():
     ) THEN 0 ELSE 1 END''')
 
 
-def build_where(filters, station):
+def build_where(filters, station, commercial=None):
     where = ['n."상태" IN (\'신규\',\'유지\')', 'n.lat IS NOT NULL', 'n.lng IS NOT NULL']
     params = []
     budget = number(filters.get('budgetWon'))
@@ -201,6 +273,10 @@ def build_where(filters, station):
         if max_distance:
             where.append('ST_Distance(ST_SetSRID(ST_MakePoint(n.lng,n.lat),4326)::geography, ST_SetSRID(ST_MakePoint(%s,%s),4326)::geography) <= %s')
             params += [station['lng'], station['lat'], max_distance]
+    # 상권 조건(특정 상권/유형/매출/유동인구)은 반경 내 상권 EXISTS로 판정한다.
+    commercial_sql = commercial_clause(filters, params, target_code=(commercial or {}).get('상권코드'))
+    if commercial_sql:
+        where.append(commercial_sql)
     # 신축 구역 조건은 기존 검색기와 같은 판정을 쓴다: 매물 PNU의 필지 폴리곤과 보유 레이어가 겹치면 제외.
     if filters.get('excludeEducation'):
         where.append(zone_overlap_sql('education'))
@@ -246,6 +322,11 @@ def row_dto(row, station, requested):
     elif row['station_name']:
         meters = round(float(row['dist_m']))
         out['station'] = {'name': row['station_name'], 'distM': meters, 'walkMin': max(1, round(meters / WALK_METERS_PER_MIN))}
+    if row.get('cm_code'):
+        out['commercial'] = {
+            'code': row['cm_code'], 'name': row['cm_name'], 'type': row['cm_type'],
+            'distM': round(float(row['cm_dist'])) if row.get('cm_dist') is not None else None,
+        }
     return out
 
 
@@ -254,7 +335,7 @@ def count(cur, source, where, params):
     return int(cur.fetchone()['total'])
 
 
-def relaxations(cur, source, filters, station, base_where, base_params, base_total):
+def relaxations(cur, source, filters, station, base_where, base_params, base_total, commercial=None):
     """Offer concrete alternatives that change the result count, cheapest first."""
     out = []
     step = number(filters.get('budgetWon'))
@@ -262,7 +343,7 @@ def relaxations(cur, source, filters, station, base_where, base_params, base_tot
         for factor, label in ((1.5, '까지 높이기'), (2.0, '까지 높이기')):
             bigger = int(round(step * factor / 1e7) * 1e7)
             trial = dict(filters); trial['budgetWon'] = bigger
-            where, params = build_where(trial, station)
+            where, params = build_where(trial, station, commercial)
             total = count(cur, source, where, params)
             if total != base_total:
                 out.append({'label': f'예산 {round(bigger/1e8):g}억{label}', 'patch': {'budgetWon': bigger}, 'count': total})
@@ -271,7 +352,7 @@ def relaxations(cur, source, filters, station, base_where, base_params, base_tot
     if distance:
         for bigger in (round(distance * 1.5), round(distance * 2)):
             trial = dict(filters); trial['maxDistanceM'] = bigger
-            where, params = build_where(trial, station)
+            where, params = build_where(trial, station, commercial)
             total = count(cur, source, where, params)
             if total != base_total:
                 out.append({'label': f'{station["station_name"]}역 {bigger}m까지', 'patch': {'maxDistanceM': bigger}, 'count': total})
@@ -308,7 +389,9 @@ def search(conn, filters):
     limit = max(5, min(MAX_LIMIT, limit))
     with conn.cursor(cursor_factory=RealDictCursor) as cur:
         station = resolve_station(cur, filters.get('stationName')) if filters.get('stationName') else None
-        where, params = build_where(filters, station)
+        commercial = resolve_commercial(cur, filters.get('commercialName')) if filters.get('commercialName') else None
+        commercial_code = (commercial or {}).get('상권코드') or clean(filters.get('commercialCode'), 20)
+        where, params = build_where(filters, station, commercial)
         where_sql = ' AND '.join(where)
         cur.execute("SELECT to_regclass('public.teojabi_curation_candidates') AS a, to_regclass('public.teojabi_listing_number') AS b, to_regclass('public.disco_listing') AS d, to_regclass('public.property') AS p")
         rel = cur.fetchone()
@@ -344,7 +427,8 @@ def search(conn, filters):
                          ORDER BY ''' + order + '''
                          LIMIT %s
                      )
-                     SELECT q.*, s.station_name, s.dist_m
+                     SELECT q.*, s.station_name, s.dist_m,
+                            cm.상권코드 AS cm_code, cm.상권명 AS cm_name, cm.상권유형 AS cm_type, cm.dist_m AS cm_dist
                      FROM q
                      CROSS JOIN LATERAL (
                          SELECT station_name,
@@ -355,7 +439,16 @@ def search(conn, filters):
                          ORDER BY ST_SetSRID(ST_MakePoint(lng,lat),4326)::geography <->
                                   ST_SetSRID(ST_MakePoint(q.lng,q.lat),4326)::geography
                          LIMIT 1
-                     ) s'''
+                     ) s
+                     LEFT JOIN LATERAL (
+                         SELECT c2.상권코드, c2.상권명, c2.상권유형,
+                                ST_Distance(c2.geom::geography,
+                                            ST_SetSRID(ST_MakePoint(q.lng,q.lat),4326)::geography) AS dist_m
+                         FROM public.commercial_districts c2
+                         WHERE c2.geom IS NOT NULL
+                         ORDER BY c2.geom <-> ST_SetSRID(ST_MakePoint(q.lng,q.lat),4326)
+                         LIMIT 1
+                     ) cm ON true'''
         cur.execute(row_sql, query_params)
         rows = [row_dto(r, station, station) for r in cur.fetchall()]
         grouped = {'premium': [], 'registered': [], 'disco': [], 'naver': []}
@@ -385,9 +478,11 @@ def search(conn, filters):
             'disco': int(aggrow.get('disco') or 0) if has_disco else 0,
         }
         origin_totals['naver'] = total - origin_totals['premium'] - origin_totals['registered'] - origin_totals['disco']
-        relax = relaxations(cur, source, filters, station, where, params, total) if total == 0 else []
+        relax = relaxations(cur, source, filters, station, where, params, total, commercial) if total == 0 else []
+        commercial_info = commercial_summary(cur, commercial_code) if commercial_code else None
     result = {'status': 'ready', 'total': total, 'groups': groups, 'districts': districts,
               'originTotals': origin_totals, 'relaxations': relax,
+              'commercial': commercial_info,
               'searchedAt': datetime.now(timezone.utc).isoformat()}
     if station:
         result['station'] = {'name': station['station_name'], 'lineNo': station['line_no'],
