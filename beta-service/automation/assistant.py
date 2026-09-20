@@ -319,7 +319,7 @@ def search(conn, filters):
                             n."구", n."동", n."주용도코드명", n."용도지역", n."매물특징", n."도로폭_m",
                             n."사용승인일자", n.pnu, n.lat, n.lng, s.station_name, s.dist_m,
                             ''' + origin + ''' AS origin, ''' + pick_no + ''' AS teojabi_no''' + select_point + '''
-                     FROM ' + source + ' n ''' + join + '''
+                     FROM ''' + source + ''' n ''' + join + '''
                      CROSS JOIN LATERAL (
                          SELECT station_name,
                                 ST_Distance(ST_SetSRID(ST_MakePoint(lng,lat),4326)::geography,
