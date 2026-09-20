@@ -32,16 +32,54 @@ function farRowLine(item) {
   }
   if(item.bcr==null&&item.bcrText)parts.push(`건폐율 ${item.bcrText}`);
   if(!parts.length)return '';
-  const label=item.zoneDetail||item.roadSide||item.zoneClass||'기준';
+  const cleanZoneRaw=String(item.zoneRaw||'').replace(/^\[[^\]]*\]\s*/,'').trim();
+  const label=item.zoneDetail||item.roadSide||cleanZoneRaw||item.zoneClass||'기준';
   const meta=[item.zoneDetail&&item.roadSide?item.roadSide:null,item.changeType].filter(Boolean).join(' · ');
   const labelHtml=item.sourceFileUrl?`<a href="${esc(item.sourceFileUrl)}" target="_blank" rel="noopener noreferrer" title="${esc(item.sourceFileName||'근거 파일')}">${esc(label)} ↗</a>`:esc(label);
   return `<li><b>${labelHtml}</b> ${esc(parts.join(' · '))}${meta?` <small>${esc(meta)}</small>`:''}</li>`;
 }
+// 값 범위 요약 (예: 50~70%). 값이 하나면 그대로.
+const numRange=(values,suffix)=>{
+  const nums=(values||[]).filter(v=>typeof v==='number'&&Number.isFinite(v));
+  if(!nums.length)return null;
+  const min=Math.min(...nums),max=Math.max(...nums);
+  return `${min===max?min:`${min}~${max}`}${suffix}`;
+};
+// 필지별 나열 대신 기준·허용·상한 용적률, 건폐율, 높이제한을 범위로 요약한다.
+const parsePercents=value=>{const out=[];const re=/(\d+(?:\.\d+)?)\s*%/g;const s=String(value||'');let m;while((m=re.exec(s)))out.push(Number(m[1]));return out;};
+function farSummaryParts(rows) {
+  const parts=[];
+  const collect=(numeric,text)=>[...rows.map(r=>r[numeric]),...rows.flatMap(r=>parsePercents(r[text]))];
+  const std=numRange(collect('standard','standardText'),'%');
+  const alw=numRange(collect('allowed','allowedText'),'%');
+  const upr=numRange(collect('upper','upperText'),'%');
+  const bcr=numRange(rows.map(r=>r.bcr),'%');
+  const hgt=numRange(rows.map(r=>r.heightM),'m');
+  const flr=numRange(rows.map(r=>r.floors),'층');
+  if(std&&!alw&&!upr)parts.push(`용적률 ${std}`);
+  else {
+    if(std)parts.push(`기준용적률 ${std}`);
+    if(alw)parts.push(`허용용적률 ${alw}`);
+    if(upr)parts.push(`상한용적률 ${upr}`);
+  }
+  if(bcr)parts.push(`건폐율 ${bcr}`);
+  if(hgt)parts.push(`높이제한 ${hgt}`);
+  if(flr)parts.push(flr);
+  if(!parts.length) {
+    const t=rows.map(r=>r.standardText||r.allowedText||r.upperText).filter(Boolean)[0];
+    if(t)parts.push(/미규제/.test(t)?'용적률 미규제(용도지역 기준 적용)':`용적률 ${t}`);
+    const bt=rows.map(r=>r.bcrText).filter(Boolean)[0];
+    if(bt)parts.push(`건폐율 ${bt}`);
+  }
+  return parts;
+}
 export function renderFarBlock(plan) {
   const rows=(plan?.far||[]).filter(i=>farRowLine(i));
   if(!rows.length)return '';
+  const parts=farSummaryParts(rows);
+  const summary=parts.length?`<div class="context-far-summary">${parts.map(p=>`<span>${esc(p)}</span>`).join('')}</div>`:'';
   const shown=rows.slice(0,12);
-  return `<div class="context-far"><p class="context-far-title">지구단위계획 건축 기준 <small>구역 단위 기준 · 해당 획지 적용은 도면 확인</small></p><ul class="context-far-list">${shown.map(farRowLine).join('')}</ul>${rows.length>shown.length?`<p class="context-far-more">그 밖에 ${rows.length-shown.length}건</p>`:''}<small class="context-far-note">용적률·건폐율·높이는 고시·도면에서 정한 기준이며 실제 허가 규모와 다를 수 있어요.</small></div>`;
+  return `<div class="context-far"><p class="context-far-title">지구단위계획 건축 기준 <small>구역 단위 기준 · 해당 획지 적용은 도면 확인</small></p>${summary}<details class="context-far-detail"><summary>획지·용도지역별 기준 ${rows.length}건 보기</summary><ul class="context-far-list">${shown.map(farRowLine).join('')}</ul>${rows.length>shown.length?`<p class="context-far-more">그 밖에 ${rows.length-shown.length}건</p>`:''}</details><small class="context-far-note">용적률·건폐율·높이는 고시·도면에서 정한 기준이며 실제 허가 규모와 다를 수 있어요.</small></div>`;
 }
 export function renderFarSummary(plans) {
   const withFar=(plans||[]).filter(p=>renderFarBlock(p));
