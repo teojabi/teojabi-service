@@ -7,7 +7,7 @@ export function runAssistant(root, filters) {
     const child = execFile(
       process.env.TEOJABI_PYTHON || 'C:/Users/yoon/AppData/Local/Programs/Python/Python310/python.exe',
       ['-X', 'utf8', join(root, 'automation/assistant.py')],
-      { windowsHide: true, timeout: 30000, maxBuffer: 32 * 1024 * 1024, encoding: 'utf8' },
+      { windowsHide: true, timeout: 120000, maxBuffer: 32 * 1024 * 1024, encoding: 'utf8' },
       (error, stdout, stderr) => {
         try {
           const result = JSON.parse(stdout);

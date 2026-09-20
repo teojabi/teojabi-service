@@ -408,7 +408,7 @@ def main():
     sys.stdout.reconfigure(encoding='utf-8')
     filters = json.loads(sys.stdin.read(200000) or '{}')
     with psycopg2.connect(**local_config(), connect_timeout=5,
-                          options='-c statement_timeout=20000 -c default_transaction_read_only=on') as conn:
+                          options='-c statement_timeout=90000 -c default_transaction_read_only=on') as conn:
         result = search(conn, filters)
     print(json.dumps(result, ensure_ascii=False, default=str, allow_nan=False))
 
