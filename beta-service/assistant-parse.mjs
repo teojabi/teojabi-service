@@ -83,18 +83,14 @@ const FAQ_CONTEXT = [
 
 // Free-form text goes to Gemini only when the rule parser found nothing.
 export async function geminiFilters(message, key, condition) {
-  if (!key) return { filters: {}, unsupported: null, reply: 'DEBUG no-key' };
-  if (String(message).includes('__listmodels__')) {
-    const listRes = await fetch('https://generativelanguage.googleapis.com/v1beta/models?key=' + encodeURIComponent(key));
-    const list = await listRes.json();
-    return { filters: {}, unsupported: null, reply: 'MODELS ' + (list.models || []).map(m => m.name).join(', ').slice(0, 900) };
-  }
+  if (!key) return null;
   const schema = `{"districts":["자치구"],"q":"동/키워드","budgetWon":숫자(원),"minAreaM2":숫자,"maxAreaM2":숫자,"kind":"land|building","zones":["주거지역|상업지역|공업지역|녹지지역"],"stationName":"역이름","maxDistanceM":숫자,"minRoadWidthM":숫자,"purpose":"new-build"}`;
   const prompt = [
     '너는 터잡이(teojabi.com) 부동산 서비스의 안내 도우미다. 반드시 JSON 객체 하나만 출력한다(설명·인사말·코드블록 금지).',
     '하는 일은 두 가지뿐이다: (1) 매물 검색 조건 추출, (2) 터잡이 서비스 사용법·기능 안내.',
     '매물 검색이면 filters에 조건만 넣는다. 값이 없는 항목은 넣지 않는다. 도보 N분은 maxDistanceM = N*80(미터), N미터는 그대로. 가격 "N억"은 원 단위로 바꾼다(예: 30억 → 3000000000). 평은 그대로 넣지 말고 ㎡로 환산한다(1평=3.305785㎡).',
     '터잡이 서비스 사용법·기능 질문이면 filters를 비우고 reply에 아래 [서비스 안내] 내용만 근거로 2~3문장으로 친절히 답한다. 안내에 없는 내용은 지어내지 말고 "정확한 내용은 터잡이 상담으로 확인해 주세요"라고 답한다.',
+    '간단한 인사·감사·안부는 reply로 한두 문장 친근하게 답하고, 이어서 원하는 매물 조건이나 궁금한 점을 물어보게 안내한다.',
     '그 외 요청(외부 정보·인터넷 검색, 일반 상식·잡담, 시세 전망, 투자·법률·세무 조언, 다른 서비스)은 filters를 비우고 reply에 "터잡이 매물 찾기와 서비스 안내만 도와드릴 수 있어요. 원하는 조건을 알려주시면 매물을 찾아드릴게요."라고 답한다.',
     'reply는 한국어 300자 이내, 확정적 투자·법률 조언 금지. 매물 검색으로 표현할 수 없는 요청은 filters를 비우고 "unsupported"에 이유를 적는다.',
     `스키마: {"filters":{...},"unsupported":"이유","reply":"답변"}  (filters 스키마: ${schema})`,
@@ -105,29 +101,28 @@ export async function geminiFilters(message, key, condition) {
   ].filter(Boolean).join('\n');
   try {
     const models = [...new Set([process.env.GEMINI_MODEL, 'gemini-2.5-flash-lite', 'gemini-2.5-flash', 'gemini-flash-lite-latest', 'gemini-flash-latest'].filter(Boolean))];
-    let response = null, lastStatus = 0;
+    let response = null;
     for (const model of models) {
       response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.1, topP: 0.9, maxOutputTokens: 1024, responseMimeType: 'application/json' } }),
         signal: AbortSignal.timeout(15000),
       });
-      lastStatus = response.status;
       if (response.ok) break;
       if (![404, 429, 500, 503].includes(response.status)) break;
     }
-    if (!response || !response.ok) return { filters: {}, unsupported: null, reply: 'DEBUG allfail last=' + lastStatus };
+    if (!response || !response.ok) return null;
     const data = await response.json();
     const text = (data?.candidates || []).flatMap(c => c?.content?.parts || []).map(p => p?.text).filter(Boolean).join('\n').trim();
     const match = text.match(/\{[\s\S]*\}/);
-    if (!match) return { filters: {}, unsupported: null, reply: 'DEBUG nomatch ' + text.slice(0, 200) };
+    if (!match) return null;
     const parsed = JSON.parse(match[0]);
     return {
       filters: sanitize(parsed.filters || parsed),
       unsupported: typeof parsed.unsupported === 'string' ? parsed.unsupported.slice(0, 120) : null,
       reply: typeof parsed.reply === 'string' && parsed.reply.trim() ? parsed.reply.trim().slice(0, 500) : null,
     };
-  } catch (error) { return { filters: {}, unsupported: null, reply: 'DEBUG err ' + String(error && error.message || error).slice(0, 200) }; }
+  } catch { return null; }
 }
 
 // Strict whitelist so a model or a client can never inject unknown filters.
