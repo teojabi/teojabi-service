@@ -302,7 +302,7 @@ export async function parseAssistant(message, condition, geminiKey, editedFilter
       reply = (gem && gem.reply) || '안녕하세요! 터잡이 AI 부동산 비서예요. 찾으시는 지역·예산·용도 같은 조건을 알려주시면 매물을 찾아드릴게요.';
       merged = {}; source = 'none';
     } else if (gem && hasMeaningfulFilters(gem.filters)) {
-      merged = mergeFilters(gem.filters, saved); source = 'gemini';
+      merged = mergeFilters({ ...spoken, ...gem.filters }, saved); source = 'gemini';
     } else if (gem) {
       merged = {}; unsupported = gem.unsupported; reply = gem.reply; source = 'none';
     } else {
@@ -311,6 +311,8 @@ export async function parseAssistant(message, condition, geminiKey, editedFilter
     }
   }
   const filters = sanitize(merged); filters.limit = 60;
+  // 규칙이 잡은 신축 공간 조건은 Gemini 응답이 덮어써도 보존한다(공간 안내에 필요).
+  for (const key of ['preferTourism', 'excludeEducation', 'excludeHeritage']) if (spoken[key]) filters[key] = true;
   return { filters, unsupported, source, conflicts: conflicts(spoken, saved), reply };
 }
 
