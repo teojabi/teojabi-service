@@ -15,6 +15,7 @@ import { allowedReviewWrite, runCuration, readReviewBody } from './curation-api.
 import { parseAssistant, buildResult, hasMeaningfulFilters } from './assistant-parse.mjs';
 import { runAssistant } from './assistant-api.mjs';
 import { selectedCatalog, validListingId } from './selected-catalog.mjs';
+import { DISTRICTS } from './policy.mjs';
 import { serviceConfig, allowedOrigin, authorizeCuration } from './server-access.mjs';
 const service=serviceConfig();
 
@@ -144,6 +145,31 @@ async function loadCatalog() {
   const hiddenIds=new Set(Array.isArray(hidden?.ids)?hidden.ids:[]);
   const filtered=snapshot&&Array.isArray(snapshot.rows)?{...snapshot,rows:snapshot.rows.filter(row=>!hiddenIds.has(row.id))}:snapshot;
   return selectedCatalog(filtered,zoning,development);
+}
+// 동 목록은 전체 법정동(master_land)에서 받아 캐시한다. 실패하면 선별 매물 기준으로 잠시 대체한다.
+let neighborhoodCache=null, neighborhoodCachedAt=0, neighborhoodFromDb=false;
+async function neighborhoodIndex() {
+  const ttl=neighborhoodFromDb?3600000:300000;
+  if(neighborhoodCache&&Date.now()-neighborhoodCachedAt<ttl)return neighborhoodCache;
+  let districts=null;
+  try {
+    const raw=await localRead('neighborhoods','{}');
+    if(raw&&raw.status==='ready'&&raw.districts){
+      const picked=Object.fromEntries(Object.entries(raw.districts).filter(([gu])=>DISTRICTS.includes(gu)));
+      if(Object.keys(picked).length)districts=picked;
+    }
+  } catch {}
+  if(districts)neighborhoodFromDb=true;
+  else {
+    neighborhoodFromDb=false;
+    const [snapshot,hidden]=await Promise.all([readOptionalJson('.local/selected-catalog.json'),readOptionalJson('.local/curation-hidden.json')]);
+    const hiddenIds=new Set(Array.isArray(hidden?.ids)?hidden.ids:[]);
+    const fallback={};
+    for(const row of (snapshot?.rows||[])){ if(hiddenIds.has(row.id)||!row.district||!row.neighborhood)continue; (fallback[row.district]??=new Set()).add(row.neighborhood); }
+    districts=Object.fromEntries(Object.entries(fallback).map(([d,set])=>[d,[...set].sort((a,b)=>a.localeCompare(b,'ko-KR'))]));
+  }
+  neighborhoodCache=districts; neighborhoodCachedAt=Date.now();
+  return neighborhoodCache;
 }
 const parcelCache=new Map();
 const riskCache=new Map();
@@ -434,12 +460,8 @@ createServer(async (request, response) => {
     return;
   }
   if (path==='/api/neighborhoods') {
-    try {
-      const data=await catalog();
-      const districts={};
-      for(const row of data.rows){ if(!row.district||!row.neighborhood)continue; (districts[row.district]??=new Set()).add(row.neighborhood); }
-      send(response,request,{status:'ready',districts:Object.fromEntries(Object.entries(districts).map(([d,set])=>[d,[...set].sort((a,b)=>a.localeCompare(b,'ko-KR'))]))});
-    } catch {send(response,request,{status:'error',districts:{}},503);}
+    try { send(response,request,{status:'ready',districts:await neighborhoodIndex()}); }
+    catch { send(response,request,{status:'error',districts:{}},503); }
     return;
   }
   if (path==='/api/catalog' || path.startsWith('/api/listings/') || path.startsWith('/api/parcels/')) {
@@ -510,4 +532,8 @@ createServer(async (request, response) => {
     response.writeHead(200, headers);
     response.end(request.method === 'HEAD' ? undefined : body);
   } catch { response.writeHead(500).end('Preview unavailable'); }
-}).listen(Number(process.env.TEOJABI_PORT||4173), '127.0.0.1', () => process.stdout.write('Teojabi data service ready\n'));
+}).listen(Number(process.env.TEOJABI_PORT||4173), '127.0.0.1', () => {
+  process.stdout.write('Teojabi data service ready\n');
+  // 첫 방문 전에 구·동 목록을 미리 만들어 둔다.
+  neighborhoodIndex().catch(()=>{});
+});

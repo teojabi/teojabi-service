@@ -309,6 +309,8 @@ app.addEventListener('keydown', event => {
   app.querySelector('#neighborhood-input')?.focus();
 });
 render(false);
+// 지역 단계에서 바로 쓸 수 있도록 구·동 목록을 미리 받아둔다.
+ensureNeighborhoods();
 if(new URLSearchParams(location.hash.slice(1)).has('listing')||location.hash==='#search'||location.hash==='#favorites'||location.hash==='#assistant') {state.screen='results';render(false);}
 else if(location.hash==='#analyze'){state.screen='analyze';render(false);}
 
