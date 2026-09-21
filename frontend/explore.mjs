@@ -4,6 +4,7 @@ import { mountInlineContext } from './inline-context.mjs';
 import { mountBuildingRecords } from './building-records.mjs';
 import { mountLandRecords } from './land-records.mjs';
 import { mountCommercial, renderCommercial, commercialAsk } from './commercial-context.mjs';
+import { mountSurrounding } from './surrounding-context.mjs';
 import { PURPOSES } from './search-options.mjs';
 import { openComparison } from './compare.mjs';
 import { member,openFeedback } from './member.mjs';
@@ -34,7 +35,7 @@ const detailFacts=row=>{
 export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnalyze,initialId,initialSource,assistant,picksOnly}={}) {
   document.body.classList.add('map-results-open');
   const picksOnlyMode=Boolean(picksOnly);
-  const abort=new AbortController();let disposed=false,version=0,detailVersion=0,closeStreet,closeContext,closeRecords,closeLand,closeCommercial;
+  const abort=new AbortController();let disposed=false,version=0,detailVersion=0,closeStreet,closeContext,closeRecords,closeLand,closeCommercial,closeSurrounding;
   let result=null,selected=null,detail=null,parcel=null,limit=5,bounds=conditions?.bounds||null,query='',sort=conditions?.sort==='price-desc'?'price-desc':'price',mapView=null;
   let assistantResult=assistant&&Array.isArray(assistant.groups)?assistant:null;
   let source=assistantResult?'assistant':initialSource==='favorites'?'favorites':'conditions';
@@ -239,7 +240,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     }
   }
   function closeDetail(updateUrl=true,restoreFocus=true) {
-    closeContext?.();closeContext=null;closeRecords?.();closeRecords=null;closeLand?.();closeLand=null;closeCommercial?.();closeCommercial=null;
+    closeContext?.();closeContext=null;closeRecords?.();closeRecords=null;closeLand?.();closeLand=null;closeCommercial?.();closeCommercial=null;closeSurrounding?.();closeSurrounding=null;
     const previousId=selected;
     ++detailVersion;selected=null;detail=null;parcel=null;nearby=null;map.setTransactions([]);syncTransactionToggle();
     $('.explore-board').classList.remove('transaction-map-open');
@@ -260,12 +261,13 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
       <div class="detail-content"><p class="detail-location">${esc(rowTitle(row))}${originBadge}</p><h2 tabindex="-1" id="detail-title">${money(row.priceWon)}</h2>
       ${row.teojabiNo?`<p class="detail-listing-number">매물번호 ${esc(row.teojabiNo)}</p>`:''}
       ${areaUnitControls()}<div class="detail-areas"><div><span>대지면적</span><strong>${area(row.areaM2)}</strong></div><div><span>연면적</span><strong>${area(row.floorAreaM2)}</strong></div></div>
-      <div id="land-area-comparison" aria-live="polite"></div><div class="detail-links"><button class="street-open" data-explore="street">네이버 거리뷰 보기 <span aria-hidden="true">↗</span></button></div><nav class="detail-shortcuts" aria-label="상세 내용 이동"><button data-explore="section" data-section="property-description">매물 설명</button><button data-explore="section" data-section="property-parcel">필지 위치</button><button data-explore="section" data-section="property-commercial">상권</button><button data-explore="section" data-section="property-documents">서류 확인</button><button data-explore="section" data-section="property-context">주변 조건</button></nav>
+      <div id="land-area-comparison" aria-live="polite"></div><div class="detail-links"><button class="street-open" data-explore="street">네이버 거리뷰 보기 <span aria-hidden="true">↗</span></button></div><nav class="detail-shortcuts" aria-label="상세 내용 이동"><button data-explore="section" data-section="property-description">매물 설명</button><button data-explore="section" data-section="property-parcel">필지 위치</button><button data-explore="section" data-section="property-commercial">상권</button><button data-explore="section" data-section="property-surrounding">주변 사업</button><button data-explore="section" data-section="property-documents">서류 확인</button><button data-explore="section" data-section="property-context">주변 조건</button></nav>
       <section class="detail-section" id="property-description"><h3>매물 설명</h3>${origin==='naver'?`<p class="case-note">네이버에서 찾은 매물이에요. 찜하기를 눌러 저장하세요.</p>${naverUrl?`<div class="detail-links"><a class="outline" href="${naverUrl}" target="_blank" rel="noopener noreferrer">네이버에서 보기 ↗</a></div>`:''}`:origin==='disco'?`<p class="case-note">디스코에서 찾은 매물이에요. 자세한 조건은 원문에서 확인해 주세요.</p>${discoUrl?`<div class="detail-links"><a class="outline" href="${discoUrl}" target="_blank" rel="noopener noreferrer">디스코에서 보기 ↗</a></div>`:''}`:(row.description?`<p class="listing-description">${esc(row.description)}</p>`:'')}${detailFacts(row)||(origin==='naver'?'':origin==='disco'?'':'<p class="listing-description">등록된 설명이 없습니다.</p>')}</section>
       <section class="detail-section" id="property-parcel"><h3>필지 위치</h3><p>${esc(row.address||`${rowTitle(row)} · 상세 주소 미확인`)}</p></section>
       <section class="detail-section"><h3>용도지역</h3>${row.zoning?.status==='matched'&&Array.isArray(row.zoning.entries)?`<p>${row.zoning.entries.map(e=>esc(e.name)).join('<br>')}</p><p class="case-note">공공데이터 기준</p>`:'<p class="case-note">용도지역을 확인하지 못했습니다.</p>'}</section>
       <section class="detail-section nearby-section" id="property-transactions"><details id="nearby-details" class="nearby-details"><summary class="nearby-summary"><span class="nearby-summary-title">주변 실거래</span><span class="nearby-summary-count" id="nearby-count"></span></summary><div class="nearby-body"><div class="nearby-heading"><button class="outline" data-explore="transactions" aria-pressed="true" disabled>지도 표시</button></div>${areaUnitControls()}<div id="nearby-cases" aria-live="polite"><p class="case-note">가까운 토지·건물 거래를 찾고 있어요.</p></div></div></details></section>
       <section class="detail-section commercial-section" id="property-commercial"><h3>상권</h3><div id="commercial-facts" aria-live="polite"></div></section>
+      <section class="detail-section" id="property-surrounding"><h3>주변 사업</h3><div id="surrounding-facts" aria-live="polite"></div></section>
       <section class="detail-section" id="property-documents"><h3>서류 확인</h3><p class="case-note">보유한 건축물·토지대장을 살펴보고, 등기는 인터넷등기소에서 확인하세요.</p><div class="document-list"><div><span class="document-symbol">01</span><div><b>건축물대장</b><p>표제부·총괄표제부의 건물 현황</p></div><button class="outline" id="building-records-toggle" aria-expanded="false" aria-controls="building-records">건축물대장 보기</button></div><div><span class="document-symbol">02</span><div><b>토지(임야)대장</b><p>필지별 토지 기록</p></div><button class="outline" id="land-records-toggle" aria-expanded="false" aria-controls="land-records">토지대장 보기</button></div><div><span class="document-symbol">03</span><div><b>등기사항증명서</b><p>인터넷등기소에서 직접 열람</p></div><div class="document-actions"><button class="outline" data-explore="copy-address">필지 주소 복사</button><a class="outline" href="https://www.iros.go.kr/" target="_blank" rel="noopener noreferrer">열람·발급 ↗</a></div></div></div><div id="building-records" class="building-records" hidden></div><div id="land-records" class="building-records" hidden></div></section>
       <section class="detail-section inline-context" id="property-context"><h3>이 땅, 이런 점을 살펴보세요.</h3><div id="context-facts" aria-live="polite"></div><div class="context-more"><p>더 구체적으로 개발을 검토하고 싶으세요?</p><button class="primary" data-explore="analyze-site">건물·토지에서 검토하기 <span aria-hidden="true">↗</span></button></div></section><p class="detail-bottom-note">사진과 발급 원본 PDF는 현재 보유 자료에 포함되어 있지 않습니다.</p>
       <section class="brokerage-info" aria-label="중개사무소 정보"><h3>터잡이 공인중개사사무소</h3><dl><div><dt>대표</dt><dd>윤진경</dd></div><div><dt>등록번호</dt><dd>제 11650-2026-00102 호</dd></div><div><dt>주소</dt><dd>서울특별시 서초구 언남5길 1, 2층 (양재동)</dd></div><div><dt>연락처</dt><dd>010-8258-4959</dd></div><div><dt>중개보수</dt><dd>상업용 빌딩 기준<br><span>(법정 상한 요율 0.9% 내 협의)</span></dd></div></dl></section></div>`;
@@ -273,7 +275,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
   async function openDetail(id,updateUrl=true) {
     if(!selected)listScrollTop=body.scrollTop;
     setSheet(true);
-    closeContext?.();closeContext=null;closeRecords?.();closeRecords=null;closeLand?.();closeLand=null;closeCommercial?.();closeCommercial=null;
+    closeContext?.();closeContext=null;closeRecords?.();closeRecords=null;closeLand?.();closeLand=null;closeCommercial?.();closeCommercial=null;closeSurrounding?.();closeSurrounding=null;
     const current=++detailVersion;selected=id;detail=null;parcel=null;nearby=null;map.setTransactions([]);syncTransactionToggle();
     $('.explore-board').classList.remove('transaction-map-open');
     $('#listing-detail').hidden=false;$('.explore-board').classList.add('has-detail');
@@ -295,7 +297,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
       detail=data;renderDetail();
       const favoriteActive=Boolean(member.get('favorite',data.listing.id));
       $('.detail-content').insertAdjacentHTML('afterbegin',`<div class="detail-conversion"><a class="primary" href="https://pf.kakao.com/_qSQxhX/chat" target="_blank" rel="noopener noreferrer">터잡이와 상담하기 ↗</a><button class="outline" data-explore="favorite" data-favorite-detail="true" data-id="${esc(data.listing.id)}" aria-pressed="${favoriteActive}">${favoriteActive?'♥ 찜함':'♡ 찜하기'}</button><button class="outline" data-explore="copy-consult">상담할 매물 정보 복사</button><small>주소와 가격을 복사해서 상담 채널에 보내주세요.</small></div>`);
-      closeContext=mountInlineContext($('#context-facts'),data.listing);closeRecords=mountBuildingRecords($('#building-records'),$('#building-records-toggle'),data.listing);closeLand=mountLandRecords($('#land-area-comparison'),$('#land-records'),$('#land-records-toggle'),data.listing);closeCommercial=mountCommercial($('#commercial-facts'),data.listing);map.select(data.listing);$('#detail-title').focus({preventScroll:true});
+      closeContext=mountInlineContext($('#context-facts'),data.listing);closeRecords=mountBuildingRecords($('#building-records'),$('#building-records-toggle'),data.listing);closeLand=mountLandRecords($('#land-area-comparison'),$('#land-records'),$('#land-records-toggle'),data.listing);closeCommercial=mountCommercial($('#commercial-facts'),data.listing);closeSurrounding=mountSurrounding($('#surrounding-facts'),data.listing);map.select(data.listing);$('#detail-title').focus({preventScroll:true});
       $('.detail-shortcuts').insertAdjacentHTML('beforeend','<button data-explore="section" data-section="property-transactions">주변 실거래</button>');
       if(fromAssistant?.origin==='disco'){const box=$('#nearby-cases');if(box)box.innerHTML='<p class="case-note">디스코에서 찾은 매물이라 주변 실거래는 제공하지 않아요.</p>';}
       else loadNearby(id,current);
@@ -449,6 +451,6 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     quickFilters?.setRemembered(onConditionsChange?.(currentConditions())!==false);
     limit=5;closeDetail();load();
   }
-  return ()=>{document.body.classList.remove('map-results-open');disposed=true;clearTimeout(loadTimer);quickFilters.destroy();abort.abort();closeComparison?.();closeContext?.();closeRecords?.();closeLand?.();closeCommercial?.();closeStreet?.();map.destroy();};
+  return ()=>{document.body.classList.remove('map-results-open');disposed=true;clearTimeout(loadTimer);quickFilters.destroy();abort.abort();closeComparison?.();closeContext?.();closeRecords?.();closeLand?.();closeCommercial?.();closeSurrounding?.();closeStreet?.();map.destroy();};
 }
 
