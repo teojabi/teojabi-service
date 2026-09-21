@@ -149,6 +149,7 @@ const parcelCache=new Map();
 const riskCache=new Map();
 const transactionCache=new Map();
 let commercialAreasCache=null,commercialAreasCachedAt=0;
+let plannedRailCache=null,plannedRailCachedAt=0;
 let transactionVersion=0;
 async function refreshTransactionVersion(){
   const version=await stat(join(root,'.local/disco-daily/data-version.json')).then(s=>s.mtimeMs).catch(error=>{if(error.code==='ENOENT')return 0;throw error;});
@@ -382,6 +383,13 @@ createServer(async (request, response) => {
       const result=await localRead('surrounding',JSON.stringify({lat,lng,radius}));
       send(response,request,result,result.status==='error'?503:200);
     } catch {send(response,request,{status:'error'},503);}
+    return;
+  }
+  if (path==='/api/planned-rail') {
+    try {
+      if(!plannedRailCache||Date.now()-plannedRailCachedAt>300000){plannedRailCache=await localRead('planned-rail','{}');plannedRailCachedAt=Date.now();}
+      send(response,request,plannedRailCache);
+    } catch {send(response,request,{status:'error',items:[]},503);}
     return;
   }
   if (path.startsWith('/api/risk/') || path.startsWith('/api/site-context/') || path.startsWith('/api/building-records/') || path.startsWith('/api/land-record/')) {
