@@ -84,6 +84,29 @@ function commercialChatMarkup(data) {
   return `🏪 여기서 가장 가까운 상권은 <b>${esc(n.name)}</b>${n.type ? ` (${esc(n.type)})` : ''}이고 ${dist} 거리예요.${facts ? `<div class="assistant-facts">${facts}</div>` : ''}${cats ? `<p class="assistant-conditions">주요 업종 · ${cats}</p>` : ''}<small>상권 대표점 기준 · 서울시 상권분석서비스(추정매출) 참고자료예요.</small><div class="assistant-chiprow"><button type="button" class="assistant-chip assistant-chip-primary" data-ask-commercial="${esc(n.name)} 상권">이 상권에서 매물 찾기</button></div>`;
 }
 
+// "<구> 상권 알려줘"처럼 지역 상권을 묻는지 판단한다. 구체 조건(유형·수치·매물 찾기)은 검색으로 본다.
+function isCommercialQuestion(message) {
+  const t = String(message || '');
+  if (!/(?:상권|상가|번화가|유동인구)/.test(t)) return false;
+  if (/(?:골목상권|전통시장|발달상권|관광특구)/.test(t)) return false;
+  if (/\d/.test(t)) return false;
+  if (/[가-힣A-Za-z0-9]{2,12}\s*역/.test(t)) return false;
+  if (/(?:주거지역|상업지역|공업지역|녹지지역|도로|예산|평|㎡)/.test(t)) return false;
+  if (/(?:토지|땅|필지|건물|빌딩|주택|근린)/.test(t)) return false;
+  if (/찾아|검색|보여|추천|매물/.test(t)) return false;
+  return true;
+}
+
+// 자치구의 주요 상권 목록을 요약한다.
+function commercialDistrictMarkup(data, gu) {
+  const list = (data.districts || []).slice(0, 5);
+  if (!list.length) return `${esc(gu)}에서 상권 자료를 찾지 못했어요. 다른 지역으로 물어봐 주세요.`;
+  const rank = list.map((d, i) => `<div class="assistant-fact"><span>${i + 1}위 · ${esc(d.type || '')}${d.dong ? ` · ${esc(d.dong)}` : ''}</span><b>${esc(d.name)}</b><span>${d.monthlySalesWon ? `월 ${(d.monthlySalesWon / 1e8).toLocaleString('ko-KR', { maximumFractionDigits: 1 })}억` : (d.population ? `유동 ${Math.round(d.population / 10000).toLocaleString('ko-KR')}만` : '')}</span></div>`).join('');
+  const n = data.nearest;
+  const cats = (n?.topCategories || []).slice(0, 3).map(c => `${esc(c.name)} ${(c.salesWon / 1e8).toLocaleString('ko-KR', { maximumFractionDigits: 1 })}억`).join(' · ');
+  return `🏪 <b>${esc(gu)}</b>에서 최근 매출이 큰 상권이에요.${n ? `<br><small>그중 1위는 <b>${esc(n.name)}</b>${n.type ? ` (${esc(n.type)})` : ''}이에요.</small>` : ''}<div class="assistant-facts">${rank}</div>${cats ? `<p class="assistant-conditions">${esc(n.name)} 주요 업종 · ${cats}</p>` : ''}<small>서울시 상권분석서비스(추정매출) · 상권 합계 기준이에요.</small><div class="assistant-chiprow">${list.slice(0, 3).map(d => `<button type="button" class="assistant-chip" data-commercial-district="${esc(d.name)} 상권">🏪 ${esc(d.name)} 매물</button>`).join('')}</div>`;
+}
+
 // 실제 매물 조건(지역·예산·면적·용도지역·역·도로 등)이 있을 때만 검색 로딩을 띄운다.
 function needsSearch(message) {
   const t = String(message || '');
@@ -288,6 +311,24 @@ export function mountAssistant({ onResults, onAnalyze } = {}) {
     } catch {
       scan.remove();
       addBot('자료를 확인하지 못했어요. 잠시 후 다시 시도해 주세요.');
+    } finally { busy = false; }
+  }
+
+  // "마포구 상권 알려줘"처럼 지역 이름으로 상권을 묻는 질문에 답한다.
+  async function answerCommercialDistrict(gu) {
+    if (!signedIn()) { renderLocked(); return; }
+    if (busy) return;
+    busy = true;
+    const scan = addBot(`<div class="assistant-scan"><span class="assistant-spinner"></span><b>${esc(gu)} 상권을 살펴보고 있어요…</b></div>`);
+    try {
+      const data = await readJson(`/api/commercial?gu=${encodeURIComponent(gu)}`);
+      scan.remove();
+      if (!data) { addBot(`${esc(gu)} 상권 자료를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.`); return; }
+      const bubble = addResultBot(commercialDistrictMarkup(data, gu));
+      bubble.querySelectorAll('[data-commercial-district]').forEach(button => button.addEventListener('click', () => runSearch(null, { commercialName: button.dataset.commercialDistrict, commercialRadiusM: 500, limit: 60 })));
+    } catch {
+      scan.remove();
+      addBot('상권 자료를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.');
     } finally { busy = false; }
   }
 
@@ -513,6 +554,15 @@ export function mountAssistant({ onResults, onAnalyze } = {}) {
     // 매물을 고른 상태의 상권·실거래·역 같은 질문은 그 매물 기준으로 바로 답한다.
     const question = selectedListing && !hasStrongCondition(value) ? listingQuestion(value) : null;
     if (question) { addUser(value); askAbout(question, selectedListing); return; }
+    // 지역 상권을 묻는 질문이면 매물 검색 대신 상권을 요약해 답한다.
+    if (isCommercialQuestion(value)) {
+      addUser(value);
+      const district = DISTRICTS.find(d => value.includes(d) || (d.endsWith('구') && d.length >= 3 && value.includes(d.slice(0, -1))));
+      if (district) answerCommercialDistrict(district);
+      else if (/뭐|무엇|뜻|의미|종류|차이|설명/.test(value)) addBot('상권은 사람들이 모여 장사하는 범위를 뜻해요. 터잡이는 서울시 상권분석서비스 자료로 골목상권·발달상권·전통시장·관광특구를 구분해, 그 안의 매물과 월 추정매출·유동인구를 보여드려요.<br><small>어느 지역이나 매물이 궁금하세요? "마포구 상권 알려줘"처럼 물어보세요.</small>');
+      else addBot('어느 지역 상권이 궁금하세요? 예) "마포구 상권 알려줘", "강남구 상권 알려줘"처럼 지역을 말씀해 주세요.');
+      return;
+    }
     runSearch(value);
   });
   return { open: openPanel, close: closePanel, ask: message => { openPanel(); runSearch(message); }, destroy: () => { window.removeEventListener('teojabi-map-click', onMapClick); fab.remove(); panel.remove(); } };

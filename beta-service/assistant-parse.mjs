@@ -23,7 +23,7 @@ export function ruleFilters(text) {
   // "이 주위 상권"처럼 지시어가 붙은 표현을 상권 이름으로 잘못 잡지 않는다.
   const genericCommercial = /여기|저기|거기|이곳|요기|주위|주변|근처|동네|이쪽|저쪽|(?:^|\s)이(?:\s|$)|(?:^|\s)그(?:\s|$)|(?:^|\s)저(?:\s|$)|(?:^|\s)어느(?:\s|$)|(?:^|\s)어떤(?:\s|$)|(?:^|\s)무슨(?:\s|$)/;
   const cname = t.match(/([가-힣A-Za-z0-9]{2,20}(?:\s*\d+번)?)\s*상권/);
-  if (cname && !COMMERCIAL_TYPES.some(type => cname[1].includes(type.replace('상권', ''))) && !genericCommercial.test(cname[1].trim())) {
+  if (cname && !COMMERCIAL_TYPES.some(type => cname[1].includes(type.replace('상권', ''))) && !genericCommercial.test(cname[1].trim()) && !DISTRICTS.includes(cname[1].trim())) {
     filters.commercialName = cname[1].trim();
   }
   // "상업지역", "특화구역" 같은 용도·구역 표현을 역 이름으로 잘못 잡지 않도록 제거한 뒤 역을 찾는다.

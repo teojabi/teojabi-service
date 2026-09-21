@@ -51,11 +51,50 @@ def _district_row(row):
     }
 
 
+def _read_commercial_district(connection, gu):
+    """자치구 이름으로 그 구의 주요 상권을 요약한다(좌표가 없을 때)."""
+    with connection.cursor() as cursor:
+        quarter = _latest_quarter(cursor)
+        cursor.execute(
+            '''SELECT 상권코드, 상권명, 상권유형, 자치구, 법정동, NULL::float8,
+                      유동인구수, 변화지표, 최신월매출
+               FROM public.commercial_districts
+               WHERE 자치구 = %s AND geom IS NOT NULL
+               ORDER BY 최신월매출 DESC NULLS LAST
+               LIMIT 5''', (gu,))
+        districts = [_district_row(r) for r in cursor.fetchall()]
+        nearest = None
+        if districts:
+            base = districts[0]
+            nearest = dict(base)
+            nearest['topCategories'] = _top_categories(cursor, base['code'], quarter)
+            cursor.execute(
+                '''SELECT 기준년분기, sum(월매출금액) FROM public.commercial_sales
+                   WHERE 상권코드=%s GROUP BY 기준년분기 ORDER BY 기준년분기''',
+                (base['code'],))
+            nearest['trend'] = [{'quarter': r[0], 'salesWon': int(r[1] or 0)} for r in cursor.fetchall()]
+            cursor.execute(
+                '''SELECT 기준년분기, 유동인구수 FROM public.commercial_population
+                   WHERE 상권코드=%s ORDER BY 기준년분기''',
+                (base['code'],))
+            nearest['populationTrend'] = [{'quarter': r[0], 'population': int(r[1] or 0)} for r in cursor.fetchall()]
+    return {
+        'status': 'ready',
+        'basis': {'quarter': quarter, 'radiusM': None, 'locationQuality': 'district'},
+        'nearest': nearest,
+        'districts': districts,
+        'source': '서울시 상권분석서비스',
+    }
+
+
 def read_commercial(connection, query):
     if isinstance(query, str):
         query = json.loads(query or '{}')
     if not isinstance(query, dict):
         raise ValueError('Invalid query')
+    gu = query.get('gu')
+    if isinstance(gu, str) and gu.strip():
+        return _read_commercial_district(connection, gu.strip()[:20])
     lat = _num(query.get('lat'))
     lng = _num(query.get('lng'))
     if lat is None or lng is None or not (-90 <= lat <= 90) or not (-180 <= lng <= 180):
