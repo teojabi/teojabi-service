@@ -50,6 +50,7 @@ const files = new Map([
   ['/recent-search.mjs',['recent-search.mjs','text/javascript']],
   ['/inline-context.mjs',['inline-context.mjs','text/javascript']],
   ['/commercial-context.mjs',['commercial-context.mjs','text/javascript']],
+  ['/surrounding-context.mjs',['surrounding-context.mjs','text/javascript']],
   ['/building-records.mjs',['building-records.mjs','text/javascript']],
   ['/land-records.mjs',['land-records.mjs','text/javascript']],
   ['/land-policy.mjs',['land-policy.mjs','text/javascript']],
@@ -368,6 +369,16 @@ createServer(async (request, response) => {
     if(!Number.isFinite(lat)||!Number.isFinite(lng)){send(response,request,{status:'missing'},400);return;}
     try {
       const result=await localRead('commercial',JSON.stringify({lat,lng,radius}));
+      send(response,request,result,result.status==='error'?503:200);
+    } catch {send(response,request,{status:'error'},503);}
+    return;
+  }
+  if (path==='/api/surrounding') {
+    const params=new URL(request.url,'http://localhost').searchParams;
+    const lat=Number(params.get('lat')),lng=Number(params.get('lng')),radius=Number(params.get('radius'))||1000;
+    if(!Number.isFinite(lat)||!Number.isFinite(lng)){send(response,request,{status:'missing'},400);return;}
+    try {
+      const result=await localRead('surrounding',JSON.stringify({lat,lng,radius}));
       send(response,request,result,result.status==='error'?503:200);
     } catch {send(response,request,{status:'error'},503);}
     return;
