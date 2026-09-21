@@ -1,8 +1,8 @@
 import { apiFetch } from './api-client.mjs';
 
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const ICON = { '지하철역': '🚇', '도시개발': '🏗', '공공사업': '🚧', '관광공연장': '🎭' };
-const LABEL = { '지하철역': '지하철역', '도시개발': '도시개발', '공공사업': '공공사업', '관광공연장': '관광공연장' };
+const ICON = { '지하철역': '🚇', '도시개발': '🏗', '공공사업': '🚧', '신축허가': '🏢', '관광공연장': '🎭' };
+const LABEL = { '지하철역': '지하철역', '도시개발': '도시개발', '공공사업': '공공사업', '신축허가': '신축허가', '관광공연장': '관광공연장' };
 
 const distance = m => m == null ? '' : (m < 1000 ? `${m}m` : `${(m / 1000).toLocaleString('ko-KR', { maximumFractionDigits: 1 })}km`);
 const areaText = m2 => Number(m2) >= 10000 ? `${Math.round(m2 / 10000).toLocaleString('ko-KR')}만㎡` : (Number(m2) > 0 ? `${Math.round(m2).toLocaleString('ko-KR')}㎡` : '');
@@ -10,7 +10,7 @@ const areaText = m2 => Number(m2) >= 10000 ? `${Math.round(m2 / 10000).toLocaleS
 function row(item) {
   const meta = [];
   if (item.detail) meta.push(esc(item.detail));
-  if (item.status && (item.type === '도시개발' || item.type === '공공사업')) meta.push(esc(item.status));
+  if (item.status) meta.push(esc(item.status));
   const area = areaText(item.areaM2);
   if (area) meta.push(area);
   meta.push(distance(item.distanceM));
@@ -24,9 +24,25 @@ export function renderSurrounding(data) {
   if (!data || data.status !== 'ready' || !Array.isArray(data.projects) || !data.projects.length) {
     return '<p class="case-note">수집한 공공자료에서 반경 내 표시할 주변 사업이 없습니다.</p>';
   }
-  const items = data.projects.slice(0, 6);
+  // 유형이 골고루 보이도록 가까운 순으로 한 유형씩 번갈아 6건을 고른다.
+  const byType = new Map();
+  for (const p of data.projects) {
+    if (!byType.has(p.type)) byType.set(p.type, []);
+    byType.get(p.type).push(p);
+  }
+  const items = [];
+  let added = true;
+  while (items.length < 6 && added) {
+    added = false;
+    for (const list of byType.values()) {
+      if (!list.length) continue;
+      items.push(list.shift());
+      added = true;
+      if (items.length >= 6) break;
+    }
+  }
   return `<ul class="surrounding-list">${items.map(row).join('')}</ul>
-    <p class="surrounding-source">반경 ${Math.round((data.basis?.radiusM || 1000) / 1000 * 10) / 10}km · 서울시 공공데이터 · 대표 위치 기준</p>`;
+    <p class="surrounding-source">반경 ${Math.round((data.basis?.radiusM || 1000) / 1000 * 10) / 10}km · 서울시·국토교통부 공공데이터 · 대표 위치 기준</p>`;
 }
 
 export function mountSurrounding(host, listing) {
