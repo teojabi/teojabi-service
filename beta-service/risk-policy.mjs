@@ -77,7 +77,9 @@ export function normalizeFar(source) {
     const seen=new Set();
     for(const raw of source.rows) {
       const quality=text(raw.label_quality,20);
-      if(quality==='noise')continue;
+      // 명시적 태그([높이]/[용도지역] 등)가 붙은 행은 noise로 분류됐더라도 값이 있으면 유지한다.
+      const tagged=/^\s*\[[^\]]+\]/.test(text(raw.zone_raw||raw.zone_type,120));
+      if(quality==='noise'&&!tagged)continue;
       const item={
         dgmName:text(raw.dgmName||raw.dgm_nm,200),zoneClass:text(raw.zone_class,20)||'기타',
         zoneRaw:text(raw.zone_raw||raw.zone_type,120)||null,
