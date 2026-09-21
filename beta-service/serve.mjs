@@ -365,10 +365,11 @@ createServer(async (request, response) => {
   }
   if (path==='/api/commercial') {
     const params=new URL(request.url,'http://localhost').searchParams;
+    const gu=(params.get('gu')||'').trim();
     const lat=Number(params.get('lat')),lng=Number(params.get('lng')),radius=Number(params.get('radius'))||500;
-    if(!Number.isFinite(lat)||!Number.isFinite(lng)){send(response,request,{status:'missing'},400);return;}
+    if(!gu&&(!Number.isFinite(lat)||!Number.isFinite(lng))){send(response,request,{status:'missing'},400);return;}
     try {
-      const result=await localRead('commercial',JSON.stringify({lat,lng,radius}));
+      const result=await localRead('commercial',JSON.stringify(gu?{gu}:{lat,lng,radius}));
       send(response,request,result,result.status==='error'?503:200);
     } catch {send(response,request,{status:'error'},503);}
     return;
