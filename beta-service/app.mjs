@@ -10,7 +10,7 @@ import { criteriaFields, readCriteriaFields, areaHelp } from './criteria-ui.mjs'
 import {readRecentSearch,writeRecentSearch,readMemberSearch,writeMemberSearch} from './recent-search.mjs';
 import {BUILD_DEFAULTS,buildCriteriaFields,buildConditionLabels,validateBuildCriteria} from './build-criteria.mjs';
 const app = document.querySelector('#app');
-const emptyDraft=()=>({budgetEok:'',districts:[],purpose:null,minArea:'',maxArea:'',areaUnit:'pyeong',zones:[],...BUILD_DEFAULTS});
+const emptyDraft=()=>({budgetEok:'',districts:[],neighborhoods:[],purpose:null,minArea:'',maxArea:'',areaUnit:'pyeong',zones:[],...BUILD_DEFAULTS});
 const state = { screen: 'home', siteDraft:null, draft: emptyDraft(), applied: readRecentSearch(), editing: false, pane: 'list', activity:null, activityError:false, search:null };
 const appliedDraft=()=>state.applied?{...emptyDraft(),...state.applied,budgetEok:state.applied.budgetWon?String(state.applied.budgetWon/1e8):'',districts:[...state.applied.districts],zones:[...state.applied.zones]}:emptyDraft();
 let disposeExplorer;
@@ -27,6 +27,41 @@ const escape = value => String(value).replace(/[&<>"']/g, c => ({ '&':'&amp;', '
 const budgetWon = () => toWon(state.draft.budgetEok, 'EOK');
 const validBudget = () => { const value = budgetWon(); return value !== null && value > 0; };
 const locationText = districts => districts.length ? districts.join(' · ') : '서울 전체';
+// 동까지 선택했으면 "구 동" 형태로 보여준다.
+const areaText = draft => {
+  const chosen = draft.neighborhoods||[], index = neighborhoodIndex||{};
+  const labels = draft.districts.map(d => { const ns = chosen.filter(n => (index[d]||[]).includes(n)); return ns.length ? `${d} ${ns.join('·')}` : d; });
+  const extra = chosen.filter(n => !draft.districts.some(d => (index[d]||[]).includes(n)));
+  return [...labels, ...extra].join(' · ') || '서울 전체';
+};
+// 구별 동 목록은 카탈로그에서 한 번만 받아온다.
+let neighborhoodIndex=null, neighborhoodRequested=false;
+async function ensureNeighborhoods(){
+  if(neighborhoodIndex||neighborhoodRequested)return;
+  neighborhoodRequested=true;
+  try {
+    const response=await apiFetch('/api/neighborhoods');
+    const data=await response.json();
+    if(response.ok&&data?.status==='ready'&&data.districts)neighborhoodIndex=data.districts;
+  } catch {}
+  if(state.screen==='region')render(false);
+}
+const parseGuDong = text => {
+  const tokens=String(text||'').trim().split(/\s+/).filter(Boolean);
+  const district=tokens.find(t=>DISTRICTS.includes(t))||null;
+  const neighborhood=tokens.find(t=>/(동|가)$/.test(t)&&t.length<=8)||null;
+  return {district,neighborhood};
+};
+function neighborhoodsSection(){
+  const selected=state.draft.districts||[], chosen=state.draft.neighborhoods||[], index=neighborhoodIndex||{};
+  const groups=selected.map(d=>[d,index[d]||[]]).filter(([,list])=>list.length);
+  const buttons=groups.length
+    ? groups.map(([d,list])=>`<div class="neighborhood-group"><span>${escape(d)}</span><div class="districts" role="group" aria-label="${escape(d)} 동 선택">${list.map(n=>`<button type="button" data-action="neighborhood" data-value="${escape(n)}" aria-pressed="${chosen.includes(n)}">${escape(n)}</button>`).join('')}</div></div>`).join('')
+    : selected.length?'<p class="criteria-help">동 목록을 불러오는 중이에요.</p>':'<p class="criteria-help">자치구를 선택하면 그 구의 동을 고를 수 있어요.</p>';
+  const all=selected.length?[...new Set(selected.flatMap(d=>index[d]||[]))]:[...new Set(Object.values(index).flat())];
+  const chips=chosen.length?`<div class="chosen-neighborhoods"><span>선택한 동</span>${chosen.map(n=>`<button type="button" data-action="neighborhood" data-value="${escape(n)}" aria-pressed="true">${escape(n)} ✕</button>`).join('')}</div>`:'';
+  return `<div class="neighborhood-block"><p class="criteria-help">같은 구 안에서 동까지 좁힐 수 있어요. 여러 개 선택하거나 직접 입력할 수 있어요.</p>${buttons}${chips}<label class="input-label" for="neighborhood-input">동 이름 직접 입력 <small>예: 마포구 성산동</small></label><div class="amount-wrap"><input id="neighborhood-input" name="neighborhoodInput" type="text" list="neighborhood-list" placeholder="마포구 성산동" autocomplete="off"><span>Enter 추가</span></div><datalist id="neighborhood-list">${all.map(n=>`<option value="${escape(n)}"></option>`).join('')}</datalist></div>`;
+}
 const back = (action, label = '이전으로') => `<button class="back" data-action="${action}"><span aria-hidden="true">←</span> ${label}</button>`;
 const progress = step => {const building=state.draft.purpose==='new-build',total=building?4:3,current=step==='build-use'?2:step+(building&&step>1?1:0);return `<div class="progress-row"><span>건물 찾기 <b>${current}</b> / ${total}</span><div class="progress" aria-label="${total}단계 중 ${current}단계">${Array.from({length:total},(_,i)=>`<span class="${current>=i+1?'on':''}"></span>`).join('')}</div></div>`;};
 const mapPlaceholder = text => `<div class="map-placeholder"><div class="map-label"><i></i> MAP VIEW · 지도 연결 전</div><div class="map-message">${mapIcon}<h2>${text}</h2><p>실제 지도와 필지 데이터가 연결되면<br>이곳에서 위치를 살펴볼 수 있어요.</p></div></div>`;
@@ -130,7 +165,8 @@ function region() {
   return `<section class="wizard">${back('back-budget')}${progress(3)}<h1>어느 지역을<br>보고 싶으세요?</h1><p class="subline">원하는 자치구를 여러 곳 선택할 수 있어요.<br>아직 정하지 않았다면 서울 전체로 살펴보세요.</p>
   <button class="all-seoul" data-action="all-seoul" aria-pressed="${!state.draft.districts.length}">서울 전체 <span aria-hidden="true">${!state.draft.districts.length ? '✓' : '○'}</span></button>
   <div class="districts" role="group" aria-label="서울 자치구 선택">${DISTRICTS.map(d => `<button data-action="district" data-value="${d}" aria-pressed="${state.draft.districts.includes(d)}">${d}</button>`).join('')}</div>
-  ${criteriaFields(state.draft)}<p class="validation" id="criteria-error" role="alert"></p><p class="selected-summary" aria-live="polite">${purposeLabel(state.draft.purpose)} · ${escape(state.draft.budgetEok)}억원 이하 · ${locationText(state.draft.districts)}</p><button class="primary" data-action="apply">조건에 맞는 매물 보기 ${arrow}</button><p class="wizard-foot">개발 가능성과 수익률을 추정해 순위를 매기지 않아요.</p></section>`;
+  ${neighborhoodsSection()}
+  ${criteriaFields(state.draft)}<p class="validation" id="criteria-error" role="alert"></p><p class="selected-summary" aria-live="polite">${purposeLabel(state.draft.purpose)} · ${escape(state.draft.budgetEok)}억원 이하 · ${escape(areaText(state.draft))}</p><button class="primary" data-action="apply">조건에 맞는 매물 보기 ${arrow}</button><p class="wizard-foot">개발 가능성과 수익률을 추정해 순위를 매기지 않아요.</p></section>`;
 }
 
 function render(focus = true) {
@@ -156,6 +192,7 @@ function render(focus = true) {
     }).catch(()=>{if(version===renderVersion)app.innerHTML='<section class="screen-loading"><p>검토 화면을 불러오지 못했습니다.</p></section>';});
   } else {
   app.innerHTML = ({ home, purpose, 'build-use':buildUse, budget, region })[state.screen]();
+  if(state.screen==='region')ensureNeighborhoods();
   if(state.screen==='region'&&state.draft.purpose==='new-build')app.querySelector('.selected-summary').insertAdjacentHTML('afterend',`<p class="build-applied-summary">${escape(buildConditionLabels(state.draft).join(' · ')||'신축 추가 조건 없음')}</p>`);
   }
   document.title = ({home:'터잡이 | 건물·토지 매물 찾기와 개발 검토',purpose:'건물 찾는 목적 | 터잡이','build-use':'개발 용도·부지 조건 | 터잡이',budget:'매입 예산 선택 | 터잡이',region:'관심 지역 선택 | 터잡이',results:'조건에 맞는 매물 찾기 | 터잡이',analyze:'필지 개발 검토 | 터잡이'})[state.screen] || '터잡이';
@@ -211,16 +248,25 @@ document.addEventListener('click', event => {
   if (action === 'district') {
     const value = button.dataset.value;
     state.draft.districts = state.draft.districts.includes(value) ? state.draft.districts.filter(d => d !== value) : [...state.draft.districts, value];
+    const allowed = new Set(state.draft.districts.flatMap(d => (neighborhoodIndex?.[d] || [])));
+    state.draft.neighborhoods = (state.draft.neighborhoods || []).filter(n => allowed.has(n));
     render(false);
     app.querySelector(`[data-action="district"][data-value="${value}"]`).focus();
     return;
   }
-  if (action === 'all-seoul') { state.draft.districts = []; render(false); app.querySelector('.all-seoul').focus(); return; }
+  if (action === 'neighborhood') {
+    const value = button.dataset.value;
+    state.draft.neighborhoods = (state.draft.neighborhoods || []).includes(value) ? state.draft.neighborhoods.filter(n => n !== value) : [...(state.draft.neighborhoods || []), value];
+    render(false);
+    app.querySelector(`[data-action="neighborhood"][data-value="${value}"]`)?.focus();
+    return;
+  }
+  if (action === 'all-seoul') { state.draft.districts = []; state.draft.neighborhoods = []; render(false); app.querySelector('.all-seoul').focus(); return; }
   if (action === 'apply') {
     if (!validBudget()) { state.screen = 'budget'; render(); return; }
     const range=parseAreaRange(state.draft.minArea,state.draft.maxArea,state.draft.areaUnit);
     if(!range.ok){app.querySelector('#criteria-error').textContent=range.message;app.querySelector('[name="maxArea"]').focus();return;}
-    state.applied = { ...state.draft,budgetWon:budgetWon(),districts:[...state.draft.districts],zones:[...state.draft.zones],minAreaM2:range.minAreaM2,maxAreaM2:range.maxAreaM2,sort:'price' };
+    state.applied = { ...state.draft,budgetWon:budgetWon(),districts:[...state.draft.districts],neighborhoods:[...(state.draft.neighborhoods||[])],zones:[...state.draft.zones],minAreaM2:range.minAreaM2,maxAreaM2:range.maxAreaM2,sort:'price' };
     completedThisVisit=true;rememberSearch(state.applied);
     state.screen = 'results'; state.editing = false;
     history.replaceState(null,'',location.pathname);
@@ -251,6 +297,16 @@ app.addEventListener('change',event=>{
   const input=event.target;
   if(state.screen!=='build-use'||!input.matches('[data-build-control]'))return;
   state.draft[input.dataset.buildControl]=input.type==='checkbox'?input.checked:input.value?Number(input.value):null;
+});
+app.addEventListener('keydown', event => {
+  if(state.screen!=='region'||!event.target.matches('#neighborhood-input')||event.key!=='Enter')return;
+  event.preventDefault();
+  const {district,neighborhood}=parseGuDong(event.target.value);
+  if(district&&!state.draft.districts.includes(district))state.draft.districts.push(district);
+  if(neighborhood&&!state.draft.neighborhoods.includes(neighborhood))state.draft.neighborhoods.push(neighborhood);
+  event.target.value='';
+  render(false);
+  app.querySelector('#neighborhood-input')?.focus();
 });
 render(false);
 if(new URLSearchParams(location.hash.slice(1)).has('listing')||location.hash==='#search'||location.hash==='#favorites'||location.hash==='#assistant') {state.screen='results';render(false);}

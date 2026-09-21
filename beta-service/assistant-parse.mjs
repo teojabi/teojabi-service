@@ -58,8 +58,8 @@ export function ruleFilters(text) {
   if (/교육보호구역|교육환경보호구역|학교\s*보호/.test(t) && /제외|빼|피해/.test(t)) filters.excludeEducation = true;
   if (/문화재|보존구역/.test(t) && /제외|빼|피해/.test(t)) filters.excludeHeritage = true;
   if (/특화구역|관광숙박/.test(t) && /우선|먼저/.test(t)) filters.preferTourism = true;
-  const dong = t.match(/([가-힣]{1,4}동)(?=[\s,.]|이|에|은|는|쪽|근처|$)/);
-  if (dong && !filters.districts?.length) filters.q = dong[1];
+  const dong = t.match(/([가-힣]{1,5}[0-9]가|[가-힣]{1,6}동)(?=[\s,.]|이|에|은|는|쪽|근처|$)/);
+  if (dong) filters.neighborhood = dong[1];
   return filters;
 }
 
@@ -148,11 +148,12 @@ export function siteFaqAnswer(text) {
 // Free-form text goes to Gemini only when the rule parser found nothing.
 export async function geminiFilters(message, key, condition) {
   if (!key) return null;
-  const schema = `{"districts":["자치구"],"q":"동/키워드","budgetWon":숫자(원),"minAreaM2":숫자,"maxAreaM2":숫자,"kind":"land|building","zones":["주거지역|상업지역|공업지역|녹지지역"],"stationName":"역이름","maxDistanceM":숫자,"minRoadWidthM":숫자,"purpose":"new-build","commercialType":["골목상권|전통시장|발달상권|관광특구"],"commercialName":"상권이름","minCommercialSalesWon":숫자(원),"minCommercialPopulation":숫자,"commercialRadiusM":숫자}`;
+  const schema = `{"districts":["자치구"],"neighborhood":"동이름(예: 성산동)","q":"키워드","budgetWon":숫자(원),"minAreaM2":숫자,"maxAreaM2":숫자,"kind":"land|building","zones":["주거지역|상업지역|공업지역|녹지지역"],"stationName":"역이름","maxDistanceM":숫자,"minRoadWidthM":숫자,"purpose":"new-build","commercialType":["골목상권|전통시장|발달상권|관광특구"],"commercialName":"상권이름","minCommercialSalesWon":숫자(원),"minCommercialPopulation":숫자,"commercialRadiusM":숫자}`;
   const prompt = [
     '너는 터잡이(teojabi.com) 부동산 서비스의 안내 도우미다. 반드시 JSON 객체 하나만 출력한다(설명·인사말·코드블록 금지).',
     '하는 일은 두 가지뿐이다: (1) 매물 검색 조건 추출, (2) 터잡이 서비스 사용법·기능 안내.',
     '매물 검색이면 filters에 조건만 넣는다. 값이 없는 항목은 넣지 않는다. 도보 N분은 maxDistanceM = N*80(미터), N미터는 그대로. 가격 "N억"은 원 단위로 바꾼다(예: 30억 → 3000000000). 평은 그대로 넣지 말고 ㎡로 환산한다(1평=3.305785㎡).',
+    '동 이름(예: 성산동, 종로5가)은 neighborhood에 넣는다. 구와 동을 함께 말하면(예: "마포구 성산동") districts와 neighborhood 모두 넣는다.',
     '상권 조건(골목상권·전통시장·발달상권·관광특구, 상권 월매출, 상권 유동인구, 상권 이름)은 commercialType·minCommercialSalesWon·minCommercialPopulation·commercialName 으로 넣는다. 매출 "5억 이상"은 minCommercialSalesWon=500000000, 유동인구 "30만 이상"은 minCommercialPopulation=300000 이다.',
     '터잡이 서비스 사용법·기능 질문이면 filters를 비우고 reply에 아래 [서비스 안내] 내용만 근거로 2~3문장으로 친절히 답한다. 안내에 없는 내용은 지어내지 말고 "정확한 내용은 터잡이 상담으로 확인해 주세요"라고 답한다.',
     '간단한 인사·감사·안부는 reply로 한두 문장 친근하게 답하고, 이어서 원하는 매물 조건이나 궁금한 점을 물어보게 안내한다.',
@@ -199,6 +200,7 @@ export function sanitize(raw) {
     if (list.length) out.districts = [...new Set(list)];
   }
   if (typeof raw.q === 'string' && raw.q.trim()) out.q = raw.q.trim().slice(0, 40);
+  if (typeof raw.neighborhood === 'string' && raw.neighborhood.trim()) out.neighborhood = raw.neighborhood.trim().slice(0, 12);
   for (const [key, max] of [['budgetWon', 1e15], ['minAreaM2', 1e7], ['maxAreaM2', 1e7], ['maxDistanceM', 3000], ['minRoadWidthM', 100]]) {
     const value = Number(raw[key]);
     if (Number.isFinite(value) && value > 0 && value <= max) out[key] = Math.round(value * 100) / 100;
@@ -255,6 +257,7 @@ export function describe(filters) {
   const parts = [];
   if (filters.districts?.length) parts.push(filters.districts.join('·'));
   else if (filters.q) parts.push(filters.q);
+  if (filters.neighborhood) parts.push(filters.neighborhood);
   if (filters.stationName) parts.push(`${filters.stationName}역${filters.maxDistanceM ? ` ${filters.maxDistanceM}m 이내` : ''}`);
   if (filters.budgetWon) parts.push(`${(filters.budgetWon / 1e8).toLocaleString('ko-KR')}억 이하`);
   if (filters.kind === 'land') parts.push('토지'); else if (filters.kind === 'building') parts.push('건물');
@@ -278,6 +281,7 @@ export function describe(filters) {
 export function chipList(filters) {
   const chips = [];
   (filters.districts || []).forEach(d => chips.push({ key: 'districts', value: d, label: d, kind: 'list' }));
+  if (filters.neighborhood) chips.push({ key: 'neighborhood', value: filters.neighborhood, label: filters.neighborhood, kind: 'value' });
   (filters.zones || []).forEach(z => chips.push({ key: 'zones', value: z, label: z, kind: 'list' }));
   if (filters.stationName) chips.push({ key: 'stationName', value: filters.stationName, label: `${filters.stationName}역`, kind: 'value' });
   if (filters.maxDistanceM) chips.push({ key: 'maxDistanceM', value: filters.maxDistanceM, label: `${filters.maxDistanceM}m 이내`, kind: 'value' });
@@ -388,7 +392,7 @@ export async function parseAssistant(message, condition, geminiKey, editedFilter
   let unsupported = null;
   let reply = null;
   let source = Object.keys(spoken).length ? 'spoken' : Object.keys(saved).length ? 'saved' : 'none';
-  const strongKeys = ['districts', 'budgetWon', 'minAreaM2', 'maxAreaM2', 'zones', 'stationName', 'maxDistanceM', 'minRoadWidthM', 'commercialName', 'commercialCode', 'commercialType', 'minCommercialSalesWon', 'minCommercialPopulation'];
+  const strongKeys = ['districts', 'neighborhood', 'budgetWon', 'minAreaM2', 'maxAreaM2', 'zones', 'stationName', 'maxDistanceM', 'minRoadWidthM', 'commercialName', 'commercialCode', 'commercialType', 'minCommercialSalesWon', 'minCommercialPopulation'];
   const hasStrong = strongKeys.some(key => { const value = spoken[key]; return Array.isArray(value) ? value.length > 0 : value !== undefined && value !== null && value !== ''; });
   const conversational = /안녕|반갑|반가|잘\s*부탁|고마|감사|수고|하이|헬로|hello|\bhi\b/i.test(String(message || ''));
   const bare = !hasMeaningfulFilters(spoken);
