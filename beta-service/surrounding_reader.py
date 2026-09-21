@@ -44,7 +44,8 @@ def read_surrounding(connection, query):
     order = []
     for r in raw:
         kind, name = r[0], r[1]
-        key = (kind, name)
+        # 도시개발은 같은 지역의 유사 명칭(마곡구역 1지구/마곡도시개발구역 등)을 앞부분으로 묶는다.
+        key = (kind, (name or "")[:2]) if kind == "도시개발" else (kind, name)
         item = {
             "type": kind, "name": name, "gu": r[2] or "", "dong": r[3] or "",
             "status": r[4] or "", "detail": r[5] or "",
@@ -56,11 +57,13 @@ def read_surrounding(connection, query):
             merged[key] = item
             order.append(key)
         else:
-            # 같은 역의 여러 노선을 합친다.
             prev = merged[key]
             if kind == "지하철역" and item["detail"] and item["detail"] not in prev["detail"]:
                 lines = set(prev["detail"].split("·")) | {item["detail"]}
                 prev["detail"] = "·".join(sorted(lines))
+            elif kind == "도시개발":
+                # 가장 가까운 항목을 대표로 두고 면적은 큰 값을 쓴다.
+                prev["areaM2"] = max(prev["areaM2"] or 0, item["areaM2"] or 0) or None
     projects = [merged[k] for k in order]
     return {"status": "ready", "basis": {"radiusM": radius, "locationQuality": "listing-coords"},
             "projects": projects, "source": "서울시 공공데이터"}
