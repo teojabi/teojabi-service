@@ -15,6 +15,22 @@ def _num(value, default=None):
         return default
 
 
+def read_planned_rail(connection, query):
+    """신설·예정 철도/지하철 (미래철도DB 정리본). 좌표가 없어 거리 기반이 아닌 참고 목록."""
+    with connection.cursor() as cur:
+        cur.execute(
+            "SELECT 유형, 노선, 명칭, 구간, 개통예정, 설명, 지역 FROM public.planned_rail "
+            "WHERE 유형 = '신설역' ORDER BY (개통예정 = '미정'), 개통예정, 명칭")
+        rows = cur.fetchall()
+    items = [{
+        "type": r[0], "line": r[1], "name": r[2], "section": r[3],
+        "opening": r[4] or "", "description": r[5] or "", "region": r[6] or "",
+    } for r in rows]
+    return {"status": "ready", "items": items,
+            "source": "미래철도DB", "sourceUrl": "http://frdb2.ivyro.net",
+            "notice": "개인 정리 자료로 공식 고시와 다를 수 있습니다."}
+
+
 def read_surrounding(connection, query):
     if isinstance(query, str):
         query = json.loads(query or "{}")
