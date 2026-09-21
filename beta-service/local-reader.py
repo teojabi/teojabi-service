@@ -57,7 +57,7 @@ def connect():
 
 
 def read(operation, value=None):
-    if operation not in ('catalog', 'parcel', 'risk', 'context', 'registers', 'site-parcels', 'parcel-context', 'parcel-documents', 'land-record', 'nearby-transactions', 'selected-risk', 'selected-context', 'selected-registers', 'selected-land-record', 'naver-listing', 'disco-listing', 'commercial', 'commercial-areas', 'surrounding', 'planned-rail'):
+    if operation not in ('catalog', 'parcel', 'risk', 'context', 'registers', 'site-parcels', 'parcel-context', 'parcel-documents', 'land-record', 'nearby-transactions', 'selected-risk', 'selected-context', 'selected-registers', 'selected-land-record', 'naver-listing', 'disco-listing', 'commercial', 'commercial-areas', 'surrounding', 'planned-rail', 'neighborhoods'):
         raise ValueError('Unsupported operation')
     if operation == 'parcel' and not re.fullmatch(r'\d{19}', value or ''):
         raise ValueError('Invalid parcel')
@@ -123,6 +123,22 @@ def read(operation, value=None):
                     'kind': 'land' if str(data['ts']) == '1' else 'building',
                     'roadWidthM': float(data['road_width_m']) if data['road_width_m'] else None,
                     'zoning': {'status': 'matched', 'groups': [broad] if broad else [], 'entries': [{'name': zoning_text}]} if zoning_text else {'status': 'missing', 'groups': [], 'entries': []}}
+        if operation == 'neighborhoods':
+            with connection.cursor(cursor_factory=RealDictCursor) as cursor:
+                cursor.execute('''SELECT "구" AS gu, "동" AS dong FROM public.naver
+                                  WHERE "구" IS NOT NULL AND "동" IS NOT NULL
+                                  UNION
+                                  SELECT gu, dong FROM public.disco_listing
+                                  WHERE active AND gu IS NOT NULL AND dong IS NOT NULL''')
+                rows = cursor.fetchall()
+            districts = {}
+            for row in rows:
+                gu = str(row['gu'] or '').strip().split()[-1] if str(row['gu'] or '').strip() else ''
+                dong = str(row['dong'] or '').strip()
+                if not gu or not dong:
+                    continue
+                districts.setdefault(gu, set()).add(dong)
+            return {'status': 'ready', 'districts': {gu: sorted(v) for gu, v in districts.items()}}
         if operation.startswith('selected-'):
             reference=json.loads(value)
             if not isinstance(reference,dict) or not re.fullmatch(r'(?:\d{1,30}|[a-f0-9-]{36}|[A-Za-z0-9]{4,24})',reference.get('sourceId','')):
