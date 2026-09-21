@@ -1,8 +1,8 @@
 import { apiFetch } from './api-client.mjs';
 
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const ICON = { '지하철역': '🚇', '도시개발': '🏗', '관광공연장': '🎭' };
-const LABEL = { '지하철역': '지하철역', '도시개발': '도시개발', '관광공연장': '관광공연장' };
+const ICON = { '지하철역': '🚇', '도시개발': '🏗', '공공사업': '🚧', '관광공연장': '🎭' };
+const LABEL = { '지하철역': '지하철역', '도시개발': '도시개발', '공공사업': '공공사업', '관광공연장': '관광공연장' };
 
 const distance = m => m == null ? '' : (m < 1000 ? `${m}m` : `${(m / 1000).toLocaleString('ko-KR', { maximumFractionDigits: 1 })}km`);
 const areaText = m2 => Number(m2) >= 10000 ? `${Math.round(m2 / 10000).toLocaleString('ko-KR')}만㎡` : (Number(m2) > 0 ? `${Math.round(m2).toLocaleString('ko-KR')}㎡` : '');
@@ -10,7 +10,7 @@ const areaText = m2 => Number(m2) >= 10000 ? `${Math.round(m2 / 10000).toLocaleS
 function row(item) {
   const meta = [];
   if (item.detail) meta.push(esc(item.detail));
-  if (item.status && item.type === '도시개발') meta.push(esc(item.status));
+  if (item.status && (item.type === '도시개발' || item.type === '공공사업')) meta.push(esc(item.status));
   const area = areaText(item.areaM2);
   if (area) meta.push(area);
   meta.push(distance(item.distanceM));

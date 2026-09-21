@@ -36,7 +36,7 @@ def read_surrounding(connection, query):
             WHERE geom IS NOT NULL
               AND ST_DWithin(geom::geography, pt.g::geography, %s)
             ORDER BY dist_m
-            LIMIT 80
+            LIMIT 300
             """,
             (lng, lat, radius))
         raw = cur.fetchall()
@@ -65,5 +65,15 @@ def read_surrounding(connection, query):
                 # 가장 가까운 항목을 대표로 두고 면적은 큰 값을 쓴다.
                 prev["areaM2"] = max(prev["areaM2"] or 0, item["areaM2"] or 0) or None
     projects = [merged[k] for k in order]
+    # 유형별 최대 3건까지만 (가까운 순) 남겨 한 유형이 목록을 독차지하지 않게 한다.
+    capped = []
+    counts = {}
+    for item in projects:
+        kind = item["type"]
+        if counts.get(kind, 0) >= 3:
+            continue
+        counts[kind] = counts.get(kind, 0) + 1
+        capped.append(item)
+    projects = capped
     return {"status": "ready", "basis": {"radiusM": radius, "locationQuality": "listing-coords"},
             "projects": projects, "source": "서울시 공공데이터"}
