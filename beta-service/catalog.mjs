@@ -62,6 +62,8 @@ export function browseCatalog(catalog, query) {
   }
   const districts=query.getAll('district');
   if (districts.some(d=>!DISTRICTS.includes(d))) return {status:'invalid'};
+  const neighborhoods=query.getAll('neighborhood');
+  if (neighborhoods.some(n=>!n.trim()||n.length>20)) return {status:'invalid'};
   const budget=query.has('budgetWon')?Number(query.get('budgetWon')):null;
   const minArea=query.has('minAreaM2')?Number(query.get('minAreaM2')):null;
   const maxArea=query.has('maxAreaM2')?Number(query.get('maxAreaM2')):null;
@@ -84,6 +86,7 @@ export function browseCatalog(catalog, query) {
   if(cohort&&!['existing','curated'].includes(cohort))return {status:'invalid'};
   const wanted=requestedIds?new Set(requestedIds):null;
   let rows=(wanted?catalog.rows.filter(row=>wanted.has(row.id)):catalog.rows.filter(row=>!excludedIds.has(row.id)&&(!districts.length||districts.includes(row.district)) &&
+    (!neighborhoods.length||neighborhoods.includes(row.neighborhood)) &&
     (!cohort||row.cohort===cohort) &&
     (budget===null || row.priceWon>0 && row.priceWon<=budget) &&
     (minArea===null || row.areaM2!==null&&row.areaM2>=minArea) &&

@@ -35,6 +35,7 @@ function savedCondition() {
 function conditionLabel(payload) {
   const parts = [];
   if (payload.districts?.length) parts.push(payload.districts.join('·'));
+  if (payload.neighborhoods?.length) parts.push(payload.neighborhoods.join('·'));
   if (payload.budgetWon) parts.push(`${(payload.budgetWon / 1e8).toLocaleString('ko-KR')}억 이하`);
   if (payload.minAreaM2) parts.push(`대지 ${Math.round(payload.minAreaM2)}㎡ 이상`);
   if (payload.zones?.length) parts.push(payload.zones.join('·'));
@@ -117,6 +118,7 @@ function needsSearch(message) {
     /(?:주거지역|상업지역|공업지역|녹지지역)/.test(t) ||
     /도로\s*(?:폭)?\s*\d+/.test(t) ||
     /도보\s*\d+\s*분/.test(t) ||
+    /(?:[가-힣]{1,5}[0-9]가|[가-힣]{1,6}동)(?=[\s,.]|이|에|은|는|쪽|근처|$)/.test(t) ||
     /(?:골목상권|전통시장|발달상권|관광특구)/.test(t) ||
     /(?:토지|땅|필지|건물|빌딩|상가|주택|근린|신축)/.test(t);
 }

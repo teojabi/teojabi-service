@@ -425,6 +425,15 @@ createServer(async (request, response) => {
     } catch {send(response,request,{status:'error',cases:[]},503);}
     return;
   }
+  if (path==='/api/neighborhoods') {
+    try {
+      const data=await catalog();
+      const districts={};
+      for(const row of data.rows){ if(!row.district||!row.neighborhood)continue; (districts[row.district]??=new Set()).add(row.neighborhood); }
+      send(response,request,{status:'ready',districts:Object.fromEntries(Object.entries(districts).map(([d,set])=>[d,[...set].sort((a,b)=>a.localeCompare(b,'ko-KR'))]))});
+    } catch {send(response,request,{status:'error',districts:{}},503);}
+    return;
+  }
   if (path==='/api/catalog' || path.startsWith('/api/listings/') || path.startsWith('/api/parcels/')) {
     try {
       const data=await catalog();
