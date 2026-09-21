@@ -1,8 +1,8 @@
 import { apiFetch } from './api-client.mjs';
 
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const ICON = { '지하철역': '🚇', '도시개발': '🏗', '공공사업': '🚧', '신축허가': '🏢', '관광공연장': '🎭' };
-const LABEL = { '지하철역': '지하철역', '도시개발': '도시개발', '공공사업': '공공사업', '신축허가': '신축허가', '관광공연장': '관광공연장' };
+const ICON = { '지하철역': '🚇', '도시철도': '🚈', '도시개발': '🏗', '공공사업': '🚧', '신축허가': '🏢', '관광공연장': '🎭' };
+const LABEL = { '지하철역': '지하철역', '도시철도': '신설 지하철', '도시개발': '도시개발', '공공사업': '공공사업', '신축허가': '신축허가', '관광공연장': '관광공연장' };
 
 const distance = m => m == null ? '' : (m < 1000 ? `${m}m` : `${(m / 1000).toLocaleString('ko-KR', { maximumFractionDigits: 1 })}km`);
 const areaText = m2 => Number(m2) >= 10000 ? `${Math.round(m2 / 10000).toLocaleString('ko-KR')}만㎡` : (Number(m2) > 0 ? `${Math.round(m2).toLocaleString('ko-KR')}㎡` : '');
