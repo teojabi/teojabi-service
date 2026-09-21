@@ -141,7 +141,7 @@ export class ListingMap {
         minZoom:9,maxZoom:20,zoomControl:false,mapDataControl:false,scaleControl:true});
       if(authError)throw new Error(authError);
       this.ready=true;
-      this.listeners.push(n.Event.addListener(this.map,'idle',()=>{this.layoutTransactions();this.onMove?.(this.view());}));
+      this.listeners.push(n.Event.addListener(this.map,'idle',()=>{this.layoutTransactions();if(this.commercialVisible)this.renderCommercialMarkers();this.onMove?.(this.view());}));
       this.listeners.push(n.Event.addListener(this.map,'click',()=>this.onMapClick?.()));
       this.map.data.setStyle({fillColor:'#93c5fd',fillOpacity:.35,strokeColor:'#2563eb',strokeWeight:3});
       this.resizeObserver=new ResizeObserver(()=>{if(this.ready && !this.dead && this.container.clientWidth)n.Event.trigger(this.map,'resize');});
@@ -221,7 +221,7 @@ export class ListingMap {
     const element=document.createElement('button');
     element.type='button';element.className='map-radar';
     const sales=Number(area.monthlySalesWon)||0;
-    const size=Math.round(Math.max(24,Math.min(48,24+Math.log10(sales+1)*3)));
+    const size=Math.round(Math.max(48,Math.min(96,48+Math.log10(sales+1)*6)));
     element.style.width=`${size}px`;element.style.height=`${size}px`;
     element.innerHTML='<i class="map-radar-ring r1"></i><i class="map-radar-ring r2"></i><i class="map-radar-ring r3"></i><i class="map-radar-core"></i>';
     element.title=`${area.name}${area.type?` (${area.type})`:''}`;
@@ -230,19 +230,32 @@ export class ListingMap {
   }
   setCommercialAreas(areas) {
     this.commercialAreas=areas||[];
+    this.renderCommercialMarkers();
+  }
+  // 지도 화면(뷰포트)에 보이는 상권만 그린다. 1,650개를 전부 그리면 버벅인다.
+  renderCommercialMarkers() {
     for(const {marker} of this.commercialMarkers){this.n.Event.clearInstanceListeners(marker);marker.setMap(null);}
     this.commercialMarkers=[];
-    if(!this.map||!this.ready)return;
+    if(!this.map||!this.ready||!this.commercialVisible)return;
+    const bounds=this.map.getBounds();
+    if(!bounds)return;
+    const sw=bounds.getSW(),ne=bounds.getNE(),margin=0.008,maxMarkers=300;
+    const visible=[];
     for(const area of this.commercialAreas) {
       if(!Number.isFinite(area.lat)||!Number.isFinite(area.lng))continue;
-      const marker=new this.n.Marker({map:this.commercialVisible?this.map:null,position:new this.n.LatLng(area.lat,area.lng),icon:this.commercialIcon(area),zIndex:0});
+      if(area.lat<sw.lat()-margin||area.lat>ne.lat()+margin||area.lng<sw.lng()-margin||area.lng>ne.lng()+margin)continue;
+      visible.push(area);
+      if(visible.length>=maxMarkers)break;
+    }
+    for(const area of visible) {
+      const marker=new this.n.Marker({map:this.map,position:new this.n.LatLng(area.lat,area.lng),icon:this.commercialIcon(area),zIndex:0});
       this.n.Event.addListener(marker,'click',()=>this.onCommercial?.(area));
       this.commercialMarkers.push({marker,area});
     }
   }
   setCommercialVisible(value) {
     this.commercialVisible=Boolean(value);
-    for(const {marker} of this.commercialMarkers)marker.setMap(this.commercialVisible?this.map:null);
+    this.renderCommercialMarkers();
   }
   fitTransactions() {
     if(!this.ready||!this.transactionsVisible||!this.transactionMarkers.length||!this.selectedItem?.position)return false;
