@@ -45,6 +45,45 @@ function hasUsableFilters(filters) {
   return Object.entries(filters || {}).some(([key, value]) => key !== 'limit' && (Array.isArray(value) ? value.length : value !== null && value !== undefined && value !== ''));
 }
 
+// 매물을 고른 뒤 "이 주위 상권 알려줘" 같은 자유 질문을 매물 메뉴로 연결한다.
+function listingQuestion(message) {
+  const t = String(message || '');
+  if (/상권|상가|번화가|동네|주변|주위|분위기|유동인구|매출/.test(t)) return 'commercialInfo';
+  if (/실거래|거래|시세|시가/.test(t)) return 'nearby';
+  if (/역|지하철|교통/.test(t)) return 'station';
+  if (/용도지역|규제|구역|지구단위/.test(t)) return 'zoning';
+  if (/용적률|건폐율|높이/.test(t)) return 'far';
+  if (/신축|건축|공사/.test(t)) return 'analyze';
+  return null;
+}
+
+// 지역·예산·역 같은 구체 조건이 있으면 새 검색으로 본다.
+function hasStrongCondition(message) {
+  const t = String(message || '');
+  return DISTRICTS.some(d => t.includes(d) || (d.endsWith('구') && d.length >= 3 && t.includes(d.slice(0, -1)))) ||
+    /[가-힣A-Za-z0-9]{2,12}\s*역/.test(t) ||
+    /\d+(?:\.\d+)?\s*(?:억|만원|평|㎡|m2|m²|제곱미터)/.test(t) ||
+    /(?:주거지역|상업지역|공업지역|녹지지역)/.test(t) ||
+    /(?:골목상권|전통시장|발달상권|관광특구)/.test(t) ||
+    /도로\s*(?:폭)?\s*\d+/.test(t);
+}
+
+// 대화창에서 보여줄 상권 요약. 상세페이지의 큰 카드 대신 짧고 편하게 정리한다.
+function commercialChatMarkup(data) {
+  if (!data || data.status !== 'ready' || !data.nearest) return '반경 500m 안에서 연결되는 상권 자료를 찾지 못했어요.';
+  const n = data.nearest;
+  const sales = n.monthlySalesWon > 0 ? `${(n.monthlySalesWon / 1e8).toLocaleString('ko-KR', { maximumFractionDigits: 1 })}억` : null;
+  const pop = n.population > 0 ? `${Math.round(n.population / 10000).toLocaleString('ko-KR')}만` : null;
+  const facts = [
+    sales ? `<div class="assistant-fact"><span>월 추정매출</span><b>${sales}</b></div>` : '',
+    pop ? `<div class="assistant-fact"><span>유동인구</span><b>${pop}</b></div>` : '',
+    n.changeIndex ? `<div class="assistant-fact"><span>변화지표</span><b>${esc(n.changeIndex)}</b></div>` : '',
+  ].filter(Boolean).join('');
+  const cats = (n.topCategories || []).slice(0, 3).map(c => `${esc(c.name)} ${(c.salesWon / 1e8).toLocaleString('ko-KR', { maximumFractionDigits: 1 })}억`).join(' · ');
+  const dist = n.distanceM != null ? `약 ${n.distanceM}m` : '가까운 거리';
+  return `🏪 여기서 가장 가까운 상권은 <b>${esc(n.name)}</b>${n.type ? ` (${esc(n.type)})` : ''}이고 ${dist} 거리예요.${facts ? `<div class="assistant-facts">${facts}</div>` : ''}${cats ? `<p class="assistant-conditions">주요 업종 · ${cats}</p>` : ''}<small>상권 대표점 기준 · 서울시 상권분석서비스(추정매출) 참고자료예요.</small><div class="assistant-chiprow"><button type="button" class="assistant-chip assistant-chip-primary" data-ask-commercial="${esc(n.name)} 상권">이 상권에서 매물 찾기</button></div>`;
+}
+
 // 실제 매물 조건(지역·예산·면적·용도지역·역·도로 등)이 있을 때만 검색 로딩을 띄운다.
 function needsSearch(message) {
   const t = String(message || '');
@@ -55,7 +94,7 @@ function needsSearch(message) {
     /(?:주거지역|상업지역|공업지역|녹지지역)/.test(t) ||
     /도로\s*(?:폭)?\s*\d+/.test(t) ||
     /도보\s*\d+\s*분/.test(t) ||
-    /(?:골목상권|전통시장|발달상권|관광특구|상권|월매출|유동인구)/.test(t) ||
+    /(?:골목상권|전통시장|발달상권|관광특구)/.test(t) ||
     /(?:토지|땅|필지|건물|빌딩|상가|주택|근린|신축)/.test(t);
 }
 
@@ -81,6 +120,7 @@ function askMenuMarkup(listing) {
       ${item('detail', '📋 상세페이지 보기', true, '')}
       ${item('station', '📍 역까지 거리', Boolean(listing.station), '역 거리를 확인할 수 없어요')}
       ${item('nearby', '📊 주변 실거래', true, '')}
+      ${item('commercialInfo', '🏪 주변 상권 알려줘', true, '')}
       ${item('commercial', '🏪 이 상권에서 매물 찾기', Boolean(listing.commercial), '인근 상권 정보가 없어요')}
       ${item('zoning', '🗺️ 용도지역·규제', hasPnu, '필지 정보가 없어 확인할 수 없어요')}
       ${item('far', '📐 용적률·높이 기준', hasPnu, '필지 정보가 없어 확인할 수 없어요')}
@@ -217,6 +257,11 @@ export function mountAssistant({ onResults, onAnalyze } = {}) {
         if (!data) html = '주변 실거래를 확인할 수 없어요.';
         else if (!data.cases?.length) html = '반경 1km 안에서 최근 36개월 토지·건물 거래를 찾지 못했어요.';
         else html = `📊 <b>주변 실거래 ${data.cases.length}곳</b><div class="assistant-facts">${data.cases.map(c => `<div class="assistant-fact"><span>${Math.round(c.distanceMeters)}m · ${esc(c.dealDate)}</span><b>${money(c.priceWon)}</b><span>대지 ${area(c.areaM2)}</span></div>`).join('')}</div><small>매물 핀 기준 직선거리이며 현재 시세를 보증하지 않아요.</small>`;
+      } else if (key === 'commercialInfo') {
+        const position = listing.position;
+        const data = position && position.lat != null && position.lng != null
+          ? await readJson(`/api/commercial?lat=${position.lat}&lng=${position.lng}&radius=500`) : null;
+        html = data ? commercialChatMarkup(data) : '주변 상권 자료를 불러오지 못했어요.';
       } else if (key === 'zoning') {
         // 상세페이지와 같은 렌더러를 써서 구역·도로·지구단위계획 문장을 그대로 보여준다.
         const data = await readJson(`/api/site-context/${encodeURIComponent(listing.id)}`);
@@ -238,6 +283,8 @@ export function mountAssistant({ onResults, onAnalyze } = {}) {
       const bubble = addResultBot(html + `<div class="assistant-chiprow"><button type="button" class="assistant-chip" data-ask-back="1">↩ 다른 항목 물어보기</button></div>`);
       bubble.querySelector('[data-ask-back]')?.addEventListener('click', () => openAskMenu(listing));
       bubble.querySelector('[data-ask-nav="detail"]')?.addEventListener('click', () => openDetailFor(listing));
+      const shopButton = bubble.querySelector('[data-ask-commercial]');
+      shopButton?.addEventListener('click', () => runSearch(null, { commercialName: shopButton.dataset.askCommercial, commercialRadiusM: 500, limit: 60 }));
     } catch {
       scan.remove();
       addBot('자료를 확인하지 못했어요. 잠시 후 다시 시도해 주세요.');
@@ -264,7 +311,8 @@ export function mountAssistant({ onResults, onAnalyze } = {}) {
         <button type="button" class="assistant-chip" data-send="강남구 골목상권 월매출 5억 이상">🏪 골목상권 매출 5억 이상</button>
         <button type="button" class="assistant-chip" data-send="유동인구 30만 이상 발달상권">🏪 유동인구 많은 발달상권</button>
         <button type="button" class="assistant-chip" data-send="화랑대역 7번 상권">🏪 상권 이름으로 찾기</button>
-      </div>`);
+      </div>
+      <small>매물 카드에서 "이 매물 물어보기"를 누른 뒤 "이 주위 상권 알려줘"처럼 편하게 물어봐도 돼요.</small>`);
     if (condition && hasUsableFilters(condition)) addBot(`<p>저장하신 조건이 있어요.</p><p class="assistant-saved-condition">${esc(conditionLabel(condition))}</p><small>말씀하신 조건이 있으면 그 조건으로 먼저 찾아드려요.</small><div class="assistant-chiprow"><button type="button" class="assistant-chip" data-condition="1">이 조건으로 찾기</button></div>`);
   };
 
@@ -388,6 +436,8 @@ export function mountAssistant({ onResults, onAnalyze } = {}) {
     if (busy) return;
     busy = true;
     if (message) addUser(message);
+    // 새 검색을 시작하면 이전에 고른 매물 기준 질문 맥락은 끝난다.
+    selectedListing = null;
     // 실제 매물 조건을 말했을 때만 검색 로딩을 보여준다. 인사·사이트 질문은 바로 답한다.
     const showScan = message ? needsSearch(message) : true;
     const started = Date.now();
@@ -460,6 +510,9 @@ export function mountAssistant({ onResults, onAnalyze } = {}) {
     const value = input.value.trim();
     if (!value) return;
     input.value = '';
+    // 매물을 고른 상태의 상권·실거래·역 같은 질문은 그 매물 기준으로 바로 답한다.
+    const question = selectedListing && !hasStrongCondition(value) ? listingQuestion(value) : null;
+    if (question) { addUser(value); askAbout(question, selectedListing); return; }
     runSearch(value);
   });
   return { open: openPanel, close: closePanel, ask: message => { openPanel(); runSearch(message); }, destroy: () => { window.removeEventListener('teojabi-map-click', onMapClick); fab.remove(); panel.remove(); } };

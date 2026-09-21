@@ -20,8 +20,10 @@ export function ruleFilters(text) {
   if (salesMatch) filters.minCommercialSalesWon = won(salesMatch[1]);
   const popMatch = t.match(/(?:유동\s*인구|유동인구)\s*(\d+(?:\.\d+)?)\s*만/);
   if (popMatch) filters.minCommercialPopulation = Math.round(Number(popMatch[1]) * 10000);
+  // "이 주위 상권"처럼 지시어가 붙은 표현을 상권 이름으로 잘못 잡지 않는다.
+  const genericCommercial = /여기|저기|거기|이곳|요기|주위|주변|근처|동네|이쪽|저쪽|(?:^|\s)이(?:\s|$)|(?:^|\s)그(?:\s|$)|(?:^|\s)저(?:\s|$)|(?:^|\s)어느(?:\s|$)|(?:^|\s)어떤(?:\s|$)|(?:^|\s)무슨(?:\s|$)/;
   const cname = t.match(/([가-힣A-Za-z0-9]{2,20}(?:\s*\d+번)?)\s*상권/);
-  if (cname && !COMMERCIAL_TYPES.some(type => cname[1].includes(type.replace('상권', '')))) {
+  if (cname && !COMMERCIAL_TYPES.some(type => cname[1].includes(type.replace('상권', ''))) && !genericCommercial.test(cname[1].trim())) {
     filters.commercialName = cname[1].trim();
   }
   // "상업지역", "특화구역" 같은 용도·구역 표현을 역 이름으로 잘못 잡지 않도록 제거한 뒤 역을 찾는다.
@@ -64,6 +66,13 @@ export function ruleFilters(text) {
 export function hasMeaningfulFilters(filters) {
   return Object.keys(filters || {}).some(key => !['limit', 'fromCondition'].includes(key) &&
     (Array.isArray(filters[key]) ? filters[key].length : filters[key] !== null && filters[key] !== undefined && filters[key] !== ''));
+}
+
+// "이 주위 상권 알려줘"처럼 현재 매물 기준으로 묻는 질문. 매물 맥락이 없으면 검색 대신 안내한다.
+export function isRelativeQuestion(text) {
+  const t = String(text || '');
+  return /여기|저기|거기|이곳|요기|주위|주변|근처|동네|이쪽|저쪽|이\s*매물|이\s*건물|이\s*땅|이\s*필지|이\s*상권|이\s*근처/.test(t) &&
+    /상권|상가|번화가|실거래|거래|시세|시가|역|지하철|교통|분위기|유동인구|매출|동네/.test(t);
 }
 
 // Spoken filters override saved ones. Saved values only fill gaps the user did not mention.
@@ -387,6 +396,10 @@ export async function parseAssistant(message, condition, geminiKey, editedFilter
     // 인사·감사는 검색 없이 바로 답한다.
     if (conversational && bare) {
       return { filters: {}, unsupported: null, source: 'chat', conflicts: [], reply: '안녕하세요! 터잡이 AI 부동산 비서예요. 터잡이 이용 방법이 궁금하면 물어봐 주세요. 원하시는 지역·예산·면적·용도지역을 알려주시면 매물을 찾아드릴게요.' };
+    }
+    // 매물 맥락 없이 "이 주위 상권"을 물으면 검색하지 않고 어느 매물 기준인지 안내한다.
+    if (bare && isRelativeQuestion(message)) {
+      return { filters: {}, unsupported: null, source: 'prompt', conflicts: [], reply: '어느 매물이나 지역 기준인지 알려주시면 주변 상권·실거래를 찾아드릴게요. 매물 카드에서 "이 매물 물어보기"를 누른 뒤 "이 주위 상권 알려줘"라고 물어보시면 바로 확인할 수 있어요.' };
     }
     // 사이트 사용법·기능 같은 간단한 질문은 모델 없이 바로 답한다.
     if (bare) {
