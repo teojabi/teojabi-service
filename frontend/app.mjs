@@ -11,7 +11,7 @@ import {readRecentSearch,writeRecentSearch,readMemberSearch,writeMemberSearch} f
 import {BUILD_DEFAULTS,buildCriteriaFields,buildConditionLabels,validateBuildCriteria} from './build-criteria.mjs';
 const app = document.querySelector('#app');
 const emptyDraft=()=>({budgetEok:'',districts:[],neighborhoods:[],purpose:null,minArea:'',maxArea:'',areaUnit:'pyeong',zones:[],...BUILD_DEFAULTS});
-const state = { screen: 'home', siteDraft:null, draft: emptyDraft(), applied: readRecentSearch(), editing: false, pane: 'list', activity:null, activityError:false, search:null };
+const state = { screen: 'home', siteDraft:null, draft: emptyDraft(), applied: readRecentSearch(), editing: false, pane: 'list', activity:null, activityError:false, search:null, neighborhoodsOpen:false };
 const appliedDraft=()=>state.applied?{...emptyDraft(),...state.applied,budgetEok:state.applied.budgetWon?String(state.applied.budgetWon/1e8):'',districts:[...state.applied.districts],zones:[...state.applied.zones]}:emptyDraft();
 let disposeExplorer;
 let renderVersion=0;
@@ -55,12 +55,16 @@ const parseGuDong = text => {
 function neighborhoodsSection(){
   const selected=state.draft.districts||[], chosen=state.draft.neighborhoods||[], index=neighborhoodIndex||{};
   const groups=selected.map(d=>[d,index[d]||[]]).filter(([,list])=>list.length);
-  const buttons=groups.length
+  const open=Boolean(state.neighborhoodsOpen);
+  const total=groups.reduce((n,[,list])=>n+list.length,0);
+  const toggle=total?`<button type="button" class="outline neighborhood-toggle" data-action="toggle-neighborhoods" aria-expanded="${open}">${open?'동 목록 접기':'동 목록 펼치기'} (${total}개)</button>`:'';
+  const buttons=open
     ? groups.map(([d,list])=>`<div class="neighborhood-group"><span>${escape(d)}</span><div class="districts" role="group" aria-label="${escape(d)} 동 선택">${list.map(n=>`<button type="button" data-action="neighborhood" data-value="${escape(n)}" aria-pressed="${chosen.includes(n)}">${escape(n)}</button>`).join('')}</div></div>`).join('')
-    : selected.length?'<p class="criteria-help">동 목록을 불러오는 중이에요.</p>':'<p class="criteria-help">자치구를 선택하면 그 구의 동을 고를 수 있어요.</p>';
+    : '';
+  const hint=selected.length?(total?'':'<p class="criteria-help">동 목록을 불러오는 중이에요.</p>'):'<p class="criteria-help">자치구를 선택하면 그 구의 동을 고를 수 있어요.</p>';
   const all=selected.length?[...new Set(selected.flatMap(d=>index[d]||[]))]:[...new Set(Object.values(index).flat())];
   const chips=chosen.length?`<div class="chosen-neighborhoods"><span>선택한 동</span>${chosen.map(n=>`<button type="button" data-action="neighborhood" data-value="${escape(n)}" aria-pressed="true">${escape(n)} ✕</button>`).join('')}</div>`:'';
-  return `<div class="neighborhood-block"><p class="criteria-help">같은 구 안에서 동까지 좁힐 수 있어요. 여러 개 선택하거나 직접 입력할 수 있어요.</p>${buttons}${chips}<label class="input-label" for="neighborhood-input">동 이름 직접 입력 <small>예: 마포구 성산동</small></label><div class="amount-wrap"><input id="neighborhood-input" name="neighborhoodInput" type="text" list="neighborhood-list" placeholder="마포구 성산동" autocomplete="off"><span>Enter 추가</span></div><datalist id="neighborhood-list">${all.map(n=>`<option value="${escape(n)}"></option>`).join('')}</datalist></div>`;
+  return `<div class="neighborhood-block"><p class="criteria-help">같은 구 안에서 동까지 좁힐 수 있어요. 여러 개 선택하거나 직접 입력할 수 있어요.</p>${hint}${toggle}${buttons}${chips}<label class="input-label" for="neighborhood-input">동 이름 직접 입력 <small>예: 마포구 성산동</small></label><div class="amount-wrap"><input id="neighborhood-input" name="neighborhoodInput" type="text" list="neighborhood-list" placeholder="마포구 성산동" autocomplete="off"><span>Enter 추가</span></div><datalist id="neighborhood-list">${all.map(n=>`<option value="${escape(n)}"></option>`).join('')}</datalist></div>`;
 }
 const back = (action, label = '이전으로') => `<button class="back" data-action="${action}"><span aria-hidden="true">←</span> ${label}</button>`;
 const progress = step => {const building=state.draft.purpose==='new-build',total=building?4:3,current=step==='build-use'?2:step+(building&&step>1?1:0);return `<div class="progress-row"><span>건물 찾기 <b>${current}</b> / ${total}</span><div class="progress" aria-label="${total}단계 중 ${current}단계">${Array.from({length:total},(_,i)=>`<span class="${current>=i+1?'on':''}"></span>`).join('')}</div></div>`;};
@@ -252,6 +256,12 @@ document.addEventListener('click', event => {
     state.draft.neighborhoods = (state.draft.neighborhoods || []).filter(n => allowed.has(n));
     render(false);
     app.querySelector(`[data-action="district"][data-value="${value}"]`).focus();
+    return;
+  }
+  if (action === 'toggle-neighborhoods') {
+    state.neighborhoodsOpen = !state.neighborhoodsOpen;
+    render(false);
+    app.querySelector('[data-action="toggle-neighborhoods"]')?.focus();
     return;
   }
   if (action === 'neighborhood') {
