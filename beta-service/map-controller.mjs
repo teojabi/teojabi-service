@@ -109,7 +109,7 @@ export async function openStreetView(position,label) {
 }
 // 상세페이지에 작게 펼쳐 보여주는 인라인 네이버 거리뷰. 실패하면 is-empty 상태로 남긴다.
 export function mountStreetPreview(host, position) {
-  let closed=false,pano=null,n=null,listener=null;
+  let closed=false,pano=null,n=null,listeners=[];
   const empty=()=>{if(!closed)host.classList.add('is-empty');};
   if(!host||!position||position.lat==null||position.lng==null){empty();return ()=>{};}
   host.classList.remove('is-ready','is-empty');
@@ -117,12 +117,16 @@ export function mountStreetPreview(host, position) {
     if(closed||!host.isConnected)return;
     n=maps;
     if(!n.Panorama){empty();return;}
-    try{pano=new n.Panorama(host,{position:new n.LatLng(position.lat,position.lng),pov:{pan:0,tilt:0,fov:100}});}
+    const point=new n.LatLng(position.lat,position.lng);
+    try{pano=new n.Panorama(host,{position:point,pov:{pan:0,tilt:0,fov:100}});}
     catch{empty();return;}
     host.classList.add('is-ready');
-    listener=n.Event.addListener(pano,'pano_status',value=>{if(value!=='OK'){host.classList.remove('is-ready');host.classList.add('is-empty');}});
+    // 확대 뷰와 동일하게 매물(건물) 방향을 바라본다.
+    const face=()=>{if(closed)return;const look=pano.getProjection()?.fromCoordToPov(point);if(Number.isFinite(look?.pan))pano.setPov({...pano.getPov(),pan:look.pan,tilt:0});};
+    for(const ev of ['init','pano_changed'])listeners.push(n.Event.addListener(pano,ev,face));
+    listeners.push(n.Event.addListener(pano,'pano_status',value=>{if(value!=='OK'){host.classList.remove('is-ready');host.classList.add('is-empty');}}));
   }).catch(empty);
-  return ()=>{closed=true;try{if(n&&listener)n.Event.removeListener(listener);}catch{/* partial SDK */}try{pano?.destroy?.();}catch{/* partial SDK */}};
+  return ()=>{closed=true;try{if(n&&pano)for(const l of listeners)n.Event.removeListener(l);}catch{/* partial SDK */}try{pano?.destroy?.();}catch{/* partial SDK */}};
 }
 const formatPrice=won=>won>0?`${(won/1e8).toLocaleString('ko-KR',{maximumFractionDigits:2})}억`:'가격 확인 중';
 export const markerArea=(m2,unit='m2')=>Number.isFinite(m2)&&m2>0?formatArea(m2,unit):'면적 미기재';
