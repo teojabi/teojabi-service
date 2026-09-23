@@ -6,6 +6,8 @@ on:
       - main
     paths:
       - 'frontend/**'
+      - 'scripts/**'
+      - '.github/workflows/frontend-deploy.yml'
   workflow_dispatch:
 
 permissions:
@@ -20,10 +22,23 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # JS/CSS 최소화 + 캐시 버전(?v=<commit sha>) 부여.
+      # 커밋마다 자산 URL이 바뀌므로 Cloudflare/GitHub Pages에서 장기 캐시해도 갱신이 보장된다.
+      - name: Optimize static assets
+        run: |
+          set -e
+          npm install --global esbuild@0.24.0
+          python3 scripts/optimize_frontend.py frontend dist "${GITHUB_SHA::12}"
+
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v5
         with:
-          path: 'frontend'
+          path: 'dist'
 
   deploy:
     environment:
