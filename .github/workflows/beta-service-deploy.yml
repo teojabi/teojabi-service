@@ -18,35 +18,34 @@ jobs:
       - name: Package beta data service
         run: tar -czf beta-service-deploy.tgz -C beta-service .
 
+      - name: Install sshpass
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq sshpass
+
       # SSH 핸드셰이크가 간헐적으로 끊기는 문제(ssh: handshake failed: EOF)를 흡수하도록 업로드를 재시도한다.
       - name: Upload beta data service
-        uses: Wandalen/wretry.action@v3
+        uses: nick-fields/retry@v3
+        env:
+          SSHPASS: ${{ secrets.NCP_SSH_PASSWORD }}
         with:
-          action: appleboy/scp-action@v0.1.7
-          attempt_limit: 4
-          attempt_delay: 15000
-          with: |
-            host: ${{ secrets.NCP_SSH_HOST }}
-            username: ${{ secrets.NCP_SSH_USER }}
-            password: ${{ secrets.NCP_SSH_PASSWORD }}
-            source: beta-service-deploy.tgz
-            target: ~/teojabi-runtime/beta-service
-            timeout: 2m
-            command_timeout: 5m
+          timeout_minutes: 5
+          max_attempts: 4
+          retry_wait_seconds: 15
+          command: >-
+            sshpass -e scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null
+            beta-service-deploy.tgz ${{ secrets.NCP_SSH_USER }}@${{ secrets.NCP_SSH_HOST }}:teojabi-runtime/beta-service/
 
       # 활성화 스크립트는 재실행에 안전하지 않으므로, 먼저 SSH 접속이 될 때까지 재시도해 연결 실패를 흡수한다.
       - name: Wait for SSH before activating beta data service
-        uses: Wandalen/wretry.action@v3
+        uses: nick-fields/retry@v3
+        env:
+          SSHPASS: ${{ secrets.NCP_SSH_PASSWORD }}
         with:
-          action: appleboy/ssh-action@v1.1.0
-          attempt_limit: 5
-          attempt_delay: 20000
-          with: |
-            host: ${{ secrets.NCP_SSH_HOST }}
-            username: ${{ secrets.NCP_SSH_USER }}
-            password: ${{ secrets.NCP_SSH_PASSWORD }}
-            command_timeout: 1m
-            script: echo ssh-ready
+          timeout_minutes: 2
+          max_attempts: 8
+          retry_wait_seconds: 15
+          command: >-
+            sshpass -e ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10
+            ${{ secrets.NCP_SSH_USER }}@${{ secrets.NCP_SSH_HOST }} echo ssh-ready
 
       - name: Activate beta data service
         uses: appleboy/ssh-action@v1.1.0
