@@ -148,23 +148,25 @@ async function loadCatalog() {
   const filtered=snapshot&&Array.isArray(snapshot.rows)?{...snapshot,rows:snapshot.rows.filter(row=>!hiddenIds.has(row.id))}:snapshot;
   return selectedCatalog(filtered,zoning,development);
 }
-// 동 목록은 전체 매물 스냅샷(curation-sources)에서 바로 뽑아 캐시한다. DB 조회 없이 로컬 파일만 읽는다.
+// 동 목록은 함께 배포하는 작은 정적 파일(neighborhoods.json)에서 읽는다. 무거운 스냅샷 파싱이나 DB 조회가 없다.
 let neighborhoodCache=null, neighborhoodCachedAt=0, neighborhoodPromise=null;
 async function neighborhoodIndex() {
   if(neighborhoodCache&&Date.now()-neighborhoodCachedAt<3600000)return neighborhoodCache;
   if(neighborhoodPromise)return neighborhoodPromise;
   neighborhoodPromise=(async()=>{
-    const districts={};
-    const add=(gu,dong)=>{ if(gu&&dong&&DISTRICTS.includes(gu))(districts[gu]??=new Set()).add(dong); };
-    const sources=await readOptionalJson('.local/curation-sources.json').catch(()=>null);
-    for(const row of (Array.isArray(sources?.rows)?sources.rows:[])){ const s=row?.snapshot||{}; add(s.district,s.neighborhood); }
-    if(!Object.keys(districts).length){
+    let districts=null;
+    try {
+      const snapshot=JSON.parse(await readFile(join(root,'neighborhoods.json'),'utf8'));
+      if(snapshot?.status==='ready'&&snapshot.districts&&Object.keys(snapshot.districts).length)districts=snapshot.districts;
+    } catch {}
+    if(!districts){
       const [snapshot,hidden]=await Promise.all([readOptionalJson('.local/selected-catalog.json'),readOptionalJson('.local/curation-hidden.json')]);
       const hiddenIds=new Set(Array.isArray(hidden?.ids)?hidden.ids:[]);
-      for(const row of (snapshot?.rows||[])){ if(hiddenIds.has(row.id))continue; add(row.district,row.neighborhood); }
+      const fallback={};
+      for(const row of (snapshot?.rows||[])){ if(hiddenIds.has(row.id)||!row.district||!row.neighborhood)continue; (fallback[row.district]??=new Set()).add(row.neighborhood); }
+      districts=Object.fromEntries(Object.entries(fallback).map(([d,set])=>[d,[...set].sort((a,b)=>a.localeCompare(b,'ko-KR'))]));
     }
-    neighborhoodCache=Object.fromEntries(Object.entries(districts).map(([d,set])=>[d,[...set].sort((a,b)=>a.localeCompare(b,'ko-KR'))]));
-    neighborhoodCachedAt=Date.now();
+    neighborhoodCache=districts; neighborhoodCachedAt=Date.now();
     return neighborhoodCache;
   })().finally(()=>{neighborhoodPromise=null;});
   return neighborhoodPromise;
