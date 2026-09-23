@@ -70,6 +70,10 @@ jobs:
             free -m
             pm2 flush teojabi-data >/dev/null 2>&1 || true
             find "$HOME/.pm2/logs" -type f -name 'teojabi-data-*.log' -size +20M -exec truncate -s 0 {} \; 2>/dev/null || true
+            # 디스크가 빠듯한 서버라 캐시·로그를 함께 비운다.
+            rm -rf "$HOME/.npm/_cacache"
+            sudo -n apt-get clean >/dev/null 2>&1 || true
+            sudo -n journalctl --vacuum-size=50M >/dev/null 2>&1 || true
 
             # 무료 스왑을 1회 생성해 OOM으로 서버가 멈추는 것을 예방한다. (이미 있으면 건너뜀, 실패해도 배포는 계속)
             # 디스크 여유가 부족하면 만들지 않는다.
@@ -203,5 +207,6 @@ jobs:
             sudo nginx -t
             sudo systemctl reload nginx
             sleep 3
-            curl --fail --silent --show-error -H 'Host: api.teojabi.com' 'http://127.0.0.1:4173/api/catalog?limit=1' >/dev/null
+            # 봇 가드(Origin/Referer)를 통과하도록 Origin을 붙여 로컬 헬스체크한다.
+            curl --fail --silent --show-error -H 'Host: api.teojabi.com' -H 'Origin: https://teojabi.com' 'http://127.0.0.1:4173/api/catalog?limit=1' >/dev/null
             pm2 describe teojabi-data
