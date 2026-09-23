@@ -839,3 +839,4 @@ body.architect-lightbox-open{overflow:hidden}
 .neighborhood-group .districts{margin-top:0}
 .chosen-neighborhoods{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:12px;font-size:12px;color:var(--muted)}
 .chosen-neighborhoods button{background:var(--selected);border:1px solid var(--green);color:var(--green);border-radius:999px;padding:5px 10px;font-size:12px;cursor:pointer}
+.neighborhood-toggle{display:block;width:100%;margin-top:10px;padding:11px;font-size:13px;font-weight:600}
