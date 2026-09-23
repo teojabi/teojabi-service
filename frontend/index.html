@@ -4,7 +4,9 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#F7F8FA">
-  <script src="./theme.js"></script>
+  <script>(()=>{const key='teojabi.theme.v1';let mode='light';try{if(localStorage.getItem(key)==='dark')mode='dark';}catch{}const apply=()=>{document.documentElement.dataset.theme=mode;document.querySelector('meta[name="theme-color"]')?.setAttribute('content',mode==='dark'?'#080F21':'#F7F8FA');const button=document.querySelector('#theme-toggle');if(button){button.textContent=mode==='dark'?'☀':'☾';button.setAttribute('aria-pressed',String(mode==='dark'));button.setAttribute('aria-label',mode==='dark'?'라이트 모드로 전환':'다크 모드로 전환');button.title=button.getAttribute('aria-label');}window.dispatchEvent(new CustomEvent('teojabi-theme',{detail:mode}));};apply();document.addEventListener('DOMContentLoaded',()=>{apply();document.querySelector('#theme-toggle')?.addEventListener('click',()=>{mode=mode==='dark'?'light':'dark';try{localStorage.setItem(key,mode);}catch{}apply();});});window.addEventListener('storage',event=>{if(event.key===key){mode=event.newValue==='dark'?'dark':'light';apply();}});})();</script>
+  <link rel="preconnect" href="https://oapi.map.naver.com" crossorigin>
+  <link rel="preconnect" href="https://openapi.map.naver.com" crossorigin>
   <title>터잡이 | 건물·토지 매물 찾기와 개발 검토</title>
   <link rel="stylesheet" href="./styles.css?v=20260915-site-map">
   <link rel="stylesheet" href="./theme.css?v=20260915-site-map">
@@ -24,7 +26,7 @@
 </head>
 <body>
   <header class="header">
-    <button class="brand" data-action="home" aria-label="터잡이 시작 화면"><img src="./assets/logo.png" alt="터잡이"><span>BETA</span></button>
+    <button class="brand" data-action="home" aria-label="터잡이 시작 화면"><img src="./assets/logo.png" alt="터잡이" width="244" height="119"><span>BETA</span></button>
     <nav aria-label="주요 메뉴"><button data-action="find">건물 찾기</button><button data-action="analyze">신축 검토</button></nav>
     <div class="header-actions"><button type="button" data-action="login" id="member-login">로그인·회원가입</button><button type="button" data-action="saved">내 보관함</button><button id="theme-toggle" class="theme-icon-button" type="button" aria-label="다크 모드로 전환" aria-pressed="false" title="다크 모드로 전환">☾</button></div>
   </header>
