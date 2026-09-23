@@ -328,6 +328,7 @@ createServer(async (request, response) => {
   let path;
   try { path = decodeURIComponent(new URL(request.url, 'http://localhost').pathname); }
   catch { response.writeHead(400).end(); return; }
+  if (path==='/api/health') { send(response,request,{status:'ready',at:new Date().toISOString()}); return; }
   if (path==='/api/runtime') {
     try {
       const override=await readOptionalJson('.local/map-config.json');
