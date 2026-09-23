@@ -98,6 +98,8 @@ async function bootstrap() {
     SwaggerModule.setup('api/docs', app, document);
   }
 
-  await app.listen(process.env.PORT ?? 3000);
+  // 운영에서는 nginx(127.0.0.1)만 접근하도록 루프백에 바인딩한다. 외부 직접 노출(nginx 우회)을 막는다.
+  const bindHost = process.env.BIND_HOST || (process.env.NODE_ENV === 'production' ? '127.0.0.1' : '0.0.0.0');
+  await app.listen(process.env.PORT ?? 3000, bindHost);
 }
 bootstrap();
