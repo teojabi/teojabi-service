@@ -37,6 +37,7 @@ teojabi-service/
 | 04 | [프론트엔드 구조](docs/design/04-frontend-architecture.md) | 디렉토리 구조, 6개 화면 설계, UI/UX 원칙 |
 | 05 | [인프라 및 CI/CD](docs/design/05-infra-cicd.md) | 호스팅 구성, GitHub Actions 파이프라인, 환경 설정 |
 | 06 | [개발 컨벤션](docs/design/06-conventions.md) | 코드·DB 명명 규칙, 브랜치 전략, 커밋 메시지 규칙 |
+| 07 | [보안 설계](docs/design/07-security.md) | Cloudflare WAF, NCP ACG, nginx, 봇 가드, Supabase RLS |
 
 ### 가이드 문서 (`docs/guide/`)
 
