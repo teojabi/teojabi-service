@@ -158,6 +158,9 @@ jobs:
             if ! sudo grep -q 'server_tokens off' "$nginx_file"; then
               sudo sed -i '/server_name api\.teojabi\.com;/a\    server_tokens off;' "$nginx_file"
             fi
+            if ! sudo grep -q 'Strict-Transport-Security' "$nginx_file"; then
+              sudo sed -i '/server_name api\.teojabi\.com;/a\    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;' "$nginx_file"
+            fi
             sudo nginx -t
             sudo systemctl reload nginx
             sleep 3
