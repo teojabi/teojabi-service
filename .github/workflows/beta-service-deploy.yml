@@ -71,6 +71,24 @@ jobs:
             pm2 flush teojabi-data >/dev/null 2>&1 || true
             find "$HOME/.pm2/logs" -type f -name 'teojabi-data-*.log' -size +20M -exec truncate -s 0 {} \; 2>/dev/null || true
 
+            # 무료 스왑을 1회 생성해 OOM으로 서버가 멈추는 것을 예방한다. (이미 있으면 건너뜀, 실패해도 배포는 계속)
+            # 디스크 여유가 부족하면 만들지 않는다.
+            if [ ! -f /swapfile ]; then
+              free_kb=$(df -Pk / | awk 'NR==2 {print $4}')
+              swap_mb=0
+              if [ "$free_kb" -ge 3145728 ]; then swap_mb=2048; elif [ "$free_kb" -ge 1572864 ]; then swap_mb=1024; fi
+              if [ "$swap_mb" -gt 0 ]; then
+                echo "--- CREATING ${swap_mb}MB SWAP ---"
+                if sudo -n fallocate -l ${swap_mb}M /swapfile 2>/dev/null || sudo -n dd if=/dev/zero of=/swapfile bs=1M count=${swap_mb} status=none 2>/dev/null; then
+                  { sudo -n chmod 600 /swapfile && sudo -n mkswap /swapfile >/dev/null && sudo -n swapon /swapfile && { grep -q '/swapfile' /etc/fstab || echo '/swapfile none swap sw 0 0' | sudo -n tee -a /etc/fstab >/dev/null; } && free -m; } || echo 'WARN: swap setup failed'
+                else
+                  echo 'WARN: could not allocate /swapfile (sudo unavailable?)'
+                fi
+              else
+                echo "WARN: skipping swap (free disk ${free_kb}KB too small)"
+              fi
+            fi
+
             if ! python3 -m venv --help >/dev/null 2>&1 || ! python3 -m ensurepip --version >/dev/null 2>&1; then
               sudo apt-get update -qq
               sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq python3.12-venv
