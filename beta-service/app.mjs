@@ -1,7 +1,7 @@
 import { apiFetch } from './api-client.mjs';
 import {resumeSignup} from './signup.mjs';
 import { member,openMember,openLogin,previewMember } from './member.mjs';
-import { mountAssistant, ASSISTANT_ROBOT } from './assistant.mjs';
+import { ASSISTANT_ROBOT } from './assistant-icon.mjs';
 import { createSiteDraft } from './site-inputs.mjs';
 import { DISTRICTS, toWon } from './policy.mjs';
 import { PURPOSES, purposeLabel, parseAreaRange } from './search-options.mjs';
@@ -138,8 +138,17 @@ updateMemberButton();
 member.refresh();
 resumeSignup(member);
 let assistantPayload=null,assistantOpenId=null;
-const assistantControls=mountAssistant({onResults:(data,openId)=>{assistantPayload=data;assistantOpenId=openId||null;state.screen='results';history.replaceState(null,'',location.pathname+(openId?'#listing='+encodeURIComponent(openId):'#assistant'));render();},onAnalyze:listing=>{if(state.siteDraft?.listingId!==listing.id)state.siteDraft=createSiteDraft(listing);state.screen='analyze';history.replaceState(null,'',location.pathname);render();}});
-window.addEventListener('teojabi-ask',event=>{const message=String(event.detail||'').trim();if(message)assistantControls?.ask(message);});
+// AI 비서(약 41KB)는 홈 초기 로드에서 제외하고, 처음 열거나 물어볼 때 지연 로딩한다.
+let assistantControls=null,assistantModulePromise=null;
+function ensureAssistant(){
+  if(assistantControls)return Promise.resolve(assistantControls);
+  assistantModulePromise??=import('./assistant.mjs');
+  return assistantModulePromise.then(module=>{
+    assistantControls??=module.mountAssistant({onResults:(data,openId)=>{assistantPayload=data;assistantOpenId=openId||null;state.screen='results';history.replaceState(null,'',location.pathname+(openId?'#listing='+encodeURIComponent(openId):'#assistant'));render();},onAnalyze:listing=>{if(state.siteDraft?.listingId!==listing.id)state.siteDraft=createSiteDraft(listing);state.screen='analyze';history.replaceState(null,'',location.pathname);render();}});
+    return assistantControls;
+  });
+}
+window.addEventListener('teojabi-ask',event=>{const message=String(event.detail||'').trim();if(message)ensureAssistant().then(controls=>controls.ask(message));});
 function home() {
   return `<section class="home"><div class="intro"><div><span class="eyebrow">YOUR NEXT PLACE, TEOJABI</span><h1>미래의 건물,<br>찾는 기준부터.</h1></div><div class="intro-brand"><span class="home-symbol" role="img" aria-label="터잡이 로고마크"></span><p class="lead">원하는 공간을 찾는 일도,<br> 내 공간을 다시 바라보는 일도.<br> 터잡이에서 차근차근 시작하세요.</p></div></div>
     <button type="button" class="assistant-banner" data-action="assistant" aria-label="AI 부동산 비서 열기"><span class="assistant-banner-icon" aria-hidden="true">${ASSISTANT_ROBOT}</span><span class="assistant-banner-main"><span class="assistant-banner-text"><b>AI와 함께 맞춤 설정하고<br>매물을 찾아보세요.</b></span><span class="assistant-banner-cta">시작하기 <span class="circle">${arrow}</span></span></span><small class="assistant-banner-desc">"종로구 상업지역 100억 이하 도로 6m" 처럼 편하게 물어보세요.</small></button>
@@ -225,7 +234,7 @@ document.addEventListener('click', event => {
   if (['home','find','analyze','faq'].includes(action)) history.replaceState(null,'',location.pathname);
   if (action === 'faq') { state.screen='home'; render(false); app.querySelector('#faq-title').focus({preventScroll:true}); app.querySelector('#service-faq').scrollIntoView({behavior:'smooth'}); return; }
   if (action === 'login') {member.status==='ready'?openMember():openLogin();return;}
-  if (action === 'assistant') {assistantControls?.open();return;}
+  if (action === 'assistant') {ensureAssistant().then(controls=>controls.open());return;}
   if (action === 'preview-member') {previewMember();return;}
   if (action === 'saved') {openMember();return;}
   if (action === 'home') { state.screen = 'home'; state.editing = false; }

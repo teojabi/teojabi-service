@@ -1,0 +1,3 @@
+// 경량 아이콘 모듈. 무거운 assistant.mjs(41KB)와 분리해, 초기 화면(배너)에서
+// 아이콘만 즉시 쓰고 비서 본체는 필요할 때 지연 로딩한다.
+export const ASSISTANT_ROBOT = '<svg viewBox="0 0 48 48" aria-hidden="true"><rect x="12" y="16" width="24" height="20" rx="7" fill="#ffe08a" stroke="currentColor" stroke-width="2.4"/><circle cx="24" cy="9" r="2.6" fill="currentColor"/><path d="M24 12v4" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/><circle cx="19" cy="25" r="2.4" fill="currentColor"/><circle cx="29" cy="25" r="2.4" fill="currentColor"/><path d="M19 31c2.4 2 7.6 2 10 0" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" fill="none"/><path d="M9 24v6M39 24v6" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>';

@@ -33,6 +33,7 @@ const files = new Map([
   ['/curation.mjs',['curation.mjs','text/javascript']],
   ['/curation.css',['curation.css','text/css']],
   ['/admin-access.mjs',['admin-access.mjs','text/javascript']],
+  ['/assistant-icon.mjs',['assistant-icon.mjs','text/javascript']],
   ['/', ['index.html','text/html']], ['/index.html',['index.html','text/html']],
   ...['terms','privacy','paid-service','refund','business-info'].map(name=>[`/${name}.html`,[`${name}.html`,'text/html']]),
   ['/policy-pages.css',['policy-pages.css','text/css']],
