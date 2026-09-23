@@ -117,9 +117,11 @@ def source_from(has_disco, has_premium):
         parts.append('''SELECT d.did::text AS "매물번호", '신규'::text AS "상태", (d.price_manwon/10000.0)::numeric AS "거래가격",
                       d.land_area_m2::numeric AS "대지면적", d.floor_area_m2::text AS "연면적", d.address::text AS "대지위치",
                       d.gu::text AS "구", d.dong::text AS "동",
-                      (CASE d.ts WHEN 1 THEN '토지' ELSE '건물' END)::text AS "주용도코드명",
+                      (CASE d.ts WHEN 1 THEN '토지' ELSE COALESCE(NULLIF(to_jsonb(d)->>'main_use',''),'건물') END)::text AS "주용도코드명",
                       d.use_zone::text AS "용도지역", d.road_width_m::numeric AS "도로폭_m",
-                      NULL::text AS "층정보", NULL::text AS "사용승인일자", NULL::text AS "매물특징", NULL::text AS "용적률",
+                      (CASE WHEN COALESCE((to_jsonb(d)->>'above_floors')::int,0)>0 OR COALESCE((to_jsonb(d)->>'below_floors')::int,0)>0
+                            THEN '-'||COALESCE((to_jsonb(d)->>'below_floors')::int,0)||'/'||COALESCE((to_jsonb(d)->>'above_floors')::int,0) END)::text AS "층정보",
+                      (to_jsonb(d)->>'approval_date')::text AS "사용승인일자", NULL::text AS "매물특징", (to_jsonb(d)->>'far_percent')::text AS "용적률",
                       d.pnu::text AS pnu, d.lat::double precision AS lat, d.lng::double precision AS lng,
                       'disco'::text AS source_kind, COALESCE(d.source_url, 'https://disco.re/m/' || d.did)::text AS source_url
                FROM public.disco_listing d
