@@ -60,22 +60,3 @@ export function mountSurrounding(host, listing) {
   return () => { cancelled = true; };
 }
 
-export function renderPlannedRail(data) {
-  if (!data || data.status !== 'ready' || !Array.isArray(data.items) || !data.items.length) {
-    return '<p class="case-note">신설 지하철 자료를 불러오지 못했어요.</p>';
-  }
-  const rows = data.items.map(item => `<li><b>${esc(item.name)}</b><small>${esc(item.line || '')}${item.opening ? ` · 개통예정 ${esc(item.opening)}` : ''}</small></li>`).join('');
-  const url = /^https?:\/\//.test(String(data.sourceUrl || '')) ? data.sourceUrl : '';
-  return `<ul class="planned-rail-list">${rows}</ul>
-    <p class="surrounding-source">출처 · ${url ? `<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(data.source)} ↗</a>` : esc(data.source)} · ${esc(data.notice || '')}</p>`;
-}
-
-export function mountPlannedRail(host) {
-  let cancelled = false;
-  host.innerHTML = '<p class="case-note">신설 지하철 정보를 불러오고 있어요.</p>';
-  apiFetch('/api/planned-rail')
-    .then(response => response.json())
-    .then(data => { if (!cancelled) host.innerHTML = renderPlannedRail(data); })
-    .catch(() => { if (!cancelled) host.innerHTML = '<p class="case-note">신설 지하철 자료를 불러오지 못했어요.</p>'; });
-  return () => { cancelled = true; };
-}
