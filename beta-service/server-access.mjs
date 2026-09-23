@@ -11,6 +11,15 @@ export function serviceConfig(env=process.env) {
   return {production,origins,accountBase,hosts};
 }
 export function allowedOrigin(origin,config) {return !origin||config.origins.includes(origin);}
+// Origin 헤더가 없는 요청(같은 출처 GET 등)은 Referer로 같은 출처/허용 출처인지 확인한다.
+export function allowedReferer(referer,config) {
+  try {
+    const host=new URL(String(referer||'')).host;
+    if(!host)return false;
+    if(config.hosts.includes(host))return true;
+    return config.origins.some(origin=>{try{return new URL(origin).host===host;}catch{return false;}});
+  } catch {return false;}
+}
 export async function authorizeCuration(request,config,fetcher=fetch) {
   if(!config.production)return 200;
   if(!allowedOrigin(request.headers.origin,config))return 403;
