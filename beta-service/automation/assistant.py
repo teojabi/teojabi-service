@@ -128,16 +128,19 @@ def source_from(has_disco, has_premium):
                WHERE d.active AND d.lat IS NOT NULL AND d.lng IS NOT NULL AND d.price_manwon IS NOT NULL AND d.price_manwon > 0''')
     if has_premium:
         parts.append('''SELECT p.id::text AS "매물번호", '신규'::text AS "상태", (p.price/100000000.0)::numeric AS "거래가격",
-                      ''' + PREMIUM_AREA_SQL + ''' AS "대지면적", NULL::text AS "연면적",
+                      COALESCE(f.land_area_m2, ''' + PREMIUM_AREA_SQL + ''') AS "대지면적", f.floor_area_m2::text AS "연면적",
                       COALESCE(NULLIF(m."대지위치",''), p.address)::text AS "대지위치",
                       split_part(m."시군구코드명", ' ', 1)::text AS "구",
                       nullif(trim(substring(m."시군구코드명" from position(' ' in m."시군구코드명")+1)),'')::text AS "동",
-                      '건물'::text AS "주용도코드명", m."용도지역"::text AS "용도지역", m."도로폭_m"::numeric AS "도로폭_m",
-                      NULL::text AS "층정보", NULL::text AS "사용승인일자", p.title::text AS "매물특징", NULL::text AS "용적률",
+                      COALESCE(NULLIF(f.main_use,''), '건물')::text AS "주용도코드명", m."용도지역"::text AS "용도지역", m."도로폭_m"::numeric AS "도로폭_m",
+                      (CASE WHEN COALESCE(f.above_floors,0)>0 OR COALESCE(f.below_floors,0)>0
+                            THEN '-'||COALESCE(f.below_floors,0)||'/'||COALESCE(f.above_floors,0) END)::text AS "층정보",
+                      f.approval_date::text AS "사용승인일자", p.title::text AS "매물특징", f.far_percent::text AS "용적률",
                       p.pnu::text AS pnu, ST_Y(p.location::geometry)::double precision AS lat, ST_X(p.location::geometry)::double precision AS lng,
                       'premium'::text AS source_kind, NULL::text AS source_url
                FROM public.property p
                LEFT JOIN public.master_land m ON m.pnu = p.pnu
+               LEFT JOIN public.property_building_facts f ON f.property_id = p.id
                WHERE p.location IS NOT NULL AND p.price IS NOT NULL AND p.price > 0''')
     return '(' + ' UNION ALL '.join(parts) + ')'
 
