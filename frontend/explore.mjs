@@ -22,6 +22,15 @@ const date=value=>value?new Date(value).toLocaleString('ko-KR',{timeZone:'Asia/S
 const compactSuggestionLabel=label=>String(label).replace(/볼까요\??/g,'').replace(/으로 넓혀/g,'').replace(/까지 높여/g,'까지').replace(/이하로 줄여/g,'이하').replace(/만 /g,'').replace(/부터 살펴/g,'부터').replace(/조건을 /g,'').replace(/제한 /g,'').replace(/을 풀어/g,' 해제').trim();
 const percent=value=>Number.isFinite(Number(value))&&Number(value)>0?`${Number(value).toLocaleString('ko-KR',{maximumFractionDigits:2})}%`:'';
 const DOCUMENT_LINKS=Object.freeze({registry:'https://www.iros.go.kr/'});
+const normalizeFloorScale=value=>{
+  const text=String(value||'').trim();
+  const m=text.match(/^-?(\d+)\s*\/\s*(\d+)$/);
+  if(!m)return text;
+  const below=text.startsWith('-')?Number(m[1]):0,above=Number(m[2]),parts=[];
+  if(below)parts.push(`지하 ${below}층`);
+  if(above)parts.push(`지상 ${above}층`);
+  return parts.join(' / ')||text;
+};
 const detailFactItems=row=>{
   const facts=row.buildingFacts||{},items=[];
   const landArea=row.areaM2||facts.landAreaM2||null;
@@ -29,10 +38,14 @@ const detailFactItems=row=>{
   items.push(['대지면적',area(landArea)]);
   items.push(['연면적',area(floorArea)]);
   if(facts.floorAreaM2&&(!floorArea||Number(facts.floorAreaM2)!==Number(floorArea)))items.push(['기존 연면적',area(facts.floorAreaM2)]);
-  if(facts.floorScale)items.push(['기존 규모',esc(facts.floorScale)]);
-  if(facts.farPercent)items.push(['기존 용적률',esc(percent(facts.farPercent))]);
-  if(facts.mainUse)items.push(['용도',esc(facts.mainUse)]);
-  if(facts.approvalDate)items.push(['사용승인',esc(facts.approvalDate)]);
+  const floorScale=facts.floorScale||normalizeFloorScale(row.floorInfo);
+  if(floorScale)items.push(['기존 규모',esc(floorScale)]);
+  const farPercent=facts.farPercent||row.farPercent;
+  if(farPercent)items.push(['기존 용적률',esc(percent(farPercent))]);
+  const mainUse=facts.mainUse||(row.kind==='land'?'':row.mainUse);
+  if(mainUse)items.push(['용도',esc(mainUse)]);
+  const approvalDate=facts.approvalDate||row.approvalDate;
+  if(approvalDate)items.push(['사용승인',esc(approvalDate)]);
   return items;
 };
 export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnalyze,initialId,initialSource,assistant,picksOnly}={}) {

@@ -40,6 +40,21 @@ def clean(value, max_len=60):
     return str(value or '').strip()[:max_len]
 
 
+def normalize_floor_info(value):
+    text = str(value or '').strip()
+    match = re.fullmatch(r'-?(\d+)\s*/\s*(\d+)', text)
+    if not match:
+        return text
+    below = int(match[1]) if text.startswith('-') else 0
+    above = int(match[2])
+    parts = []
+    if below:
+        parts.append(f'지하 {below}층')
+    if above:
+        parts.append(f'지상 {above}층')
+    return ' / '.join(parts) or text
+
+
 def origin_expression(has_curation, has_disco, has_premium):
     """출처별 구분: property=터잡이 추천, disco_listing=디스코, 후보 테이블=터잡이 등록, 나머지 네이버."""
     clauses = []
@@ -65,7 +80,7 @@ def source_from(has_disco, has_premium):
                       "대지면적"::numeric AS "대지면적", "연면적"::text AS "연면적", "대지위치"::text AS "대지위치",
                       "구"::text AS "구", "동"::text AS "동", "주용도코드명"::text AS "주용도코드명",
                       "용도지역"::text AS "용도지역", "도로폭_m"::numeric AS "도로폭_m", "층정보"::text AS "층정보",
-                      "사용승인일자"::text AS "사용승인일자", "매물특징"::text AS "매물특징",
+                      "사용승인일자"::text AS "사용승인일자", "매물특징"::text AS "매물특징", "용적률"::text AS "용적률",
                       pnu::text AS pnu, lat::double precision AS lat, lng::double precision AS lng,
                       'naver'::text AS source_kind, NULL::text AS source_url
                FROM public.naver
@@ -77,7 +92,7 @@ def source_from(has_disco, has_premium):
                       d.gu::text AS "구", d.dong::text AS "동",
                       (CASE d.ts WHEN 1 THEN '토지' ELSE '건물' END)::text AS "주용도코드명",
                       d.use_zone::text AS "용도지역", d.road_width_m::numeric AS "도로폭_m",
-                      NULL::text AS "층정보", NULL::text AS "사용승인일자", NULL::text AS "매물특징",
+                      NULL::text AS "층정보", NULL::text AS "사용승인일자", NULL::text AS "매물특징", NULL::text AS "용적률",
                       d.pnu::text AS pnu, d.lat::double precision AS lat, d.lng::double precision AS lng,
                       'disco'::text AS source_kind, COALESCE(d.source_url, 'https://disco.re/m/' || d.did)::text AS source_url
                FROM public.disco_listing d
@@ -89,7 +104,7 @@ def source_from(has_disco, has_premium):
                       split_part(m."시군구코드명", ' ', 1)::text AS "구",
                       nullif(trim(substring(m."시군구코드명" from position(' ' in m."시군구코드명")+1)),'')::text AS "동",
                       '건물'::text AS "주용도코드명", m."용도지역"::text AS "용도지역", m."도로폭_m"::numeric AS "도로폭_m",
-                      NULL::text AS "층정보", NULL::text AS "사용승인일자", p.title::text AS "매물특징",
+                      NULL::text AS "층정보", NULL::text AS "사용승인일자", p.title::text AS "매물특징", NULL::text AS "용적률",
                       p.pnu::text AS pnu, ST_Y(p.location::geometry)::double precision AS lat, ST_X(p.location::geometry)::double precision AS lng,
                       'premium'::text AS source_kind, NULL::text AS source_url
                FROM public.property p
@@ -316,10 +331,20 @@ def row_dto(row, station, requested):
         'kind': 'land' if row['주용도코드명'] == '토지' else 'building',
         'roadWidthM': number(row['도로폭_m']),
         'approvalDate': row['사용승인일자'] or '',
+        'farPercent': number(row.get('용적률')),
         'pnu': row['pnu'] if row.get('pnu') else None,
         'origin': row['origin'],
         'teojabiNo': row.get('teojabi_no') or None,
     }
+    facts = {}
+    if out['areaM2']: facts['landAreaM2'] = out['areaM2']
+    if out['floorAreaM2']: facts['floorAreaM2'] = out['floorAreaM2']
+    scale = normalize_floor_info(out['floorInfo'])
+    if scale: facts['floorScale'] = scale
+    if out['farPercent']: facts['farPercent'] = out['farPercent']
+    if out['mainUse']: facts['mainUse'] = out['mainUse']
+    if out['approvalDate']: facts['approvalDate'] = out['approvalDate']
+    out['buildingFacts'] = facts or None
     if station is not None and row.get('requested_dist_m') is not None:
         meters = round(float(row['requested_dist_m']))
         out['station'] = {'name': station['station_name'], 'distM': meters, 'walkMin': max(1, round(meters / WALK_METERS_PER_MIN))}
@@ -424,7 +449,7 @@ def search(conn, filters):
         row_sql = '''WITH q AS MATERIALIZED (
                          SELECT n."매물번호", n."대지위치", n."거래가격", n."대지면적", n."연면적", n."층정보",
                                 n."구", n."동", n."주용도코드명", n."용도지역", n."매물특징", n."도로폭_m",
-                                n."사용승인일자", n.pnu, n.lat, n.lng, n.source_kind, n.source_url,
+                                n."사용승인일자", n."용적률", n.pnu, n.lat, n.lng, n.source_kind, n.source_url,
                                 ''' + origin + ''' AS origin, ''' + pick_no + ''' AS teojabi_no''' + select_point + '''
                          FROM ''' + source + ''' n ''' + join + '''
                          WHERE ''' + where_sql + '''
