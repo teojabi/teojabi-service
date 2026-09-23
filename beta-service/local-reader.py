@@ -57,7 +57,7 @@ def connect():
 
 
 def read(operation, value=None):
-    if operation not in ('catalog', 'parcel', 'risk', 'context', 'registers', 'site-parcels', 'parcel-context', 'parcel-documents', 'land-record', 'nearby-transactions', 'selected-risk', 'selected-context', 'selected-registers', 'selected-land-record', 'naver-listing', 'disco-listing', 'commercial', 'commercial-areas', 'surrounding', 'neighborhoods'):
+    if operation not in ('catalog', 'parcel', 'risk', 'context', 'registers', 'site-parcels', 'parcel-context', 'parcel-documents', 'land-record', 'nearby-transactions', 'selected-risk', 'selected-context', 'selected-registers', 'selected-land-record', 'naver-listing', 'disco-listing', 'commercial', 'commercial-areas', 'surrounding', 'nearest-parcel', 'neighborhoods'):
         raise ValueError('Unsupported operation')
     if operation == 'parcel' and not re.fullmatch(r'\d{19}', value or ''):
         raise ValueError('Invalid parcel')
@@ -184,6 +184,22 @@ def read(operation, value=None):
         if operation == 'surrounding':
             from surrounding_reader import read_surrounding
             return read_surrounding(connection, value or '{}')
+        if operation == 'nearest-parcel':
+            query = json.loads(value or '{}')
+            lat, lng = query.get('lat'), query.get('lng')
+            if lat is None or lng is None:
+                return {'status': 'missing'}
+            with connection.cursor(cursor_factory=RealDictCursor) as cursor:
+                cursor.execute('''SELECT pnu,
+                                         ST_Distance(geom, ST_Transform(ST_SetSRID(ST_MakePoint(%s,%s),4326),5174)) AS dist_m
+                                  FROM public.master_land
+                                  WHERE geom IS NOT NULL
+                                  ORDER BY geom <-> ST_Transform(ST_SetSRID(ST_MakePoint(%s,%s),4326),5174)
+                                  LIMIT 1''', (lng, lat, lng, lat))
+                row = cursor.fetchone()
+            if not row:
+                return {'status': 'missing'}
+            return {'status': 'ready', 'pnu': row['pnu'], 'distanceM': float(row['dist_m'])}
         with connection.cursor(cursor_factory=RealDictCursor) as cursor:
             if operation == 'catalog':
                 cursor.execute('''

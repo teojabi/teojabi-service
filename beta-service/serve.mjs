@@ -16,8 +16,10 @@ import { parseAssistant, buildResult, hasMeaningfulFilters } from './assistant-p
 import { runAssistant } from './assistant-api.mjs';
 import { selectedCatalog, validListingId } from './selected-catalog.mjs';
 import { DISTRICTS } from './policy.mjs';
-import { serviceConfig, allowedOrigin, authorizeCuration } from './server-access.mjs';
+import { serviceConfig, allowedOrigin, allowedReferer, authorizeCuration } from './server-access.mjs';
 const service=serviceConfig();
+// Origin·Referer 없는 비브라우저 요청 차단. 긴급 시 TEOJABI_API_GUARD=off 로 해제한다.
+const apiGuardOn=process.env.TEOJABI_API_GUARD!=='off';
 
 const root = fileURLToPath(new URL('.', import.meta.url));
 const cachePath=name=>process.env.TEOJABI_DATA_SOURCE==='supabase'&&/^\.local\/(selected-|curation-)/.test(name)?name.replace('.local/','.local/supabase/'):name;
@@ -203,6 +205,9 @@ createServer(async (request, response) => {
   if(service.production&&request.url?.startsWith('/api/')) {
     const origin=request.headers.origin;
     if(!allowedOrigin(origin,service)){response.writeHead(403).end();return;}
+    // Origin·Referer가 모두 없는 비브라우저 스크래퍼(curl/python 등)를 차단한다.
+    // (브라우저는 같은 출처 GET이면 Referer를, 교차 출처면 Origin을 보낸다)
+    if(apiGuardOn&&!origin&&!allowedReferer(request.headers.referer,service)){response.writeHead(403).end();return;}
     if(origin){response.setHeader('Access-Control-Allow-Origin',origin);response.setHeader('Access-Control-Allow-Credentials','true');response.setHeader('Vary','Origin');}
     if(request.method==='OPTIONS'){response.setHeader('Access-Control-Allow-Methods','GET,HEAD,POST,OPTIONS');response.setHeader('Access-Control-Allow-Headers','Content-Type');response.writeHead(204).end();return;}
   }
@@ -443,9 +448,12 @@ createServer(async (request, response) => {
         const params=new URL(request.url,'http://localhost').searchParams;
         const lat=Number(params.get('lat')),lng=Number(params.get('lng'));
         if(Number.isFinite(lat)&&Number.isFinite(lng)){
-          const pnu=params.get('pnu');
+          let pnu=/^\d{19}$/.test(params.get('pnu')||'')?params.get('pnu'):null;
+          if(!pnu){
+            try{const near=await localRead('nearest-parcel',JSON.stringify({lat,lng}));if(near&&near.status==='ready'&&near.pnu&&near.distanceM<=150)pnu=near.pnu;}catch{/* 위치 기반 필지 조회 실패 */}
+          }
           listing={id,source:id.split(':')[0],sourceId:id.split(':').slice(1).join(':'),sourceUrl:'',district:'',neighborhood:'',address:'',
-            pnu:/^\d{19}$/.test(pnu||'')?pnu:null,position:{lat,lng},priceWon:null,areaM2:null,floorAreaM2:null,kind:'building',origin:id.split(':')[0]};
+            pnu,position:{lat,lng},priceWon:null,areaM2:null,floorAreaM2:null,kind:'building',origin:id.split(':')[0]};
         } else {send(response,request,{status:'missing',cases:[]},404);return;}
       }
       if(!transactionCache.has(id)) {
