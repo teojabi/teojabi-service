@@ -161,6 +161,17 @@ jobs:
             if ! sudo grep -q 'Strict-Transport-Security' "$nginx_file"; then
               sudo sed -i '/server_name api\.teojabi\.com;/a\    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;' "$nginx_file"
             fi
+
+            # 공통 보안 헤더(클릭재킹·MIME 스니핑·리퍼러·권한 차단).
+            sudo tee /etc/nginx/snippets/teojabi-security.conf >/dev/null <<'NGINXEOF'
+            add_header X-Frame-Options "DENY" always;
+            add_header X-Content-Type-Options "nosniff" always;
+            add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+            add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;
+            NGINXEOF
+            if ! sudo grep -q 'teojabi-security.conf' "$nginx_file"; then
+              sudo sed -i '/server_name api\.teojabi\.com;/a\    include /etc/nginx/snippets/teojabi-security.conf;' "$nginx_file"
+            fi
             sudo nginx -t
             sudo systemctl reload nginx
             sleep 3
