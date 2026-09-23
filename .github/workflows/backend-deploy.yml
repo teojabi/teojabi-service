@@ -58,16 +58,35 @@ jobs:
           cp backend/package-lock.json deploy-package/package-lock.json
           tar -czf backend-deploy.tgz -C deploy-package .
 
+      # SSH 핸드셰이크가 간헐적으로 끊기는 문제(ssh: handshake failed: EOF)를 흡수하도록 업로드를 재시도한다.
       - name: Upload runtime files to NCP
-        uses: appleboy/scp-action@v0.1.7
+        uses: Wandalen/wretry.action@v3
         with:
-          host: ${{ secrets.NCP_SSH_HOST }}
-          username: ${{ secrets.NCP_SSH_USER }}
-          password: ${{ secrets.NCP_SSH_PASSWORD }}
-          source: backend-deploy.tgz
-          target: ~/teojabi-service/backend
-          timeout: 10m
-          command_timeout: 10m
+          action: appleboy/scp-action@v0.1.7
+          attempt_limit: 4
+          attempt_delay: 15000
+          with: |
+            host: ${{ secrets.NCP_SSH_HOST }}
+            username: ${{ secrets.NCP_SSH_USER }}
+            password: ${{ secrets.NCP_SSH_PASSWORD }}
+            source: backend-deploy.tgz
+            target: ~/teojabi-service/backend
+            timeout: 10m
+            command_timeout: 10m
+
+      # 활성화 스크립트는 재실행에 안전하지 않으므로, 먼저 SSH 접속이 될 때까지 재시도해 연결 실패를 흡수한다.
+      - name: Wait for SSH before activating backend
+        uses: Wandalen/wretry.action@v3
+        with:
+          action: appleboy/ssh-action@v1.1.0
+          attempt_limit: 5
+          attempt_delay: 20000
+          with: |
+            host: ${{ secrets.NCP_SSH_HOST }}
+            username: ${{ secrets.NCP_SSH_USER }}
+            password: ${{ secrets.NCP_SSH_PASSWORD }}
+            command_timeout: 1m
+            script: echo ssh-ready
 
       - name: Activate backend on NCP
         uses: appleboy/ssh-action@v1.1.0
@@ -80,6 +99,13 @@ jobs:
           script: |
             set -e
             cd ~/teojabi-service/backend
+
+            # 디스크 포화가 SSH/빌드 실패로 이어지지 않도록, 배포 전 상태를 남기고 이전 잔여물을 정리한다.
+            echo '--- DISK BEFORE ---'
+            df -h .
+            rm -rf node_modules.old dist.old /tmp/teojabi-payload
+            pm2 flush teojabi-backend >/dev/null 2>&1 || true
+            find "$HOME/.pm2/logs" -type f -name 'teojabi-backend-*.log' -size +20M -exec truncate -s 0 {} \; 2>/dev/null || true
 
             # 배포 패키지를 먼저 안전한 곳에 풀어 둔다. (git clean이 지우지 못하도록)
             rm -rf /tmp/teojabi-payload

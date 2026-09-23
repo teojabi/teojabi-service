@@ -18,16 +18,35 @@ jobs:
       - name: Package beta data service
         run: tar -czf beta-service-deploy.tgz -C beta-service .
 
+      # SSH 핸드셰이크가 간헐적으로 끊기는 문제(ssh: handshake failed: EOF)를 흡수하도록 업로드를 재시도한다.
       - name: Upload beta data service
-        uses: appleboy/scp-action@v0.1.7
+        uses: Wandalen/wretry.action@v3
         with:
-          host: ${{ secrets.NCP_SSH_HOST }}
-          username: ${{ secrets.NCP_SSH_USER }}
-          password: ${{ secrets.NCP_SSH_PASSWORD }}
-          source: beta-service-deploy.tgz
-          target: ~/teojabi-runtime/beta-service
-          timeout: 2m
-          command_timeout: 5m
+          action: appleboy/scp-action@v0.1.7
+          attempt_limit: 4
+          attempt_delay: 15000
+          with: |
+            host: ${{ secrets.NCP_SSH_HOST }}
+            username: ${{ secrets.NCP_SSH_USER }}
+            password: ${{ secrets.NCP_SSH_PASSWORD }}
+            source: beta-service-deploy.tgz
+            target: ~/teojabi-runtime/beta-service
+            timeout: 2m
+            command_timeout: 5m
+
+      # 활성화 스크립트는 재실행에 안전하지 않으므로, 먼저 SSH 접속이 될 때까지 재시도해 연결 실패를 흡수한다.
+      - name: Wait for SSH before activating beta data service
+        uses: Wandalen/wretry.action@v3
+        with:
+          action: appleboy/ssh-action@v1.1.0
+          attempt_limit: 5
+          attempt_delay: 20000
+          with: |
+            host: ${{ secrets.NCP_SSH_HOST }}
+            username: ${{ secrets.NCP_SSH_USER }}
+            password: ${{ secrets.NCP_SSH_PASSWORD }}
+            command_timeout: 1m
+            script: echo ssh-ready
 
       - name: Activate beta data service
         uses: appleboy/ssh-action@v1.1.0
@@ -45,6 +64,12 @@ jobs:
             cd ~/teojabi-runtime/beta-service
             tar -xzf beta-service-deploy.tgz
             rm -f beta-service-deploy.tgz
+
+            # 디스크 포화가 SSH/배포 실패로 이어지지 않도록 상태를 남기고 오래된 로그를 비운다.
+            echo '--- DISK BEFORE ---'
+            df -h .
+            pm2 flush teojabi-data >/dev/null 2>&1 || true
+            find "$HOME/.pm2/logs" -type f -name 'teojabi-data-*.log' -size +20M -exec truncate -s 0 {} \; 2>/dev/null || true
 
             if ! python3 -m venv --help >/dev/null 2>&1 || ! python3 -m ensurepip --version >/dev/null 2>&1; then
               sudo apt-get update -qq
