@@ -48,6 +48,17 @@ jobs:
           test -f node_modules/.prisma/client/index.js
           test -d node_modules/@img/sharp-linux-x64
           node -e "require('sharp'); console.log('sharp ready for linux-x64')"
+          # 서버가 ARM(aarch64)일 수 있으므로 arm64용 sharp 바이너리도 함께 넣는다.
+          # 서버에서 npm을 실행하면 저사양 서버가 OOM으로 멈추므로, 러너에서 두 아키텍처를 모두 준비한다.
+          rm -rf /tmp/sharp-arm64
+          mkdir -p /tmp/sharp-arm64
+          npm install --prefix /tmp/sharp-arm64 --no-save --no-audit --no-fund --legacy-peer-deps \
+            @img/sharp-linux-arm64@0.35.4 @img/sharp-libvips-linux-arm64@1.3.3
+          cp -R /tmp/sharp-arm64/node_modules/@img/sharp-linux-arm64 node_modules/@img/
+          cp -R /tmp/sharp-arm64/node_modules/@img/sharp-libvips-linux-arm64 node_modules/@img/
+          rm -rf /tmp/sharp-arm64
+          test -d node_modules/@img/sharp-linux-arm64
+          test -d node_modules/@img/sharp-libvips-linux-arm64
 
       - name: Package build output and runtime dependencies
         run: |
@@ -99,9 +110,10 @@ jobs:
             set -e
             cd ~/teojabi-service/backend
 
-            # 디스크 포화가 SSH/빌드 실패로 이어지지 않도록, 배포 전 상태를 남기고 이전 잔여물을 정리한다.
-            echo '--- DISK BEFORE ---'
+            # 디스크/메모리 상태를 남기고, 이전 배포의 잔여물을 정리해 자원 부족을 예방한다.
+            echo '--- DISK/MEM BEFORE ---'
             df -h .
+            free -m
             rm -rf node_modules.old dist.old /tmp/teojabi-payload
             pm2 flush teojabi-backend >/dev/null 2>&1 || true
             find "$HOME/.pm2/logs" -type f -name 'teojabi-backend-*.log' -size +20M -exec truncate -s 0 {} \; 2>/dev/null || true
@@ -168,6 +180,15 @@ jobs:
             rm -rf node_modules.new dist.new
             cp -R /tmp/teojabi-payload/node_modules node_modules.new
             cp -R /tmp/teojabi-payload/dist dist.new
+
+            # 교체 전에 새 런타임의 sharp가 이 서버에서 로드되는지 검증한다.
+            # 실패하면 기존 버전을 그대로 두고 중단한다. (서버에서 npm을 실행하면 OOM으로 서버가 멈춘다)
+            echo '--- SHARP LOAD (new runtime) ---'
+            ( cd /tmp/teojabi-payload && node -e "require('sharp'); console.log('sharp ok for this server')" ) || {
+              echo 'ERROR: sharp를 새 런타임에서 로드하지 못했습니다. 서버에서 npm을 실행하지 마세요(OOM 위험).'
+              rm -rf node_modules.new dist.new
+              exit 1
+            }
             rm -rf /tmp/teojabi-payload
 
             echo '--- SERVER ENV ---'
@@ -189,11 +210,8 @@ jobs:
             mv dist.new dist
 
             echo '--- SHARP LOAD ---'
-            # 아키텍처가 러너와 달라 prebuilt가 맞지 않는 경우에만 해당 플랫폼 바이너리를 받는다.
-            if ! node -e "require('sharp')" 2>/dev/null; then
-              echo 'sharp load failed; installing platform binary for this server'
-              npm install --omit=dev --no-save --legacy-peer-deps --no-audit --no-fund sharp@0.35.4
-            fi
+            # 서버에서는 npm을 실행하지 않는다. (저사양 서버 OOM의 원인)
+            # 러너에서 x64/arm64 바이너리를 모두 포함하고 교체 전 검증도 통과했으므로 그대로 로드되어야 한다.
             node -e "require('sharp'); console.log('sharp ok')"
 
             echo '--- DEPLOYED main.ts marker ---'

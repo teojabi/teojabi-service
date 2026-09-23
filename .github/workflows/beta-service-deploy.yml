@@ -64,9 +64,10 @@ jobs:
             tar -xzf beta-service-deploy.tgz
             rm -f beta-service-deploy.tgz
 
-            # 디스크 포화가 SSH/배포 실패로 이어지지 않도록 상태를 남기고 오래된 로그를 비운다.
-            echo '--- DISK BEFORE ---'
+            # 디스크/메모리 상태를 남기고 오래된 로그를 비운다.
+            echo '--- DISK/MEM BEFORE ---'
             df -h .
+            free -m
             pm2 flush teojabi-data >/dev/null 2>&1 || true
             find "$HOME/.pm2/logs" -type f -name 'teojabi-data-*.log' -size +20M -exec truncate -s 0 {} \; 2>/dev/null || true
 
@@ -78,7 +79,10 @@ jobs:
               rm -rf .venv
               python3 -m venv .venv
             fi
-            .venv/bin/pip install --disable-pip-version-check --no-cache-dir psycopg2-binary==2.9.10
+            # 이미 설치돼 있으면 다시 받지 않는다. (저사양 서버의 메모리/네트워크 부담 최소화)
+            if ! .venv/bin/python -c 'import psycopg2' >/dev/null 2>&1; then
+              .venv/bin/pip install --disable-pip-version-check --no-cache-dir psycopg2-binary==2.9.10
+            fi
 
             cat > .env << ENVEOF
             TEOJABI_SERVICE_MODE=production
