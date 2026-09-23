@@ -8,7 +8,8 @@ const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;
 const money = won => won > 0 ? `${(won / 1e8).toLocaleString('ko-KR', { maximumFractionDigits: 2 })}억` : '가격 미기재';
 const area = value => value > 0 ? formatArea(value, getAreaDisplayUnit()) : '면적 미기재';
 const originLabel = origin => ({ premium: '★ 터잡이 추천', registered: '터잡이 등록', disco: '디스코 매물', naver: '네이버 매물' }[origin] || '네이버 매물');
-export const ASSISTANT_ROBOT = '<svg viewBox="0 0 48 48" aria-hidden="true"><rect x="12" y="16" width="24" height="20" rx="7" fill="#ffe08a" stroke="currentColor" stroke-width="2.4"/><circle cx="24" cy="9" r="2.6" fill="currentColor"/><path d="M24 12v4" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/><circle cx="19" cy="25" r="2.4" fill="currentColor"/><circle cx="29" cy="25" r="2.4" fill="currentColor"/><path d="M19 31c2.4 2 7.6 2 10 0" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" fill="none"/><path d="M9 24v6M39 24v6" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>';
+import { ASSISTANT_ROBOT } from './assistant-icon.mjs';
+export { ASSISTANT_ROBOT };
 const ROBOT = ASSISTANT_ROBOT;
 const SCAN_MS = 8000;
 const STEPS = [
