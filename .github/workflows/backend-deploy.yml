@@ -125,6 +125,12 @@ jobs:
             rm -rf node_modules.old dist.old /tmp/teojabi-payload
             pm2 flush teojabi-backend >/dev/null 2>&1 || true
             find "$HOME/.pm2/logs" -type f -name 'teojabi-backend-*.log' -size +20M -exec truncate -s 0 {} \; 2>/dev/null || true
+            # 디스크가 빠듯한 서버라 캐시·로그를 함께 비운다. (배포 순간 node_modules 2벌이 필요)
+            rm -rf "$HOME/.npm/_cacache"
+            sudo -n apt-get clean >/dev/null 2>&1 || true
+            sudo -n journalctl --vacuum-size=50M >/dev/null 2>&1 || true
+            echo '--- DISK AFTER CLEANUP ---'
+            df -h .
 
             # 무료 스왑을 1회 생성해 OOM으로 서버가 멈추는 것을 예방한다. (이미 있으면 건너뜀, 실패해도 배포는 계속)
             # 디스크 여유가 부족하면 만들지 않는다.
