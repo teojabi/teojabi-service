@@ -3,7 +3,8 @@
 
 - JS/CSS를 esbuild로 최소화(minify)한다.
 - 모든 상대 자산 참조에 캐시 버전(?v=<commit sha>)을 부여한다.
-  (정적 import / 동적 import / re-export, HTML의 link·script 모두)
+  - JS: 정적 import / 동적 import / re-export (.mjs, .css, .js)
+  - HTML: link/script/img 등 (.mjs, .css, .js + 이미지)
 
 사용: python3 scripts/optimize_frontend.py <src_dir> <dst_dir> <version>
 """
@@ -14,11 +15,15 @@ import subprocess
 import sys
 
 ASSET_EXT = ('.mjs', '.js', '.css')
-# './name.mjs', './name.css', './name.js' (+ 기존 ?v=...)
-REF = re.compile(
+IMG_EXT = 'png|webp|ico|svg|jpg|jpeg|gif'
+# JS 모듈 참조 (코드 자산만)
+JS_REF = re.compile(
     r"(?P<q>[\"'])\./(?P<path>[A-Za-z0-9_./-]+\.(?:mjs|css|js))(?:\?v=[A-Za-z0-9_.-]+)?(?P=q)"
 )
-REWRITE_EXT = ('.mjs', '.js', '.html')
+# HTML 참조 (코드 + 이미지)
+HTML_REF = re.compile(
+    r"(?P<q>[\"'])\./(?P<path>[A-Za-z0-9_./-]+\.(?:mjs|css|js|" + IMG_EXT + r"))(?:\?v=[A-Za-z0-9_.-]+)?(?P=q)"
+)
 
 
 def minify(path):
@@ -28,9 +33,9 @@ def minify(path):
     os.replace(tmp, path)
 
 
-def rewrite(path, version):
+def rewrite(path, pattern, version):
     text = open(path, encoding='utf-8').read()
-    new = REF.sub(lambda m: f"{m.group('q')}./{m.group('path')}?v={version}{m.group('q')}", text)
+    new = pattern.sub(lambda m: f"{m.group('q')}./{m.group('path')}?v={version}{m.group('q')}", text)
     if new != text:
         open(path, 'w', encoding='utf-8').write(new)
         return True
@@ -49,8 +54,12 @@ def main():
     changed = 0
     for root, _dirs, files in os.walk(dst):
         for name in files:
-            if os.path.splitext(name)[1].lower() in REWRITE_EXT:
-                changed += rewrite(os.path.join(root, name), version)
+            path = os.path.join(root, name)
+            ext = os.path.splitext(name)[1].lower()
+            if ext in ('.mjs', '.js'):
+                changed += rewrite(path, JS_REF, version)
+            elif ext == '.html':
+                changed += rewrite(path, HTML_REF, version)
     print(f"optimized dst={dst} version={version} rewrittenFiles={changed}")
 
 
