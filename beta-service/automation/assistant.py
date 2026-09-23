@@ -55,6 +55,33 @@ def normalize_floor_info(value):
     return ' / '.join(parts) or text
 
 
+def naver_building_facts(cur, pnu=None, address=None):
+    """터잡이 추천·디스코 매물은 원본에 건물 정보가 없어, 같은 필지의 public.naver에서 보강한다."""
+    cols = '"대지면적","연면적","층정보","용적률","주용도코드명","사용승인일자"'
+
+    def build(row):
+        facts = {}
+        if row.get('대지면적'): facts['landAreaM2'] = float(row['대지면적'])
+        if row.get('연면적'): facts['floorAreaM2'] = float(row['연면적'])
+        scale = normalize_floor_info(row.get('층정보'))
+        if scale: facts['floorScale'] = scale
+        if row.get('용적률'): facts['farPercent'] = float(row['용적률'])
+        if row.get('주용도코드명'): facts['mainUse'] = str(row['주용도코드명']).strip()
+        if row.get('사용승인일자'): facts['approvalDate'] = str(row['사용승인일자']).strip()
+        return facts
+
+    if pnu and re.fullmatch(r'11\d{17}', str(pnu)):
+        cur.execute('SELECT ' + cols + ' FROM public.naver WHERE pnu=%s LIMIT 1', (str(pnu),))
+        row = cur.fetchone()
+        if row: return build(row)
+    if address:
+        variants = [address, address + '번지', address.replace('서울특별시', '서울시', 1)]
+        cur.execute('SELECT ' + cols + ' FROM public.naver WHERE "대지위치"=ANY(%s) LIMIT 1', (variants,))
+        row = cur.fetchone()
+        if row: return build(row)
+    return {}
+
+
 def origin_expression(has_curation, has_disco, has_premium):
     """출처별 구분: property=터잡이 추천, disco_listing=디스코, 후보 테이블=터잡이 등록, 나머지 네이버."""
     clauses = []
@@ -480,6 +507,19 @@ def search(conn, filters):
                      ) cm ON true'''
         cur.execute(row_sql, query_params)
         rows = [row_dto(r, station, station) for r in cur.fetchall()]
+        # 터잡이 추천·디스코는 자체 정보가 비어 있어, 같은 필지의 public.naver로 건물 정보를 보강한다.
+        for row in rows:
+            if row.get('origin') == 'naver': continue
+            facts = row.get('buildingFacts') or {}
+            if facts.get('floorScale') and facts.get('farPercent') and facts.get('approvalDate'): continue
+            extra = naver_building_facts(cur, pnu=row.get('pnu'), address=row.get('address'))
+            if not extra: continue
+            merged = dict(facts)
+            for key, value in extra.items():
+                if not value: continue
+                if key == 'mainUse' and merged.get('mainUse') in ('건물', '토지'): merged[key] = value
+                elif not merged.get(key): merged[key] = value
+            row['buildingFacts'] = merged or None
         grouped = {'premium': [], 'registered': [], 'disco': [], 'naver': []}
         for row in rows:
             grouped[row['origin']].append(row)
