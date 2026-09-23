@@ -246,6 +246,7 @@ export function viewRow(row) {
     district: row.district, neighborhood: row.neighborhood, address: row.address,
     pnu: row.pnu || null, position: row.position, priceWon: row.priceWon, teojabiNo: row.teojabiNo || null,
     areaM2: row.areaM2, floorAreaM2: row.floorAreaM2, description: row.description || '', floorInfo: row.floorInfo || '',
+    mainUse: row.mainUse || '', farPercent: row.farPercent ?? null, approvalDate: row.approvalDate || '', buildingFacts: row.buildingFacts || null,
     kind: row.kind, kindConfirmed: true, areaSource: 'listing', floorAreaSource: 'listing', locationStatus: 'pin-estimated',
     zoning, development: null, nearbyTransactions: { status: 'unavailable', cases: [] },
     station: row.station || null, origin, groupKey: row.id,
