@@ -22,15 +22,18 @@ const date=value=>value?new Date(value).toLocaleString('ko-KR',{timeZone:'Asia/S
 const compactSuggestionLabel=label=>String(label).replace(/볼까요\??/g,'').replace(/으로 넓혀/g,'').replace(/까지 높여/g,'까지').replace(/이하로 줄여/g,'이하').replace(/만 /g,'').replace(/부터 살펴/g,'부터').replace(/조건을 /g,'').replace(/제한 /g,'').replace(/을 풀어/g,' 해제').trim();
 const percent=value=>Number.isFinite(Number(value))&&Number(value)>0?`${Number(value).toLocaleString('ko-KR',{maximumFractionDigits:2})}%`:'';
 const DOCUMENT_LINKS=Object.freeze({registry:'https://www.iros.go.kr/'});
-const detailFacts=row=>{
+const detailFactItems=row=>{
   const facts=row.buildingFacts||{},items=[];
-  if(facts.landAreaM2)items.push(['대지면적',area(facts.landAreaM2)]);
-  if(facts.floorAreaM2)items.push(['기존 연면적',area(facts.floorAreaM2)]);
+  const landArea=row.areaM2||facts.landAreaM2||null;
+  const floorArea=row.floorAreaM2||facts.floorAreaM2||null;
+  items.push(['대지면적',area(landArea)]);
+  items.push(['연면적',area(floorArea)]);
+  if(facts.floorAreaM2&&(!floorArea||Number(facts.floorAreaM2)!==Number(floorArea)))items.push(['기존 연면적',area(facts.floorAreaM2)]);
   if(facts.floorScale)items.push(['기존 규모',esc(facts.floorScale)]);
   if(facts.farPercent)items.push(['기존 용적률',esc(percent(facts.farPercent))]);
   if(facts.mainUse)items.push(['용도',esc(facts.mainUse)]);
   if(facts.approvalDate)items.push(['사용승인',esc(facts.approvalDate)]);
-  return items.length?`<ul class="listing-facts">${items.map(([label,value])=>`<li><b>${label}:</b> ${value}</li>`).join('')}</ul>`:'';
+  return items;
 };
 export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnalyze,initialId,initialSource,assistant,picksOnly}={}) {
   document.body.classList.add('map-results-open');
@@ -260,9 +263,9 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     $('#listing-detail').innerHTML=`<div class="detail-top"><button type="button" class="detail-back" data-explore="back-list">← 매물 목록</button><button class="detail-close" data-explore="close" aria-label="매물 상세 닫기">×</button></div>
       <div class="detail-content"><p class="detail-location">${esc(rowTitle(row))}${originBadge}</p><h2 tabindex="-1" id="detail-title">${money(row.priceWon)}</h2>
       ${row.teojabiNo?`<p class="detail-listing-number">매물번호 ${esc(row.teojabiNo)}</p>`:''}
-      ${areaUnitControls()}<div class="detail-areas"><div><span>대지면적</span><strong>${area(row.areaM2)}</strong></div><div><span>연면적</span><strong>${area(row.floorAreaM2)}</strong></div></div>
+      ${areaUnitControls()}<div class="detail-areas">${detailFactItems(row).map(([label,value])=>`<div><span>${label}</span><strong${String(value).includes('data-display-area-m2')?'':' class="detail-text"'}>${value}</strong></div>`).join('')}</div>
       <div id="land-area-comparison" aria-live="polite"></div><div class="detail-links"><button class="street-open" data-explore="street">네이버 거리뷰 보기 <span aria-hidden="true">↗</span></button></div><nav class="detail-shortcuts" aria-label="상세 내용 이동"><button data-explore="section" data-section="property-description">매물 설명</button><button data-explore="section" data-section="property-parcel">필지 위치</button><button data-explore="section" data-section="property-commercial">상권</button><button data-explore="section" data-section="property-surrounding">주변 사업</button><button data-explore="section" data-section="property-documents">서류 확인</button><button data-explore="section" data-section="property-context">주변 조건</button></nav>
-      <section class="detail-section" id="property-description"><h3>매물 설명</h3>${origin==='naver'?`<p class="case-note">네이버에서 찾은 매물이에요. 찜하기를 눌러 저장하세요.</p>${naverUrl?`<div class="detail-links"><a class="outline" href="${naverUrl}" target="_blank" rel="noopener noreferrer">네이버에서 보기 ↗</a></div>`:''}`:origin==='disco'?`<p class="case-note">디스코에서 찾은 매물이에요. 자세한 조건은 원문에서 확인해 주세요.</p>${discoUrl?`<div class="detail-links"><a class="outline" href="${discoUrl}" target="_blank" rel="noopener noreferrer">디스코에서 보기 ↗</a></div>`:''}`:(row.description?`<p class="listing-description">${esc(row.description)}</p>`:'')}${detailFacts(row)||(origin==='naver'?'':origin==='disco'?'':'<p class="listing-description">등록된 설명이 없습니다.</p>')}</section>
+      <section class="detail-section" id="property-description"><h3>매물 설명</h3>${origin==='naver'?`<p class="case-note">네이버에서 찾은 매물이에요. 찜하기를 눌러 저장하세요.</p>${naverUrl?`<div class="detail-links"><a class="outline" href="${naverUrl}" target="_blank" rel="noopener noreferrer">네이버에서 보기 ↗</a></div>`:''}`:origin==='disco'?`<p class="case-note">디스코에서 찾은 매물이에요. 자세한 조건은 원문에서 확인해 주세요.</p>${discoUrl?`<div class="detail-links"><a class="outline" href="${discoUrl}" target="_blank" rel="noopener noreferrer">디스코에서 보기 ↗</a></div>`:''}`:(row.description?`<p class="listing-description">${esc(row.description)}</p>`:'<p class="listing-description">등록된 설명이 없습니다.</p>')}</section>
       <section class="detail-section" id="property-parcel"><h3>필지 위치</h3><p>${esc(row.address||`${rowTitle(row)} · 상세 주소 미확인`)}</p></section>
       <section class="detail-section"><h3>용도지역</h3>${row.zoning?.status==='matched'&&Array.isArray(row.zoning.entries)?`<p>${row.zoning.entries.map(e=>esc(e.name)).join('<br>')}</p><p class="case-note">공공데이터 기준</p>`:'<p class="case-note">용도지역을 확인하지 못했습니다.</p>'}</section>
       <section class="detail-section nearby-section" id="property-transactions"><details id="nearby-details" class="nearby-details"><summary class="nearby-summary"><span class="nearby-summary-title">주변 실거래</span><span class="nearby-summary-count" id="nearby-count"></span></summary><div class="nearby-body"><div class="nearby-heading"><button class="outline" data-explore="transactions" aria-pressed="true" disabled>지도 표시</button></div>${areaUnitControls()}<div id="nearby-cases" aria-live="polite"><p class="case-note">가까운 토지·건물 거래를 찾고 있어요.</p></div></div></details></section>
