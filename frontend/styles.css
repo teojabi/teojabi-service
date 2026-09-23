@@ -756,6 +756,14 @@ body.architect-lightbox-open{overflow:hidden}
 .surrounding-body small{display:block;font-size:11.5px;color:var(--muted)}
 .surrounding-source{margin:8px 0 0;font-size:11.5px;color:var(--muted)}
 .map-disclaimer{position:absolute;right:8px;bottom:8px;z-index:6;margin:0;max-width:72%;font-size:10px;line-height:1.35;color:#fff;background:#0b1736b3;padding:3px 7px;border-radius:5px;pointer-events:none}
+.detail-street{position:relative;margin:10px 0;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#eef2f7}
+.street-inline{position:relative;width:100%;height:200px}
+.street-inline-state{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:12px;margin:0}
+.street-inline.is-ready .street-inline-state{display:none}
+.street-inline.is-empty .street-inline-state{display:none}
+.street-inline.is-empty::after{content:'이 위치의 거리뷰를 불러오지 못했어요.';position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:12px}
+.street-expand{position:absolute;top:8px;right:8px;z-index:3;width:34px;height:34px;border:0;border-radius:8px;background:#0b1736b3;color:#fff;font-size:16px;line-height:1;cursor:pointer;display:grid;place-items:center}
+.street-expand:hover{background:#0b1736cc}
 .planned-rail-list{list-style:none;margin:0;padding:0;display:grid;gap:6px}
 .planned-rail-list li{display:flex;justify-content:space-between;gap:10px;align-items:baseline;font-size:12.5px}
 .planned-rail-list li small{color:var(--muted);white-space:nowrap}
