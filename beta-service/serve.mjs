@@ -436,8 +436,18 @@ createServer(async (request, response) => {
     const id=path.slice('/api/nearby-transactions/'.length);
     if(!validListingId(id)&&!validDiscoListingId(id)){send(response,request,{status:'missing',cases:[]},404);return;}
     try {
-      const data=await catalog(),listing=await findListing(id);
-      if(!listing){send(response,request,{status:'missing',cases:[]},404);return;}
+      const data=await catalog();
+      let listing=await findListing(id);
+      if(!listing){
+        // 카탈로그에 없는 비서 매물(터잡이 추천 등)은 전달받은 좌표로 계산한다.
+        const params=new URL(request.url,'http://localhost').searchParams;
+        const lat=Number(params.get('lat')),lng=Number(params.get('lng'));
+        if(Number.isFinite(lat)&&Number.isFinite(lng)){
+          const pnu=params.get('pnu');
+          listing={id,source:id.split(':')[0],sourceId:id.split(':').slice(1).join(':'),sourceUrl:'',district:'',neighborhood:'',address:'',
+            pnu:/^\d{19}$/.test(pnu||'')?pnu:null,position:{lat,lng},priceWon:null,areaM2:null,floorAreaM2:null,kind:'building',origin:id.split(':')[0]};
+        } else {send(response,request,{status:'missing',cases:[]},404);return;}
+      }
       if(!transactionCache.has(id)) {
         if(transactionCache.size>=100)transactionCache.delete(transactionCache.keys().next().value);
         transactionCache.set(id,localRead('nearby-transactions',JSON.stringify(listing.position)).then(raw=>{

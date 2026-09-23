@@ -315,8 +315,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
       $('.detail-content').insertAdjacentHTML('afterbegin',`<div class="detail-conversion"><a class="primary" href="https://pf.kakao.com/_qSQxhX/chat" target="_blank" rel="noopener noreferrer">터잡이와 상담하기 ↗</a><button class="outline" data-explore="favorite" data-favorite-detail="true" data-id="${esc(data.listing.id)}" aria-pressed="${favoriteActive}">${favoriteActive?'♥ 찜함':'♡ 찜하기'}</button><button class="outline" data-explore="copy-consult">상담할 매물 정보 복사</button><small>주소와 가격을 복사해서 상담 채널에 보내주세요.</small></div>`);
       closeContext=mountInlineContext($('#context-facts'),data.listing);closeRecords=mountBuildingRecords($('#building-records'),$('#building-records-toggle'),data.listing);closeLand=mountLandRecords($('#land-area-comparison'),$('#land-records'),$('#land-records-toggle'),data.listing);closeCommercial=mountCommercial($('#commercial-facts'),data.listing);closeSurrounding=mountSurrounding($('#surrounding-facts'),data.listing);closeStreetPreview=mountStreetPreview($('#street-inline'),data.listing.position);map.select(data.listing);$('#detail-title').focus({preventScroll:true});
       $('.detail-shortcuts').insertAdjacentHTML('beforeend','<button data-explore="section" data-section="property-transactions">주변 실거래</button>');
-      if(fromAssistant?.origin==='disco'){const box=$('#nearby-cases');if(box)box.innerHTML='<p class="case-note">디스코에서 찾은 매물이라 주변 실거래는 제공하지 않아요.</p>';}
-      else loadNearby(id,current);
+      loadNearby(id,current);
       if(updateUrl)history.pushState(null,'',`#listing=${encodeURIComponent(id)}`);
       if(data.listing.pnu) {
         let receivedParcel;
@@ -352,7 +351,12 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     nearby=null;map.setTransactions([]);syncTransactionToggle();
     $('#nearby-cases').innerHTML='<p class="case-note">가까운 토지·건물 거래를 찾고 있어요.</p>';
     try {
-      const response=await apiFetch(`/api/nearby-transactions/${encodeURIComponent(id)}`,{signal:abort.signal}),data=await response.json();
+      const listing=detail?.listing;
+      const q=new URLSearchParams();
+      if(listing?.position?.lat!=null&&listing?.position?.lng!=null){q.set('lat',String(listing.position.lat));q.set('lng',String(listing.position.lng));}
+      if(listing?.pnu)q.set('pnu',String(listing.pnu));
+      const suffix=q.toString()?`?${q}`:'';
+      const response=await apiFetch(`/api/nearby-transactions/${encodeURIComponent(id)}${suffix}`,{signal:abort.signal}),data=await response.json();
       if(disposed||current!==detailVersion)return;
       if(!response.ok||data.status!=='ready'||data.listingId!==id)throw new Error('Nearby unavailable');
       nearby=data;map.setTransactions(data.cases);map.setTransactionsVisible(showTransactions);
