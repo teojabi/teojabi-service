@@ -2,13 +2,15 @@ export function serviceConfig(env=process.env) {
   const production=env.TEOJABI_SERVICE_MODE==='production';
   const origins=(env.TEOJABI_WEB_ORIGINS||'').split(',').map(s=>s.trim()).filter(Boolean);
   const accountBase=(env.DISCOVERY_API_BASE||'').replace(/\/$/,'');
+  // 서버 내부(관리자 검증) 호출은 Cloudflare 프록시를 우회해 루프백 백엔드로 직접 보낸다.
+  const accountInternal=(env.ACCOUNT_API_INTERNAL_BASE||accountBase).replace(/\/$/,'');
   const hosts=(env.TEOJABI_ALLOWED_HOSTS||'127.0.0.1:4173,localhost:4173,127.0.0.1,localhost').split(',').map(s=>s.trim());
   if(production) {
     if(env.TEOJABI_DATA_SOURCE!=='supabase'||!env.TEOJABI_DATABASE_URL)throw new Error('Production requires an explicit Supabase database connection');
     if(!accountBase.startsWith('https://')||!origins.length||origins.some(s=>!s.startsWith('https://')))throw new Error('Production requires HTTPS account API and web origins');
     if(!env.TEOJABI_PYTHON||!env.NAVER_MAP_CLIENT_ID)throw new Error('Production requires Python path and public Maps client ID');
   }
-  return {production,origins,accountBase,hosts};
+  return {production,origins,accountBase,accountInternal,hosts};
 }
 export function allowedOrigin(origin,config) {return !origin||config.origins.includes(origin);}
 // Origin 헤더가 없는 요청(같은 출처 GET 등)은 Referer로 같은 출처/허용 출처인지 확인한다.
@@ -26,7 +28,7 @@ export async function authorizeCuration(request,config,fetcher=fetch) {
   if(request.method==='POST'&&!request.headers.origin)return 403;
   if(!request.headers.cookie)return 401;
   try {
-    const response=await fetcher(config.accountBase+'/api/v1/users/me',{headers:{cookie:request.headers.cookie},redirect:'error',signal:AbortSignal.timeout(10000)});
+    const response=await fetcher(config.accountInternal+'/api/v1/users/me',{headers:{cookie:request.headers.cookie},redirect:'error',signal:AbortSignal.timeout(10000)});
     if(response.status===401)return 401;
     if(!response.ok)return 503;
     const user=await response.json();

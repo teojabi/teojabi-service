@@ -110,6 +110,7 @@ jobs:
             TEOJABI_ALLOWED_HOSTS=api.teojabi.com
             TEOJABI_WEB_ORIGINS=https://teojabi.com,https://www.teojabi.com
             DISCOVERY_API_BASE=https://api.teojabi.com
+            ACCOUNT_API_INTERNAL_BASE=http://127.0.0.1:3001
             GEMINI_API_KEY=${GEMINI_API_KEY}
             NAVER_MAP_CLIENT_ID=f8td9fq8kq
             PORT=4173
@@ -148,6 +149,33 @@ jobs:
             limit_conn_zone $binary_remote_addr zone=teojabi_conn:10m;
             limit_req_status 429;
             limit_conn_status 429;
+            NGINXEOF
+
+            # Cloudflare 프록시 뒤에서 실제 클라이언트 IP를 복원한다. (요청제한이 실제 IP 기준으로 동작)
+            sudo tee /etc/nginx/conf.d/00-teojabi-realip.conf >/dev/null <<'NGINXEOF'
+            set_real_ip_from 173.245.48.0/20;
+            set_real_ip_from 103.21.244.0/22;
+            set_real_ip_from 103.22.200.0/22;
+            set_real_ip_from 103.31.4.0/22;
+            set_real_ip_from 141.101.64.0/18;
+            set_real_ip_from 108.162.192.0/18;
+            set_real_ip_from 190.93.240.0/20;
+            set_real_ip_from 188.114.96.0/20;
+            set_real_ip_from 197.234.240.0/22;
+            set_real_ip_from 198.41.128.0/17;
+            set_real_ip_from 162.158.0.0/15;
+            set_real_ip_from 104.16.0.0/13;
+            set_real_ip_from 104.24.0.0/14;
+            set_real_ip_from 172.64.0.0/13;
+            set_real_ip_from 131.0.72.0/22;
+            set_real_ip_from 2400:cb00::/32;
+            set_real_ip_from 2606:4700::/32;
+            set_real_ip_from 2803:f800::/32;
+            set_real_ip_from 2405:b500::/32;
+            set_real_ip_from 2405:8100::/32;
+            set_real_ip_from 2a06:98c0::/29;
+            set_real_ip_from 2c0f:f248::/32;
+            real_ip_header CF-Connecting-IP;
             NGINXEOF
             if ! sudo grep -q 'limit_req zone=teojabi_api' "$nginx_file"; then
               sudo sed -i '/server_name api\.teojabi\.com;/a\    limit_req zone=teojabi_api burst=40 nodelay;' "$nginx_file"
