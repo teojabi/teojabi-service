@@ -1,0 +1,80 @@
+name: Server Stabilize
+
+# 이 VM에 불필요한 백그라운드 서비스(fwupd, multipathd, udisks2)를 중지·비활성화해
+# 1GB 서버의 메모리 여유를 확보한다. 결과는 server-report 브랜치에 기록한다.
+on:
+  workflow_dispatch:
+  push:
+    branches: [ "main" ]
+    paths:
+      - '.github/workflows/server-stabilize.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  stabilize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Install sshpass
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq sshpass
+
+      - name: Stop and disable unnecessary services on NCP
+        env:
+          SSHPASS: ${{ secrets.NCP_SSH_PASSWORD }}
+        run: |
+          mkdir -p .diagnostics
+          sshpass -e ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+            -o ConnectTimeout=15 -o ServerAliveInterval=15 -o ServerAliveCountMax=4 \
+            ${{ secrets.NCP_SSH_USER }}@${{ secrets.NCP_SSH_HOST }} 'bash -s' > .diagnostics/server-stabilize.txt 2>&1 <<'REMOTE'
+          {
+            echo "===== BEFORE (mem) ====="
+            free -m
+            echo "===== BEFORE (services) ====="
+            for svc in fwupd fwupd-refresh.timer fwupd-refresh.service multipathd udisks2; do
+              printf '%-24s enabled=%s active=%s\n' "$svc" \
+                "$(systemctl is-enabled "$svc" 2>/dev/null || echo n/a)" \
+                "$(systemctl is-active "$svc" 2>/dev/null || echo n/a)"
+            done
+            echo "===== TOP MEM BEFORE ====="
+            ps -eo pid,rss,pmem,comm --sort=-rss 2>/dev/null | head -12
+
+            echo "===== STOP / DISABLE / MASK ====="
+            for svc in fwupd fwupd-refresh.timer fwupd-refresh.service multipathd udisks2; do
+              echo "--- $svc ---"
+              sudo -n systemctl stop "$svc" 2>&1 | tail -1 || true
+              sudo -n systemctl disable "$svc" 2>&1 | tail -1 || true
+              sudo -n systemctl mask "$svc" 2>&1 | tail -1 || true
+            done
+            # fwupd 는 dbus 로 다시 뜰 수 있으므로 소켓도 함께 비활성화한다.
+            sudo -n systemctl stop fwupd-refresh.timer 2>/dev/null || true
+
+            sleep 2
+            echo "===== AFTER (services) ====="
+            for svc in fwupd multipathd udisks2; do
+              printf '%-24s enabled=%s active=%s\n' "$svc" \
+                "$(systemctl is-enabled "$svc" 2>/dev/null || echo n/a)" \
+                "$(systemctl is-active "$svc" 2>/dev/null || echo n/a)"
+            done
+            echo "===== AFTER (mem) ====="
+            free -m
+            echo "===== TOP MEM AFTER ====="
+            ps -eo pid,rss,pmem,comm --sort=-rss 2>/dev/null | head -12
+            echo "STABILIZE_DONE"
+          } 2>&1
+          exit 0
+          REMOTE
+
+      - name: Publish report to server-report branch
+        run: |
+          set -e
+          git config user.name "teojabi-diagnostics"
+          git config user.email "teojabi-diagnostics@users.noreply.github.com"
+          git checkout -B server-report
+          git add -f .diagnostics/server-stabilize.txt
+          git commit -m "Update server stabilize report"
+          git push -f origin server-report
