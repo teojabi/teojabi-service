@@ -23,6 +23,28 @@ jobs:
           cache: npm
           cache-dependency-path: backend/package-lock.json
 
+      - name: Install sshpass
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq sshpass
+
+      # 의존성(package-lock)이 바뀐 경우에만 node_modules를 업로드한다. (서버 디스크·배포 시간 절감)
+      - name: Check dependency change
+        id: deps
+        env:
+          SSHPASS: ${{ secrets.NCP_SSH_PASSWORD }}
+        run: |
+          set -e
+          lock_hash=$(sha256sum backend/package-lock.json | cut -d' ' -f1)
+          server_hash=$(sshpass -e ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10 \
+            ${{ secrets.NCP_SSH_USER }}@${{ secrets.NCP_SSH_HOST }} \
+            "cat ~/teojabi-service/backend/.deploy-lock-hash 2>/dev/null || echo none" 2>/dev/null || echo none)
+          server_hash=$(printf '%s' "$server_hash" | tr -d '[:space:]')
+          echo "lock=$lock_hash server=$server_hash"
+          if [ "$lock_hash" = "$server_hash" ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Build backend on GitHub runner
         working-directory: backend
         run: |
@@ -34,6 +56,7 @@ jobs:
       # dev 전용인 prisma CLI(@prisma/dev -> @prisma/streams-local)의 Node >=22 요구는 서버 런타임과
       # 무관하므로 --omit=dev로 배제한다. 런타임 @prisma/client는 Node ^20.19를 지원해 Node 20 서버에서 동작한다.
       - name: Prepare portable production node_modules
+        if: steps.deps.outputs.changed == 'true'
         working-directory: backend
         run: |
           # 빌드 단계에서 만든 Prisma 클라이언트는 WASM 기반이라 플랫폼 독립적이다. 잠시 보관했다가 복원한다.
@@ -72,13 +95,15 @@ jobs:
         run: |
           mkdir -p deploy-package
           cp -R backend/dist deploy-package/dist
-          cp -R backend/node_modules deploy-package/node_modules
+          # 의존성(package-lock)이 바뀐 경우에만 node_modules를 포함한다. (서버 디스크·배포 시간 절감)
+          if [ "${{ steps.deps.outputs.changed }}" = "true" ]; then
+            cp -R backend/node_modules deploy-package/node_modules
+          else
+            echo 'Dependencies unchanged; packaging dist only (server reuses its node_modules)'
+          fi
           cp backend/package.json deploy-package/package.json
           cp backend/package-lock.json deploy-package/package-lock.json
           tar -czf backend-deploy.tgz -C deploy-package .
-
-      - name: Install sshpass
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq sshpass
 
       # SSH 핸드셰이크가 간헐적으로 끊기는 문제(ssh: handshake failed: EOF)를 흡수하도록 업로드를 재시도한다.
       - name: Upload runtime files to NCP
@@ -146,11 +171,24 @@ jobs:
             fi
             free -m
 
-            # 디스크가 부족하면 무거운 단계(node_modules 2벌)로 가기 전에 중단해 서버가 멈추는 것을 막는다.
+            # 배포 패키지에 node_modules가 포함됐는지 먼저 확인한다. 포함된 경우에만 의존성 교체가 일어난다.
+            have_new_modules=0
+            if tar -tzf backend-deploy.tgz 2>/dev/null | grep -qE '^\./node_modules/'; then
+              have_new_modules=1
+            fi
+            echo "payload includes node_modules: ${have_new_modules}"
+
+            # 디스크가 부족하면 무거운 단계로 가기 전에 중단해 서버가 멈추는 것을 막는다.
+            # node_modules를 새로 올릴 때만 2벌이 필요하고, 재사용할 때는 dist만 바꾸므로 훨씬 적게 필요하다.
             free_kb=$(df -Pk . | awk 'NR==2 {print $4}')
             echo "free disk: ${free_kb}KB"
-            if [ "$free_kb" -lt 1200000 ]; then
-              echo 'ERROR: 여유 디스크가 부족해 배포를 중단합니다(서버 보호). 약 1.2GB 필요.'
+            if [ "$have_new_modules" = "1" ]; then
+              required_kb=1200000
+            else
+              required_kb=300000
+            fi
+            if [ "$free_kb" -lt "$required_kb" ]; then
+              echo "ERROR: 여유 디스크가 부족해 배포를 중단합니다(서버 보호). 약 $((required_kb / 1000))MB 필요."
               exit 1
             fi
 
@@ -215,16 +253,26 @@ jobs:
             # 새 런타임을 별도 디렉터리에 미리 준비한다. (이 동안 기존 앱은 계속 서비스한다)
             rm -rf node_modules.new dist.new
 
-            # 교체 전에 새 런타임의 sharp가 이 서버에서 로드되는지 검증한다.
-            # 실패하면 기존 버전을 그대로 두고 중단한다. (서버에서 npm을 실행하면 OOM으로 서버가 멈춘다)
-            echo '--- SHARP LOAD (new runtime) ---'
-            ( cd /tmp/teojabi-payload && node -e "require('sharp'); console.log('sharp ok for this server')" ) || {
-              echo 'ERROR: sharp를 새 런타임에서 로드하지 못했습니다. 서버에서 npm을 실행하지 마세요(OOM 위험).'
-              rm -rf /tmp/teojabi-payload
-              exit 1
-            }
-            # cp 대신 같은 파일시스템 rename(mv)으로 옮겨 디스크 사용을 절반으로 줄인다.
-            mv /tmp/teojabi-payload/node_modules node_modules.new
+            if [ "$have_new_modules" = "1" ]; then
+              # 교체 전에 새 런타임의 sharp가 이 서버에서 로드되는지 검증한다.
+              # 실패하면 기존 버전을 그대로 두고 중단한다. (서버에서 npm을 실행하면 OOM으로 서버가 멈춘다)
+              echo '--- SHARP LOAD (new runtime) ---'
+              ( cd /tmp/teojabi-payload && node -e "require('sharp'); console.log('sharp ok for this server')" ) || {
+                echo 'ERROR: sharp를 새 런타임에서 로드하지 못했습니다. 서버에서 npm을 실행하지 마세요(OOM 위험).'
+                rm -rf /tmp/teojabi-payload
+                exit 1
+              }
+              # cp 대신 같은 파일시스템 rename(mv)으로 옮겨 디스크 사용을 절반으로 줄인다.
+              mv /tmp/teojabi-payload/node_modules node_modules.new
+            else
+              # 의존성이 그대로이므로 기존 node_modules를 재사용한다. 로드 가능한지 미리 확인만 한다.
+              echo '--- SHARP LOAD (reused runtime) ---'
+              node -e "require('sharp'); console.log('sharp ok for this server')" || {
+                echo 'ERROR: 기존 node_modules의 sharp를 로드하지 못했습니다.'
+                rm -rf /tmp/teojabi-payload
+                exit 1
+              }
+            fi
             mv /tmp/teojabi-payload/dist dist.new
             rm -rf /tmp/teojabi-payload
 
@@ -240,10 +288,13 @@ jobs:
               pm2 stop teojabi-backend || true
             fi
 
-            rm -rf node_modules.old dist.old
-            if [ -d node_modules ]; then mv node_modules node_modules.old; fi
+            rm -rf dist.old
+            if [ "$have_new_modules" = "1" ]; then rm -rf node_modules.old; fi
             if [ -d dist ]; then mv dist dist.old; fi
-            mv node_modules.new node_modules
+            if [ "$have_new_modules" = "1" ]; then
+              if [ -d node_modules ]; then mv node_modules node_modules.old; fi
+              mv node_modules.new node_modules
+            fi
             mv dist.new dist
 
             echo '--- SHARP LOAD ---'
@@ -292,8 +343,11 @@ jobs:
             if [ -z "$backend_pid" ]; then
               # 새 버전이 뜨지 않으면 즉시 이전 버전으로 되돌려 서비스가 죽지 않게 한다.
               echo 'New version did not stay online; rolling back to the previous build'
-              rm -rf node_modules dist
-              if [ -d node_modules.old ]; then mv node_modules.old node_modules; fi
+              rm -rf dist
+              if [ "$have_new_modules" = "1" ]; then
+                rm -rf node_modules
+                if [ -d node_modules.old ]; then mv node_modules.old node_modules; fi
+              fi
               if [ -d dist.old ]; then mv dist.old dist; fi
               if [ "$had_pm2" = "1" ]; then
                 pm2 restart teojabi-backend --update-env || true
@@ -321,8 +375,11 @@ jobs:
             fi
 
             # 성공: 이전 버전 백업과 지난 진단 파일을 정리한다.
-            rm -rf node_modules.old dist.old
+            rm -rf dist.old
+            if [ "$have_new_modules" = "1" ]; then rm -rf node_modules.old; fi
             rm -f "$HOME/teojabi-service/backend/deploy-diagnostics.txt"
+            # 현재 lock 해시를 기록해, 다음 배포에서 의존성 변경 여부를 서버가 판단할 수 있게 한다.
+            sha256sum package-lock.json | cut -d' ' -f1 > .deploy-lock-hash
 
       - name: Verify public API
         run: |
