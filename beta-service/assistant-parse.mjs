@@ -60,6 +60,19 @@ export function ruleFilters(text) {
   if (/특화구역|관광숙박/.test(t) && /우선|먼저/.test(t)) filters.preferTourism = true;
   const dong = t.match(/([가-힣]{1,5}[0-9]가|[가-힣]{1,6}동)(?=[\s,.]|이|에|은|는|쪽|근처|$)/);
   if (dong) filters.neighborhood = dong[1];
+  // 법원경매·공매 물건 검색. 건물찾기 지도에서 '경매' 소스로 조회한다.
+  if (/경매|법원경매|공매/.test(t)) {
+    filters.auction = true;
+    const usageOptions = [['오피스텔','오피스텔'],['근린','근린시설'],['상가','상가'],['업무','업무'],['단독','단독주택'],['다가구','다가구'],['다세대','다세대'],['연립','연립주택'],['빌라','빌라'],['대지','대지'],['임야','임야']];
+    const usage = usageOptions.find(([needle]) => t.includes(needle));
+    if (usage) filters.auctionUsage = usage[1];
+    const fail = t.match(/유찰\s*(\d+)\s*회/);
+    if (fail) filters.auctionFailMax = Number(fail[1]);
+    const minPrice = t.match(/(?:최저가|최저매각|최저)\s*(\d+(?:\.\d+)?)\s*억/);
+    if (minPrice) filters.budgetWon = won(minPrice[1]);
+    const appraised = t.match(/감정가?\s*(\d+(?:\.\d+)?)\s*억/);
+    if (appraised && !filters.budgetWon) filters.budgetWon = won(appraised[1]);
+  }
   return filters;
 }
 
@@ -212,6 +225,11 @@ export function sanitize(raw) {
     else if (raw.kind.includes('building')) out.kind = 'building';
   }
   if (raw.purpose === 'new-build') out.purpose = 'new-build';
+  // 경매 물건 검색(건물찾기 지도의 '경매' 소스).
+  if (raw.auction === true) out.auction = true;
+  if (typeof raw.auctionUsage === 'string' && raw.auctionUsage.trim()) out.auctionUsage = raw.auctionUsage.trim().slice(0, 20);
+  const auctionFailMax = Number(raw.auctionFailMax);
+  if (Number.isFinite(auctionFailMax) && auctionFailMax >= 0 && auctionFailMax <= 50) out.auctionFailMax = Math.round(auctionFailMax);
   // 신축 구역 조건은 기존 검색기와 같은 플래그 이름을 쓴다.
   for (const key of ['preferTourism', 'excludeEducation', 'excludeHeritage']) {
     if (raw[key] === true) out[key] = true;
@@ -254,8 +272,49 @@ export function viewRow(row) {
   };
 }
 
+// 경매 물건(auction_item)을 건물찾기 카드·지도가 쓰는 매물 모양으로 맞춘다.
+export function viewAuctionRow(row) {
+  const usage = String(row.usage_name || ''), zone = String(row.use_zone || '');
+  const broad = BROAD_ZONE.find(z => zone.includes(z[1]));
+  const zoning = zone ? { status: 'matched', groups: broad ? [broad[0]] : [], entries: [{ name: zone }] } : { status: 'missing', groups: [], entries: [] };
+  const id = `auction:${row.docid}`;
+  return {
+    id, source: 'auction', sourceId: String(row.docid), sourceUrl: row.source_url || 'https://www.courtauction.go.kr/', cohort: 'auction', origin: 'auction',
+    district: row.sigu || '', neighborhood: row.dong || '', address: row.full_address || `${row.sigu || ''} ${row.dong || ''}`.trim(),
+    pnu: row.pnu || null, position: Number.isFinite(row.lat) && Number.isFinite(row.lng) ? { lat: Number(row.lat), lng: Number(row.lng) } : null,
+    priceWon: row.min_price == null ? null : Number(row.min_price), areaM2: row.area_max == null ? null : Number(row.area_max), floorAreaM2: null,
+    description: '', floorInfo: '', kind: /토지|대지|임야|전답|잡종지|답|전/.test(usage) ? 'land' : 'building', kindConfirmed: true,
+    areaSource: 'listing', floorAreaSource: 'listing', locationStatus: 'pin-estimated', zoning, development: null, nearbyTransactions: { status: 'unavailable', cases: [] },
+    groupKey: id,
+    auction: {
+      docid: String(row.docid), usageName: usage, minPrice: row.min_price == null ? null : Number(row.min_price), appraisedWon: row.appraised_amt == null ? null : Number(row.appraised_amt),
+      failCount: row.fail_count == null ? null : Number(row.fail_count), saleDate: row.sale_date || '', saleHour: row.sale_hour || '', courtName: row.court_name || '', deptName: row.dept_name || '',
+      caseNo: row.case_no || '', notiMinRate: row.noti_min_rate == null ? null : Number(row.noti_min_rate), roadWidthM: row.road_width_m == null ? null : Number(row.road_width_m),
+      sourceUrl: row.source_url || 'https://www.courtauction.go.kr/',
+    },
+  };
+}
+
+export function buildAuctionResult(filters, data) {
+  const rows = (Array.isArray(data?.rows) ? data.rows : []).map(viewAuctionRow);
+  const total = Number(data?.total || rows.length);
+  const groups = rows.map(listing => ({ key: listing.id, pnu: listing.pnu, representative: listing, listings: [listing] }));
+  const described = describe(filters);
+  const reply = total === 0
+    ? `${described.length ? described.join(' · ') + ' 조건에 맞는' : '조건에 맞는'} 경매 물건을 찾지 못했어요. 지역·용도·가격 조건을 바꿔볼까요?`
+    : `조건에 맞는 경매 물건 ${total.toLocaleString('ko-KR')}건 중 ${Math.min(5, groups.length)}건을 보여드릴게요. 대법원 법원경매정보 공시 기준이며, 권리분석·적정 입찰가는 제공하지 않아요.`;
+  return {
+    status: 'ready', reply, filters, chips: chipList(filters), total, groups,
+    originTotals: { premium: 0, registered: 0, disco: 0, naver: 0, auction: total },
+    station: null, districts: [], commercial: null, suggestions: [], relaxations: [], unsupported: null, searchedAt: new Date().toISOString(),
+  };
+}
+
 export function describe(filters) {
   const parts = [];
+  if (filters.auction) parts.push('경매 물건');
+  if (filters.auctionUsage) parts.push(filters.auctionUsage);
+  if (filters.auctionFailMax) parts.push(`유찰 ${filters.auctionFailMax}회 이하`);
   if (filters.districts?.length) parts.push(filters.districts.join('·'));
   else if (filters.q) parts.push(filters.q);
   if (filters.neighborhood) parts.push(filters.neighborhood);
@@ -281,6 +340,9 @@ export function describe(filters) {
 
 export function chipList(filters) {
   const chips = [];
+  if (filters.auction) chips.push({ key: 'auction', value: true, label: '경매 물건', kind: 'value' });
+  if (filters.auctionUsage) chips.push({ key: 'auctionUsage', value: filters.auctionUsage, label: filters.auctionUsage, kind: 'value' });
+  if (filters.auctionFailMax) chips.push({ key: 'auctionFailMax', value: filters.auctionFailMax, label: `유찰 ${filters.auctionFailMax}회 이하`, kind: 'value' });
   (filters.districts || []).forEach(d => chips.push({ key: 'districts', value: d, label: d, kind: 'list' }));
   if (filters.neighborhood) chips.push({ key: 'neighborhood', value: filters.neighborhood, label: filters.neighborhood, kind: 'value' });
   (filters.zones || []).forEach(z => chips.push({ key: 'zones', value: z, label: z, kind: 'list' }));
@@ -393,7 +455,7 @@ export async function parseAssistant(message, condition, geminiKey, editedFilter
   let unsupported = null;
   let reply = null;
   let source = Object.keys(spoken).length ? 'spoken' : Object.keys(saved).length ? 'saved' : 'none';
-  const strongKeys = ['districts', 'neighborhood', 'budgetWon', 'minAreaM2', 'maxAreaM2', 'zones', 'stationName', 'maxDistanceM', 'minRoadWidthM', 'commercialName', 'commercialCode', 'commercialType', 'minCommercialSalesWon', 'minCommercialPopulation'];
+  const strongKeys = ['auction', 'districts', 'neighborhood', 'budgetWon', 'minAreaM2', 'maxAreaM2', 'zones', 'stationName', 'maxDistanceM', 'minRoadWidthM', 'commercialName', 'commercialCode', 'commercialType', 'minCommercialSalesWon', 'minCommercialPopulation'];
   const hasStrong = strongKeys.some(key => { const value = spoken[key]; return Array.isArray(value) ? value.length > 0 : value !== undefined && value !== null && value !== ''; });
   const conversational = /안녕|반갑|반가|잘\s*부탁|고마|감사|수고|하이|헬로|hello|\bhi\b/i.test(String(message || ''));
   const bare = !hasMeaningfulFilters(spoken);
