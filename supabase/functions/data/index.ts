@@ -12,6 +12,7 @@ import { selectedCatalog } from "./lib/selected-catalog.mjs";
 import { browseCatalog, suggestCatalogChanges, DOCUMENT_LINKS } from "./lib/catalog.mjs";
 import { buildParcelContext, buildBuildingRecords, buildRiskReview } from "./lib/risk-policy.mjs";
 import { normalizeLandRecord } from "./lib/land-policy.mjs";
+import { normalizeSiteParcels } from "./lib/site-policy.mjs";
 
 const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, {
   auth: { persistSession: false },
@@ -324,6 +325,16 @@ Deno.serve(async (request: Request) => {
       const result = land ? normalizeLandRecord(listing, raw) : registers ? buildBuildingRecords(listing, raw) : buildRiskReview(listing, raw);
       const body = compact && result.status !== "error" ? { status: (result.road && result.road.status === "error") ? "partial" : result.status, zones: result.zones, road: result.road } : result;
       return json(body, result.status === "error" ? 503 : 200, origin);
+    }
+    if (path === "/api/site-parcels") {
+      let query = null;
+      if (params.has("pnu")) query = { pnu: params.get("pnu") };
+      else if (params.has("address")) query = { address: params.get("address") };
+      else if (params.has("lat") && params.has("lng")) query = { lat: Number(params.get("lat")), lng: Number(params.get("lng")) };
+      if (!query) return json({ status: "error" }, 400, origin);
+      const { data: siteRaw, error } = await db.rpc("teojabi_site_parcels", { p_query: query });
+      if (error) throw error;
+      return json(normalizeSiteParcels(siteRaw), 200, origin);
     }
     return json({ status: "not-found" }, 404, origin);
   } catch (_error) {
