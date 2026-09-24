@@ -1,9 +1,8 @@
-# manual-trigger: 2026-09-24T11:50Z
+# manual-trigger: 2026-09-24T12:30Z
 name: Deploy Supabase Functions
 
-# Supabase Edge Function(경매 API 파일럿)을 배포한다.
+# Supabase Edge Functions(경매/데이터 API)을 배포한다.
 # 사전 준비: 리포지토리 시크릿에 SUPABASE_ACCESS_TOKEN 을 추가한다.
-#   (Supabase Dashboard → Account → Access Tokens)
 # 토큰이 없으면 실패하지 않고 경고 후 건너뛴다.
 on:
   workflow_dispatch:
@@ -13,6 +12,11 @@ on:
       - 'supabase/functions/**'
       - 'supabase/config.toml'
       - '.github/workflows/supabase-functions-deploy.yml'
+      - 'beta-service/.local/supabase/selected-*.json'
+      - 'beta-service/.local/inventory-summary.json'
+      - 'beta-service/.local/disco-daily/activity.json'
+      - 'beta-service/.local/curation-hidden.json'
+      - 'beta-service/neighborhoods.json'
 
 jobs:
   deploy:
@@ -28,7 +32,7 @@ jobs:
         id: token
         run: |
           if [ -z "$SUPABASE_ACCESS_TOKEN" ]; then
-            echo "::warning::SUPABASE_ACCESS_TOKEN 시크릿이 없어 배포를 건너뜁니다. Supabase Access Token을 리포지토리 시크릿에 추가하세요."
+            echo "::warning::SUPABASE_ACCESS_TOKEN 시크릿이 없어 배포를 건너뜁니다."
             echo "ready=false" >> "$GITHUB_OUTPUT"
           else
             echo "ready=true" >> "$GITHUB_OUTPUT"
@@ -40,11 +44,36 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Deploy auction function
+      - name: Generate snapshots module for data function
+        if: steps.token.outputs.ready == 'true'
+        run: |
+          python3 - <<'PY'
+          import json, os
+          def load(path):
+              try:
+                  with open(path, encoding='utf-8') as handle:
+                      return json.load(handle)
+              except FileNotFoundError:
+                  return None
+          files = {
+              'selectedCatalog': 'beta-service/.local/supabase/selected-catalog.json',
+              'selectedZoning': 'beta-service/.local/supabase/selected-zoning.json',
+              'selectedDevelopment': 'beta-service/.local/supabase/selected-development.json',
+              'curationHidden': 'beta-service/.local/curation-hidden.json',
+              'neighborhoods': 'beta-service/neighborhoods.json',
+              'inventorySummary': 'beta-service/.local/inventory-summary.json',
+              'discoActivity': 'beta-service/.local/disco-daily/activity.json',
+          }
+          data = {key: load(path) for key, path in files.items()}
+          with open('supabase/functions/data/snapshots.ts', 'w', encoding='utf-8') as handle:
+              handle.write('// generated at deploy time\nexport const snapshots: any = ' + json.dumps(data, ensure_ascii=False) + ';\n')
+          print('snapshots.ts bytes', os.path.getsize('supabase/functions/data/snapshots.ts'))
+          PY
+
+      - name: Deploy functions
         if: steps.token.outputs.ready == 'true'
         run: |
           set -e
-          npx --yes supabase@latest functions deploy auction \
-            --project-ref "$PROJECT_REF" \
-            --no-verify-jwt
-          echo "deployed: https://${PROJECT_REF}.supabase.co/functions/v1/auction"
+          supabase functions deploy auction --project-ref "$PROJECT_REF" --no-verify-jwt
+          supabase functions deploy data --project-ref "$PROJECT_REF" --no-verify-jwt
+          echo "deployed: https://${PROJECT_REF}.supabase.co/functions/v1/{auction,data}"
