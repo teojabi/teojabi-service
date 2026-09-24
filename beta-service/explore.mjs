@@ -159,8 +159,9 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
   const auctionFiltersUi=mountAuctionFilters($('#auction-filters'),{getValue:()=>auctionFilters,onChange:next=>{
     auctionFilters={...auctionFilters,...next};
     ++version;limit=100;closeDetail(true,false);clearTimeout(loadTimer);
+    body.scrollTop=0;
     $('#result-count').textContent='변경한 조건으로 경매 물건을 찾고 있어요.';
-    loadTimer=setTimeout(()=>load(),200);
+    load();
   }});
   const map=new ListingMap($('#map-host'),{areaUnit:getAreaDisplayUnit(),onSelect:id=>openDetail(id),onMapClick:()=>{if(matchMedia('(max-width:700px)').matches)setSheet(false);window.dispatchEvent(new CustomEvent('teojabi-map-click'));},onTransaction:id=>{
     setSheet(true);
