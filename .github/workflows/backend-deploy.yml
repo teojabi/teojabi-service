@@ -132,22 +132,26 @@ jobs:
             echo '--- DISK AFTER CLEANUP ---'
             df -h .
 
-            # 무료 스왑을 1회 생성해 OOM으로 서버가 멈추는 것을 예방한다. (이미 있으면 건너뜀, 실패해도 배포는 계속)
-            # 디스크 여유가 부족하면 만들지 않는다.
-            if [ ! -f /swapfile ]; then
-              free_kb=$(df -Pk / | awk 'NR==2 {print $4}')
-              swap_mb=0
-              if [ "$free_kb" -ge 3145728 ]; then swap_mb=2048; elif [ "$free_kb" -ge 1572864 ]; then swap_mb=1024; fi
-              if [ "$swap_mb" -gt 0 ]; then
-                echo "--- CREATING ${swap_mb}MB SWAP ---"
-                if sudo -n fallocate -l ${swap_mb}M /swapfile 2>/dev/null || sudo -n dd if=/dev/zero of=/swapfile bs=1M count=${swap_mb} status=none 2>/dev/null; then
-                  { sudo -n chmod 600 /swapfile && sudo -n mkswap /swapfile >/dev/null && sudo -n swapon /swapfile && { grep -q '/swapfile' /etc/fstab || echo '/swapfile none swap sw 0 0' | sudo -n tee -a /etc/fstab >/dev/null; } && free -m; } || echo 'WARN: swap setup failed'
-                else
-                  echo 'WARN: could not allocate /swapfile (sudo unavailable?)'
-                fi
-              else
-                echo "WARN: skipping swap (free disk ${free_kb}KB too small)"
+            # 스왑은 OOM 보호용으로 유지하되, 디스크가 빠듯하므로 512MB로 고정한다.
+            # (1GB RAM 서버에서 스왑 1GB는 디스크를 과하게 먹어 백엔드 배포를 방해한다)
+            swap_bytes=$(sudo -n stat -c%s /swapfile 2>/dev/null || echo 0)
+            if [ "$swap_bytes" -gt 600000000 ]; then
+              echo '--- SHRINKING SWAP TO 512MB ---'
+              { sudo -n swapoff /swapfile && sudo -n fallocate -l 512M /swapfile && sudo -n chmod 600 /swapfile && sudo -n mkswap /swapfile >/dev/null && sudo -n swapon /swapfile; } || echo 'WARN: swap resize failed'
+            elif [ ! -f /swapfile ]; then
+              echo '--- CREATING 512MB SWAP ---'
+              if sudo -n fallocate -l 512M /swapfile 2>/dev/null || sudo -n dd if=/dev/zero of=/swapfile bs=1M count=512 status=none 2>/dev/null; then
+                { sudo -n chmod 600 /swapfile && sudo -n mkswap /swapfile >/dev/null && sudo -n swapon /swapfile && { grep -q '/swapfile' /etc/fstab || echo '/swapfile none swap sw 0 0' | sudo -n tee -a /etc/fstab >/dev/null; }; } || echo 'WARN: swap setup failed'
               fi
+            fi
+            free -m
+
+            # 디스크가 부족하면 무거운 단계(node_modules 2벌)로 가기 전에 중단해 서버가 멈추는 것을 막는다.
+            free_kb=$(df -Pk . | awk 'NR==2 {print $4}')
+            echo "free disk: ${free_kb}KB"
+            if [ "$free_kb" -lt 1200000 ]; then
+              echo 'ERROR: 여유 디스크가 부족해 배포를 중단합니다(서버 보호). 약 1.2GB 필요.'
+              exit 1
             fi
 
             # 배포 패키지를 먼저 안전한 곳에 풀어 둔다. (git clean이 지우지 못하도록)
@@ -210,17 +214,18 @@ jobs:
 
             # 새 런타임을 별도 디렉터리에 미리 준비한다. (이 동안 기존 앱은 계속 서비스한다)
             rm -rf node_modules.new dist.new
-            cp -R /tmp/teojabi-payload/node_modules node_modules.new
-            cp -R /tmp/teojabi-payload/dist dist.new
 
             # 교체 전에 새 런타임의 sharp가 이 서버에서 로드되는지 검증한다.
             # 실패하면 기존 버전을 그대로 두고 중단한다. (서버에서 npm을 실행하면 OOM으로 서버가 멈춘다)
             echo '--- SHARP LOAD (new runtime) ---'
             ( cd /tmp/teojabi-payload && node -e "require('sharp'); console.log('sharp ok for this server')" ) || {
               echo 'ERROR: sharp를 새 런타임에서 로드하지 못했습니다. 서버에서 npm을 실행하지 마세요(OOM 위험).'
-              rm -rf node_modules.new dist.new
+              rm -rf /tmp/teojabi-payload
               exit 1
             }
+            # cp 대신 같은 파일시스템 rename(mv)으로 옮겨 디스크 사용을 절반으로 줄인다.
+            mv /tmp/teojabi-payload/node_modules node_modules.new
+            mv /tmp/teojabi-payload/dist dist.new
             rm -rf /tmp/teojabi-payload
 
             echo '--- SERVER ENV ---'
