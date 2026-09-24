@@ -861,3 +861,6 @@ body.architect-lightbox-open{overflow:hidden}
 .auction-filter-label small{font-weight:400;opacity:.85}
 .auction-gu-choices{grid-template-columns:repeat(auto-fill,minmax(84px,1fr));margin-top:4px}
 .auction-gu-choices span{min-height:38px;font-size:12px}
+.auction-gu-toggle{min-height:40px}
+.auction-filter-apply{min-height:40px;align-self:flex-end}
+.parcel-label{display:inline-block;min-width:56px;color:var(--muted);font-size:12px}

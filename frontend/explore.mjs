@@ -52,13 +52,21 @@ const detailFactItems=row=>{
 };
 // 경매 물건(auction_item)을 건물찾기 카드·지도·상세가 쓰는 매물 모양으로 맞춘다.
 const AUCTION_LAND_RE=/토지|대지|임야|전답|잡종지|과수원|답|전/;
+// 법원 소재지를 대지위치(지번)와 상세주소(건물·호)로 나눈다.
+const splitAuctionAddress=row=>{
+  const full=String(row.full_address||'').trim(),lot=String(row.lot_no||'').trim();
+  let land=full,detail=String(row.building_list||'').trim();
+  if(lot){const idx=full.indexOf(lot);if(idx>=0){land=full.slice(0,idx+lot.length).trim();const rest=full.slice(idx+lot.length).trim();if(rest)detail=rest;}}
+  if(!land)land=[row.sido,row.sigu,row.dong,lot].map(v=>String(v||'').trim()).filter(Boolean).join(' ');
+  return {land,detail};
+};
 const auctionToListing=row=>{
   const usage=String(row.usage_name||''),zone=String(row.use_zone||'');
   const position=Number.isFinite(row.lat)&&Number.isFinite(row.lng)?{lat:Number(row.lat),lng:Number(row.lng)}:null;
   const broad=/주거/.test(zone)?'주거지역':/상업/.test(zone)?'상업지역':/공업/.test(zone)?'공업지역':/녹지/.test(zone)?'녹지지역':null;
-  const id=`auction:${row.docid}`;
+  const id=`auction:${row.docid}`,addr=splitAuctionAddress(row);
   return {id,source:'auction',sourceId:String(row.docid),cohort:'auction',
-    district:row.sigu||'',neighborhood:row.dong||'',address:row.full_address||`${row.sigu||''} ${row.dong||''} ${row.lot_no||''}`.trim(),
+    district:row.sigu||'',neighborhood:row.dong||'',address:addr.land,detailAddress:addr.detail,
     pnu:/^\d{19}$/.test(String(row.pnu||''))?row.pnu:null,position,
     priceWon:row.min_price==null?null:Number(row.min_price),areaM2:row.area_max==null?null:Number(row.area_max),
     floorAreaM2:null,kind:AUCTION_LAND_RE.test(usage)?'land':'building',kindConfirmed:true,
@@ -273,12 +281,6 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
       const data=await response.json();if(!response.ok || data.status!=='ready')throw new Error(data.reason||'unavailable');
       if(disposed||current!==version)return;
       result=data;
-      // 조건에 경매가 포함되면 법원경매 물건도 같은 목록·지도에 함께 담는다.
-      if(criteria.auction?.enabled){
-        const au=await fetchAuctionGroups({districts:conditions?.districts||[],usages:criteria.auction.usages||[],maxPriceWon:criteria.auction.maxPriceWon,maxBidRate:criteria.auction.maxBidRate});
-        if(disposed||current!==version)return;
-        if(au&&au.total)result={...data,groups:[...data.groups,...au.groups],totalParcels:data.totalParcels+au.total,auctionTotal:au.total};
-      }
       $('.explore-list').removeAttribute('aria-busy');drawCards();map.setGroups(showAllPicks?(pickGroups||[]):mapGroups(),selected,fit);
       if(initialId){const id=initialId;initialId=null;openDetail(id);}
     } catch(error) {
@@ -423,7 +425,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
         ${d.legal_superficies?`<dt>법정지상권</dt><dd>${esc(d.legal_superficies)}</dd>`:''}
         ${stats?`<dt>주변 12개월</dt><dd>낙찰가율 ${esc(stats.term12MgakPrcRate ?? '—')}% · 평균유찰 ${esc(stats.term12AvgFlbdNcnt ?? '—')}회</dd>`:''}
       </dl><p class="case-note chk">※ 권리분석·적정 입찰가는 제공하지 않아요. 인수권리·점유 등은 법원 원문을 확인하세요.</p><p class="case-note">경매 공시 사실정보예요. 자세한 조건은 법원경매정보 원문에서 확인해 주세요.</p><div class="detail-links"><a class="outline" href="${sourceUrl}" target="_blank" rel="noopener noreferrer">법원경매정보에서 보기 ↗</a></div></section>
-      <section class="detail-section" id="property-parcel"><h3>필지 위치</h3><p>${esc(row.address||rowTitle(row))}</p></section>
+      <section class="detail-section" id="property-parcel"><h3>필지 위치</h3><p><span class="parcel-label">대지위치</span> ${esc(row.address||rowTitle(row))}</p>${row.detailAddress?`<p><span class="parcel-label">상세주소</span> ${esc(row.detailAddress)}</p>`:''}</section>
       <section class="detail-section"><h3>용도지역</h3>${row.zoning?.status==='matched'&&Array.isArray(row.zoning.entries)&&row.zoning.entries.length?`<p>${row.zoning.entries.map(e=>esc(e.name)).join('<br>')}</p><p class="case-note">공공데이터 기준</p>`:'<p class="case-note">용도지역을 확인하지 못했습니다.</p>'}</section>
       <section class="detail-section nearby-section" id="property-transactions"><details id="nearby-details" class="nearby-details"><summary class="nearby-summary"><span class="nearby-summary-title">주변 실거래</span><span class="nearby-summary-count" id="nearby-count"></span></summary><div class="nearby-body"><div class="nearby-heading"><button class="outline" data-explore="transactions" aria-pressed="true" disabled>지도 표시</button></div>${areaUnitControls()}<div id="nearby-cases" aria-live="polite"><p class="case-note">가까운 토지·건물 거래를 찾고 있어요.</p></div></div></details></section>
       <section class="detail-section commercial-section" id="property-commercial"><h3>상권</h3><div id="commercial-facts" aria-live="polite"></div></section>
