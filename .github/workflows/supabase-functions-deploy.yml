@@ -1,3 +1,4 @@
+# manual-trigger: 2026-09-24T10:05Z
 name: Deploy Supabase Functions
 
 # Supabase Edge Function(경매 API 파일럿)을 배포한다.
