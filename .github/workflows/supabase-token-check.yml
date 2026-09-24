@@ -73,6 +73,7 @@ jobs:
         if: steps.check.outputs.alert == '1'
         env:
           GH_TOKEN: ${{ github.token }}
+          REASON: ${{ steps.check.outputs.reason }}
         run: |
           title="[알림] Supabase Access Token 갱신 필요"
           existing=$(gh issue list --state open --search "$title in:title" --json number --jq 'length')
@@ -80,11 +81,5 @@ jobs:
             echo "이미 열린 이슈가 있어 생략합니다."
             exit 0
           fi
-          gh issue create --title "$title" \
-            --body "Supabase 함수 배포용 토큰을 갱신해야 합니다.
-
-- 사유: ${{ steps.check.outputs.reason }}
-- 조치: Supabase → Account → Access Tokens 에서 새 토큰 발급 → GitHub 리포 시크릿 \`SUPABASE_ACCESS_TOKEN\` 값 교체
-- (선택) 만료일을 시크릿 \`SUPABASE_TOKEN_EXPIRES_AT\`(YYYY-MM-DD)에 기록하면 임박 알림이 정확해집니다.
-
-참고: 이미 배포된 Edge Function은 토큰이 만료돼도 계속 동작하며, 만료 시 **새 배포만** 막힙니다."
+          body=$(printf 'Supabase 함수 배포용 토큰을 갱신해야 합니다.\n\n- 사유: %s\n- 조치: Supabase → Account → Access Tokens 에서 새 토큰 발급 → GitHub 리포 시크릿 SUPABASE_ACCESS_TOKEN 값 교체\n- (선택) 만료일을 시크릿 SUPABASE_TOKEN_EXPIRES_AT(YYYY-MM-DD)에 기록하면 임박 알림이 정확해집니다.\n\n참고: 이미 배포된 Edge Function은 토큰이 만료돼도 계속 동작하며, 만료 시 새 배포만 막힙니다.' "$REASON")
+          gh issue create --title "$title" --body "$body"
