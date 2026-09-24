@@ -12,7 +12,7 @@ import { buildRiskReview, buildBuildingRecords, buildParcelContext } from './ris
 import { normalizeSiteParcels } from './site-policy.mjs';
 import { normalizeLandRecord } from './land-policy.mjs';
 import { allowedReviewWrite, runCuration, readReviewBody } from './curation-api.mjs';
-import { parseAssistant, buildResult, buildAuctionResult, hasMeaningfulFilters } from './assistant-parse.mjs';
+import { parseAssistant, buildResult, buildAuctionResult, buildCombinedResult, hasMeaningfulFilters } from './assistant-parse.mjs';
 import { runAssistant } from './assistant-api.mjs';
 import { selectedCatalog, validListingId } from './selected-catalog.mjs';
 import { DISTRICTS } from './policy.mjs';
@@ -299,13 +299,19 @@ createServer(async (request, response) => {
           filters:parsed.filters,chips:[],total:0,groups:[],originTotals:{premium:0,registered:0,disco:0,naver:0},station:null,districts:[],suggestions:[],relaxations:[],unsupported:parsed.unsupported||null,searchedAt:null});
         return;
       }
-      // 경매 의도면 네이버 매물 대신 법원경매 물건(auction_item)을 찾는다.
-      if(parsed.filters.auction){
+      // 경매 조건이 있으면 매물(네이버)과 경매(법원)를 함께 찾아 추천한다.
+      if(parsed.filters.auction?.enabled){
         try {
-          const payload={gu:(parsed.filters.districts||[])[0]||'',kind:parsed.filters.kind||'',usage:parsed.filters.auctionUsage||'',
-            q:parsed.filters.q||'',maxPrice:parsed.filters.budgetWon||'',maxFail:parsed.filters.auctionFailMax||'',sort:'sale',size:60};
+          const a=parsed.filters.auction;
+          const payload={gu:(parsed.filters.districts||[])[0]||'',kind:parsed.filters.kind||'',usage:a.usages||[],
+            q:parsed.filters.q||'',maxPrice:a.maxPriceWon||'',maxBidRate:a.maxBidRate||'',sort:'sale',size:60};
+          const listingFilters={...parsed.filters};delete listingFilters.auction;
+          let listingSearch=null;
+          if(hasMeaningfulFilters(listingFilters)){
+            try{listingSearch=await runAssistant(root,listingFilters);}catch{listingSearch=null;}
+          }
           const auctionData=await auctionRead('list',JSON.stringify(payload));
-          send(response,request,buildAuctionResult(parsed.filters,auctionData));
+          send(response,request,buildCombinedResult(parsed.filters,listingSearch,auctionData));
         } catch {
           send(response,request,{status:'ready',reply:'경매 자료를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.',
             filters:parsed.filters,chips:[],total:0,groups:[],originTotals:{premium:0,registered:0,disco:0,naver:0,auction:0},station:null,districts:[],suggestions:[],relaxations:[],unsupported:null,searchedAt:null});
@@ -527,18 +533,18 @@ createServer(async (request, response) => {
   if (path === '/api/auctions' || path === '/api/auctions/map' || path.startsWith('/api/auctions/')) {
     try {
       const url=new URL(request.url,'http://localhost');
+      const AUCTION_KEYS=['gu','kind','q','minPrice','maxPrice','minFail','maxFail','maxBidRate','saleFrom','saleTo','sort','page','size'];
+      const auctionPayload=q=>{
+        const payload={};
+        for(const key of AUCTION_KEYS)if(q.get(key)!=null)payload[key]=q.get(key);
+        const usages=q.getAll('usage').filter(Boolean);if(usages.length)payload.usage=usages;
+        return payload;
+      };
       if (path === '/api/auctions') {
-        const q=url.searchParams, payload={};
-        for (const key of ['gu','usage','minPrice','maxPrice','failMax','saleFrom','saleTo','sort','page','size']) {
-          if (q.get(key)!=null) payload[key]=q.get(key);
-        }
-        send(response,request,await auctionRead('list',JSON.stringify(payload)));
+        send(response,request,await auctionRead('list',JSON.stringify(auctionPayload(url.searchParams))));
       } else if (path === '/api/auctions/map') {
-        const q=url.searchParams, payload={
+        const q=url.searchParams, payload={...auctionPayload(q),
           swLng:q.get('swLng'),swLat:q.get('swLat'),neLng:q.get('neLng'),neLat:q.get('neLat')};
-        for (const key of ['gu','usage','minPrice','maxPrice','failMax','saleFrom','saleTo']) {
-          if (q.get(key)!=null) payload[key]=q.get(key);
-        }
         send(response,request,await auctionRead('map',JSON.stringify(payload)));
       } else {
         const docid=decodeURIComponent(path.slice('/api/auctions/'.length));

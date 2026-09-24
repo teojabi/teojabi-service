@@ -81,7 +81,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
   let source=assistantResult?'assistant':initialSource==='favorites'?'favorites':initialSource==='auction'?'auction':'conditions';
   let auctionFilters={gu:'',usage:'',kind:'',sort:'sale',maxPrice:'',failMax:''};
   if(source==='auction')limit=100;
-  let criteria={purpose:conditions?.purpose||null,minArea:conditions?.minArea||'',maxArea:conditions?.maxArea||'',areaUnit:conditions?.areaUnit||'pyeong',zones:conditions?.zones||[],minAreaM2:conditions?.minAreaM2??null,maxAreaM2:conditions?.maxAreaM2??null,...BUILD_DEFAULTS,...(validateBuildCriteria(conditions||{}).value||{})};
+  let criteria={purpose:conditions?.purpose||null,minArea:conditions?.minArea||'',maxArea:conditions?.maxArea||'',areaUnit:conditions?.areaUnit||'pyeong',zones:conditions?.zones||[],minAreaM2:conditions?.minAreaM2??null,maxAreaM2:conditions?.maxAreaM2??null,auction:conditions?.auction||null,...BUILD_DEFAULTS,...(validateBuildCriteria(conditions||{}).value||{})};
   const defaultTitle=()=>source==='assistant'?'AI 비서 결과':source==='favorites'?'찜한 매물':source==='auction'?'경매 물건':picksOnlyMode?'터잡이 선별 매물':conditions?'내 조건으로 살펴보기':'지도에서 매물 살펴보기';
   const title=defaultTitle();
   root.innerHTML=`<section class="explore-page"><div class="result-head"><div><span class="eyebrow">EXPLORE TEOJABI</span><h1>${title}</h1></div><button class="outline" data-explore="back-conditions" hidden>내 조건으로 보기</button><button class="outline" data-explore="edit">검색 조건 바꾸기</button></div>
@@ -198,7 +198,8 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
   function drawCards() {
     const favoritesMode=source==='favorites',assistantMode=source==='assistant',auctionMode=source==='auction';
     const renderGroups=mapGroups();
-    $('#listing-list').innerHTML=renderGroups.map(auctionMode?auctionCard:card).join('')||(favoritesMode?'<div class="empty"><h2>찜한 매물이 없어요.</h2><p>마음에 드는 매물을 ♡ 찜하면 여기에서 한 번에 볼 수 있어요.</p></div>':auctionMode?'<div class="empty"><h2>조건에 맞는 경매 물건이 없어요.</h2><p>지역·용도·최저가·유찰 조건을 바꿔 다시 찾아보세요.</p></div>':'<div class="empty"><h2>조건에 맞는 매물이 없어요.</h2><p>주소·면적·지도 범위를 바꾸거나 예산과 지역을 다시 선택해 주세요.</p></div>');
+    const renderCard=group=>group.representative.cohort==='auction'?auctionCard(group):card(group);
+    $('#listing-list').innerHTML=renderGroups.map(renderCard).join('')||(favoritesMode?'<div class="empty"><h2>찜한 매물이 없어요.</h2><p>마음에 드는 매물을 ♡ 찜하면 여기에서 한 번에 볼 수 있어요.</p></div>':auctionMode?'<div class="empty"><h2>조건에 맞는 경매 물건이 없어요.</h2><p>지역·용도·최저가·유찰 조건을 바꿔 다시 찾아보세요.</p></div>':'<div class="empty"><h2>조건에 맞는 매물이 없어요.</h2><p>주소·면적·지도 범위를 바꾸거나 예산과 지역을 다시 선택해 주세요.</p></div>');
     if(auctionMode){
       $('#result-count').textContent=`경매 물건 ${result.totalParcels.toLocaleString('ko-KR')}건 중 ${result.groups.length}건 표시`;
       $('[data-explore="more"]').hidden=!result.hasMore;
@@ -223,21 +224,26 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
       $('#explore-foot').textContent=result.station?`${result.station.name}역 직선거리 기준입니다. 실제 보행 경로·시간과 다를 수 있어요.`:'AI 비서가 조건을 해석해 찾은 결과입니다. 실제와 다를 수 있어요.';
       $('#bounds-chip').innerHTML='';
     } else {
-      $('#result-count').textContent=`${result.totalParcels.toLocaleString('ko-KR')}개 매물 · ${result.groups.length}개 표시`;
+      let countText=`${result.totalParcels.toLocaleString('ko-KR')}개 매물`;
+      if(result.auctionTotal)countText+=` · 경매 ${result.auctionTotal.toLocaleString('ko-KR')}건 포함`;
+      $('#result-count').textContent=`${countText} · ${result.groups.length}개 표시`;
       if(criteria.preferTourism)$('#result-count').textContent+=result.tourismPreferredCount?` · 특화구역 ${result.tourismPreferredCount}개 우선`:' · 특화구역 우선대상 없음';
       $('[data-explore="more"]').hidden=!result.hasMore;
       $('#explore-foot').textContent=`선별 매물 미리보기 · ${date(result.observedAt)} 구성 · 면적은 매물 기재 기준 · 용도지역은 연결 필지의 보유 토지자료 기준입니다.`;
       if(criteria.purpose==='new-build')$('#explore-foot').textContent+=' 신축 용도는 계획한 용도이며 건축 가능 판정이 아닙니다. 도로폭·보호구역 제외 조건은 연결 필지의 저장 자료 기준으로, 해당 항목 미확인 매물은 제외됩니다.';
       $('#bounds-chip').innerHTML=bounds?'<button class="pill clear-bounds" data-explore="clear-bounds">지도 범위 해제 ×</button>':'';
     }
-    for(const card of root.querySelectorAll('[data-card-id]')){
-      const id=card.dataset.cardId;card.insertAdjacentHTML('beforeend',`<div class="property-actions"><button class="outline" data-explore="compare-toggle" data-id="${esc(id)}" aria-pressed="${compared.has(id)}">${compared.has(id)?'✓ 비교 선택됨':'＋ 비교'}</button><button class="outline" data-explore="favorite" data-id="${esc(id)}" aria-pressed="${Boolean(member.get('favorite',id))}">${member.get('favorite',id)?'♥ 찜함':'♡ 찜'}</button><button class="outline" data-explore="feedback" data-id="${esc(id)}">내 의견</button></div>`);
+    for(const cardEl of root.querySelectorAll('[data-card-id]')){
+      const id=cardEl.dataset.cardId;
+      const rep=result?.groups.find(group=>group.representative.id===id)?.representative;
+      if(rep?.cohort==='auction')continue;
+      cardEl.insertAdjacentHTML('beforeend',`<div class="property-actions"><button class="outline" data-explore="compare-toggle" data-id="${esc(id)}" aria-pressed="${compared.has(id)}">${compared.has(id)?'✓ 비교 선택됨':'＋ 비교'}</button><button class="outline" data-explore="favorite" data-id="${esc(id)}" aria-pressed="${Boolean(member.get('favorite',id))}">${member.get('favorite',id)?'♥ 찜함':'♡ 찜'}</button><button class="outline" data-explore="feedback" data-id="${esc(id)}">내 의견</button></div>`);
       if(!favoritesMode&&!assistantMode&&criteria.purpose==='new-build'){
-        const facts=result.groups.find(group=>group.representative.id===id)?.representative.development,labels=[];
+        const facts=rep?.development,labels=[];
         if(criteria.preferTourism&&['contained','overlap'].includes(facts?.tourism))labels.push(facts.tourism==='contained'?'관광숙박특화구역 포함':'관광숙박특화구역 일부 걸침');
         if(criteria.minRoadWidthM&&facts?.roadWidthM)labels.push(`도로 ${facts.roadWidthM}m`);
         if(criteria.excludeEducation)labels.push('교육구역 겹침 없음');if(criteria.excludeHeritage)labels.push('문화재구역 겹침 없음');
-        if(labels.length)card.querySelector('.property-zoning').insertAdjacentHTML('afterend',`<p class="property-build-facts">${labels.map(esc).join(' · ')}</p>`);
+        if(labels.length)cardEl.querySelector('.property-zoning').insertAdjacentHTML('afterend',`<p class="property-build-facts">${labels.map(esc).join(' · ')}</p>`);
       }
     }
     drawCompare();
@@ -266,7 +272,14 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
       const response=await apiFetch(`/api/catalog?${params}`,{signal:abort.signal});
       const data=await response.json();if(!response.ok || data.status!=='ready')throw new Error(data.reason||'unavailable');
       if(disposed||current!==version)return;
-      result=data;$('.explore-list').removeAttribute('aria-busy');drawCards();map.setGroups(showAllPicks?(pickGroups||[]):mapGroups(),selected,fit);
+      result=data;
+      // 조건에 경매가 포함되면 법원경매 물건도 같은 목록·지도에 함께 담는다.
+      if(criteria.auction?.enabled){
+        const au=await fetchAuctionGroups({gu:conditions?.districts?.[0]||'',usages:criteria.auction.usages||[],maxPriceWon:criteria.auction.maxPriceWon,maxBidRate:criteria.auction.maxBidRate});
+        if(disposed||current!==version)return;
+        if(au&&au.total)result={...data,groups:[...data.groups,...au.groups],totalParcels:data.totalParcels+au.total,auctionTotal:au.total};
+      }
+      $('.explore-list').removeAttribute('aria-busy');drawCards();map.setGroups(showAllPicks?(pickGroups||[]):mapGroups(),selected,fit);
       if(initialId){const id=initialId;initialId=null;openDetail(id);}
     } catch(error) {
       if(disposed||current!==version)return;
@@ -308,6 +321,19 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
       $('#result-count').textContent='찜한 매물을 확인하지 못했어요.';
       $('#listing-list').innerHTML='<div class="empty"><h2>찜한 매물을 불러오지 못했어요.</h2><p>연결 상태를 확인하고 다시 시도해 주세요.</p><button class="outline" data-explore="retry">다시 불러오기</button></div>';
     }
+  }
+  // 조건에 포함된 경매를 건물찾기 목록·지도에 넣기 위해 같은 모양의 그룹으로 만든다.
+  async function fetchAuctionGroups({gu='',usages=[],maxPriceWon=null,maxBidRate=null,limit=100}={}){
+    const params=new URLSearchParams({size:String(limit),page:'1',sort:'sale'});
+    if(gu)params.set('gu',gu);
+    (usages||[]).forEach(u=>params.append('usage',u));
+    if(maxPriceWon)params.set('maxPrice',String(maxPriceWon));
+    if(maxBidRate)params.set('maxBidRate',String(maxBidRate));
+    const response=await apiFetch(`/api/auctions?${params}`,{signal:abort.signal});
+    const data=await response.json();
+    if(!response.ok||data.status!=='ready')return null;
+    const groups=(data.rows||[]).map(auctionToListing).map(row=>({key:row.id,pnu:row.pnu,representative:row,listings:[row]}));
+    return {groups,total:Number(data.total||groups.length)};
   }
   async function loadAuctions({fit=true}={}) {
     const current=++version;

@@ -109,6 +109,7 @@ def _where(payload):
     usages = _usage_list(payload.get('usage'))
     min_price = _num(payload.get('minPrice'))
     max_price = _num(payload.get('maxPrice'))
+    max_rate = _num(payload.get('maxBidRate'))
     min_fail = _num(payload.get('minFail'))
     max_fail = _num(payload.get('maxFail'))
     sale_from = _text(payload.get('saleFrom'), 10)
@@ -139,6 +140,9 @@ def _where(payload):
     if max_price is not None:
         where.append('min_price <= %(maxp)s')
         params['maxp'] = max_price
+    if max_rate is not None:
+        where.append('noti_min_rate <= %(maxrate)s')
+        params['maxrate'] = max_rate
     if min_fail is not None:
         where.append('fail_count >= %(minf)s')
         params['minf'] = min_fail
