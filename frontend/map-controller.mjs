@@ -178,11 +178,13 @@ export class ListingMap {
     const price=document.createElement('strong'),area=document.createElement('span'),badge=document.createElement('span');
     price.className='map-pin-price';area.className='map-pin-area';
     badge.className='map-pin-badge';badge.textContent='⭐';badge.setAttribute('aria-hidden','true');
-    element.title=item.cohort==='existing'?'터잡이 추천':item.cohort==='disco'?'디스코 매물':'선별매물';
+    const label=item.cohort==='existing'?'터잡이 추천':item.cohort==='disco'?'디스코 매물':item.cohort==='auction'?'경매 물건':'선별매물';
+    element.title=label;
     price.textContent=formatPrice(item.priceWon);area.textContent=markerArea(item.areaM2,this.areaUnit);
-    if(item.cohort==='existing')element.append(badge);
+    if(item.cohort==='auction'){badge.textContent='경';element.append(badge);}
+    else if(item.cohort==='existing')element.append(badge);
     element.append(price,area);
-    element.setAttribute('aria-label',`${item.cohort==='existing'?'터잡이 추천':item.cohort==='disco'?'디스코 매물':'선별매물'} ${item.district} ${item.neighborhood||''} 매물 ${formatPrice(item.priceWon)}, ${area.textContent}, 상세 보기`);
+    element.setAttribute('aria-label',`${label} ${item.district} ${item.neighborhood||''} 매물 ${formatPrice(item.priceWon)}, ${area.textContent}, 상세 보기`);
     return {content:element,anchor:new this.n.Point(0,5)};
   }
   transactionIcon(item,index,offset={x:0,y:-40}) {

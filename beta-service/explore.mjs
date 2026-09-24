@@ -12,8 +12,10 @@ import { mountQuickFilters } from './quick-filters.mjs';
 import { areaInput } from './recent-search.mjs';
 import { BUILD_DEFAULTS,validateBuildCriteria,appendBuildQuery } from './build-criteria.mjs';
 import { areaMarkup,areaUnitControls,getAreaDisplayUnit,setAreaDisplayUnit,areaDisplayEvents,refreshAreaDisplay,formatArea } from './area-display.mjs';
+import { mountAuctionFilters } from './auction-filters.mjs';
 
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const dday=value=>{if(!value)return '';const t=new Date(String(value)+'T00:00:00');if(!Number.isFinite(t.getTime()))return '';const n=Math.ceil((t-Date.now())/86400000);return n>=0?`D-${n}`:'기일 지남';};
 const money=value=>value>0?`${(value/1e8).toLocaleString('ko-KR',{maximumFractionDigits:3})}억원`:'가격 확인 중';
 const area=areaMarkup;
 const areaText=value=>formatArea(value,getAreaDisplayUnit());
@@ -48,22 +50,47 @@ const detailFactItems=row=>{
   if(approvalDate)items.push(['사용승인',esc(approvalDate)]);
   return items;
 };
+// 경매 물건(auction_item)을 건물찾기 카드·지도·상세가 쓰는 매물 모양으로 맞춘다.
+const AUCTION_LAND_RE=/토지|대지|임야|전답|잡종지|과수원|답|전/;
+const auctionToListing=row=>{
+  const usage=String(row.usage_name||''),zone=String(row.use_zone||'');
+  const position=Number.isFinite(row.lat)&&Number.isFinite(row.lng)?{lat:Number(row.lat),lng:Number(row.lng)}:null;
+  const broad=/주거/.test(zone)?'주거지역':/상업/.test(zone)?'상업지역':/공업/.test(zone)?'공업지역':/녹지/.test(zone)?'녹지지역':null;
+  const id=`auction:${row.docid}`;
+  return {id,source:'auction',sourceId:String(row.docid),cohort:'auction',
+    district:row.sigu||'',neighborhood:row.dong||'',address:row.full_address||`${row.sigu||''} ${row.dong||''} ${row.lot_no||''}`.trim(),
+    pnu:/^\d{19}$/.test(String(row.pnu||''))?row.pnu:null,position,
+    priceWon:row.min_price==null?null:Number(row.min_price),areaM2:row.area_max==null?null:Number(row.area_max),
+    floorAreaM2:null,kind:AUCTION_LAND_RE.test(usage)?'land':'building',kindConfirmed:true,
+    description:'',floorInfo:'',areaSource:'listing',floorAreaSource:'listing',locationStatus:'pin-estimated',
+    zoning:zone?{status:'matched',groups:broad?[broad]:[],entries:[{name:zone}]}:{status:'missing',groups:[],entries:[]},
+    development:null,nearbyTransactions:{status:'unavailable',cases:[]},groupKey:id,
+    auction:{docid:String(row.docid),usageName:usage,minPrice:row.min_price==null?null:Number(row.min_price),
+      appraisedWon:row.appraised_amt==null?null:Number(row.appraised_amt),failCount:row.fail_count==null?null:Number(row.fail_count),
+      saleDate:row.sale_date||'',saleHour:row.sale_hour||'',courtName:row.court_name||'',deptName:row.dept_name||'',
+      caseNo:row.case_no||'',notiMinRate:row.noti_min_rate==null?null:Number(row.noti_min_rate),roadWidthM:row.road_width_m==null?null:Number(row.road_width_m),
+      jimok:row.jimok||'',lotNo:row.lot_no||'',sourceUrl:row.source_url||'https://www.courtauction.go.kr/'}};
+};
+
 export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnalyze,initialId,initialSource,assistant,picksOnly}={}) {
   document.body.classList.add('map-results-open');
   const picksOnlyMode=Boolean(picksOnly);
   const abort=new AbortController();let disposed=false,version=0,detailVersion=0,closeStreet,closeStreetPreview,closeContext,closeRecords,closeLand,closeCommercial,closeSurrounding;
   let result=null,selected=null,detail=null,parcel=null,limit=5,bounds=conditions?.bounds||null,query='',sort=conditions?.sort==='price-desc'?'price-desc':'price',mapView=null;
   let assistantResult=assistant&&Array.isArray(assistant.groups)?assistant:null;
-  let source=assistantResult?'assistant':initialSource==='favorites'?'favorites':'conditions';
+  let source=assistantResult?'assistant':initialSource==='favorites'?'favorites':initialSource==='auction'?'auction':'conditions';
+  let auctionFilters={gu:'',usage:'',kind:'',sort:'sale',maxPrice:'',failMax:''};
+  if(source==='auction')limit=100;
   let criteria={purpose:conditions?.purpose||null,minArea:conditions?.minArea||'',maxArea:conditions?.maxArea||'',areaUnit:conditions?.areaUnit||'pyeong',zones:conditions?.zones||[],minAreaM2:conditions?.minAreaM2??null,maxAreaM2:conditions?.maxAreaM2??null,...BUILD_DEFAULTS,...(validateBuildCriteria(conditions||{}).value||{})};
-  const defaultTitle=()=>source==='assistant'?'AI 비서 결과':source==='favorites'?'찜한 매물':picksOnlyMode?'터잡이 선별 매물':conditions?'내 조건으로 살펴보기':'지도에서 매물 살펴보기';
+  const defaultTitle=()=>source==='assistant'?'AI 비서 결과':source==='favorites'?'찜한 매물':source==='auction'?'경매 물건':picksOnlyMode?'터잡이 선별 매물':conditions?'내 조건으로 살펴보기':'지도에서 매물 살펴보기';
   const title=defaultTitle();
   root.innerHTML=`<section class="explore-page"><div class="result-head"><div><span class="eyebrow">EXPLORE TEOJABI</span><h1>${title}</h1></div><button class="outline" data-explore="back-conditions" hidden>내 조건으로 보기</button><button class="outline" data-explore="edit">검색 조건 바꾸기</button></div>
     <form class="explore-search" id="explore-filters"><div class="explore-filters"><label><span>정렬</span><select name="sort"><option value="price" ${sort==='price'?'selected':''}>가격 낮은 순</option><option value="price-desc" ${sort==='price-desc'?'selected':''}>가격 높은 순</option></select></label><button class="primary" type="submit">이 조건 검색</button></div></form>
     <p class="purpose-guide" id="purpose-guide" hidden></p>
+    <div class="auction-filters" id="auction-filters" hidden></div>
     <div class="explore-toolbar"><div class="quick-filters"></div><span id="bounds-chip"></span><div class="explore-toggle" role="group" aria-label="결과 보기 방식"><button data-explore="pane" data-value="list" aria-pressed="true">리스트</button><button data-explore="pane" data-value="map" aria-pressed="false">지도</button></div></div>
     <div class="explore-board" data-pane="list"><div class="explore-list"><p id="result-count" aria-live="polite">저장된 매물을 불러오고 있어요.</p><div id="listing-list"></div><button class="outline more-listings" data-explore="more" hidden>매물 더 보기</button></div>
-      <div class="map-frame"><div id="map-host" role="region" aria-label="매물 위치 지도"></div><div class="map-controls"><button class="outline" data-explore="favorites" aria-pressed="false">♥ 찜한 매물</button><button class="outline" data-explore="all-picks" aria-pressed="false">★ 터잡이 추천</button><button class="outline" data-explore="cadastral" aria-pressed="false">지적도</button><button class="outline" data-explore="reset-map" aria-label="현재 매물 전체 위치 보기">전체 위치</button></div><div id="map-status" class="map-status" role="status">네이버 지도를 불러오고 있어요.</div><div id="commercial-popup" class="commercial-popup" hidden></div><p class="map-disclaimer">*지도서비스에 정보는 법적 효력이 없으며 참고 자료로만 활용이 가능합니다.</p></div>
+      <div class="map-frame"><div id="map-host" role="region" aria-label="매물 위치 지도"></div><div class="map-controls"><button class="outline" data-explore="favorites" aria-pressed="false">♥ 찜한 매물</button><button class="outline" data-explore="auction" aria-pressed="false">경매 물건</button><button class="outline" data-explore="all-picks" aria-pressed="false">★ 터잡이 추천</button><button class="outline" data-explore="cadastral" aria-pressed="false">지적도</button><button class="outline" data-explore="reset-map" aria-label="현재 매물 전체 위치 보기">전체 위치</button></div><div id="map-status" class="map-status" role="status">네이버 지도를 불러오고 있어요.</div><div id="commercial-popup" class="commercial-popup" hidden></div><p class="map-disclaimer">*지도서비스에 정보는 법적 효력이 없으며 참고 자료로만 활용이 가능합니다.</p></div>
       <aside id="listing-detail" class="detail-panel" aria-label="매물 상세" hidden></aside></div><p class="explore-foot" id="explore-foot"></p></section>`;
   const $=selector=>root.querySelector(selector);
   const favoriteItems=()=>member.items.filter(item=>item.kind==='favorite');
@@ -76,17 +103,23 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
   function drawCompare(){const n=compared.size,b=$('[data-explore=compare-open]');b.disabled=n<2;b.textContent=n?`선택 ${n}개 비교하기`:'비교할 매물을 골라주세요 (최대 3개)';$('[data-explore=compare-clear]').hidden=!n;}
   function applySourceUi(){
     const simpleMode=source==='favorites'||source==='assistant';
+    const auctionMode=source==='auction';
     page.classList.toggle('favorites-mode',simpleMode);
     page.classList.toggle('assistant-mode',source==='assistant');
-    const back=$('[data-explore="back-conditions"]'),edit=$('[data-explore="edit"]'),fav=$('[data-explore="favorites"]');
-    if(back)back.hidden=!simpleMode;if(edit)edit.hidden=simpleMode;if(fav)fav.setAttribute('aria-pressed',String(source==='favorites'));
+    page.classList.toggle('auction-mode',auctionMode);
+    const back=$('[data-explore="back-conditions"]'),edit=$('[data-explore="edit"]'),fav=$('[data-explore="favorites"]'),auc=$('[data-explore="auction"]');
+    if(back)back.hidden=!simpleMode;if(edit)edit.hidden=simpleMode||auctionMode;if(fav)fav.setAttribute('aria-pressed',String(source==='favorites'));if(auc)auc.setAttribute('aria-pressed',String(auctionMode));
     const heading=$('.result-head h1');if(heading)heading.textContent=defaultTitle();
+    const auctionHost=$('#auction-filters');if(auctionHost)auctionHost.hidden=!auctionMode;
+    const quick=$('.quick-filters');if(quick)quick.hidden=auctionMode;
+    const searchForm=$('#explore-filters');if(searchForm)searchForm.hidden=auctionMode;
   }
   function setSource(next){
     if(next===source)return;
     source=next;showAllPicks=false;selected=null;compared.clear();assistantShown=5;
+    if(next==='auction')limit=100;else if(next==='conditions')limit=5;
     closeDetail();applySourceUi();
-    history.replaceState(null,'',source==='favorites'?location.pathname+'#favorites':location.pathname+(conditions?'#search':''));
+    history.replaceState(null,'',source==='favorites'?location.pathname+'#favorites':source==='auction'?location.pathname+'#auction':location.pathname+(conditions?'#search':''));
     load();
   }
   $('.discovery-actions').insertAdjacentHTML('beforeend',areaUnitControls());
@@ -115,6 +148,12 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     $('#result-count').textContent='변경한 조건으로 찾고 있어요.';
     loadTimer=setTimeout(()=>load(),300);
   }});updateCriteria();
+  const auctionFiltersUi=mountAuctionFilters($('#auction-filters'),{getValue:()=>auctionFilters,onChange:next=>{
+    auctionFilters={...auctionFilters,...next};
+    ++version;limit=100;closeDetail(true,false);clearTimeout(loadTimer);
+    $('#result-count').textContent='변경한 조건으로 경매 물건을 찾고 있어요.';
+    loadTimer=setTimeout(()=>load(),200);
+  }});
   const map=new ListingMap($('#map-host'),{areaUnit:getAreaDisplayUnit(),onSelect:id=>openDetail(id),onMapClick:()=>{if(matchMedia('(max-width:700px)').matches)setSheet(false);window.dispatchEvent(new CustomEvent('teojabi-map-click'));},onTransaction:id=>{
     setSheet(true);
     $('.explore-board').classList.remove('transaction-map-open');
@@ -147,14 +186,28 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
   const parcelMessage=()=>map.ready?'연결된 필지 경계를 지도에 표시했습니다.':'필지 경계를 불러왔습니다. 지도 연결 후 표시됩니다.';
   function card(group) {
     const row=group.representative;
-    return `<article class="property-card${group.listings.some(r=>r.id===selected)?' selected':''}" data-card-id="${esc(row.id)}"><button class="property-select" data-explore="detail" data-id="${esc(row.id)}" aria-label="${esc(rowTitle(row))} ${money(row.priceWon)} 상세 보기"><div class="property-location"><span>${esc(rowTitle(row))}</span>${row.cohort==='disco'?'<em class="pick-badge disco-badge">디스코 매물</em>':row.cohort==='existing'?'<em class="pick-badge">★ 터잡이 추천</em>':'<em class="pick-badge origin-naver">네이버 매물</em>'}${member.get('favorite',row.id)?'<em class="pick-badge favorite-badge">♥ 찜한 물건</em>':''}</div><h2>${money(row.priceWon)}</h2><div class="area-pair"><span>대지 <b>${area(row.areaM2)}</b></span><span>연면적 <b>${area(row.floorAreaM2)}</b></span></div><p class="property-zoning">${esc(row.zoning?.groups?.length?row.zoning.groups.join(' · '):'용도지역 미확인')}</p><p class="property-description">${esc(row.description||'매물 설명이 기재되지 않았어요.')}</p><span class="property-link">상세 보기 <span aria-hidden="true">↗</span></span></button></article>`;
+    return `<article class="property-card${group.listings.some(r=>r.id===selected)?' selected':''}" data-card-id="${esc(row.id)}"><button class="property-select" data-explore="detail" data-id="${esc(row.id)}" aria-label="${esc(rowTitle(row))} ${money(row.priceWon)} 상세 보기"><div class="property-location"><span>${esc(rowTitle(row))}</span>${row.cohort==='auction'?'<em class="pick-badge auction-badge">경매</em>':row.cohort==='disco'?'<em class="pick-badge disco-badge">디스코 매물</em>':row.cohort==='existing'?'<em class="pick-badge">★ 터잡이 추천</em>':'<em class="pick-badge origin-naver">네이버 매물</em>'}${member.get('favorite',row.id)?'<em class="pick-badge favorite-badge">♥ 찜한 물건</em>':''}</div><h2>${money(row.priceWon)}</h2><div class="area-pair"><span>대지 <b>${area(row.areaM2)}</b></span><span>연면적 <b>${area(row.floorAreaM2)}</b></span></div><p class="property-zoning">${esc(row.zoning?.groups?.length?row.zoning.groups.join(' · '):'용도지역 미확인')}</p><p class="property-description">${esc(row.description||'매물 설명이 기재되지 않았어요.')}</p><span class="property-link">상세 보기 <span aria-hidden="true">↗</span></span></button></article>`;
+  }
+  // 경매 물건 카드: 건물찾기 카드와 같은 골격에 경매 사실정보(감정가·최저가·기일·유찰)를 담는다.
+  function auctionCard(group) {
+    const row=group.representative,a=row.auction||{};
+    return `<article class="property-card${selected===row.id?' selected':''}" data-card-id="${esc(row.id)}"><button class="property-select" data-explore="detail" data-id="${esc(row.id)}" aria-label="${esc(rowTitle(row))} ${money(row.priceWon)} 상세 보기"><div class="property-location"><span>${esc(rowTitle(row))}</span><em class="pick-badge auction-badge">경매</em>${member.get('favorite',row.id)?'<em class="pick-badge favorite-badge">♥ 찜한 물건</em>':''}</div><h2>${money(row.priceWon)}</h2><div class="area-pair"><span>감정가 <b>${money(a.appraisedWon)}</b></span><span>최저매각가 <b>${money(a.minPrice)}</b></span></div><p class="property-zoning">${esc(a.usageName||'용도 미기재')} · ${esc(row.district||'')} ${esc(row.neighborhood||'')}</p><p class="property-description">${esc(a.caseNo||'')} · 매각기일 ${esc(a.saleDate||'')} ${dday(a.saleDate)} · 유찰 ${a.failCount??0}회</p><span class="property-link">상세 보기 <span aria-hidden="true">↗</span></span></button></article>`;
   }
   // AI 결과는 화면에 보이는 만큼(5개 → 더보기)만 지도에도 표시한다.
   const mapGroups=()=>source==='assistant'&&result?result.groups.slice(0,assistantShown):(result?.groups||[]);
   function drawCards() {
-    const favoritesMode=source==='favorites',assistantMode=source==='assistant';
+    const favoritesMode=source==='favorites',assistantMode=source==='assistant',auctionMode=source==='auction';
     const renderGroups=mapGroups();
-    $('#listing-list').innerHTML=renderGroups.map(card).join('')||(favoritesMode?'<div class="empty"><h2>찜한 매물이 없어요.</h2><p>마음에 드는 매물을 ♡ 찜하면 여기에서 한 번에 볼 수 있어요.</p></div>':'<div class="empty"><h2>조건에 맞는 매물이 없어요.</h2><p>주소·면적·지도 범위를 바꾸거나 예산과 지역을 다시 선택해 주세요.</p></div>');
+    $('#listing-list').innerHTML=renderGroups.map(auctionMode?auctionCard:card).join('')||(favoritesMode?'<div class="empty"><h2>찜한 매물이 없어요.</h2><p>마음에 드는 매물을 ♡ 찜하면 여기에서 한 번에 볼 수 있어요.</p></div>':auctionMode?'<div class="empty"><h2>조건에 맞는 경매 물건이 없어요.</h2><p>지역·용도·최저가·유찰 조건을 바꿔 다시 찾아보세요.</p></div>':'<div class="empty"><h2>조건에 맞는 매물이 없어요.</h2><p>주소·면적·지도 범위를 바꾸거나 예산과 지역을 다시 선택해 주세요.</p></div>');
+    if(auctionMode){
+      $('#result-count').textContent=`경매 물건 ${result.totalParcels.toLocaleString('ko-KR')}건 중 ${result.groups.length}건 표시`;
+      $('[data-explore="more"]').hidden=!result.hasMore;
+      $('[data-explore="more"]').textContent='경매 물건 더 보기';
+      $('#explore-foot').textContent='대법원 법원경매정보 공시 물건 · 아파트 제외 · 권리분석·적정 입찰가는 제공하지 않아요. 입찰 전 법원 원문을 확인하세요.';
+      $('#bounds-chip').innerHTML='';
+      $('.search-suggestions').replaceChildren();
+      return;
+    }
     if(favoritesMode){
       const missing=result.missingFavorites?.length||0;
       $('#result-count').textContent=`찜한 매물 ${result.totalParcels.toLocaleString('ko-KR')}개${missing?` · 제공 종료 ${missing}개`:''}`;
@@ -198,6 +251,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     clearTimeout(loadTimer);
     if(source==='assistant')return loadAssistant();
     if(source==='favorites')return loadFavorites({fit});
+    if(source==='auction')return loadAuctions({fit});
     quickFilters.setRemembered(onConditionsChange?.(currentConditions())!==false);
     const current=++version;const params=new URLSearchParams({limit,sort});if(picksOnlyMode)params.set('cohort','existing');
     if(conditions?.budgetWon)params.set('budgetWon',conditions.budgetWon);conditions?.districts?.forEach(d=>params.append('district',d));conditions?.neighborhoods?.forEach(n=>params.append('neighborhood',n));
@@ -255,6 +309,33 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
       $('#listing-list').innerHTML='<div class="empty"><h2>찜한 매물을 불러오지 못했어요.</h2><p>연결 상태를 확인하고 다시 시도해 주세요.</p><button class="outline" data-explore="retry">다시 불러오기</button></div>';
     }
   }
+  async function loadAuctions({fit=true}={}) {
+    const current=++version;
+    $('.explore-list').setAttribute('aria-busy','true');
+    $('.search-suggestions').replaceChildren();
+    $('#result-count').textContent='경매 물건을 불러오고 있어요.';
+    try {
+      const params=new URLSearchParams({size:String(Math.min(200,Math.max(limit,20))),page:'1'});
+      if(auctionFilters.gu)params.set('gu',auctionFilters.gu);
+      if(auctionFilters.usage)params.set('usage',auctionFilters.usage);
+      if(auctionFilters.kind)params.set('kind',auctionFilters.kind);
+      if(auctionFilters.maxPrice)params.set('maxPrice',String(Number(auctionFilters.maxPrice)*1e8));
+      if(auctionFilters.failMax)params.set('maxFail',auctionFilters.failMax);
+      if(auctionFilters.sort)params.set('sort',auctionFilters.sort);
+      const response=await apiFetch(`/api/auctions?${params}`,{signal:abort.signal});
+      const data=await response.json();if(!response.ok||data.status!=='ready')throw new Error(data.reason||'unavailable');
+      if(disposed||current!==version)return;
+      const groups=(data.rows||[]).map(auctionToListing).map(row=>({key:row.id,pnu:row.pnu,representative:row,listings:[row]}));
+      result={status:'ready',mode:'auction',groups,totalParcels:Number(data.total||groups.length),totalListings:Number(data.total||groups.length),hasMore:Number(data.total||0)>groups.length,observedAt:null,suggestions:[]};
+      $('.explore-list').removeAttribute('aria-busy');drawCards();map.setGroups(mapGroups(),selected,fit);
+      if(initialId){const id=initialId;initialId=null;openDetail(id);}
+    } catch(error) {
+      if(disposed||current!==version)return;
+      result=null;map.setGroups([],null,false);
+      $('#result-count').textContent='경매 자료를 확인하지 못했어요.';
+      $('#listing-list').innerHTML='<div class="empty"><h2>경매 자료를 불러오지 못했어요.</h2><p>연결 상태를 확인하고 다시 시도해 주세요.</p><button class="outline" data-explore="retry">다시 불러오기</button></div>';
+    } finally {if(!disposed&&current===version)$('.explore-list').removeAttribute('aria-busy');}
+  }
   function closeDetail(updateUrl=true,restoreFocus=true) {
     closeContext?.();closeContext=null;closeRecords?.();closeRecords=null;closeLand?.();closeLand=null;closeCommercial?.();closeCommercial=null;closeSurrounding?.();closeSurrounding=null;closeStreetPreview?.();closeStreetPreview=null;
     const previousId=selected;
@@ -288,7 +369,66 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
       <section class="detail-section inline-context" id="property-context"><h3>이 땅, 이런 점을 살펴보세요.</h3><div id="context-facts" aria-live="polite"></div><div class="context-more"><p>더 구체적으로 개발을 검토하고 싶으세요?</p><button class="primary" data-explore="analyze-site">건물·토지에서 검토하기 <span aria-hidden="true">↗</span></button></div></section><p class="detail-bottom-note">사진과 발급 원본 PDF는 현재 보유 자료에 포함되어 있지 않습니다.</p>
       <section class="brokerage-info" aria-label="중개사무소 정보"><h3>터잡이 공인중개사사무소</h3><dl><div><dt>대표</dt><dd>윤진경</dd></div><div><dt>등록번호</dt><dd>제 11650-2026-00102 호</dd></div><div><dt>주소</dt><dd>서울특별시 서초구 언남5길 1, 2층 (양재동)</dd></div><div><dt>연락처</dt><dd>010-8258-4959</dd></div><div><dt>중개보수</dt><dd>상업용 빌딩 기준<br><span>(법정 상한 요율 0.9% 내 협의)</span></dd></div></dl></section></div>`;
   }
+  function renderAuctionDetail() {
+    if(!detail)return;
+    const row=detail.listing,a=row.auction||{},d=detail.auctionDetail||{};
+    const stats=Array.isArray(d.around_stats)?d.around_stats[0]:null;
+    $('#listing-detail').innerHTML=`<div class="detail-top"><button type="button" class="detail-back" data-explore="back-list">← 매물 목록</button><button class="detail-close" data-explore="close" aria-label="경매 상세 닫기">×</button></div>
+      <div class="detail-content"><p class="detail-location">${esc(rowTitle(row))}<em class="pick-badge detail-pick-badge auction-badge">경매</em></p><h2 tabindex="-1" id="detail-title">${money(a.minPrice)}</h2>
+      <p class="detail-listing-number">사건번호 ${esc(a.caseNo||'')} · ${esc(a.courtName||'')} ${esc(a.deptName||'')}</p>
+      <div class="detail-conversion"><a class="primary" href="${esc(a.sourceUrl||'https://www.courtauction.go.kr/')}" target="_blank" rel="noopener noreferrer">법원경매정보 원문 ↗</a><button class="outline" data-explore="copy-auction">물건 정보 복사</button><small>입찰 전 법원 원문(매각물건명세서·현황조사서)을 확인하세요.</small></div>
+      <div class="detail-areas"><div><span>감정가</span><strong>${money(a.appraisedWon)}</strong></div><div><span>최저매각가</span><strong>${money(a.minPrice)}</strong></div><div><span>면적</span><strong>${area(row.areaM2)}</strong></div><div><span>유찰횟수</span><strong>${a.failCount??0}회</strong></div></div>
+      <nav class="detail-shortcuts" aria-label="상세 내용 이동"><button data-explore="section" data-section="property-auction">경매 정보</button><button data-explore="section" data-section="property-parcel">필지 위치</button><button data-explore="section" data-section="property-transactions">주변 실거래</button><button data-explore="section" data-section="property-documents">원문 확인</button></nav>
+      <section class="detail-section" id="property-auction"><h3>경매 정보</h3><dl class="auction-facts">
+        <dt>용도</dt><dd>${esc(a.usageName||'미기재')}</dd>
+        <dt>감정가</dt><dd>${money(a.appraisedWon)}</dd>
+        <dt>최저매각가</dt><dd>${money(a.minPrice)} <small style="opacity:.6">(감정가의 ${a.notiMinRate!=null?esc(a.notiMinRate)+'%':'—'})</small></dd>
+        <dt>매각기일</dt><dd>${esc(a.saleDate||'')} ${esc(a.saleHour||'')} ${dday(a.saleDate)}</dd>
+        <dt>유찰횟수</dt><dd>${a.failCount??0}회</dd>
+        <dt>법원·계</dt><dd>${esc(a.courtName||'')} ${esc(a.deptName||'')}</dd>
+        <dt>사건번호</dt><dd>${esc(a.caseNo||'')}</dd>
+        <dt>용도지역</dt><dd>${esc(row.zoning?.entries?.[0]?.name||'확인 필요')}</dd>
+        <dt>도로폭</dt><dd>${a.roadWidthM!=null?esc(a.roadWidthM)+'m':'확인 필요'}</dd>
+        ${d.claim_amt!=null?`<dt>청구금액</dt><dd>${money(d.claim_amt)}</dd>`:''}
+        ${d.dividend_deadline?`<dt>배당요구종기</dt><dd>${esc(d.dividend_deadline)}</dd>`:''}
+        ${d.acquired_rights?`<dt>인수되는 권리</dt><dd>${esc(d.acquired_rights)} <span style="opacity:.6">(법원 공시)</span></dd>`:''}
+        ${d.legal_superficies?`<dt>법정지상권</dt><dd>${esc(d.legal_superficies)}</dd>`:''}
+        ${stats?`<dt>주변 12개월</dt><dd>낙찰가율 ${esc(stats.term12MgakPrcRate ?? '—')}% · 평균유찰 ${esc(stats.term12AvgFlbdNcnt ?? '—')}회</dd>`:''}
+      </dl><p class="case-note chk">※ 권리분석·적정 입찰가는 제공하지 않아요. 인수권리·점유 등은 법원 원문을 확인하세요.</p></section>
+      <section class="detail-section" id="property-parcel"><h3>필지 위치</h3><p>${esc(row.address||rowTitle(row))}</p></section>
+      <section class="detail-section nearby-section" id="property-transactions"><details id="nearby-details" class="nearby-details"><summary class="nearby-summary"><span class="nearby-summary-title">주변 실거래</span><span class="nearby-summary-count" id="nearby-count"></span></summary><div class="nearby-body"><div class="nearby-heading"><button class="outline" data-explore="transactions" aria-pressed="true" disabled>지도 표시</button></div>${areaUnitControls()}<div id="nearby-cases" aria-live="polite"><p class="case-note">가까운 토지·건물 거래를 찾고 있어요.</p></div></div></details></section>
+      <section class="detail-section" id="property-documents"><h3>원문 확인</h3><p class="case-note">경매 물건은 법원경매정보에서 매각물건명세서·현황조사서 원문을 확인하세요.</p><div class="detail-links"><a class="outline" href="${esc(a.sourceUrl||'https://www.courtauction.go.kr/')}" target="_blank" rel="noopener noreferrer">법원경매정보에서 보기 ↗</a></div></section>
+      <section class="brokerage-info" aria-label="중개사무소 정보"><h3>터잡이 공인중개사사무소</h3><dl><div><dt>대표</dt><dd>윤진경</dd></div><div><dt>등록번호</dt><dd>제 11650-2026-00102 호</dd></div><div><dt>주소</dt><dd>서울특별시 서초구 언남5길 1, 2층 (양재동)</dd></div><div><dt>연락처</dt><dd>010-8258-4959</dd></div><div><dt>중개보수</dt><dd>상업용 빌딩 기준<br><span>(법정 상한 요율 0.9% 내 협의)</span></dd></div></dl></section></div>`;
+  }
+  async function openAuctionDetail(docid,updateUrl=true) {
+    const id=`auction:${docid}`;
+    if(!selected)listScrollTop=body.scrollTop;
+    setSheet(true);
+    closeContext?.();closeContext=null;closeRecords?.();closeRecords=null;closeLand?.();closeLand=null;closeCommercial?.();closeCommercial=null;closeSurrounding?.();closeSurrounding=null;closeStreetPreview?.();closeStreetPreview=null;
+    const current=++detailVersion;selected=id;detail=null;parcel=null;nearby=null;map.setTransactions([]);syncTransactionToggle();
+    $('.explore-board').classList.remove('transaction-map-open');
+    $('#listing-detail').hidden=false;$('.explore-board').classList.add('has-detail');
+    $('#listing-detail').innerHTML='<div class="detail-top"><button type="button" class="detail-back" data-explore="back-list">← 매물 목록</button><span>불러오는 중</span><button class="detail-close" data-explore="close" aria-label="경매 상세 닫기">×</button></div>';
+    map.parcel(null);if(result)drawCards();
+    try {
+      const response=await apiFetch(`/api/auctions/${encodeURIComponent(docid)}`,{signal:abort.signal});
+      const data=await response.json();
+      if(response.status===404||!data||data.status!=='ready')throw new Error('Missing auction');
+      if(disposed||current!==detailVersion)return;
+      detail={listing:auctionToListing(data.item),auctionDetail:data.detail||null};
+      renderAuctionDetail();
+      map.select(detail.listing);
+      $('#detail-title')?.focus({preventScroll:true});
+      if(updateUrl)history.pushState(null,'',`#listing=${encodeURIComponent(id)}`);
+      loadNearby(id,current);
+    } catch(error) {
+      if(disposed||current!==detailVersion)return;
+      console.warn('auction detail failed', error);
+      $('#listing-detail').innerHTML='<div class="detail-top"><span>경매 물건을 불러오지 못했어요.</span><button class="detail-close" data-explore="close" aria-label="경매 상세 닫기">×</button></div><button class="outline" data-explore="retry-detail">다시 시도</button>';
+    }
+  }
   async function openDetail(id,updateUrl=true) {
+    if(String(id).startsWith('auction:'))return openAuctionDetail(String(id).slice('auction:'.length),updateUrl);
     if(!selected)listScrollTop=body.scrollTop;
     setSheet(true);
     closeContext?.();closeContext=null;closeRecords?.();closeRecords=null;closeLand?.();closeLand=null;closeCommercial?.();closeCommercial=null;closeSurrounding?.();closeSurrounding=null;closeStreetPreview?.();closeStreetPreview=null;
@@ -438,13 +578,16 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
       case 'copy-consult':
         try{await navigator.clipboard.writeText(`터잡이 매물 상담 요청\n${detail.listing.address}\n매매가격 ${money(detail.listing.priceWon)}\n대지 ${areaText(detail.listing.areaM2)} · 연면적 ${areaText(detail.listing.floorAreaM2)}`);button.textContent='상담 정보 복사됨';}catch{button.textContent='주소와 가격을 선택해 복사해 주세요.';}break;
       case 'favorites':setSource(source==='favorites'?'conditions':'favorites');break;
+      case 'auction':setSource(source==='auction'?'conditions':'auction');break;
+      case 'copy-auction':
+        try{await navigator.clipboard.writeText(`터잡이 경매 물건\n${detail.listing.address}\n사건번호 ${detail.listing.auction?.caseNo||''}\n감정가 ${money(detail.listing.auction?.appraisedWon)} · 최저매각가 ${money(detail.listing.auction?.minPrice)}\n매각기일 ${detail.listing.auction?.saleDate||''}`);button.textContent='물건 정보 복사됨';}catch{button.textContent='주소와 가격을 선택해 복사해 주세요.';}break;
       case 'back-conditions':setSource('conditions');break;
       case 'edit':onEdit?.();break;
       case 'detail':openDetail(button.dataset.id);break;
       case 'retry-detail':openDetail(selected);break;
       case 'back-list':setSheet(true);closeDetail();break;
       case 'close':closeDetail();break;
-      case 'more':if(source==='assistant'){assistantShown+=5;drawCards();map.setGroups(showAllPicks?(pickGroups||[]):mapGroups(),selected,true);}else{limit=Math.min(500,limit+20);load({fit:false});}break;
+      case 'more':if(source==='assistant'){assistantShown+=5;drawCards();map.setGroups(showAllPicks?(pickGroups||[]):mapGroups(),selected,true);}else if(source==='auction'){limit=Math.min(200,limit+40);load({fit:false});}else{limit=Math.min(500,limit+20);load({fit:false});}break;
       case 'retry':load();break;
       case 'pane':$('.explore-board').dataset.pane=button.dataset.value;root.querySelectorAll('[data-explore="pane"]').forEach(b=>b.setAttribute('aria-pressed',String(b===button)));break;
       case 'search-map':if(mapView){bounds=mapView.bounds;limit=5;closeDetail();load({fit:false});}break;
@@ -462,6 +605,8 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
   },{signal:abort.signal});
   window.addEventListener('keydown',event=>{if(!event.defaultPrevented&&event.key==='Escape'&&selected&&!document.querySelector('dialog[open]'))closeDetail();},{signal:abort.signal});
   window.addEventListener('popstate',()=>{const id=new URLSearchParams(location.hash.slice(1)).get('listing');if(id)openDetail(id,false);else closeDetail(false);},{signal:abort.signal});
+  // 상단 '경매' 링크(해시 변경)로 들어오면 경매 소스로 전환한다.
+  window.addEventListener('hashchange',()=>{if(!disposed&&location.hash==='#auction'&&source!=='auction')setSource('auction');},{signal:abort.signal});
   let hiddenKey=member.hiddenIds().sort().join(',');
   member.addEventListener('change',()=>{if(disposed)return;if(source==='favorites'){load({fit:false});return;}const next=member.hiddenIds().sort().join(',');if(next!==hiddenKey){hiddenKey=next;load({fit:false});}else if(result)drawCards();},{signal:abort.signal});
   applySourceUi();

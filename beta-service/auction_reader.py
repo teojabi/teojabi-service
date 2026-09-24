@@ -1,15 +1,17 @@
 """Read-only auction reader for the beta data service.
 
 Operations (invoked as: auction_reader.py <op> [json|value]):
-- list   {"gu","usage","minPrice","maxPrice","failMax","saleFrom","saleTo","sort","page","size"}
-- map    {"swLng","swLat","neLng","neLat","limit"}
+- list   {"gu","usage","kind","q","minPrice","maxPrice","minFail","maxFail","saleFrom","saleTo","sort","page","size"}
+- map    {"swLng","swLat","neLng","neLat","limit", <same filters as list>}
 - detail <docid>
 
 Reads public.auction_item / public.auction_detail from the configured data DB
 (local 5433 or Supabase). Never writes. No rights analysis; facts only.
+Apartments are excluded from every query (service focuses on commercial/land/houses).
 """
 import json
 import os
+import re
 import sys
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 from pathlib import Path
@@ -18,6 +20,11 @@ import ast
 import psycopg2
 from psycopg2.extensions import parse_dsn
 from psycopg2.extras import RealDictCursor
+
+# 서비스 대상에서 제외하는 용도(콤마로 나눈 토큰 기준). 상가·토지·개인주택 위주.
+EXCLUDED_USAGE = ('아파트',)
+# 토지 계열로 보는 용도 키워드. '전답'·'잡종지' 등은 '전'·'답'을 포함한다.
+LAND_PATTERN = '토지|대지|임야|전답|잡종지|과수원|목장|답|전'
 
 
 def _local_dsn():
@@ -69,46 +76,98 @@ def _int(value, default, lo, hi):
         return default
 
 
+def _text(value, max_len=60):
+    text = str(value or '').strip()
+    return text[:max_len] or None
+
+
+def _usage_list(value):
+    if value is None:
+        return []
+    if isinstance(value, str):
+        raw = re.split(r'[,\n]', value)
+    elif isinstance(value, (list, tuple)):
+        raw = value
+    else:
+        raw = [value]
+    return [token.strip()[:30] for token in raw if str(token).strip()]
+
+
 LIST_COLUMNS = ('docid, court_name, dept_name, case_no, usage_name, appraised_amt, min_price, '
                 'noti_min_price, noti_min_rate, fail_count, sale_date, sale_hour, sido, sigu, dong, '
-                'lot_no, building_list, area_min, area_max, lat, lng, pnu, use_zone, road_width_m, full_address')
+                'lot_no, building_list, jimok, area_min, area_max, lat, lng, pnu, use_zone, '
+                'road_width_m, full_address, source_url')
 
 
 def _where(payload):
-    gu = (payload.get('gu') or '').strip() or None
-    usage = (payload.get('usage') or '').strip() or None
+    where = ["court_code IS NOT NULL",
+             "NOT (%(excluded)s = ANY(string_to_array(coalesce(usage_name, ''), ',')))"]
+    params = {'excluded': EXCLUDED_USAGE[0]}
+    gu = _text(payload.get('gu'), 30)
+    q = _text(payload.get('q'), 60)
+    kind = (payload.get('kind') or '').strip().lower() or None
+    usages = _usage_list(payload.get('usage'))
     min_price = _num(payload.get('minPrice'))
     max_price = _num(payload.get('maxPrice'))
-    fail_max = _num(payload.get('failMax'))
-    sale_from = (payload.get('saleFrom') or '').strip() or None
-    sale_to = (payload.get('saleTo') or '').strip() or None
-    where = ["court_code IS NOT NULL"]
-    params = {}
+    min_fail = _num(payload.get('minFail'))
+    max_fail = _num(payload.get('maxFail'))
+    sale_from = _text(payload.get('saleFrom'), 10)
+    sale_to = _text(payload.get('saleTo'), 10)
     if gu:
-        where.append('sigu = %(gu)s'); params['gu'] = gu
-    if usage:
-        where.append('usage_name ILIKE %(usage)s'); params['usage'] = f'%{usage}%'
+        where.append('sigu = %(gu)s')
+        params['gu'] = gu
+    if usages:
+        clauses = []
+        for index, token in enumerate(usages[:6]):
+            key = f'usage{index}'
+            clauses.append(f'usage_name ILIKE %({key})s')
+            params[key] = f'%{token}%'
+        where.append('(' + ' OR '.join(clauses) + ')')
+    if kind == 'land':
+        where.append(f"coalesce(usage_name, '') ~ %(landpat)s")
+        params['landpat'] = LAND_PATTERN
+    elif kind == 'building':
+        where.append(f"coalesce(usage_name, '') !~ %(landpat)s")
+        params['landpat'] = LAND_PATTERN
+    if q:
+        where.append("(coalesce(full_address, '') ILIKE %(q)s OR coalesce(case_no, '') ILIKE %(q)s "
+                     "OR coalesce(usage_name, '') ILIKE %(q)s OR coalesce(dong, '') ILIKE %(q)s)")
+        params['q'] = f'%{q}%'
     if min_price is not None:
-        where.append('min_price >= %(minp)s'); params['minp'] = min_price
+        where.append('min_price >= %(minp)s')
+        params['minp'] = min_price
     if max_price is not None:
-        where.append('min_price <= %(maxp)s'); params['maxp'] = max_price
-    if fail_max is not None:
-        where.append('fail_count <= %(fail)s'); params['fail'] = fail_max
+        where.append('min_price <= %(maxp)s')
+        params['maxp'] = max_price
+    if min_fail is not None:
+        where.append('fail_count >= %(minf)s')
+        params['minf'] = min_fail
+    if max_fail is not None:
+        where.append('fail_count <= %(maxf)s')
+        params['maxf'] = max_fail
     if sale_from:
-        where.append('sale_date >= %(sfrom)s'); params['sfrom'] = sale_from
+        where.append('sale_date >= %(sfrom)s')
+        params['sfrom'] = sale_from
     if sale_to:
-        where.append('sale_date <= %(sto)s'); params['sto'] = sale_to
+        where.append('sale_date <= %(sto)s')
+        params['sto'] = sale_to
     return where, params
+
+
+ORDER = {
+    'price': 'min_price ASC NULLS LAST',
+    'price_desc': 'min_price DESC NULLS LAST',
+    'fail': 'fail_count DESC NULLS LAST',
+    'area': 'area_max DESC NULLS LAST',
+    'sale': 'sale_date ASC NULLS LAST',
+}
 
 
 def do_list(payload):
     page = _int(payload.get('page'), 1, 1, 500)
-    size = _int(payload.get('size'), 20, 1, 100)
+    size = _int(payload.get('size'), 20, 1, 200)
     sort = payload.get('sort') or 'sale'
-    order = {'price': 'min_price ASC NULLS LAST',
-             'price_desc': 'min_price DESC NULLS LAST',
-             'fail': 'fail_count DESC NULLS LAST',
-             'area': 'area_max DESC NULLS LAST'}.get(sort, 'sale_date ASC NULLS LAST')
+    order = ORDER.get(sort, ORDER['sale'])
     where, params = _where(payload)
     clause = ' AND '.join(where)
     params['limit'] = size
@@ -120,7 +179,7 @@ def do_list(payload):
             cur.execute(f'''SELECT {LIST_COLUMNS} FROM public.auction_item
                             WHERE {clause} ORDER BY {order} LIMIT %(limit)s OFFSET %(offset)s''', params)
             rows = cur.fetchall()
-    return {'status': 'ready', 'total': total, 'page': page, 'size': size, 'rows': rows}
+    return {'status': 'ready', 'total': total, 'page': page, 'size': size, 'sort': sort, 'rows': rows}
 
 
 def do_map(payload):

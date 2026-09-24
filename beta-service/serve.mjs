@@ -12,7 +12,7 @@ import { buildRiskReview, buildBuildingRecords, buildParcelContext } from './ris
 import { normalizeSiteParcels } from './site-policy.mjs';
 import { normalizeLandRecord } from './land-policy.mjs';
 import { allowedReviewWrite, runCuration, readReviewBody } from './curation-api.mjs';
-import { parseAssistant, buildResult, hasMeaningfulFilters } from './assistant-parse.mjs';
+import { parseAssistant, buildResult, buildAuctionResult, hasMeaningfulFilters } from './assistant-parse.mjs';
 import { runAssistant } from './assistant-api.mjs';
 import { selectedCatalog, validListingId } from './selected-catalog.mjs';
 import { DISTRICTS } from './policy.mjs';
@@ -68,6 +68,7 @@ const files = new Map([
   ['/risk-policy.mjs',['risk-policy.mjs','text/javascript']],
   ['/auction.html',['auction.html','text/html']],
   ['/auction.mjs',['auction.mjs','text/javascript']],
+  ['/auction-filters.mjs',['auction-filters.mjs','text/javascript']],
 ]);
 async function readOptionalJson(name) {
   try { return JSON.parse((await readFile(join(root, cachePath(name)), 'utf8')).replace(/^\uFEFF/,'')); }
@@ -124,6 +125,8 @@ async function findListing(id) {
 }
 // 비서가 찾은 디스코 매물도 상세·실거래 조회에 쓸 수 있게 같은 모양으로 맞춘다.
 const validDiscoListingId=id=>typeof id==='string'&&/^disco:[A-Za-z0-9]{4,24}$/.test(id);
+// 경매 물건(auction_item)은 카탈로그에 없어 좌표 기반으로 상세·주변 실거래를 조회한다.
+const validAuctionListingId=id=>typeof id==='string'&&/^auction:[A-Za-z0-9]{4,40}$/.test(id);
 async function discoListing(sourceId) {
   if(!/^[A-Za-z0-9]{4,24}$/.test(String(sourceId||'')))return null;
   try {
@@ -296,6 +299,19 @@ createServer(async (request, response) => {
           filters:parsed.filters,chips:[],total:0,groups:[],originTotals:{premium:0,registered:0,disco:0,naver:0},station:null,districts:[],suggestions:[],relaxations:[],unsupported:parsed.unsupported||null,searchedAt:null});
         return;
       }
+      // 경매 의도면 네이버 매물 대신 법원경매 물건(auction_item)을 찾는다.
+      if(parsed.filters.auction){
+        try {
+          const payload={gu:(parsed.filters.districts||[])[0]||'',kind:parsed.filters.kind||'',usage:parsed.filters.auctionUsage||'',
+            q:parsed.filters.q||'',maxPrice:parsed.filters.budgetWon||'',maxFail:parsed.filters.auctionFailMax||'',sort:'sale',size:60};
+          const auctionData=await auctionRead('list',JSON.stringify(payload));
+          send(response,request,buildAuctionResult(parsed.filters,auctionData));
+        } catch {
+          send(response,request,{status:'ready',reply:'경매 자료를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.',
+            filters:parsed.filters,chips:[],total:0,groups:[],originTotals:{premium:0,registered:0,disco:0,naver:0,auction:0},station:null,districts:[],suggestions:[],relaxations:[],unsupported:null,searchedAt:null});
+        }
+        return;
+      }
       const spatialKeys = ['preferTourism', 'excludeEducation', 'excludeHeritage'];
       const hasSpatial = parsed.filters && spatialKeys.some(key => parsed.filters[key]);
       // 구역 조건은 실시간 공간 질의가 무거워, 나머지 조건으로 찾고 안내를 덧붙인다.
@@ -428,7 +444,7 @@ createServer(async (request, response) => {
     const land=path.startsWith('/api/land-record/');
     const operation=land?'land-record':registers?'registers':compact?'context':'risk';
     const id=path.slice(land?'/api/land-record/'.length:registers?'/api/building-records/'.length:compact?'/api/site-context/'.length:'/api/risk/'.length),cacheKey=`${operation}:${id}`;
-    if(!validListingId(id)&&!validDiscoListingId(id)){send(response,request,{status:'missing'},404);return;}
+    if(!validListingId(id)&&!validDiscoListingId(id)&&!validAuctionListingId(id)){send(response,request,{status:'missing'},404);return;}
     try {
       const data=await catalog(),listing=await findListing(id);
       if(!listing){send(response,request,{status:'missing'},404);return;}
@@ -445,10 +461,11 @@ createServer(async (request, response) => {
   if(path.startsWith('/api/nearby-transactions/')) {
     await refreshTransactionVersion().catch(()=>{});
     const id=path.slice('/api/nearby-transactions/'.length);
-    if(!validListingId(id)&&!validDiscoListingId(id)){send(response,request,{status:'missing',cases:[]},404);return;}
+    if(!validListingId(id)&&!validDiscoListingId(id)&&!validAuctionListingId(id)){send(response,request,{status:'missing',cases:[]},404);return;}
     try {
-      const data=await catalog();
-      let listing=await findListing(id);
+      // 경매 물건은 카탈로그에 없어 좌표로 계산하므로, 카탈로그가 없어도 계속 진행한다.
+      const data=await catalog().catch(error=>{if(validAuctionListingId(id))return {rows:[]};throw error;});
+      let listing=await findListing(id).catch(error=>{if(validAuctionListingId(id))return null;throw error;});
       if(!listing){
         // 카탈로그에 없는 비서 매물(터잡이 추천 등)은 전달받은 좌표로 계산한다.
         const params=new URL(request.url,'http://localhost').searchParams;
