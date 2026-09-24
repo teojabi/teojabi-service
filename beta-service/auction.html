@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#F7F8FA">
+  <script src="./theme.js"></script>
+  <title>경매 물건 | 터잡이</title>
+  <link rel="stylesheet" href="./styles.css?v=20260924-auction">
+  <link rel="stylesheet" href="./theme.css?v=20260924-auction">
+  <link rel="icon" href="./assets/favicon.ico">
+  <meta name="description" content="서울 상업용 토지·건물 법원경매 물건을 지도에서 보고, 용도지역·실거래와 함께 검토하세요.">
+  <link rel="canonical" href="https://teojabi.com/auction.html">
+  <style>
+    .auction-wrap{display:grid;grid-template-columns:380px 1fr;gap:0;height:calc(100vh - 60px);min-height:520px}
+    .auction-side{overflow:auto;border-right:1px solid var(--line,#e5e7eb);padding:16px}
+    .auction-map{position:relative;min-height:320px}
+    .auction-map .map-host{position:absolute;inset:0}
+    .auction-filters{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 14px}
+    .auction-filters select,.auction-filters input{font:inherit;padding:6px 8px;border:1px solid var(--line,#d1d5db);border-radius:8px;background:transparent;color:inherit}
+    .auction-count{font-size:13px;opacity:.7;margin:4px 0 10px}
+    .auction-card{border:1px solid var(--line,#e5e7eb);border-radius:12px;padding:12px;margin-bottom:10px;cursor:pointer;background:var(--card,#fff)}
+    .auction-card:hover{border-color:#2563eb}
+    .auction-card.active{border-color:#2563eb;box-shadow:0 0 0 2px rgba(37,99,235,.15)}
+    .auction-card h3{margin:0 0 4px;font-size:15px}
+    .auction-card .price{font-weight:700}
+    .auction-card .meta{font-size:12px;opacity:.75;margin-top:4px}
+    .auction-badge{display:inline-block;font-size:11px;padding:1px 6px;border-radius:6px;background:#eef2ff;color:#3730a3;margin-right:4px}
+    .auction-pin{background:#111827;color:#fff;border-radius:999px;padding:3px 8px;font-size:11px;white-space:nowrap;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.3)}
+    .auction-pin.active{background:#2563eb}
+    .auction-detail{border-top:1px solid var(--line,#e5e7eb);margin-top:14px;padding-top:12px}
+    .auction-detail dl{display:grid;grid-template-columns:auto 1fr;gap:4px 10px;font-size:13px;margin:8px 0}
+    .auction-detail dt{opacity:.65}
+    .auction-detail dd{margin:0}
+    .auction-detail .chk{color:#b45309}
+    @media (max-width:860px){.auction-wrap{grid-template-columns:1fr;height:auto}.auction-map{height:60vh}}
+  </style>
+</head>
+<body>
+  <header class="header">
+    <a class="brand" href="./index.html" aria-label="터잡이 시작 화면"><img src="./assets/logo.png" alt="터잡이"><span>BETA</span></a>
+    <nav aria-label="주요 메뉴"><a href="./index.html">건물 찾기</a><a href="./auction.html" aria-current="page">경매</a><a href="./analyze.html">신축 검토</a></nav>
+    <div class="header-actions"><a href="./index.html">로그인·회원가입</a><button id="theme-toggle" class="theme-icon-button" type="button" aria-label="다크 모드로 전환" aria-pressed="false" title="다크 모드로 전환">☾</button></div>
+  </header>
+  <main class="auction-wrap">
+    <section class="auction-side" aria-label="경매 물건 목록">
+      <h1 style="font-size:18px;margin:0 0 6px">서울 상업용 경매</h1>
+      <p style="font-size:12px;opacity:.7;margin:0">법원경매정보 공시 물건 · 사실정보 기준. 권리분석·입찰가 판단은 제공하지 않아요.</p>
+      <form class="auction-filters" id="filters">
+        <select name="gu" aria-label="구"><option value="">서울 전체</option></select>
+        <select name="usage" aria-label="용도">
+          <option value="">용도 전체</option>
+          <option value="상가">상가</option>
+          <option value="근린">근린시설</option>
+          <option value="오피스텔">오피스텔</option>
+          <option value="업무">업무</option>
+          <option value="대지">대지</option>
+          <option value="임야">임야</option>
+          <option value="아파트">아파트</option>
+        </select>
+        <select name="sort" aria-label="정렬">
+          <option value="sale">기일 임박순</option>
+          <option value="price">최저가 낮은순</option>
+          <option value="fail">유찰 많은순</option>
+          <option value="area">면적 큰순</option>
+        </select>
+        <input name="maxPrice" type="number" inputmode="numeric" placeholder="최저가 이하(억)" step="0.1" aria-label="최저가 이하 억">
+        <input name="failMax" type="number" inputmode="numeric" placeholder="유찰 ≤" aria-label="유찰횟수 이하">
+      </form>
+      <p class="auction-count" id="count">불러오는 중…</p>
+      <div id="list"></div>
+      <div class="auction-detail" id="detail" hidden></div>
+    </section>
+    <section class="auction-map" aria-label="경매 물건 지도">
+      <div class="map-host" id="map"></div>
+      <p id="map-status" style="position:absolute;left:12px;bottom:12px;background:rgba(0,0,0,.6);color:#fff;font-size:12px;padding:4px 8px;border-radius:6px">지도 불러오는 중…</p>
+    </section>
+  </main>
+  <footer class="service-footer">
+    <nav class="footer-policy" aria-label="이용 정책 및 사업자 정보">
+      <a href="./terms.html">이용약관</a><a class="privacy-link" href="./privacy.html">개인정보처리방침</a>
+      <a href="./paid-service.html">구독서비스</a><a href="./refund.html">환불정책</a>
+      <a href="./business-info.html">사업자정보</a><a href="./qna.html">Q&amp;A</a>
+    </nav>
+    <div class="footer-bottom"><p>경매 정보는 대법원 법원경매정보 공시 자료를 기준으로 하며, 기준일에 따라 차이가 있을 수 있어요. 입찰 전 법원 원문을 확인해 주세요.</p><small>© 2026 TEOJABI. All rights reserved.</small></div>
+  </footer>
+  <script type="module" src="./auction.mjs?v=20260924-auction"></script>
+</body>
+</html>

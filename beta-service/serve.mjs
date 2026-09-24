@@ -66,6 +66,8 @@ const files = new Map([
   ['/architect.mjs',['architect.mjs','text/javascript']],
   ['/architect-page.mjs',['architect-page.mjs','text/javascript']],
   ['/risk-policy.mjs',['risk-policy.mjs','text/javascript']],
+  ['/auction.html',['auction.html','text/html']],
+  ['/auction.mjs',['auction.mjs','text/javascript']],
 ]);
 async function readOptionalJson(name) {
   try { return JSON.parse((await readFile(join(root, cachePath(name)), 'utf8')).replace(/^\uFEFF/,'')); }
@@ -94,6 +96,11 @@ async function sourceSnapshot(){
 async function localRead(operation,value) {
   const {stdout}=await execute(process.env.TEOJABI_PYTHON || 'C:/Users/yoon/AppData/Local/Programs/Python/Python310/python.exe',
     [join(root,'local-reader.py'),operation,...(value?[value]:[])],{windowsHide:true,timeout:25000,maxBuffer:32*1024*1024,encoding:'utf8'});
+  return JSON.parse(stdout);
+}
+async function auctionRead(operation,value) {
+  const {stdout}=await execute(process.env.TEOJABI_PYTHON || 'C:/Users/yoon/AppData/Local/Programs/Python/Python310/python.exe',
+    [join(root,'auction_reader.py'),operation,...(value?[value]:[])],{windowsHide:true,timeout:25000,maxBuffer:32*1024*1024,encoding:'utf8'});
   return JSON.parse(stdout);
 }
 // 비서가 찾은 일반 네이버 매물은 선별 카탈로그에 없다. DB에서 같은 id로 다시 구성해 상세·대장 조회에 쓴다.
@@ -498,6 +505,26 @@ createServer(async (request, response) => {
         send(response,request,parcelCache.get(pnu));
       }
     } catch {send(response,request,{status:'error',message:'로컬 매물 자료를 불러오지 못했습니다.'},503);}
+    return;
+  }
+  if (path === '/api/auctions' || path === '/api/auctions/map' || path.startsWith('/api/auctions/')) {
+    try {
+      const url=new URL(request.url,'http://localhost');
+      if (path === '/api/auctions') {
+        const q=url.searchParams, payload={};
+        for (const key of ['gu','usage','minPrice','maxPrice','failMax','saleFrom','saleTo','sort','page','size']) {
+          if (q.get(key)!=null) payload[key]=q.get(key);
+        }
+        send(response,request,await auctionRead('list',JSON.stringify(payload)));
+      } else if (path === '/api/auctions/map') {
+        const q=url.searchParams;
+        send(response,request,await auctionRead('map',JSON.stringify({
+          swLng:q.get('swLng'),swLat:q.get('swLat'),neLng:q.get('neLng'),neLat:q.get('neLat')})));
+      } else {
+        const docid=decodeURIComponent(path.slice('/api/auctions/'.length));
+        send(response,request,await auctionRead('detail',docid));
+      }
+    } catch { send(response,request,{status:'error',message:'경매 자료를 불러오지 못했습니다.'},503); }
     return;
   }
   if (path === '/api/activity' || path === '/api/recommendations') {
