@@ -103,7 +103,7 @@ def _where(payload):
     where = ["court_code IS NOT NULL",
              "NOT (%(excluded)s = ANY(string_to_array(coalesce(usage_name, ''), ',')))"]
     params = {'excluded': EXCLUDED_USAGE[0]}
-    gu = _text(payload.get('gu'), 30)
+    gus = _usage_list(payload.get('gu'))
     q = _text(payload.get('q'), 60)
     kind = (payload.get('kind') or '').strip().lower() or None
     usages = _usage_list(payload.get('usage'))
@@ -114,9 +114,9 @@ def _where(payload):
     max_fail = _num(payload.get('maxFail'))
     sale_from = _text(payload.get('saleFrom'), 10)
     sale_to = _text(payload.get('saleTo'), 10)
-    if gu:
-        where.append('sigu = %(gu)s')
-        params['gu'] = gu
+    if gus:
+        where.append('sigu = ANY(%(gus)s)')
+        params['gus'] = gus
     if usages:
         clauses = []
         for index, token in enumerate(usages[:6]):

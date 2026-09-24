@@ -79,7 +79,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
   let result=null,selected=null,detail=null,parcel=null,limit=5,bounds=conditions?.bounds||null,query='',sort=conditions?.sort==='price-desc'?'price-desc':'price',mapView=null;
   let assistantResult=assistant&&Array.isArray(assistant.groups)?assistant:null;
   let source=assistantResult?'assistant':initialSource==='favorites'?'favorites':initialSource==='auction'?'auction':'conditions';
-  let auctionFilters={gu:'',usage:'',kind:'',sort:'sale',maxPrice:'',failMax:''};
+  let auctionFilters={gu:[],usage:'',kind:'',sort:'sale',maxPrice:'',failMax:''};
   if(source==='auction')limit=100;
   let criteria={purpose:conditions?.purpose||null,minArea:conditions?.minArea||'',maxArea:conditions?.maxArea||'',areaUnit:conditions?.areaUnit||'pyeong',zones:conditions?.zones||[],minAreaM2:conditions?.minAreaM2??null,maxAreaM2:conditions?.maxAreaM2??null,auction:conditions?.auction||null,...BUILD_DEFAULTS,...(validateBuildCriteria(conditions||{}).value||{})};
   const defaultTitle=()=>source==='assistant'?'AI 비서 결과':source==='favorites'?'찜한 매물':source==='auction'?'경매 물건':picksOnlyMode?'터잡이 선별 매물':conditions?'내 조건으로 살펴보기':'지도에서 매물 살펴보기';
@@ -275,7 +275,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
       result=data;
       // 조건에 경매가 포함되면 법원경매 물건도 같은 목록·지도에 함께 담는다.
       if(criteria.auction?.enabled){
-        const au=await fetchAuctionGroups({gu:conditions?.districts?.[0]||'',usages:criteria.auction.usages||[],maxPriceWon:criteria.auction.maxPriceWon,maxBidRate:criteria.auction.maxBidRate});
+        const au=await fetchAuctionGroups({districts:conditions?.districts||[],usages:criteria.auction.usages||[],maxPriceWon:criteria.auction.maxPriceWon,maxBidRate:criteria.auction.maxBidRate});
         if(disposed||current!==version)return;
         if(au&&au.total)result={...data,groups:[...data.groups,...au.groups],totalParcels:data.totalParcels+au.total,auctionTotal:au.total};
       }
@@ -323,9 +323,9 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     }
   }
   // 조건에 포함된 경매를 건물찾기 목록·지도에 넣기 위해 같은 모양의 그룹으로 만든다.
-  async function fetchAuctionGroups({gu='',usages=[],maxPriceWon=null,maxBidRate=null,limit=100}={}){
+  async function fetchAuctionGroups({districts=[],usages=[],maxPriceWon=null,maxBidRate=null,limit=100}={}){
     const params=new URLSearchParams({size:String(limit),page:'1',sort:'sale'});
-    if(gu)params.set('gu',gu);
+    (districts||[]).forEach(d=>params.append('gu',d));
     (usages||[]).forEach(u=>params.append('usage',u));
     if(maxPriceWon)params.set('maxPrice',String(maxPriceWon));
     if(maxBidRate)params.set('maxBidRate',String(maxBidRate));
@@ -342,7 +342,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     $('#result-count').textContent='경매 물건을 불러오고 있어요.';
     try {
       const params=new URLSearchParams({size:String(Math.min(200,Math.max(limit,20))),page:'1'});
-      if(auctionFilters.gu)params.set('gu',auctionFilters.gu);
+      (auctionFilters.gu||[]).forEach(g=>params.append('gu',g));
       if(auctionFilters.usage)params.set('usage',auctionFilters.usage);
       if(auctionFilters.kind)params.set('kind',auctionFilters.kind);
       if(auctionFilters.maxPrice)params.set('maxPrice',String(Number(auctionFilters.maxPrice)*1e8));
@@ -399,12 +399,15 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     if(!detail)return;
     const row=detail.listing,a=row.auction||{},d=detail.auctionDetail||{};
     const stats=Array.isArray(d.around_stats)?d.around_stats[0]:null;
+    const sourceUrl=esc(a.sourceUrl||'https://www.courtauction.go.kr/');
     $('#listing-detail').innerHTML=`<div class="detail-top"><button type="button" class="detail-back" data-explore="back-list">← 매물 목록</button><button class="detail-close" data-explore="close" aria-label="경매 상세 닫기">×</button></div>
       <div class="detail-content"><p class="detail-location">${esc(rowTitle(row))}<em class="pick-badge detail-pick-badge auction-badge">경매</em></p><h2 tabindex="-1" id="detail-title">${money(a.minPrice)}</h2>
       <p class="detail-listing-number">사건번호 ${esc(a.caseNo||'')} · ${esc(a.courtName||'')} ${esc(a.deptName||'')}</p>
-      <div class="detail-conversion"><a class="primary" href="${esc(a.sourceUrl||'https://www.courtauction.go.kr/')}" target="_blank" rel="noopener noreferrer">법원경매정보 원문 ↗</a><button class="outline" data-explore="copy-auction">물건 정보 복사</button><small>입찰 전 법원 원문(매각물건명세서·현황조사서)을 확인하세요.</small></div>
-      <div class="detail-areas"><div><span>감정가</span><strong>${money(a.appraisedWon)}</strong></div><div><span>최저매각가</span><strong>${money(a.minPrice)}</strong></div><div><span>면적</span><strong>${area(row.areaM2)}</strong></div><div><span>유찰횟수</span><strong>${a.failCount??0}회</strong></div></div>
-      <nav class="detail-shortcuts" aria-label="상세 내용 이동"><button data-explore="section" data-section="property-auction">경매 정보</button><button data-explore="section" data-section="property-parcel">필지 위치</button><button data-explore="section" data-section="property-transactions">주변 실거래</button><button data-explore="section" data-section="property-documents">원문 확인</button></nav>
+      <div class="detail-conversion"><a class="primary" href="${sourceUrl}" target="_blank" rel="noopener noreferrer">법원경매정보 원문 ↗</a><button class="outline" data-explore="copy-auction">물건 정보 복사</button><small>입찰 전 법원 원문(매각물건명세서·현황조사서)을 확인하세요.</small></div>
+      ${areaUnitControls()}<div class="detail-areas"><div><span>감정가</span><strong>${money(a.appraisedWon)}</strong></div><div><span>최저매각가</span><strong>${money(a.minPrice)}</strong></div><div><span>면적</span><strong>${area(row.areaM2)}</strong></div><div><span>유찰횟수</span><strong>${a.failCount??0}회</strong></div></div>
+      <div id="land-area-comparison" aria-live="polite"></div>
+      <div class="detail-street"><div class="street-inline" id="street-inline" aria-label="네이버 거리뷰"><span class="street-inline-state">거리뷰를 불러오고 있어요.</span></div><button type="button" class="street-expand" data-explore="street" aria-label="거리뷰 크게 보기" title="거리뷰 크게 보기">⛶</button></div>
+      <nav class="detail-shortcuts" aria-label="상세 내용 이동"><button data-explore="section" data-section="property-auction">경매 정보</button><button data-explore="section" data-section="property-parcel">필지 위치</button><button data-explore="section" data-section="property-commercial">상권</button><button data-explore="section" data-section="property-surrounding">주변 사업</button><button data-explore="section" data-section="property-documents">서류 확인</button><button data-explore="section" data-section="property-context">주변 조건</button><button data-explore="section" data-section="property-transactions">주변 실거래</button></nav>
       <section class="detail-section" id="property-auction"><h3>경매 정보</h3><dl class="auction-facts">
         <dt>용도</dt><dd>${esc(a.usageName||'미기재')}</dd>
         <dt>감정가</dt><dd>${money(a.appraisedWon)}</dd>
@@ -413,17 +416,20 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
         <dt>유찰횟수</dt><dd>${a.failCount??0}회</dd>
         <dt>법원·계</dt><dd>${esc(a.courtName||'')} ${esc(a.deptName||'')}</dd>
         <dt>사건번호</dt><dd>${esc(a.caseNo||'')}</dd>
-        <dt>용도지역</dt><dd>${esc(row.zoning?.entries?.[0]?.name||'확인 필요')}</dd>
         <dt>도로폭</dt><dd>${a.roadWidthM!=null?esc(a.roadWidthM)+'m':'확인 필요'}</dd>
         ${d.claim_amt!=null?`<dt>청구금액</dt><dd>${money(d.claim_amt)}</dd>`:''}
         ${d.dividend_deadline?`<dt>배당요구종기</dt><dd>${esc(d.dividend_deadline)}</dd>`:''}
         ${d.acquired_rights?`<dt>인수되는 권리</dt><dd>${esc(d.acquired_rights)} <span style="opacity:.6">(법원 공시)</span></dd>`:''}
         ${d.legal_superficies?`<dt>법정지상권</dt><dd>${esc(d.legal_superficies)}</dd>`:''}
         ${stats?`<dt>주변 12개월</dt><dd>낙찰가율 ${esc(stats.term12MgakPrcRate ?? '—')}% · 평균유찰 ${esc(stats.term12AvgFlbdNcnt ?? '—')}회</dd>`:''}
-      </dl><p class="case-note chk">※ 권리분석·적정 입찰가는 제공하지 않아요. 인수권리·점유 등은 법원 원문을 확인하세요.</p></section>
+      </dl><p class="case-note chk">※ 권리분석·적정 입찰가는 제공하지 않아요. 인수권리·점유 등은 법원 원문을 확인하세요.</p><p class="case-note">경매 공시 사실정보예요. 자세한 조건은 법원경매정보 원문에서 확인해 주세요.</p><div class="detail-links"><a class="outline" href="${sourceUrl}" target="_blank" rel="noopener noreferrer">법원경매정보에서 보기 ↗</a></div></section>
       <section class="detail-section" id="property-parcel"><h3>필지 위치</h3><p>${esc(row.address||rowTitle(row))}</p></section>
+      <section class="detail-section"><h3>용도지역</h3>${row.zoning?.status==='matched'&&Array.isArray(row.zoning.entries)&&row.zoning.entries.length?`<p>${row.zoning.entries.map(e=>esc(e.name)).join('<br>')}</p><p class="case-note">공공데이터 기준</p>`:'<p class="case-note">용도지역을 확인하지 못했습니다.</p>'}</section>
       <section class="detail-section nearby-section" id="property-transactions"><details id="nearby-details" class="nearby-details"><summary class="nearby-summary"><span class="nearby-summary-title">주변 실거래</span><span class="nearby-summary-count" id="nearby-count"></span></summary><div class="nearby-body"><div class="nearby-heading"><button class="outline" data-explore="transactions" aria-pressed="true" disabled>지도 표시</button></div>${areaUnitControls()}<div id="nearby-cases" aria-live="polite"><p class="case-note">가까운 토지·건물 거래를 찾고 있어요.</p></div></div></details></section>
-      <section class="detail-section" id="property-documents"><h3>원문 확인</h3><p class="case-note">경매 물건은 법원경매정보에서 매각물건명세서·현황조사서 원문을 확인하세요.</p><div class="detail-links"><a class="outline" href="${esc(a.sourceUrl||'https://www.courtauction.go.kr/')}" target="_blank" rel="noopener noreferrer">법원경매정보에서 보기 ↗</a></div></section>
+      <section class="detail-section commercial-section" id="property-commercial"><h3>상권</h3><div id="commercial-facts" aria-live="polite"></div></section>
+      <section class="detail-section" id="property-surrounding"><h3>주변 사업</h3><div id="surrounding-facts" aria-live="polite"></div></section>
+      <section class="detail-section" id="property-documents"><h3>서류 확인</h3><p class="case-note">보유한 건축물·토지대장을 살펴보고, 등기는 인터넷등기소에서 확인하세요.</p><div class="document-list"><div><span class="document-symbol">01</span><div><b>건축물대장</b><p>표제부·총괄표제부의 건물 현황</p></div><button class="outline" id="building-records-toggle" aria-expanded="false" aria-controls="building-records">건축물대장 보기</button></div><div><span class="document-symbol">02</span><div><b>토지(임야)대장</b><p>필지별 토지 기록</p></div><button class="outline" id="land-records-toggle" aria-expanded="false" aria-controls="land-records">토지대장 보기</button></div><div><span class="document-symbol">03</span><div><b>등기사항증명서</b><p>인터넷등기소에서 직접 열람</p></div><div class="document-actions"><button class="outline" data-explore="copy-address">필지 주소 복사</button><a class="outline" href="https://www.iros.go.kr/" target="_blank" rel="noopener noreferrer">열람·발급 ↗</a></div></div></div><div id="building-records" class="building-records" hidden></div><div id="land-records" class="building-records" hidden></div><p class="case-note">경매 물건의 대장·현황은 법원 원문(매각물건명세서·현황조사서)과 다를 수 있어요.</p></section>
+      <section class="detail-section inline-context" id="property-context"><h3>이 땅, 이런 점을 살펴보세요.</h3><div id="context-facts" aria-live="polite"></div><div class="context-more"><p>더 구체적으로 개발을 검토하고 싶으세요?</p><button class="primary" data-explore="analyze-site">건물·토지에서 검토하기 <span aria-hidden="true">↗</span></button></div></section><p class="detail-bottom-note">사진과 발급 원본 PDF는 현재 보유 자료에 포함되어 있지 않습니다.</p>
       <section class="brokerage-info" aria-label="중개사무소 정보"><h3>터잡이 공인중개사사무소</h3><dl><div><dt>대표</dt><dd>윤진경</dd></div><div><dt>등록번호</dt><dd>제 11650-2026-00102 호</dd></div><div><dt>주소</dt><dd>서울특별시 서초구 언남5길 1, 2층 (양재동)</dd></div><div><dt>연락처</dt><dd>010-8258-4959</dd></div><div><dt>중개보수</dt><dd>상업용 빌딩 기준<br><span>(법정 상한 요율 0.9% 내 협의)</span></dd></div></dl></section></div>`;
   }
   async function openAuctionDetail(docid,updateUrl=true) {
@@ -443,10 +449,24 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
       if(disposed||current!==detailVersion)return;
       detail={listing:auctionToListing(data.item),auctionDetail:data.detail||null};
       renderAuctionDetail();
+      closeContext=mountInlineContext($('#context-facts'),detail.listing);
+      closeRecords=mountBuildingRecords($('#building-records'),$('#building-records-toggle'),detail.listing);
+      closeLand=mountLandRecords($('#land-area-comparison'),$('#land-records'),$('#land-records-toggle'),detail.listing);
+      closeCommercial=mountCommercial($('#commercial-facts'),detail.listing);
+      closeSurrounding=mountSurrounding($('#surrounding-facts'),detail.listing);
+      closeStreetPreview=mountStreetPreview($('#street-inline'),detail.listing.position);
       map.select(detail.listing);
       $('#detail-title')?.focus({preventScroll:true});
       if(updateUrl)history.pushState(null,'',`#listing=${encodeURIComponent(id)}`);
       loadNearby(id,current);
+      if(detail.listing.pnu){
+        let receivedParcel;
+        try {const response=await apiFetch(`/api/parcels/${detail.listing.pnu}`,{signal:abort.signal});receivedParcel=await response.json();}
+        catch {receivedParcel={status:'error'};}
+        if(disposed||current!==detailVersion)return;
+        parcel=receivedParcel;
+        if(parcel.status==='ready')map.parcel(parcel.geometry);
+      }
     } catch(error) {
       if(disposed||current!==detailVersion)return;
       console.warn('auction detail failed', error);

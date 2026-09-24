@@ -120,8 +120,25 @@ async function naverListing(sourceId) {
 async function findListing(id) {
   const key=String(id||'');
   if(key.startsWith('disco:'))return discoListing(key.slice('disco:'.length));
+  if(key.startsWith('auction:'))return auctionListing(key.slice('auction:'.length));
   const data=await catalog();
   return data.rows.find(row=>row.id===key)||await naverListing(key.split(':').slice(1).join(':'));
+}
+// 경매 물건도 매물과 같은 상세(대장·구역·주변)를 쓸 수 있게 카탈로그 모양으로 맞춘다.
+async function auctionListing(docid) {
+  if(!/^[A-Za-z0-9]{4,40}$/.test(String(docid||'')))return null;
+  try {
+    const raw=await auctionRead('detail',String(docid));
+    if(!raw||raw.status!=='ready'||!raw.item)return null;
+    const it=raw.item;
+    return {id:`auction:${it.docid}`,source:'auction',sourceId:String(it.docid),sourceUrl:it.source_url||'',
+      district:it.sigu||'',neighborhood:it.dong||'',address:it.full_address||'',
+      pnu:/^11\d{17}$/.test(String(it.pnu||''))?it.pnu:null,
+      position:Number.isFinite(it.lat)&&Number.isFinite(it.lng)?{lat:Number(it.lat),lng:Number(it.lng)}:null,
+      priceWon:it.min_price==null?null:Number(it.min_price),areaM2:it.area_max==null?null:Number(it.area_max),floorAreaM2:null,
+      description:'',floorInfo:'',kind:'building',kindConfirmed:true,areaSource:'listing',floorAreaSource:'listing',locationStatus:'pin-estimated',
+      zoning:{status:'missing',groups:[],entries:[]},development:null,nearbyTransactions:{status:'unavailable',cases:[]},origin:'auction'};
+  } catch {return null;}
 }
 // 비서가 찾은 디스코 매물도 상세·실거래 조회에 쓸 수 있게 같은 모양으로 맞춘다.
 const validDiscoListingId=id=>typeof id==='string'&&/^disco:[A-Za-z0-9]{4,24}$/.test(id);
@@ -303,7 +320,7 @@ createServer(async (request, response) => {
       if(parsed.filters.auction?.enabled){
         try {
           const a=parsed.filters.auction;
-          const payload={gu:(parsed.filters.districts||[])[0]||'',kind:parsed.filters.kind||'',usage:a.usages||[],
+          const payload={gu:parsed.filters.districts||[],kind:parsed.filters.kind||'',usage:a.usages||[],
             q:parsed.filters.q||'',maxPrice:a.maxPriceWon||'',maxBidRate:a.maxBidRate||'',sort:'sale',size:60};
           const listingFilters={...parsed.filters};delete listingFilters.auction;
           let listingSearch=null;
@@ -452,7 +469,9 @@ createServer(async (request, response) => {
     const id=path.slice(land?'/api/land-record/'.length:registers?'/api/building-records/'.length:compact?'/api/site-context/'.length:'/api/risk/'.length),cacheKey=`${operation}:${id}`;
     if(!validListingId(id)&&!validDiscoListingId(id)&&!validAuctionListingId(id)){send(response,request,{status:'missing'},404);return;}
     try {
-      const data=await catalog(),listing=await findListing(id);
+      // 경매 물건은 카탈로그에 없어도 대장·구역 조회가 되도록 한다.
+      const data=await catalog().catch(error=>{if(validAuctionListingId(id))return {rows:[]};throw error;});
+      const listing=await findListing(id);
       if(!listing){send(response,request,{status:'missing'},404);return;}
       if(!riskCache.has(cacheKey)) {
         if(riskCache.size>=100)riskCache.delete(riskCache.keys().next().value);
@@ -533,11 +552,12 @@ createServer(async (request, response) => {
   if (path === '/api/auctions' || path === '/api/auctions/map' || path.startsWith('/api/auctions/')) {
     try {
       const url=new URL(request.url,'http://localhost');
-      const AUCTION_KEYS=['gu','kind','q','minPrice','maxPrice','minFail','maxFail','maxBidRate','saleFrom','saleTo','sort','page','size'];
+      const AUCTION_KEYS=['kind','q','minPrice','maxPrice','minFail','maxFail','maxBidRate','saleFrom','saleTo','sort','page','size'];
       const auctionPayload=q=>{
         const payload={};
         for(const key of AUCTION_KEYS)if(q.get(key)!=null)payload[key]=q.get(key);
         const usages=q.getAll('usage').filter(Boolean);if(usages.length)payload.usage=usages;
+        const gus=q.getAll('gu').filter(Boolean);if(gus.length)payload.gu=gus;
         return payload;
       };
       if (path === '/api/auctions') {

@@ -856,3 +856,8 @@ body.architect-lightbox-open{overflow:hidden}
 .auction-facts dd{margin:0}
 .auction-facts .chk{color:#b45309}
 .detail-location .auction-badge{margin-left:8px}
+.auction-gu-field{flex:1 0 100%}
+.auction-filter-label{display:block;font-size:11px;color:var(--muted);margin-bottom:4px}
+.auction-filter-label small{font-weight:400;opacity:.85}
+.auction-gu-choices{grid-template-columns:repeat(auto-fill,minmax(84px,1fr));margin-top:4px}
+.auction-gu-choices span{min-height:38px;font-size:12px}
