@@ -1,12 +1,14 @@
 // Public deployment configuration contains origins only, never keys or passwords.
-import { DATA_API_BASE } from './runtime-config.mjs';
-export function apiUrl(path, base=DATA_API_BASE) {
+import { DATA_API_BASE, AUCTION_API_BASE } from './runtime-config.mjs';
+export function apiUrl(path, base) {
   if (!path.startsWith('/api/')) return path;
-  if (!base) return path;
-  const url=new URL(base);
+  // 경매 API는 Supabase Edge Function으로 분리한다. (AUCTION_API_BASE 미설정 시 기존 데이터 API 사용)
+  const target = base ?? (path.startsWith('/api/auctions') && AUCTION_API_BASE ? AUCTION_API_BASE : DATA_API_BASE);
+  if (!target) return path;
+  const url=new URL(target);
   if (url.protocol!=='https:'&&!(['localhost','127.0.0.1'].includes(url.hostname)&&url.protocol==='http:')) throw new Error('Invalid API origin');
   if(url.username||url.password||url.search||url.hash)throw new Error('Invalid API origin');
-  return base.replace(/\/$/,'')+path;
+  return target.replace(/\/$/,'')+path;
 }
 export function apiFetch(path,options={}) {
   return fetch(apiUrl(path),{...options,credentials:'include',signal:options.signal||AbortSignal.timeout(options.method==='POST'?180000:30000)});
