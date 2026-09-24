@@ -111,6 +111,6 @@ Deno.serve(async (request: Request) => {
     }
     return json({ status: "not-found" }, 404, origin);
   } catch (_error) {
-    return json({ status: "error", message: "데이터를 불러오지 못했습니다." }, 503, origin);
+    return json({ status: "error", message: "데이터를 불러오지 못했습니다.", detail: String((_error && _error.stack) || _error) }, 503, origin);
   }
 });
