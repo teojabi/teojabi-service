@@ -82,6 +82,12 @@ let registeredSnapshotCachedAt=0;
 let sourceSnapshotCache=null;
 let sourceSnapshotCachedAt=0;
 let curationRefreshQueue=Promise.resolve();
+// 스냅샷을 Supabase snapshots 테이블로 업로드해 서버리스(Edge Function)와 공유한다.
+async function syncSnapshots() {
+  try {
+    await execute(process.execPath, [join(root, 'upload-snapshots.mjs')], { timeout: 30000, maxBuffer: 8 * 1024 * 1024, encoding: 'utf8' });
+  } catch { /* 업로드 실패는 서비스 응답에 영향을 주지 않는다 */ }
+}
 async function registeredSnapshot(){
   if(registeredSnapshotCache&&Date.now()-registeredSnapshotCachedAt<5000)return registeredSnapshotCache;
   registeredSnapshotCache=await readOptionalJson('.local/curation-registered.json');
@@ -298,6 +304,7 @@ createServer(async (request, response) => {
           for(const script of ['automation/assign_service_numbers.py','automation/prepare_selected_preview.py','refresh-zoning.py','refresh-development.py']) {
             await execute(python,['-X','utf8',join(root,script),...(script.startsWith('refresh-')?['--selected']:[])],{windowsHide:true,timeout:180000,maxBuffer:32*1024*1024,encoding:'utf8'});
           }
+          await syncSnapshots();
           catalogPromise=zoningPromise=developmentPromise=normalizedCatalogPromise=null;catalogVersion=0;
           registeredSnapshotCache=null;registeredSnapshotCachedAt=0;
         });
@@ -305,6 +312,7 @@ createServer(async (request, response) => {
       if(request.method==='POST'&&result.status==='refreshed'&&(process.env.TEOJABI_DATA_SOURCE==='supabase')) {
         const python=process.env.TEOJABI_PYTHON;if(!python)throw new Error('Python not configured');
         for(const script of ['automation/assign_service_numbers.py','automation/prepare_selected_preview.py','refresh-zoning.py','refresh-development.py'])await execute(python,['-X','utf8',join(root,script),...(script.startsWith('refresh-')?['--selected']:[])],{windowsHide:true,timeout:180000,maxBuffer:32*1024*1024,encoding:'utf8'});
+        await syncSnapshots();
         catalogPromise=zoningPromise=developmentPromise=normalizedCatalogPromise=null;catalogVersion=0;
       }
       if(request.method==='POST'&&result.status==='deleted') {
@@ -313,6 +321,7 @@ createServer(async (request, response) => {
           const python=process.env.TEOJABI_PYTHON;
           if(python)curationRefreshQueue=curationRefreshQueue.catch(()=>{}).then(async()=>{
             for(const script of ['automation/assign_service_numbers.py','automation/prepare_selected_preview.py'])await execute(python,['-X','utf8',join(root,script)],{windowsHide:true,timeout:180000,maxBuffer:32*1024*1024,encoding:'utf8'});
+            await syncSnapshots();
             catalogPromise=zoningPromise=developmentPromise=normalizedCatalogPromise=null;catalogVersion=0;
             registeredSnapshotCache=null;registeredSnapshotCachedAt=0;
           });

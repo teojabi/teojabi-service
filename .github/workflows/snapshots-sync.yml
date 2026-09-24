@@ -1,0 +1,61 @@
+# manual-trigger: 2026-09-24T13:30Z
+name: Sync Snapshots to Supabase
+
+# 서버(NCP)의 현재 스냅샷을 Supabase `public.snapshots` 테이블로 업로드한다.
+# (서버리스 Edge Function과 같은 값을 공유하기 위함)
+on:
+  workflow_dispatch:
+  push:
+    branches: [ "main" ]
+    paths:
+      - '.github/workflows/snapshots-sync.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Install sshpass
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq sshpass
+
+      - name: Upload uploader script to NCP
+        env:
+          SSHPASS: ${{ secrets.NCP_SSH_PASSWORD }}
+        run: |
+          sshpass -e scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+            beta-service/upload-snapshots.mjs \
+            ${{ secrets.NCP_SSH_USER }}@${{ secrets.NCP_SSH_HOST }}:teojabi-runtime/beta-service/
+
+      - name: Run snapshot uploader on NCP
+        env:
+          SSHPASS: ${{ secrets.NCP_SSH_PASSWORD }}
+        run: |
+          mkdir -p .diagnostics
+          sshpass -e ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+            -o ConnectTimeout=15 \
+            ${{ secrets.NCP_SSH_USER }}@${{ secrets.NCP_SSH_HOST }} 'bash -s' > .diagnostics/snapshots-sync.txt 2>&1 <<'REMOTE'
+          cd ~/teojabi-runtime/beta-service
+          set -a
+          . ./.env
+          set +a
+          NODE_BIN="$(command -v node || echo /usr/bin/node)"
+          echo "node: $NODE_BIN"
+          "$NODE_BIN" upload-snapshots.mjs || echo "SYNC_FAILED"
+          echo "SYNC_DONE"
+          REMOTE
+          cat .diagnostics/snapshots-sync.txt
+
+      - name: Publish sync log
+        if: always()
+        run: |
+          git config user.name "teojabi-diagnostics"
+          git config user.email "teojabi-diagnostics@users.noreply.github.com"
+          git checkout -B server-report
+          git add -f .diagnostics/snapshots-sync.txt
+          git commit -m "Update snapshots sync log" || echo "no changes"
+          git push -f origin server-report
