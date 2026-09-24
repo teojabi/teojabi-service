@@ -9,8 +9,9 @@
 // 스냅샷은 Supabase `public.snapshots` 테이블에서 읽는다. (서버가 큐레이션 후 업로드)
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { selectedCatalog } from "./lib/selected-catalog.mjs";
-import { browseCatalog, suggestCatalogChanges } from "./lib/catalog.mjs";
-import { buildParcelContext } from "./lib/risk-policy.mjs";
+import { browseCatalog, suggestCatalogChanges, DOCUMENT_LINKS } from "./lib/catalog.mjs";
+import { buildParcelContext, buildBuildingRecords } from "./lib/risk-policy.mjs";
+import { normalizeLandRecord } from "./lib/land-policy.mjs";
 
 const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, {
   auth: { persistSession: false },
@@ -162,6 +163,42 @@ Deno.serve(async (request: Request) => {
       raw.recap = { status: "skipped", rows: [] };
       raw.buildings = { status: "skipped", rows: [] };
       return json(buildParcelContext(pnu, raw), 200, origin);
+    }
+    if (path.startsWith("/api/parcel-documents/")) {
+      const pnu = decodeURIComponent(path.slice("/api/parcel-documents/".length));
+      if (!/^11\d{17}$/.test(pnu)) return json({ status: "error" }, 400, origin);
+      const { data: listingAddressData } = await db.rpc("teojabi_address", { p_pnu: pnu });
+      const listingAddress = String(listingAddressData || "");
+      let address = listingAddress.replace(/\s+/g, " ").trim();
+      address = address.replace(/^서울시 /, "서울특별시 ");
+      address = address.replace(/번지$/, "").trim();
+      const addresses = address ? [...new Set([address, address + "번지", listingAddress])] : [];
+      const parts = address.split(/\s+/).filter(Boolean);
+      const district = parts.find((p) => p.endsWith("구") || p.endsWith("군")) || "";
+      const neighborhood = parts.find((p) => ["동", "가", "읍", "면"].some((s) => p.endsWith(s))) || "";
+      let lotPair = null, mainPair = null, subPair = null, patterns = null;
+      const mainLot = String(Number(pnu.slice(11, 15)));
+      const subLot = String(Number(pnu.slice(15, 19)));
+      const lotText = subLot === "0" ? mainLot : mainLot + "-" + subLot;
+      lotPair = [lotText, lotText + "번지"];
+      mainPair = [mainLot, mainLot.padStart(4, "0")];
+      subPair = [subLot, subLot.padStart(4, "0")];
+      if (district && neighborhood) patterns = ["%" + district + "%" + neighborhood + "% " + lotText, "%" + district + "%" + neighborhood + "% " + lotText + "번지"];
+      const { data: registers, error: regErr } = await db.rpc("teojabi_registers", {
+        p_pnu: pnu, p_address: address, p_district: district || null, p_neighborhood: neighborhood || null,
+        p_addresses: addresses, p_lot_pair: lotPair, p_main_pair: mainPair, p_sub_pair: subPair, p_patterns: patterns,
+      });
+      if (regErr) throw regErr;
+      const { data: land, error: landErr } = await db.rpc("teojabi_land_record", { p_pnu: pnu, p_address: address });
+      if (landErr) throw landErr;
+      const listing = { id: pnu, sourceId: pnu, pnu, address: registers.address };
+      const result = {
+        status: "ready", pnu, address: registers.address,
+        building: buildBuildingRecords(listing, registers),
+        land: normalizeLandRecord({ ...listing, areaM2: null }, land),
+        registry: { status: "external", url: DOCUMENT_LINKS.registry },
+      };
+      return json(result, 200, origin);
     }
     return json({ status: "not-found" }, 404, origin);
   } catch (_error) {
