@@ -863,7 +863,8 @@ body.architect-lightbox-open{overflow:hidden}
 .auction-gu-choices span{min-height:38px;font-size:12px}
 .auction-gu-toggle{min-height:40px}
 .auction-filter-apply{min-height:40px;align-self:flex-end}
-.auction-filter-foot{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
-.auction-filter-foot .primary,.auction-filter-foot .outline{min-height:44px}
+.auction-filter-actions{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 2px}
+.auction-filter-actions .primary,.auction-filter-actions .outline{min-height:44px}
+.map-first .auction-filters .quick-chip-label{display:inline}
 .auction-filter-note{font-size:11px;color:var(--muted);margin:10px 0 0;line-height:1.5}
 .parcel-label{display:inline-block;min-width:56px;color:var(--muted);font-size:12px}
