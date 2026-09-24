@@ -28,21 +28,22 @@ export const AUCTION_SORT_OPTIONS = Object.freeze([
 const CHIPS = [['districts', '지역'], ['usage', '용도'], ['maxPrice', '최저매각가'], ['maxBidRate', '최저가율'], ['failMax', '유찰'], ['sort', '정렬']];
 const emptyDraft = () => ({ gu: [], usage: '', sort: 'sale', maxPrice: '', maxBidRate: '', failMax: '' });
 
-// 경매 조건 UI. 건물찾기(매물) 퀵필터와 같은 칩 + 편집 패널 구조로 맞추고,
-// 조건을 고른 뒤 패널 아래 '이 조건으로 검색하기'로 조회한다.
+// 경매 조건 UI. 건물찾기(매물) 퀵필터와 같은 칩 + 편집 패널 구조.
+// 칩에는 조건 이름이 함께 보이고, 아래 '이 조건으로 검색하기'로 조회한다.
 export function mountAuctionFilters(root, { getValue, onChange } = {}) {
   const abort = new AbortController();
-  let active = null, draft = emptyDraft();
-  root.innerHTML = `<div class="quick-chip-row" role="group" aria-label="경매 조건 바로 설정">${CHIPS.map(([key, label]) => `<button type="button" class="pill quick-chip" data-auction-chip="${key}" aria-expanded="false" aria-controls="auction-filter-editor"><span class="quick-chip-label">${label}</span><span data-auction-value></span><span class="quick-chevron" aria-hidden="true">⌄</span></button>`).join('')}</div><section class="quick-filter-editor" id="auction-filter-editor" hidden aria-labelledby="auction-filter-title"><div class="quick-filter-head"><div><h2 id="auction-filter-title"></h2><p>조건을 고른 뒤 아래 버튼을 눌러 찾아요.</p></div><button type="button" class="quick-close" data-auction-close aria-label="조건 편집 닫기">×</button></div><div class="quick-filter-content"></div><div class="auction-filter-foot"><button type="button" class="primary" data-auction-apply>이 조건으로 검색하기</button><button type="button" class="outline" data-auction-reset>조건 초기화</button></div></section><p class="auction-filter-note">법원경매정보 공시 물건 · 아파트 제외 · 권리분석·입찰가 판단은 제공하지 않아요.</p>`;
+  const initial = getValue() || {};
+  let active = null, draft = { ...emptyDraft(), ...initial, gu: [...(initial.gu || [])] };
+  root.innerHTML = `<div class="quick-chip-row" role="group" aria-label="경매 조건 바로 설정">${CHIPS.map(([key, label]) => `<button type="button" class="pill quick-chip" data-auction-chip="${key}" aria-expanded="false" aria-controls="auction-filter-editor"><span class="quick-chip-label">${label}</span><span data-auction-value></span><span class="quick-chevron" aria-hidden="true">⌄</span></button>`).join('')}</div><div class="auction-filter-actions"><button type="button" class="primary" data-auction-apply>이 조건으로 검색하기</button><button type="button" class="outline" data-auction-reset>조건 초기화</button></div><section class="quick-filter-editor" id="auction-filter-editor" hidden aria-labelledby="auction-filter-title"><div class="quick-filter-head"><div><h2 id="auction-filter-title"></h2><p>조건을 고른 뒤 위 버튼을 눌러 찾아요.</p></div><button type="button" class="quick-close" data-auction-close aria-label="조건 편집 닫기">×</button></div><div class="quick-filter-content"></div></section><p class="auction-filter-note">법원경매정보 공시 물건 · 아파트 제외 · 권리분석·입찰가 판단은 제공하지 않아요.</p>`;
   const $ = selector => root.querySelector(selector), panel = $('.quick-filter-editor');
   function update() {
-    const v = getValue() || {}, texts = {
-      districts: (v.gu || []).length ? (v.gu || []).join(' · ') : '서울 전체',
-      usage: v.usage || '용도 전체',
-      maxPrice: v.maxPrice ? `${v.maxPrice}억 이하` : '제한 없음',
-      maxBidRate: v.maxBidRate ? `${v.maxBidRate}% 이하` : '제한 없음',
-      failMax: (v.failMax !== '' && v.failMax != null) ? `${v.failMax}회 이하` : '제한 없음',
-      sort: (AUCTION_SORT_OPTIONS.find(s => s[0] === (v.sort || 'sale')) || [])[1] || '기일 임박순',
+    const texts = {
+      districts: draft.gu.length ? draft.gu.join(' · ') : '서울 전체',
+      usage: draft.usage || '용도 전체',
+      maxPrice: draft.maxPrice ? `${draft.maxPrice}억 이하` : '제한 없음',
+      maxBidRate: draft.maxBidRate ? `${draft.maxBidRate}% 이하` : '제한 없음',
+      failMax: (draft.failMax !== '' && draft.failMax != null) ? `${draft.failMax}회 이하` : '제한 없음',
+      sort: (AUCTION_SORT_OPTIONS.find(s => s[0] === (draft.sort || 'sale')) || [])[1] || '기일 임박순',
     };
     for (const chip of root.querySelectorAll('[data-auction-chip]')) {
       const key = chip.dataset.auctionChip;
@@ -73,34 +74,31 @@ export function mountAuctionFilters(root, { getValue, onChange } = {}) {
     $('#auction-filter-title').textContent = (CHIPS.find(c => c[0] === key) || [])[1] || '';
     syncChoices();
   }
-  function open(key) {
-    if (active === key) { close(); return; }
-    const current = getValue() || {};
-    active = key; draft = { ...current, gu: [...(current.gu || [])] };
-    panel.hidden = false; renderEditor();
-  }
+  function open(key) { active = key; panel.hidden = false; renderEditor(); update(); }
   function close() { active = null; panel.hidden = true; update(); }
+  function apply() {
+    onChange({ gu: [...draft.gu], usage: draft.usage || '', sort: draft.sort || 'sale', maxPrice: draft.maxPrice || '', maxBidRate: draft.maxBidRate || '', failMax: draft.failMax ?? '' });
+    close();
+  }
   root.addEventListener('click', event => {
     const chip = event.target.closest('[data-auction-chip]');
-    if (chip) { open(chip.dataset.auctionChip); return; }
+    if (chip) { active === chip.dataset.auctionChip ? close() : open(chip.dataset.auctionChip); return; }
     if (event.target.closest('[data-auction-close]')) { close(); return; }
-    if (event.target.closest('[data-auction-apply]')) {
-      onChange({ gu: [...draft.gu], usage: draft.usage || '', sort: draft.sort || 'sale', maxPrice: draft.maxPrice || '', maxBidRate: draft.maxBidRate || '', failMax: draft.failMax ?? '' });
-      close(); return;
-    }
-    if (event.target.closest('[data-auction-reset]')) { draft = emptyDraft(); renderEditor(); return; }
+    if (event.target.closest('[data-auction-apply]')) { apply(); return; }
+    if (event.target.closest('[data-auction-reset]')) { draft = emptyDraft(); renderEditor(); update(); return; }
     const button = event.target.closest('[data-auction-choice]'); if (!button) return;
     const group = button.dataset.auctionChoice, value = button.dataset.value;
     if (group === 'districts') draft.gu = value === '' ? [] : draft.gu.includes(value) ? draft.gu.filter(x => x !== value) : [...draft.gu, value];
     else if (group === 'usage') draft.usage = value;
     else if (group === 'sort') draft.sort = value || 'sale';
     else if (group === 'failMax') draft.failMax = value;
-    syncChoices();
+    syncChoices(); update();
   }, { signal: abort.signal });
   root.addEventListener('input', event => {
     if (!event.target.matches('.quick-number')) return;
     if (event.target.id === 'auction-max-price') draft.maxPrice = event.target.value.trim();
     if (event.target.id === 'auction-max-rate') draft.maxBidRate = event.target.value.trim();
+    update();
   }, { signal: abort.signal });
   update();
   return { update, destroy() { abort.abort(); } };
