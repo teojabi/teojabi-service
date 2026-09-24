@@ -151,6 +151,14 @@ function ensureAssistant(){
   });
 }
 window.addEventListener('teojabi-ask',event=>{const message=String(event.detail||'').trim();if(message)ensureAssistant().then(controls=>controls.ask(message));});
+// AI 비서 버튼은 홈에서는 숨기고, 건물 찾기·신축 검토·경매(결과) 화면에서는 항상 보이게 한다.
+// (홈 초기 로드는 가볍게 유지하려고 비서 모듈은 그 화면에 들어갈 때만 지연 로딩한다)
+function syncAssistant(){
+  const show=state.screen==='results'||state.screen==='analyze';
+  document.body.classList.toggle('assistant-off',!show);
+  if(show)ensureAssistant().catch(()=>{});
+  else assistantControls?.close?.();
+}
 function home() {
   return `<section class="home"><div class="intro"><div><span class="eyebrow">YOUR NEXT PLACE, TEOJABI</span><h1>미래의 건물,<br>찾는 기준부터.</h1></div><div class="intro-brand"><span class="home-symbol" role="img" aria-label="터잡이 로고마크"></span><p class="lead">원하는 공간을 찾는 일도,<br> 내 공간을 다시 바라보는 일도.<br> 터잡이에서 차근차근 시작하세요.</p></div></div>
     <button type="button" class="assistant-banner" data-action="assistant" aria-label="AI 부동산 비서 열기"><span class="assistant-banner-icon" aria-hidden="true">${ASSISTANT_ROBOT}</span><span class="assistant-banner-main"><span class="assistant-banner-text"><b>AI와 함께 맞춤 설정하고<br>매물을 찾아보세요.</b></span><span class="assistant-banner-cta">시작하기 <span class="circle">${arrow}</span></span></span><small class="assistant-banner-desc">"종로구 상업지역 100억 이하 도로 6m" 처럼 편하게 물어보세요.</small></button>
@@ -188,6 +196,7 @@ function render(focus = true) {
   const version=++renderVersion;
   disposeExplorer?.();disposeExplorer=null;
   document.body.classList.toggle('map-results-open',state.screen==='results');
+  syncAssistant();
   if(state.screen==='results') {
     app.innerHTML='<section class="screen-loading" aria-live="polite"><span></span><p>매물과 지도를 불러오고 있어요.</p></section>';
     loadExplorer().then(({mountExplorer})=>{
