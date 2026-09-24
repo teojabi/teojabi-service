@@ -10,7 +10,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { selectedCatalog } from "./lib/selected-catalog.mjs";
 import { browseCatalog, suggestCatalogChanges, DOCUMENT_LINKS } from "./lib/catalog.mjs";
-import { buildParcelContext, buildBuildingRecords } from "./lib/risk-policy.mjs";
+import { buildParcelContext, buildBuildingRecords, buildRiskReview } from "./lib/risk-policy.mjs";
 import { normalizeLandRecord } from "./lib/land-policy.mjs";
 
 const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, {
@@ -81,6 +81,90 @@ function neighborhoodIndex(snaps: Record<string, any>) {
     (fallback[row.district] ??= new Set()).add(row.neighborhood);
   }
   return Object.fromEntries(Object.entries(fallback).map(([district, set]) => [district, [...set].sort((a, b) => a.localeCompare(b, "ko-KR"))]));
+}
+
+
+function parseRef(address, pnu) {
+  let normalized = String(address || "").replace(/\s+/g, " ").trim();
+  normalized = normalized.replace(/^서울시 /, "서울특별시 ");
+  normalized = normalized.replace(/번지$/, "").trim();
+  const addresses = normalized ? [...new Set([normalized, normalized + "번지", String(address || "")].filter(Boolean))] : [];
+  const parts = normalized.split(/\s+/).filter(Boolean);
+  const district = parts.find((p) => p.endsWith("구") || p.endsWith("군")) || "";
+  const neighborhood = parts.find((p) => ["동", "가", "읍", "면"].some((s) => p.endsWith(s))) || "";
+  let lotPair = null, mainPair = null, subPair = null, patterns = null;
+  if (/^11\d{17}$/.test(String(pnu || ""))) {
+    const mainLot = String(Number(String(pnu).slice(11, 15)));
+    const subLot = String(Number(String(pnu).slice(15, 19)));
+    const lotText = subLot === "0" ? mainLot : mainLot + "-" + subLot;
+    lotPair = [lotText, lotText + "번지"];
+    mainPair = [mainLot, mainLot.padStart(4, "0")];
+    subPair = [subLot, subLot.padStart(4, "0")];
+    if (district && neighborhood) patterns = ["%" + district + "%" + neighborhood + "% " + lotText, "%" + district + "%" + neighborhood + "% " + lotText + "번지"];
+  }
+  return { address: normalized, addresses, district, neighborhood, lotPair, mainPair, subPair, patterns };
+}
+
+function buildNaverListing(raw) {
+  if (!raw || raw.status !== "ready") return null;
+  return { id: `naver:${raw.sourceId}`, source: "naver", sourceId: raw.sourceId, district: raw.district || "", neighborhood: raw.neighborhood || "",
+    address: raw.address || "", pnu: raw.pnu || null, position: raw.position || null, priceWon: raw.priceWon || null,
+    areaM2: raw.areaM2 || null, floorAreaM2: raw.floorAreaM2 || null, description: raw.description || "", floorInfo: raw.floorInfo || "",
+    zoning: raw.zoning || { status: "missing", groups: [], entries: [] }, development: null, kind: raw.kind || "building", kindConfirmed: true,
+    areaSource: "listing", floorAreaSource: "listing", locationStatus: "pin-estimated", nearbyTransactions: { status: "unavailable", cases: [] } };
+}
+function buildDiscoListing(raw) {
+  if (!raw || raw.status !== "ready") return null;
+  return { id: `disco:${raw.sourceId}`, source: "disco", sourceId: raw.sourceId, sourceUrl: "", district: raw.district || "", neighborhood: raw.neighborhood || "",
+    address: raw.address || "", pnu: raw.pnu || null, position: raw.position || null, priceWon: raw.priceWon || null,
+    areaM2: raw.areaM2 || null, floorAreaM2: raw.floorAreaM2 || null, description: "", floorInfo: "",
+    zoning: raw.zoning || { status: "missing", groups: [], entries: [] }, development: null, kind: raw.kind || "building", kindConfirmed: true,
+    areaSource: "listing", floorAreaSource: "listing", locationStatus: "pin-estimated", nearbyTransactions: { status: "unavailable", cases: [] } };
+}
+function splitAuctionAddress(item) {
+  const full = String(item.full_address || "").trim(), lot = String(item.lot_no || "").trim();
+  let land = full, detail = String(item.building_list || "").trim();
+  if (lot) { const idx = full.indexOf(lot); if (idx >= 0) { land = full.slice(0, idx + lot.length).trim(); const rest = full.slice(idx + lot.length).trim(); if (rest) detail = rest; } }
+  if (!land) land = [item.sido, item.sigu, item.dong, lot].map((v) => String(v || "").trim()).filter(Boolean).join(" ");
+  return { land, detail };
+}
+function buildAuctionListing(item) {
+  if (!item || !item.docid) return null;
+  const split = splitAuctionAddress(item);
+  return { id: `auction:${item.docid}`, source: "auction", sourceId: String(item.docid), sourceUrl: "",
+    district: item.sigu || "", neighborhood: item.dong || "", address: split.land || item.full_address || "", detailAddress: split.detail,
+    pnu: /^11\d{17}$/.test(String(item.pnu || "")) ? item.pnu : null,
+    position: Number.isFinite(item.lat) && Number.isFinite(item.lng) ? { lat: Number(item.lat), lng: Number(item.lng) } : null,
+    priceWon: item.min_price == null ? null : Number(item.min_price), areaM2: item.area_max == null ? null : Number(item.area_max), floorAreaM2: null,
+    description: "", floorInfo: "", kind: "building", kindConfirmed: true, areaSource: "listing", floorAreaSource: "listing", locationStatus: "pin-estimated",
+    zoning: { status: "missing", groups: [], entries: [] }, development: null, nearbyTransactions: { status: "unavailable", cases: [] }, origin: "auction" };
+}
+async function findListingEdge(database, data, id) {
+  const key = String(id || "");
+  if (key.startsWith("disco:")) { const { data: raw } = await database.rpc("teojabi_disco_listing", { p_id: key.slice(6) }); return buildDiscoListing(raw); }
+  if (key.startsWith("auction:")) { const { data: raw } = await database.rpc("teojabi_auction_item", { p_docid: key.slice(8) }); return buildAuctionListing(raw); }
+  const inCatalog = data.rows.find((row) => row.id === key);
+  if (inCatalog) return inCatalog;
+  const { data: raw } = await database.rpc("teojabi_naver_listing", { p_num: key.split(":").slice(1).join(":") });
+  return buildNaverListing(raw);
+}
+async function attachDistrictPlan(database, raw) {
+  const planRows = (raw.plans && raw.plans.rows) || [];
+  const names = [];
+  for (const row of planRows) { for (const key of ["dgmName", "name"]) { const v = row[key]; if (typeof v === "string" && v.trim()) { names.push(v.trim()); break; } } }
+  const farNames = [...new Set(names)].sort().slice(0, 20);
+  if (farNames.length) {
+    const { data: sources } = await database.rpc("teojabi_district_sources", { p_names: farNames });
+    const byName = new Map();
+    for (const item of ((sources && sources.rows) || [])) if (!byName.has(item.dgmName)) byName.set(item.dgmName, item);
+    const mergeKeys = ["baseNoticeNo","baseNoticeDate","baseNoticeName","baseNoticeUrl","originNoticeNo","originNoticeDate","latestNoticeNo","latestNoticeDate","repKind","repGroup","repName","repUrl","repDate","repUsed","guidelines"];
+    for (const row of planRows) { const item = byName.get(row.dgmName); if (!item) continue; for (const k of mergeKeys) row[k] = item[k]; }
+    const { data: far } = await database.rpc("teojabi_far", { p_names: farNames });
+    raw.far = far;
+  } else {
+    raw.far = { status: "mismatch", rows: [] };
+  }
+  return raw;
 }
 
 Deno.serve(async (request: Request) => {
@@ -185,11 +269,11 @@ Deno.serve(async (request: Request) => {
       subPair = [subLot, subLot.padStart(4, "0")];
       if (district && neighborhood) patterns = ["%" + district + "%" + neighborhood + "% " + lotText, "%" + district + "%" + neighborhood + "% " + lotText + "번지"];
       const { data: registers, error: regErr } = await db.rpc("teojabi_registers", {
-        p_pnu: pnu, p_address: address, p_district: district || null, p_neighborhood: neighborhood || null,
+        p_source_id: pnu, p_pnu: pnu, p_address: address, p_district: district || null, p_neighborhood: neighborhood || null,
         p_addresses: addresses, p_lot_pair: lotPair, p_main_pair: mainPair, p_sub_pair: subPair, p_patterns: patterns,
       });
       if (regErr) throw regErr;
-      const { data: land, error: landErr } = await db.rpc("teojabi_land_record", { p_pnu: pnu, p_address: address });
+      const { data: land, error: landErr } = await db.rpc("teojabi_land_record", { p_source_id: pnu, p_pnu: pnu, p_address: address });
       if (landErr) throw landErr;
       const listing = { id: pnu, sourceId: pnu, pnu, address: registers.address };
       const result = {
@@ -199,6 +283,47 @@ Deno.serve(async (request: Request) => {
         registry: { status: "external", url: DOCUMENT_LINKS.registry },
       };
       return json(result, 200, origin);
+    }
+    if (path.startsWith("/api/risk/") || path.startsWith("/api/site-context/") || path.startsWith("/api/building-records/") || path.startsWith("/api/land-record/")) {
+      const compact = path.startsWith("/api/site-context/");
+      const registers = path.startsWith("/api/building-records/");
+      const land = path.startsWith("/api/land-record/");
+      const operation = land ? "land-record" : registers ? "registers" : compact ? "context" : "risk";
+      const id = decodeURIComponent(path.slice(land ? "/api/land-record/".length : registers ? "/api/building-records/".length : compact ? "/api/site-context/".length : "/api/risk/".length));
+      const validId = /^(?:(?:naver|naver-land):\d{1,30}|premium:[a-f0-9-]{36})$/.test(id) || /^disco:[A-Za-z0-9]{4,24}$/.test(id) || /^auction:[A-Za-z0-9]{4,40}$/.test(id);
+      if (!validId) return json({ status: "missing" }, 404, origin);
+      const data = catalog(snaps);
+      const listing = await findListingEdge(db, data, id);
+      if (!listing) return json({ status: "missing" }, 404, origin);
+      const ref = parseRef(listing.address, listing.pnu);
+      let raw;
+      if (land) {
+        const { data: landRaw, error } = await db.rpc("teojabi_land_record", { p_source_id: listing.sourceId, p_pnu: listing.pnu, p_address: ref.address });
+        if (error) throw error;
+        raw = landRaw;
+      } else {
+        let recap = { status: "skipped", rows: [] }, buildings = { status: "skipped", rows: [] };
+        if (operation !== "context") {
+          const { data: reg, error } = await db.rpc("teojabi_registers", {
+            p_source_id: listing.sourceId, p_pnu: listing.pnu, p_address: ref.address,
+            p_district: ref.district || null, p_neighborhood: ref.neighborhood || null,
+            p_addresses: ref.addresses, p_lot_pair: ref.lotPair, p_main_pair: ref.mainPair, p_sub_pair: ref.subPair, p_patterns: ref.patterns,
+          });
+          if (error) throw error;
+          recap = reg.recap; buildings = reg.buildings;
+        }
+        raw = { sourceId: listing.sourceId, address: ref.address, pnu: listing.pnu, observedAt: new Date().toISOString(), recap, buildings };
+        if (operation !== "registers") {
+          const { data: ctx, error } = await db.rpc("teojabi_parcel_context", { p_pnu: listing.pnu });
+          if (error) throw error;
+          raw.road = ctx.road; raw.parcel = ctx.parcel; raw.plans = ctx.plans;
+          raw.education = ctx.education; raw.tourism = ctx.tourism; raw.heritage = ctx.heritage;
+          await attachDistrictPlan(db, raw);
+        }
+      }
+      const result = land ? normalizeLandRecord(listing, raw) : registers ? buildBuildingRecords(listing, raw) : buildRiskReview(listing, raw);
+      const body = compact && result.status !== "error" ? { status: (result.road && result.road.status === "error") ? "partial" : result.status, zones: result.zones, road: result.road } : result;
+      return json(body, result.status === "error" ? 503 : 200, origin);
     }
     return json({ status: "not-found" }, 404, origin);
   } catch (_error) {
