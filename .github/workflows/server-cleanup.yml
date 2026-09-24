@@ -1,0 +1,90 @@
+name: Server Cleanup
+
+# NCP 서버의 디스크/메모리를 회수한다. (journal·로그·캐시 정리 + 예전 PM2 잔재 제거)
+# 결과는 server-report 브랜치의 .diagnostics/server-cleanup.txt 에 기록한다.
+on:
+  workflow_dispatch:
+  push:
+    branches: [ "main" ]
+    paths:
+      - '.github/workflows/server-cleanup.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Install sshpass
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq sshpass
+
+      - name: Run cleanup on NCP
+        env:
+          SSHPASS: ${{ secrets.NCP_SSH_PASSWORD }}
+        run: |
+          mkdir -p .diagnostics
+          sshpass -e ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+            -o ConnectTimeout=15 -o ServerAliveInterval=15 -o ServerAliveCountMax=4 \
+            ${{ secrets.NCP_SSH_USER }}@${{ secrets.NCP_SSH_HOST }} 'bash -s' > .diagnostics/server-cleanup.txt 2>&1 <<'REMOTE'
+          {
+            echo "===== BEFORE ====="
+            df -h /
+            free -m
+
+            echo "===== JOURNAL VACUUM (keep 100M) ====="
+            sudo -n journalctl --vacuum-size=100M 2>&1 | tail -3 || true
+
+            echo "===== TRUNCATE BIG LOGS ====="
+            sudo -n find /var/log -type f -name '*.log' -size +20M -exec truncate -s 0 {} \; 2>/dev/null || true
+            find "$HOME/.pm2/logs" -type f -name '*.log' -size +20M -exec truncate -s 0 {} \; 2>/dev/null || true
+
+            echo "===== NPM / PIP / APT CACHE ====="
+            rm -rf "$HOME/.npm/_cacache" 2>/dev/null || true
+            rm -rf "$HOME/.cache/pip" 2>/dev/null || true
+            sudo -n apt-get clean 2>/dev/null || true
+
+            echo "===== PM2 ORPHAN CHECK ====="
+            pm2 jlist 2>/dev/null | tr ',' '\n' | grep -E '"name"' || true
+            if pm2 jlist 2>/dev/null | grep -q '"name":"nest-app"'; then
+              echo "--- nest-app detail (before delete) ---"
+              pm2 describe nest-app 2>/dev/null | grep -E 'script path|script args|exec cwd|status|uptime|restarts' || true
+              echo "Deleting orphan PM2 process: nest-app"
+              pm2 delete nest-app 2>&1 | tail -3 || true
+              pm2 save 2>&1 | tail -2 || true
+            else
+              echo "nest-app not present; nothing to delete"
+            fi
+
+            echo "===== ACTIVE PM2 PROCESSES ====="
+            pm2 list 2>/dev/null || true
+
+            echo "===== BACKEND HEALTH (loopback) ====="
+            for t in 1 2 3 4 5; do
+              code=$(curl -sS -o /dev/null -w '%{http_code}' -H 'Host: api.teojabi.com' http://127.0.0.1:3001/api/v1/users/me 2>/dev/null || echo 000)
+              echo "127.0.0.1:3001 /api/v1/users/me -> $code"
+              [ "$code" = "401" ] || [ "$code" = "200" ] && break
+              sleep 3
+            done
+
+            echo "===== AFTER ====="
+            df -h /
+            free -m
+            echo "CLEANUP_DONE"
+          } 2>&1
+          exit 0
+          REMOTE
+
+      - name: Publish report to server-report branch
+        run: |
+          set -e
+          git config user.name "teojabi-diagnostics"
+          git config user.email "teojabi-diagnostics@users.noreply.github.com"
+          git checkout -B server-report
+          git add -f .diagnostics/server-cleanup.txt
+          git commit -m "Update server cleanup report"
+          git push -f origin server-report
