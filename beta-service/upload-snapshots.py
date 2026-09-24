@@ -17,7 +17,7 @@ FILES = {
     'selected-catalog': '.local/supabase/selected-catalog.json',
     'selected-zoning': '.local/supabase/selected-zoning.json',
     'selected-development': '.local/supabase/selected-development.json',
-    'curation-hidden': '.local/curation-hidden.json',
+    'curation-hidden': '.local/supabase/curation-hidden.json',
     'neighborhoods': 'neighborhoods.json',
     'inventory-summary': '.local/inventory-summary.json',
     'disco-activity': '.local/disco-daily/activity.json',
