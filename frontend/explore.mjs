@@ -634,7 +634,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
         try{await navigator.clipboard.writeText(`터잡이 경매 물건\n${detail.listing.address}\n사건번호 ${detail.listing.auction?.caseNo||''}\n감정가 ${money(detail.listing.auction?.appraisedWon)} · 최저매각가 ${money(detail.listing.auction?.minPrice)}\n매각기일 ${detail.listing.auction?.saleDate||''}`);button.textContent='물건 정보 복사됨';}catch{button.textContent='주소와 가격을 선택해 복사해 주세요.';}break;
       case 'back-conditions':setSource('conditions');break;
       case 'edit':
-        if(source==='auction'){setSheet(true);const host=$('#auction-filters');host?.scrollIntoView({behavior:'smooth',block:'nearest'});host?.querySelector('[data-auction-chip]')?.focus({preventScroll:true});}
+        if(source==='auction'){setSheet(true);auctionFiltersUi.open('districts');$('#auction-filters')?.scrollIntoView({behavior:'smooth',block:'nearest'});}
         else onEdit?.();
         break;
       case 'detail':openDetail(button.dataset.id);break;

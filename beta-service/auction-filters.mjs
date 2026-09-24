@@ -101,5 +101,5 @@ export function mountAuctionFilters(root, { getValue, onChange } = {}) {
     update();
   }, { signal: abort.signal });
   update();
-  return { update, destroy() { abort.abort(); } };
+  return { update, open, destroy() { abort.abort(); } };
 }
