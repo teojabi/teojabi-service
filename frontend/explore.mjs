@@ -87,7 +87,8 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
   let result=null,selected=null,detail=null,parcel=null,limit=5,bounds=conditions?.bounds||null,query='',sort=conditions?.sort==='price-desc'?'price-desc':'price',mapView=null;
   let assistantResult=assistant&&Array.isArray(assistant.groups)?assistant:null;
   let source=assistantResult?'assistant':initialSource==='favorites'?'favorites':initialSource==='auction'?'auction':'conditions';
-  let auctionFilters={gu:[],usage:'',kind:'',sort:'sale',maxPrice:'',failMax:''};
+  const conditionAuction=conditions?.auction||null;
+  let auctionFilters={gu:[...(conditions?.districts||[])],usage:(conditionAuction?.usages||[])[0]||'',kind:'',sort:'sale',maxPrice:conditionAuction?.maxPriceWon?String(conditionAuction.maxPriceWon/1e8):'',maxBidRate:conditionAuction?.maxBidRate!=null?String(conditionAuction.maxBidRate):'',failMax:''};
   if(source==='auction')limit=100;
   let criteria={purpose:conditions?.purpose||null,minArea:conditions?.minArea||'',maxArea:conditions?.maxArea||'',areaUnit:conditions?.areaUnit||'pyeong',zones:conditions?.zones||[],minAreaM2:conditions?.minAreaM2??null,maxAreaM2:conditions?.maxAreaM2??null,auction:conditions?.auction||null,...BUILD_DEFAULTS,...(validateBuildCriteria(conditions||{}).value||{})};
   const defaultTitle=()=>source==='assistant'?'AI 비서 결과':source==='favorites'?'찜한 매물':source==='auction'?'경매 물건':picksOnlyMode?'터잡이 선별 매물':conditions?'내 조건으로 살펴보기':'지도에서 매물 살펴보기';
@@ -351,6 +352,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
       if(auctionFilters.usage)params.set('usage',auctionFilters.usage);
       if(auctionFilters.kind)params.set('kind',auctionFilters.kind);
       if(auctionFilters.maxPrice)params.set('maxPrice',String(Number(auctionFilters.maxPrice)*1e8));
+      if(auctionFilters.maxBidRate)params.set('maxBidRate',String(Number(auctionFilters.maxBidRate)));
       if(auctionFilters.failMax)params.set('maxFail',auctionFilters.failMax);
       if(auctionFilters.sort)params.set('sort',auctionFilters.sort);
       const response=await apiFetch(`/api/auctions?${params}`,{signal:abort.signal});
@@ -633,10 +635,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
       case 'copy-auction':
         try{await navigator.clipboard.writeText(`터잡이 경매 물건\n${detail.listing.address}\n사건번호 ${detail.listing.auction?.caseNo||''}\n감정가 ${money(detail.listing.auction?.appraisedWon)} · 최저매각가 ${money(detail.listing.auction?.minPrice)}\n매각기일 ${detail.listing.auction?.saleDate||''}`);button.textContent='물건 정보 복사됨';}catch{button.textContent='주소와 가격을 선택해 복사해 주세요.';}break;
       case 'back-conditions':setSource('conditions');break;
-      case 'edit':
-        if(source==='auction'){setSheet(true);auctionFiltersUi.open('districts');$('#auction-filters')?.scrollIntoView({behavior:'smooth',block:'nearest'});}
-        else onEdit?.();
-        break;
+      case 'edit':onEdit?.();break;
       case 'detail':openDetail(button.dataset.id);break;
       case 'retry-detail':openDetail(selected);break;
       case 'back-list':setSheet(true);closeDetail();break;
