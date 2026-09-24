@@ -1,4 +1,4 @@
-# manual-trigger: 2026-09-24T14:15Z
+# manual-trigger: 2026-09-24T14:30Z
 name: Sync Snapshots to Supabase
 
 # 서버(NCP)의 현재 스냅샷을 Supabase `public.snapshots` 테이블로 업로드한다.

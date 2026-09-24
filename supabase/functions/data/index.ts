@@ -41,16 +41,13 @@ function allowedReferer(referer: string | null): boolean {
   }
 }
 
-let catalogCache: unknown = null;
-function catalog() {
-  if (catalogCache) return catalogCache;
-  const hidden = new Set(Array.isArray(snapshots?.curationHidden?.ids) ? snapshots.curationHidden.ids : []);
-  const snapshot = snapshots?.selectedCatalog;
+function catalog(snaps: Record<string, any>) {
+  const hidden = new Set(Array.isArray(snaps["curation-hidden"]?.ids) ? snaps["curation-hidden"].ids : []);
+  const snapshot = snaps["selected-catalog"];
   const filtered = snapshot && Array.isArray(snapshot.rows)
     ? { ...snapshot, rows: snapshot.rows.filter((row: any) => !hidden.has(row.id)) }
     : snapshot;
-  catalogCache = selectedCatalog(filtered, snapshots?.selectedZoning, snapshots?.selectedDevelopment);
-  return catalogCache;
+  return selectedCatalog(filtered, snaps["selected-zoning"], snaps["selected-development"]);
 }
 
 function neighborhoodIndex() {

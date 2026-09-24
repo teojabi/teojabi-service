@@ -85,7 +85,9 @@ let curationRefreshQueue=Promise.resolve();
 // 스냅샷을 Supabase snapshots 테이블로 업로드해 서버리스(Edge Function)와 공유한다.
 async function syncSnapshots() {
   try {
-    await execute(process.execPath, [join(root, 'upload-snapshots.mjs')], { timeout: 30000, maxBuffer: 8 * 1024 * 1024, encoding: 'utf8' });
+    const python = process.env.TEOJABI_PYTHON;
+    if (!python) return;
+    await execute(python, ['-X', 'utf8', join(root, 'upload-snapshots.py')], { timeout: 30000, maxBuffer: 8 * 1024 * 1024, encoding: 'utf8' });
   } catch { /* 업로드 실패는 서비스 응답에 영향을 주지 않는다 */ }
 }
 async function registeredSnapshot(){
