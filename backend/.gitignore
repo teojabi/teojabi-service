@@ -2,4 +2,7 @@ node_modules/
 # Keep environment variables out of version control
 .env
 
+# Records the deployed package-lock hash so redeploys can skip node_modules upload.
+.deploy-lock-hash
+
 /generated/prisma
