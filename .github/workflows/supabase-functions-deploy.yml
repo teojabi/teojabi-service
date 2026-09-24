@@ -81,10 +81,10 @@ jobs:
           set +e
           {
             echo "=== deploy auction ==="
-            supabase functions deploy auction --project-ref "$PROJECT_REF" --no-verify-jwt 2>&1
+            npx --yes supabase@latest functions deploy auction --project-ref "$PROJECT_REF" --no-verify-jwt 2>&1
             echo "auction_exit=$?"
             echo "=== deploy data ==="
-            supabase functions deploy data --project-ref "$PROJECT_REF" --no-verify-jwt 2>&1
+            npx --yes supabase@latest functions deploy data --project-ref "$PROJECT_REF" --no-verify-jwt 2>&1
             echo "data_exit=$?"
           } 2>&1 | tee deploy.log
           if grep -qE '_exit=[1-9]' deploy.log; then
