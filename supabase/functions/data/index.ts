@@ -129,6 +129,15 @@ Deno.serve(async (request: Request) => {
         ],
       }, 200, origin);
     }
+    if (path.startsWith("/api/parcels/")) {
+      const pnu = decodeURIComponent(path.slice("/api/parcels/".length));
+      if (!/^\d{19}$/.test(pnu)) return json({ status: "missing" }, 404, origin);
+      const data = catalog(snaps);
+      if (!data.rows.some((row: any) => row.pnu === pnu)) return json({ status: "missing" }, 404, origin);
+      const { data: result, error } = await db.rpc("teojabi_parcel", { p_pnu: pnu });
+      if (error) throw error;
+      return json(result, 200, origin);
+    }
     return json({ status: "not-found" }, 404, origin);
   } catch (_error) {
     return json({ status: "error", message: "데이터를 불러오지 못했습니다." }, 503, origin);
