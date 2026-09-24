@@ -161,7 +161,7 @@ Deno.serve(async (request: Request) => {
       return await doDetail(decodeURIComponent(path.slice("/api/auctions/".length)), origin);
     }
     if (path === "/api/health") return json({ status: "ready", at: new Date().toISOString() }, 200, origin);
-    return json({ status: "not-found", path, full: url.pathname }, 404, origin);
+    return json({ status: "not-found" }, 404, origin);
   } catch (_error) {
     return json({ status: "error", message: "경매 자료를 불러오지 못했습니다." }, 503, origin);
   }
