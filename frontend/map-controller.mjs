@@ -1,4 +1,4 @@
-﻿import { apiFetch } from './api-client.mjs';
+﻿import { getRuntime } from './api-client.mjs';
 import { formatArea } from './area-display.mjs';
 let sdkPromise,authError;
 export function loadNaverMaps() {
@@ -9,8 +9,7 @@ export function loadNaverMaps() {
     let timer, script;
     const fail=message=>{clearTimeout(timer);script?.remove();sdkPromise=null;reject(new Error(message));};
     try {
-      const response=await apiFetch('/api/runtime');
-      const config=await response.json();
+      const config=await getRuntime();
       if (!config.clientId) {fail('네이버 지도 키를 연결하면 지도를 볼 수 있어요.');return;}
       window.navermap_authFailure=()=>{
         authError='네이버 지도 인증을 확인해야 해요. 지도 키와 허용 주소 설정 후 새로고침해 주세요.';

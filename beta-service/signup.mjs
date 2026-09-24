@@ -1,4 +1,4 @@
-import {apiFetch} from './api-client.mjs';
+import {apiFetch,getRuntime} from './api-client.mjs';
 export async function resumeSignup(member) {
   if(new URLSearchParams(location.search).get('signup')!=='1')return;
   const dialog=document.createElement('dialog');dialog.className='save-dialog';
@@ -7,7 +7,7 @@ export async function resumeSignup(member) {
   const status=dialog.querySelector('[role=status]'),fields=dialog.querySelector('fieldset');
   dialog.querySelector('[data-close]').onclick=()=>dialog.close();dialog.addEventListener('close',()=>dialog.remove());
   try {
-    const runtime=await apiFetch('/api/runtime').then(r=>r.json());
+    const runtime=await getRuntime();
     if(!runtime.accountApiBase)throw new Error('회원 서비스 연결을 확인해 주세요.');
     const base=runtime.accountApiBase+'/api/v1/auth/social';
     const response=await apiFetch(base+'/pending-signup-status');
