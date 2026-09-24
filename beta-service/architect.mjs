@@ -1,4 +1,4 @@
-import { apiFetch } from './api-client.mjs';
+import { apiFetch, getRuntime } from './api-client.mjs';
 import { member } from './member.mjs';
 
 const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -8,8 +8,7 @@ export const ARCHITECT_STATUS_LABEL = { PENDING: '검토 대기', APPROVED: '공
 let basePromise;
 export function accountBase() {
   if (member.base) return Promise.resolve(member.base);
-  basePromise ??= apiFetch('/api/runtime')
-    .then((response) => response.json())
+  basePromise ??= getRuntime()
     .then((data) => data.accountApiBase || '')
     .catch(() => '');
   return basePromise;

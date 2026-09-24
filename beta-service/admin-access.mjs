@@ -1,4 +1,4 @@
-import { apiFetch } from './api-client.mjs';
+import { apiFetch, getRuntime } from './api-client.mjs';
 const escapeHtml=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
 
 const architectStatusLabel={PENDING:'검토 대기',APPROVED:'공개 중',HIDDEN:'비공개'};
@@ -63,7 +63,7 @@ export async function initAdminAccess(){
   panel.hidden=false;
   form.hidden=true;
   try{
-    const runtime=await apiFetch('/api/runtime').then(response=>response.json()),base=runtime.accountApiBase||'';
+    const runtime=await getRuntime(),base=runtime.accountApiBase||'';
     if(!base){
       status.textContent='관리자 서비스 연결을 확인해 주세요.';
       form.hidden=true;

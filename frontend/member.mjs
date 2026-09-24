@@ -1,4 +1,4 @@
-import { apiFetch } from './api-client.mjs';
+import { apiFetch, getRuntime } from './api-client.mjs';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 export const GUEST_FAVORITES_KEY='teojabi.guest-favorites.v1';
 const validGuestFavorite=item=>item&&item.kind==='favorite'&&typeof item.key==='string'&&item.key.length<=80&&item.payload?.id===item.key;
@@ -10,7 +10,7 @@ export class MemberStore extends EventTarget {
   async refresh(){
     this.status='loading';this.items=[];this.user=null;this.emit();
     try {
-      const runtime=await apiFetch('/api/runtime').then(r=>r.json());this.base=runtime.accountApiBase||'';
+      const runtime=await getRuntime();this.base=runtime.accountApiBase||'';
       if(!this.base){this.items=this.guestItems();this.status=this.items.length?'guest':'pending';this.user=null;this.emit();return;}
       const me=await this.request('/users/me');this.user=me;
       const result=await this.request('/discovery/me');

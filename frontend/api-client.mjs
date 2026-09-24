@@ -11,3 +11,21 @@ export function apiUrl(path, base=DATA_API_BASE) {
 export function apiFetch(path,options={}) {
   return fetch(apiUrl(path),{...options,credentials:'include',signal:options.signal||AbortSignal.timeout(options.method==='POST'?180000:30000)});
 }
+// 지도 키와 로그인 주소를 이 요청에서 받아온다. 배포(재시작) 중 몇 초 끊길 수 있어 몇 번 재시도한다.
+let runtimePromise=null;
+export function getRuntime(){
+  runtimePromise??=(async()=>{
+    let lastError;
+    for(let attempt=0;attempt<4;attempt++){
+      try{
+        const response=await apiFetch('/api/runtime',{signal:AbortSignal.timeout(8000)});
+        if(response.ok)return await response.json();
+        lastError=new Error(`runtime ${response.status}`);
+      }catch(error){lastError=error;}
+      if(attempt<3)await new Promise(resolve=>setTimeout(resolve,700*(attempt+1)));
+    }
+    runtimePromise=null;
+    throw lastError||new Error('runtime unavailable');
+  })();
+  return runtimePromise;
+}
