@@ -6,10 +6,14 @@
 //   GET .../data/api/neighborhoods
 //   GET .../data/api/activity
 //   GET .../data/api/recommendations?<browse query>
-// 스냅샷은 배포 시 워크플로가 snapshots.ts 로 생성한다. (Storage/DB 불필요)
+// 스냅샷은 Supabase `public.snapshots` 테이블에서 읽는다. (서버가 큐레이션 후 업로드)
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { selectedCatalog } from "./lib/selected-catalog.mjs";
 import { browseCatalog, suggestCatalogChanges } from "./lib/catalog.mjs";
-import { snapshots } from "./snapshots.ts";
+
+const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, {
+  auth: { persistSession: false },
+});
 
 const ALLOWED_ORIGINS = ["https://teojabi.com", "https://www.teojabi.com"];
 const ALLOWED_REFERER_HOSTS = ["teojabi.com", "www.teojabi.com", "127.0.0.1", "localhost"];
@@ -41,6 +45,19 @@ function allowedReferer(referer: string | null): boolean {
   }
 }
 
+let snapshotCache: Record<string, any> | null = null;
+let snapshotCachedAt = 0;
+async function loadSnapshots(): Promise<Record<string, any>> {
+  if (snapshotCache && Date.now() - snapshotCachedAt < 60000) return snapshotCache;
+  const { data, error } = await db.from("snapshots").select("name,data");
+  if (error) throw error;
+  const map: Record<string, any> = {};
+  for (const row of data || []) map[row.name] = row.data;
+  snapshotCache = map;
+  snapshotCachedAt = Date.now();
+  return map;
+}
+
 function catalog(snaps: Record<string, any>) {
   const hidden = new Set(Array.isArray(snaps["curation-hidden"]?.ids) ? snaps["curation-hidden"].ids : []);
   const snapshot = snaps["selected-catalog"];
@@ -50,14 +67,14 @@ function catalog(snaps: Record<string, any>) {
   return selectedCatalog(filtered, snaps["selected-zoning"], snaps["selected-development"]);
 }
 
-function neighborhoodIndex() {
-  const snapshot = snapshots?.neighborhoods;
+function neighborhoodIndex(snaps: Record<string, any>) {
+  const snapshot = snaps["neighborhoods"];
   if (snapshot?.status === "ready" && snapshot.districts && Object.keys(snapshot.districts).length) {
     return snapshot.districts;
   }
-  const hidden = new Set(Array.isArray(snapshots?.curationHidden?.ids) ? snapshots.curationHidden.ids : []);
+  const hidden = new Set(Array.isArray(snaps["curation-hidden"]?.ids) ? snaps["curation-hidden"].ids : []);
   const fallback: Record<string, Set<string>> = {};
-  for (const row of (snapshots?.selectedCatalog?.rows || [])) {
+  for (const row of (snaps["selected-catalog"]?.rows || [])) {
     if (hidden.has(row.id) || !row.district || !row.neighborhood) continue;
     (fallback[row.district] ??= new Set()).add(row.neighborhood);
   }
@@ -84,19 +101,22 @@ Deno.serve(async (request: Request) => {
     if (path === "/api/runtime") {
       return json({ clientId: NAVER_MAP_CLIENT_ID, authMode: "current", accountApiBase: ACCOUNT_API_BASE }, 200, origin);
     }
+
+    const snaps = await loadSnapshots();
+
     if (path === "/api/neighborhoods") {
-      return json({ status: "ready", districts: neighborhoodIndex() }, 200, origin);
+      return json({ status: "ready", districts: neighborhoodIndex(snaps) }, 200, origin);
     }
     if (path === "/api/catalog" || path === "/api/recommendations") {
-      const data = catalog();
+      const data = catalog(snaps);
       const current = browseCatalog(data, params);
       return json({ ...current, suggestions: suggestCatalogChanges(data, params, current) }, 200, origin);
     }
     if (path === "/api/activity") {
-      const data = catalog();
+      const data = catalog(snaps);
       const total = browseCatalog(data, new URLSearchParams()).totalParcels;
-      const inventory = snapshots?.inventorySummary;
-      const discoActivity = snapshots?.discoActivity;
+      const inventory = snaps["inventory-summary"];
+      const discoActivity = snaps["disco-activity"];
       const tradeUpdatedAt = discoActivity?.runs?.[0]?.completedAt || inventory?.transactionsUpdatedAt || null;
       return json({
         mode: "inventory",
