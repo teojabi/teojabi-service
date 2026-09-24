@@ -124,20 +124,48 @@ async function findListing(id) {
   const data=await catalog();
   return data.rows.find(row=>row.id===key)||await naverListing(key.split(':').slice(1).join(':'));
 }
+// 법원 소재지 문자열을 대지위치(지번)와 상세주소(건물·호)로 나눈다. 대지위치로 대장·구역 매칭을 시도한다.
+const splitAuctionAddress = item => {
+  const full=String(item.full_address||'').trim(),lot=String(item.lot_no||'').trim();
+  let land=full,detail=String(item.building_list||'').trim();
+  if(lot){const idx=full.indexOf(lot);if(idx>=0){land=full.slice(0,idx+lot.length).trim();const rest=full.slice(idx+lot.length).trim();if(rest)detail=rest;}}
+  if(!land)land=[item.sido,item.sigu,item.dong,lot].map(v=>String(v||'').trim()).filter(Boolean).join(' ');
+  return {land,detail};
+};
+// 경매 상세는 파이썬 실행이 필요해, 상세·목록 해석이 같은 결과를 재사용하도록 잠시 캐시한다.
+const auctionDetailCache=new Map();
+async function auctionDetail(docid) {
+  const key=String(docid||'');
+  const cached=auctionDetailCache.get(key);
+  if(cached&&Date.now()-cached.at<60000)return cached.value;
+  const raw=await auctionRead('detail',key);
+  if(auctionDetailCache.size>=200)auctionDetailCache.delete(auctionDetailCache.keys().next().value);
+  auctionDetailCache.set(key,{at:Date.now(),value:raw});
+  return raw;
+}
 // 경매 물건도 매물과 같은 상세(대장·구역·주변)를 쓸 수 있게 카탈로그 모양으로 맞춘다.
+const auctionListingCache=new Map();
 async function auctionListing(docid) {
-  if(!/^[A-Za-z0-9]{4,40}$/.test(String(docid||'')))return null;
+  const key=String(docid||'');
+  if(!/^[A-Za-z0-9]{4,40}$/.test(key))return null;
+  const cached=auctionListingCache.get(key);
+  if(cached&&Date.now()-cached.at<60000)return cached.value;
   try {
-    const raw=await auctionRead('detail',String(docid));
-    if(!raw||raw.status!=='ready'||!raw.item)return null;
-    const it=raw.item;
-    return {id:`auction:${it.docid}`,source:'auction',sourceId:String(it.docid),sourceUrl:it.source_url||'',
-      district:it.sigu||'',neighborhood:it.dong||'',address:it.full_address||'',
-      pnu:/^11\d{17}$/.test(String(it.pnu||''))?it.pnu:null,
-      position:Number.isFinite(it.lat)&&Number.isFinite(it.lng)?{lat:Number(it.lat),lng:Number(it.lng)}:null,
-      priceWon:it.min_price==null?null:Number(it.min_price),areaM2:it.area_max==null?null:Number(it.area_max),floorAreaM2:null,
-      description:'',floorInfo:'',kind:'building',kindConfirmed:true,areaSource:'listing',floorAreaSource:'listing',locationStatus:'pin-estimated',
-      zoning:{status:'missing',groups:[],entries:[]},development:null,nearbyTransactions:{status:'unavailable',cases:[]},origin:'auction'};
+    const raw=await auctionDetail(key);
+    let value=null;
+    if(raw&&raw.status==='ready'&&raw.item){
+      const it=raw.item,split=splitAuctionAddress(it);
+      value={id:`auction:${it.docid}`,source:'auction',sourceId:String(it.docid),sourceUrl:it.source_url||'',
+        district:it.sigu||'',neighborhood:it.dong||'',address:split.land||it.full_address||'',detailAddress:split.detail,
+        pnu:/^11\d{17}$/.test(String(it.pnu||''))?it.pnu:null,
+        position:Number.isFinite(it.lat)&&Number.isFinite(it.lng)?{lat:Number(it.lat),lng:Number(it.lng)}:null,
+        priceWon:it.min_price==null?null:Number(it.min_price),areaM2:it.area_max==null?null:Number(it.area_max),floorAreaM2:null,
+        description:'',floorInfo:'',kind:'building',kindConfirmed:true,areaSource:'listing',floorAreaSource:'listing',locationStatus:'pin-estimated',
+        zoning:{status:'missing',groups:[],entries:[]},development:null,nearbyTransactions:{status:'unavailable',cases:[]},origin:'auction'};
+    }
+    if(auctionListingCache.size>=200)auctionListingCache.delete(auctionListingCache.keys().next().value);
+    auctionListingCache.set(key,{at:Date.now(),value});
+    return value;
   } catch {return null;}
 }
 // 비서가 찾은 디스코 매물도 상세·실거래 조회에 쓸 수 있게 같은 모양으로 맞춘다.
@@ -568,7 +596,7 @@ createServer(async (request, response) => {
         send(response,request,await auctionRead('map',JSON.stringify(payload)));
       } else {
         const docid=decodeURIComponent(path.slice('/api/auctions/'.length));
-        send(response,request,await auctionRead('detail',docid));
+        send(response,request,await auctionDetail(docid));
       }
     } catch { send(response,request,{status:'error',message:'경매 자료를 불러오지 못했습니다.'},503); }
     return;

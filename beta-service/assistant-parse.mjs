@@ -280,15 +280,23 @@ export function viewRow(row) {
   };
 }
 
+// 법원 소재지를 대지위치(지번)와 상세주소(건물·호)로 나눈다.
+const splitAuctionAddress = row => {
+  const full = String(row.full_address || '').trim(), lot = String(row.lot_no || '').trim();
+  let land = full, detail = String(row.building_list || '').trim();
+  if (lot) { const idx = full.indexOf(lot); if (idx >= 0) { land = full.slice(0, idx + lot.length).trim(); const rest = full.slice(idx + lot.length).trim(); if (rest) detail = rest; } }
+  if (!land) land = [row.sido, row.sigu, row.dong, lot].map(v => String(v || '').trim()).filter(Boolean).join(' ');
+  return { land, detail };
+};
 // 경매 물건(auction_item)을 건물찾기 카드·지도가 쓰는 매물 모양으로 맞춘다.
 export function viewAuctionRow(row) {
   const usage = String(row.usage_name || ''), zone = String(row.use_zone || '');
   const broad = BROAD_ZONE.find(z => zone.includes(z[1]));
   const zoning = zone ? { status: 'matched', groups: broad ? [broad[0]] : [], entries: [{ name: zone }] } : { status: 'missing', groups: [], entries: [] };
-  const id = `auction:${row.docid}`;
+  const id = `auction:${row.docid}`, addr = splitAuctionAddress(row);
   return {
     id, source: 'auction', sourceId: String(row.docid), sourceUrl: row.source_url || 'https://www.courtauction.go.kr/', cohort: 'auction', origin: 'auction',
-    district: row.sigu || '', neighborhood: row.dong || '', address: row.full_address || `${row.sigu || ''} ${row.dong || ''}`.trim(),
+    district: row.sigu || '', neighborhood: row.dong || '', address: addr.land, detailAddress: addr.detail,
     pnu: row.pnu || null, position: Number.isFinite(row.lat) && Number.isFinite(row.lng) ? { lat: Number(row.lat), lng: Number(row.lng) } : null,
     priceWon: row.min_price == null ? null : Number(row.min_price), areaM2: row.area_max == null ? null : Number(row.area_max), floorAreaM2: null,
     description: '', floorInfo: '', kind: /토지|대지|임야|전답|잡종지|답|전/.test(usage) ? 'land' : 'building', kindConfirmed: true,
