@@ -5,7 +5,7 @@ const SEOUL_GU = ['종로구','중구','용산구','성동구','광진구','동�
 
 const won = v => v == null ? '—' : `${(Number(v)/1e8).toLocaleString('ko-KR',{maximumFractionDigits:2})}억`;
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const dday = d => { if(!d) return ''; const t=new Date(d+'T00:00:00'); const n=Math.ceil((t-Date.now())/86400000); return n>=0?`D-${n}`:`종료`; };
+const dday = d => { if(!d) return ''; const t=new Date(d+'T00:00:00'); const n=Math.ceil((t-Date.now())/86400000); return n>=0?`D-${n}`:'종료'; };
 
 const listEl = document.getElementById('list');
 const countEl = document.getElementById('count');
@@ -13,31 +13,30 @@ const detailEl = document.getElementById('detail');
 const mapStatus = document.getElementById('map-status');
 const filters = document.getElementById('filters');
 
-let map, n, markers = [], rows = [], selected = null, authFailed = false;
+let map, n, markers = [], rows = [], selected = null, mapTimer;
 
 for (const gu of SEOUL_GU) {
   const o = document.createElement('option'); o.value = gu; o.textContent = gu; filters.gu.append(o);
 }
 
-function params() {
-  const f = new FormData(filters);
-  const p = new URLSearchParams();
-  for (const [k, v] of f.entries()) if (v !== '') p.set(k, v);
-  if (p.get('maxPrice')) p.set('maxPrice', String(Number(p.get('maxPrice')) * 1e8));
-  p.set('size', '100');
+function filterPairs() {
+  const f = new FormData(filters), p = {};
+  for (const [k, v] of f.entries()) if (v !== '') p[k] = v;
+  if (p.maxPrice) p.maxPrice = String(Number(p.maxPrice) * 1e8);
   return p;
 }
 
 async function loadList() {
   countEl.textContent = '불러오는 중…';
   try {
-    const res = await apiFetch(`/api/auctions?${params()}`);
+    const p = new URLSearchParams(filterPairs()); p.set('size', '100');
+    const res = await apiFetch(`/api/auctions?${p}`);
     const data = await res.json();
     if (data.status !== 'ready') throw new Error();
     rows = data.rows || [];
     countEl.textContent = `${data.total.toLocaleString('ko-KR')}건 중 ${rows.length}건 표시`;
     renderList();
-    plotMarkers();
+    loadMap();
   } catch {
     countEl.textContent = '자료를 불러오지 못했어요.';
     listEl.innerHTML = '';
@@ -53,6 +52,26 @@ function renderList() {
     </article>`).join('') || '<p style="opacity:.7">조건에 맞는 물건이 없어요.</p>';
 }
 
+function boundsParams() {
+  if (!map || !n) return null;
+  const b = map.getBounds(); if (!b) return null;
+  const sw = b.getSW(), ne = b.getNE();
+  return { swLng: sw.lng(), swLat: sw.lat(), neLng: ne.lng(), neLat: ne.lat() };
+}
+
+async function loadMap() {
+  if (!map || !n) return;
+  const b = boundsParams(); if (!b) return;
+  try {
+    const p = new URLSearchParams(filterPairs());
+    for (const [k, v] of Object.entries(b)) p.set(k, v);
+    const res = await apiFetch(`/api/auctions/map?${p}`);
+    const data = await res.json();
+    if (data.status !== 'ready') throw new Error();
+    renderMapMarkers(data.rows || []);
+  } catch { mapStatus.textContent = '지도 자료를 불러오지 못했어요.'; }
+}
+
 function pin(r) {
   const el = document.createElement('button');
   el.type = 'button';
@@ -62,31 +81,23 @@ function pin(r) {
   return el;
 }
 
-function plotMarkers() {
-  if (!map || !n) return;
+function renderMapMarkers(list) {
   for (const m of markers) m.setMap(null);
   markers = [];
-  const bounds = new n.LatLngBounds();
   let plotted = 0;
-  for (const r of rows) {
+  for (const r of list) {
     if (!Number.isFinite(r.lat) || !Number.isFinite(r.lng)) continue;
-    const point = new n.LatLng(r.lat, r.lng);
-    bounds.extend(point);
-    const marker = new n.Marker({ map, position: point, zIndex: selected===r.docid?100:1,
-      icon: { content: pin(r), anchor: new n.Point(0, 12) } });
+    const marker = new n.Marker({ map, position: new n.LatLng(r.lat, r.lng),
+      zIndex: selected===r.docid?100:1, icon: { content: pin(r), anchor: new n.Point(0, 12) } });
     n.Event.addListener(marker, 'click', () => openDetail(r.docid));
     markers.push(marker); plotted++;
   }
-  if (plotted) map.fitBounds(bounds, { top: 60, right: 60, bottom: 60, left: 60 });
   mapStatus.textContent = `${plotted}건 표시 · 출처: 법원경매정보`;
 }
 
 async function openDetail(docid) {
   selected = docid;
   renderList();
-  plotMarkers();
-  const r = rows.find(x => x.docid === docid);
-  if (r && map && Number.isFinite(r.lat)) map.setCenter(new n.LatLng(r.lat, r.lng));
   detailEl.hidden = false;
   detailEl.innerHTML = '<p style="opacity:.7">상세 불러오는 중…</p>';
   try {
@@ -94,6 +105,7 @@ async function openDetail(docid) {
     const data = await res.json();
     if (data.status !== 'ready') throw new Error();
     const it = data.item, d = data.detail || {};
+    if (map && Number.isFinite(it.lat) && Number.isFinite(it.lng)) map.setCenter(new n.LatLng(it.lat, it.lng));
     const stats = Array.isArray(d.around_stats) ? d.around_stats[0] : null;
     detailEl.innerHTML = `
       <h2 style="font-size:16px;margin:0 0 4px">${esc(it.usage_name||'')} · ${esc(it.sigu||'')} ${esc(it.dong||'')}</h2>
@@ -128,9 +140,10 @@ listEl.addEventListener('keydown', e => { if (e.key === 'Enter') { const c = e.t
 
 loadNaverMaps().then(maps => {
   n = maps;
-  map = new n.Map(document.getElementById('map'), { center: new n.LatLng(37.5665, 126.978), zoom: 11, zoomControl: true, scaleControl: true });
+  map = new n.Map(document.getElementById('map'), { center: new n.LatLng(37.5665, 126.978), zoom: 12, zoomControl: true, scaleControl: true });
+  n.Event.addListener(map, 'idle', () => { clearTimeout(mapTimer); mapTimer = setTimeout(loadMap, 250); });
   mapStatus.textContent = '지도 준비 완료';
-  plotMarkers();
-}).catch(err => { authFailed = true; mapStatus.textContent = '지도 키 연결 후 지도를 볼 수 있어요.'; });
+  loadMap();
+}).catch(() => { mapStatus.textContent = '지도 키 연결 후 지도를 볼 수 있어요.'; });
 
 loadList();

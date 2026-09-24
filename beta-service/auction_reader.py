@@ -74,7 +74,7 @@ LIST_COLUMNS = ('docid, court_name, dept_name, case_no, usage_name, appraised_am
                 'lot_no, building_list, area_min, area_max, lat, lng, pnu, use_zone, road_width_m, full_address')
 
 
-def do_list(payload):
+def _where(payload):
     gu = (payload.get('gu') or '').strip() or None
     usage = (payload.get('usage') or '').strip() or None
     min_price = _num(payload.get('minPrice'))
@@ -82,13 +82,6 @@ def do_list(payload):
     fail_max = _num(payload.get('failMax'))
     sale_from = (payload.get('saleFrom') or '').strip() or None
     sale_to = (payload.get('saleTo') or '').strip() or None
-    sort = payload.get('sort') or 'sale'
-    page = _int(payload.get('page'), 1, 1, 500)
-    size = _int(payload.get('size'), 20, 1, 100)
-    order = {'price': 'min_price ASC NULLS LAST',
-             'price_desc': 'min_price DESC NULLS LAST',
-             'fail': 'fail_count DESC NULLS LAST',
-             'area': 'area_max DESC NULLS LAST'}.get(sort, 'sale_date ASC NULLS LAST')
     where = ["court_code IS NOT NULL"]
     params = {}
     if gu:
@@ -102,9 +95,21 @@ def do_list(payload):
     if fail_max is not None:
         where.append('fail_count <= %(fail)s'); params['fail'] = fail_max
     if sale_from:
-        where.append('sale_date >= %(from)s'); params['from'] = sale_from
+        where.append('sale_date >= %(sfrom)s'); params['sfrom'] = sale_from
     if sale_to:
-        where.append('sale_date <= %(to)s'); params['to'] = sale_to
+        where.append('sale_date <= %(sto)s'); params['sto'] = sale_to
+    return where, params
+
+
+def do_list(payload):
+    page = _int(payload.get('page'), 1, 1, 500)
+    size = _int(payload.get('size'), 20, 1, 100)
+    sort = payload.get('sort') or 'sale'
+    order = {'price': 'min_price ASC NULLS LAST',
+             'price_desc': 'min_price DESC NULLS LAST',
+             'fail': 'fail_count DESC NULLS LAST',
+             'area': 'area_max DESC NULLS LAST'}.get(sort, 'sale_date ASC NULLS LAST')
+    where, params = _where(payload)
     clause = ' AND '.join(where)
     params['limit'] = size
     params['offset'] = (page - 1) * size
@@ -124,15 +129,17 @@ def do_map(payload):
     if None in (sw_lng, sw_lat, ne_lng, ne_lat):
         return {'status': 'invalid', 'rows': []}
     limit = _int(payload.get('limit'), 800, 1, 2000)
+    where, params = _where(payload)
+    where.append('lat BETWEEN %(swlat)s AND %(nelat)s')
+    where.append('lng BETWEEN %(swlng)s AND %(nelng)s')
+    params.update(swlat=min(sw_lat, ne_lat), nelat=max(sw_lat, ne_lat),
+                  swlng=min(sw_lng, ne_lng), nelng=max(sw_lng, ne_lng), limit=limit)
+    clause = ' AND '.join(where)
     with connect() as conn:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
-            cur.execute('''SELECT docid, usage_name, min_price, appraised_amt, fail_count, sale_date,
-                                  lat, lng, sigu, dong
-                           FROM public.auction_item
-                           WHERE lat BETWEEN %s AND %s AND lng BETWEEN %s AND %s
-                           LIMIT %s''',
-                        [min(sw_lat, ne_lat), max(sw_lat, ne_lat),
-                         min(sw_lng, ne_lng), max(sw_lng, ne_lng), limit])
+            cur.execute(f'''SELECT docid, usage_name, min_price, appraised_amt, fail_count, sale_date,
+                                   lat, lng, sigu, dong
+                            FROM public.auction_item WHERE {clause} LIMIT %(limit)s''', params)
             rows = cur.fetchall()
     return {'status': 'ready', 'rows': rows}
 

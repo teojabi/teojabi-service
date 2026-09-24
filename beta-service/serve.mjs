@@ -517,9 +517,12 @@ createServer(async (request, response) => {
         }
         send(response,request,await auctionRead('list',JSON.stringify(payload)));
       } else if (path === '/api/auctions/map') {
-        const q=url.searchParams;
-        send(response,request,await auctionRead('map',JSON.stringify({
-          swLng:q.get('swLng'),swLat:q.get('swLat'),neLng:q.get('neLng'),neLat:q.get('neLat')})));
+        const q=url.searchParams, payload={
+          swLng:q.get('swLng'),swLat:q.get('swLat'),neLng:q.get('neLng'),neLat:q.get('neLat')};
+        for (const key of ['gu','usage','minPrice','maxPrice','failMax','saleFrom','saleTo']) {
+          if (q.get(key)!=null) payload[key]=q.get(key);
+        }
+        send(response,request,await auctionRead('map',JSON.stringify(payload)));
       } else {
         const docid=decodeURIComponent(path.slice('/api/auctions/'.length));
         send(response,request,await auctionRead('detail',docid));
