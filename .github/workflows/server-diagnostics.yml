@@ -15,6 +15,7 @@ permissions:
 jobs:
   report:
     runs-on: ubuntu-latest
+    timeout-minutes: 8
     steps:
       - name: Checkout source
         uses: actions/checkout@v4
@@ -22,68 +23,51 @@ jobs:
       - name: Install sshpass
         run: sudo apt-get update -qq && sudo apt-get install -y -qq sshpass
 
+      # 각 명령을 timeout으로 감싸 서버 I/O가 느려도 배포/진단이 멈추지 않게 한다.
       - name: Collect read-only server report
         env:
           SSHPASS: ${{ secrets.NCP_SSH_PASSWORD }}
         run: |
           mkdir -p .diagnostics
-          sshpass -e ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=15 \
+          sshpass -e ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+            -o ConnectTimeout=15 -o ServerAliveInterval=15 -o ServerAliveCountMax=4 \
             ${{ secrets.NCP_SSH_USER }}@${{ secrets.NCP_SSH_HOST }} 'bash -s' > .diagnostics/server-report.txt 2>&1 <<'REMOTE'
-          echo "===== HOST ====="
-          hostname; uname -a; uptime
-          date -u
-
-          echo "===== DISK (df -h) ====="
-          df -h
-          echo
-          echo "===== INODES (df -i /) ====="
-          df -i / 2>/dev/null || true
-
-          echo "===== MEMORY / SWAP ====="
-          free -m
-          swapon --show 2>/dev/null || true
-          ls -lh /swapfile 2>/dev/null || true
-
-          echo "===== TOP DIRS (/) ====="
-          sudo -n du -xhd1 / 2>/dev/null | sort -h | tail -15 || true
-
-          echo "===== TOP DIRS (home, depth2) ====="
-          du -xhd2 "$HOME" 2>/dev/null | sort -h | tail -30 || true
-
-          echo "===== TOP FILES (home) ====="
-          find "$HOME" -xdev -type f -printf '%s %p\n' 2>/dev/null | sort -nr | head -20 | awk '{printf "%.1f MB  %s\n", $1/1048576, $2}' || true
-
-          echo "===== PM2 ====="
-          pm2 list 2>/dev/null || true
-          du -sh "$HOME/.pm2/logs" 2>/dev/null || true
-          ls -lhS "$HOME/.pm2/logs" 2>/dev/null | head -15 || true
-
-          echo "===== BACKEND RUNTIME LAYOUT ====="
-          du -sh "$HOME/teojabi-service" 2>/dev/null || true
-          du -sh "$HOME/teojabi-service/.git" 2>/dev/null || true
-          du -sh "$HOME/teojabi-runtime" 2>/dev/null || true
-          ls -la "$HOME/teojabi-service/backend" 2>/dev/null | grep -E 'node_modules|dist' || true
-          ls -la "$HOME/teojabi-runtime/beta-service" 2>/dev/null | grep -E '\.venv|\.local' || true
-          du -sh "$HOME/teojabi-runtime/beta-service/.venv" 2>/dev/null || true
-          du -sh "$HOME/teojabi-runtime/beta-service/.local" 2>/dev/null || true
-
-          echo "===== STALE DIRS ====="
-          find "$HOME" -maxdepth 3 \( -name 'node_modules.old' -o -name 'node_modules.new' -o -name 'dist.old' -o -name 'dist.new' \) 2>/dev/null || true
-
-          echo "===== CACHES / LOGS ====="
-          du -sh "$HOME/.npm" 2>/dev/null || true
-          du -sh "$HOME/.cache" 2>/dev/null || true
-          journalctl --disk-usage 2>/dev/null || true
-          sudo -n du -sh /var/cache/apt /var/log /tmp 2>/dev/null || true
-
-          echo "===== DEPLOY LOCK HASH ====="
-          cat "$HOME/teojabi-service/backend/.deploy-lock-hash" 2>/dev/null || echo 'none'
-
-          echo "===== LAST DEPLOY DIAGNOSTICS ====="
-          cat "$HOME/teojabi-service/backend/deploy-diagnostics.txt" 2>/dev/null | tail -100 || echo 'none'
-
-          echo "===== LISTENING PORTS ====="
-          ss -ltn 2>/dev/null | head -30 || true
+          {
+            echo "===== HOST ====="; hostname; uname -a; uptime; date -u
+            echo "===== DISK (df -h) ====="; df -h
+            echo "===== INODES ====="; df -i / 2>/dev/null || true
+            echo "===== MEMORY / SWAP ====="; free -m; swapon --show 2>/dev/null || true; ls -lh /swapfile 2>/dev/null || true
+            echo "===== SIZES (targeted) ====="
+            for p in \
+              "$HOME/teojabi-service" \
+              "$HOME/teojabi-service/.git" \
+              "$HOME/teojabi-service/backend/node_modules" \
+              "$HOME/teojabi-service/backend/dist" \
+              "$HOME/teojabi-runtime" \
+              "$HOME/teojabi-runtime/beta-service/.venv" \
+              "$HOME/teojabi-runtime/beta-service/.local" \
+              "$HOME/.pm2" "$HOME/.pm2/logs" "$HOME/.npm" "$HOME/.cache" \
+              "/var/log" "/var/cache/apt" "/tmp"; do
+              timeout 60 du -sh "$p" 2>/dev/null || echo "  (skip) $p"
+            done
+            echo "===== HOME DEPTH1 ====="
+            timeout 90 du -xhd1 "$HOME" 2>/dev/null | sort -h || true
+            echo "===== STALE RUNTIME DIRS ====="
+            find "$HOME" -maxdepth 3 \( -name 'node_modules.old' -o -name 'node_modules.new' -o -name 'dist.old' -o -name 'dist.new' \) 2>/dev/null || true
+            echo "===== PM2 ====="
+            timeout 30 pm2 list 2>/dev/null || true
+            ls -lhS "$HOME/.pm2/logs" 2>/dev/null | head -15 || true
+            echo "===== BACKEND LAYOUT ====="
+            ls -la "$HOME/teojabi-service/backend" 2>/dev/null | grep -E 'node_modules|dist|deploy-lock' || true
+            echo "===== DEPLOY LOCK HASH ====="
+            cat "$HOME/teojabi-service/backend/.deploy-lock-hash" 2>/dev/null || echo 'none'
+            echo "===== LAST DEPLOY DIAGNOSTICS ====="
+            tail -100 "$HOME/teojabi-service/backend/deploy-diagnostics.txt" 2>/dev/null || echo 'none'
+            echo "===== LISTENING PORTS ====="
+            ss -ltn 2>/dev/null | head -30 || true
+            echo "REPORT_DONE"
+          } 2>&1
+          exit 0
           REMOTE
 
       # 배포 검증이 실패하는 원인이 "러너 IP가 Cloudflare에서 막히는 것"인지 이 러너에서 직접 확인한다.
