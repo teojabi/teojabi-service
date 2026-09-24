@@ -1,9 +1,9 @@
-# manual-trigger: 2026-09-24T10:05Z
+# manual-trigger: 2026-09-24T11:50Z
 name: Deploy Supabase Functions
 
 # Supabase Edge Function(경매 API 파일럿)을 배포한다.
 # 사전 준비: 리포지토리 시크릿에 SUPABASE_ACCESS_TOKEN 을 추가한다.
-#   (Supabase Dashboard → Account → Access Tokens 에서 발급)
+#   (Supabase Dashboard → Account → Access Tokens)
 # 토큰이 없으면 실패하지 않고 경고 후 건너뛴다.
 on:
   workflow_dispatch:
@@ -11,6 +11,7 @@ on:
     branches: [ "main" ]
     paths:
       - 'supabase/functions/**'
+      - 'supabase/config.toml'
       - '.github/workflows/supabase-functions-deploy.yml'
 
 jobs:
@@ -33,17 +34,17 @@ jobs:
             echo "ready=true" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Set up Supabase CLI
+      - name: Set up Node.js
         if: steps.token.outputs.ready == 'true'
-        uses: supabase/setup-cli@v1
+        uses: actions/setup-node@v4
         with:
-          version: latest
+          node-version: '20'
 
       - name: Deploy auction function
         if: steps.token.outputs.ready == 'true'
         run: |
           set -e
-          supabase functions deploy auction \
+          npx --yes supabase@latest functions deploy auction \
             --project-ref "$PROJECT_REF" \
             --no-verify-jwt
           echo "deployed: https://${PROJECT_REF}.supabase.co/functions/v1/auction"
