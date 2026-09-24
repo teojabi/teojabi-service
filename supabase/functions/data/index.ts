@@ -13,6 +13,9 @@ import { browseCatalog, suggestCatalogChanges, DOCUMENT_LINKS } from "./lib/cata
 import { buildParcelContext, buildBuildingRecords, buildRiskReview } from "./lib/risk-policy.mjs";
 import { normalizeLandRecord } from "./lib/land-policy.mjs";
 import { normalizeSiteParcels } from "./lib/site-policy.mjs";
+import { nearbyTransactions } from "./lib/market.mjs";
+import { adaptDiscoRows } from "./lib/disco-adapter.mjs";
+import { DISCO_CONTRACT } from "./lib/disco-contract.mjs";
 
 const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, {
   auth: { persistSession: false },
@@ -335,6 +338,32 @@ Deno.serve(async (request: Request) => {
       const { data: siteRaw, error } = await db.rpc("teojabi_site_parcels", { p_query: query });
       if (error) throw error;
       return json(normalizeSiteParcels(siteRaw), 200, origin);
+    }
+    if (path.startsWith("/api/nearby-transactions/")) {
+      const id = decodeURIComponent(path.slice("/api/nearby-transactions/".length));
+      const validId = /^(?:(?:naver|naver-land):\d{1,30}|premium:[a-f0-9-]{36})$/.test(id) || /^disco:[A-Za-z0-9]{4,24}$/.test(id) || /^auction:[A-Za-z0-9]{4,40}$/.test(id);
+      if (!validId) return json({ status: "missing", cases: [] }, 404, origin);
+      const data = catalog(snaps);
+      let listing = await findListingEdge(db, data, id);
+      if (!listing) {
+        const lat = Number(params.get("lat")), lng = Number(params.get("lng"));
+        if (Number.isFinite(lat) && Number.isFinite(lng)) {
+          let pnu = /^\d{19}$/.test(params.get("pnu") || "") ? params.get("pnu") : null;
+          if (!pnu) {
+            try { const { data: near } = await db.rpc("teojabi_nearest_parcel", { p_lat: lat, p_lng: lng }); if (near && near.status === "ready" && near.pnu && near.distanceM <= 150) pnu = near.pnu; } catch (_e) {}
+          }
+          listing = { id, source: id.split(":")[0], sourceId: id.split(":").slice(1).join(":"), sourceUrl: "", district: "", neighborhood: "", address: "", pnu, position: { lat, lng }, priceWon: null, areaM2: null, floorAreaM2: null, kind: "building", origin: id.split(":")[0] };
+        } else {
+          return json({ status: "missing", cases: [] }, 404, origin);
+        }
+      }
+      const { data: txRaw, error } = await db.rpc("teojabi_nearby_transactions", { p_query: listing.position });
+      if (error) throw error;
+      if (!txRaw || txRaw.status !== "ready") throw new Error("Nearby data unavailable");
+      const adapted = adaptDiscoRows(txRaw.rows, listing, listing.position, DISCO_CONTRACT);
+      const result = nearbyTransactions(listing, adapted.records, adapted.context, { matchKind: false, onePerParcel: true });
+      for (const item of result.cases) item.address = data.rows.find((row) => row.pnu === item.pnu && row.address)?.address || null;
+      return json({ ...result, listingId: id }, 200, origin);
     }
     return json({ status: "not-found" }, 404, origin);
   } catch (_error) {
