@@ -1,9 +1,16 @@
 // Public deployment configuration contains origins only, never keys or passwords.
-import { DATA_API_BASE, AUCTION_API_BASE } from './runtime-config.mjs';
+import { DATA_API_BASE, AUCTION_API_BASE, CORE_API_BASE } from './runtime-config.mjs';
+// 서버리스로 이전한 엔드포인트. (미설정 시 기존 데이터 API로 폴백)
+const CORE_PATHS = ['/api/runtime','/api/health','/api/catalog','/api/neighborhoods','/api/activity','/api/recommendations'];
+function edgeBase(path) {
+  const clean = path.split('?')[0];
+  if (clean.startsWith('/api/auctions')) return AUCTION_API_BASE;
+  if (CORE_PATHS.includes(clean)) return CORE_API_BASE;
+  return '';
+}
 export function apiUrl(path, base) {
   if (!path.startsWith('/api/')) return path;
-  // 경매 API는 Supabase Edge Function으로 분리한다. (AUCTION_API_BASE 미설정 시 기존 데이터 API 사용)
-  const target = base ?? (path.startsWith('/api/auctions') && AUCTION_API_BASE ? AUCTION_API_BASE : DATA_API_BASE);
+  const target = base ?? (edgeBase(path) || DATA_API_BASE);
   if (!target) return path;
   const url=new URL(target);
   if (url.protocol!=='https:'&&!(['localhost','127.0.0.1'].includes(url.hostname)&&url.protocol==='http:')) throw new Error('Invalid API origin');

@@ -1,5 +1,8 @@
 project_id = "tvrfrgozfoiucoeojrta"
 
-# 경매 API는 공개 엔드포인트(자체 Origin 가드 사용)라 JWT 검증을 끈다.
+# 공개 엔드포인트(자체 Origin 가드 사용)라 JWT 검증을 끈다.
 [functions.auction]
+verify_jwt = false
+
+[functions.data]
 verify_jwt = false
