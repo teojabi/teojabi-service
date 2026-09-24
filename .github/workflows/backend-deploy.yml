@@ -381,20 +381,53 @@ jobs:
             # 현재 lock 해시를 기록해, 다음 배포에서 의존성 변경 여부를 서버가 판단할 수 있게 한다.
             sha256sum package-lock.json | cut -d' ' -f1 > .deploy-lock-hash
 
-      - name: Verify public API
+      # 러너에서 공개 경로를 먼저 확인한다. 다만 GitHub 러너 IP는 Cloudflare 봇 챌린지(403)에
+      # 걸릴 수 있으므로, 403이면 실패로 보지 않고 서버 내부 검증으로 넘긴다.
+      - name: Check public API from runner (best effort)
         run: |
-          # nginx를 포함한 실제 공개 경로를 러너에서 확인한다. (/api/v1/users/me는 미인증 시 401)
-          for attempt in $(seq 1 18); do
+          set +e
+          code=""
+          for attempt in $(seq 1 6); do
             code=$(curl --silent --output /dev/null --write-out '%{http_code}' https://api.teojabi.com/api/v1/users/me || true)
             if [ "$code" = "401" ] || [ "$code" = "200" ]; then
-              echo "Public API healthy (HTTP ${code})"
+              echo "Runner -> public API healthy (HTTP ${code})"
               exit 0
             fi
-            echo "Public API not ready (attempt ${attempt}/18, status ${code:-no-response}); retrying in 5s"
+            echo "Runner attempt ${attempt}/6: status ${code:-no-response}"
             sleep 5
           done
-          echo 'Public API health check failed'
+          if [ "$code" = "403" ]; then
+            echo "Runner was challenged by Cloudflare (HTTP 403); verifying from the server instead."
+            exit 0
+          fi
+          echo 'Runner public API check failed'
           exit 1
+
+      # Cloudflare가 러너를 막아도 실제 서비스 상태를 확인하도록, 서버에서 nginx(127.0.0.1)를
+      # 경유해 공개와 동일한 경로를 검증한다. (Cloudflare를 우회한 origin 응답)
+      - name: Verify public API via server nginx
+        uses: appleboy/ssh-action@v1.1.0
+        with:
+          host: ${{ secrets.NCP_SSH_HOST }}
+          username: ${{ secrets.NCP_SSH_USER }}
+          password: ${{ secrets.NCP_SSH_PASSWORD }}
+          command_timeout: 3m
+          script: |
+            set -e
+            for attempt in $(seq 1 18); do
+              code=$(curl -skS -o /dev/null -w '%{http_code}' --max-time 10 \
+                --resolve api.teojabi.com:443:127.0.0.1 \
+                -H 'Origin: https://teojabi.com' \
+                https://api.teojabi.com/api/v1/users/me 2>/dev/null || echo 000)
+              if [ "$code" = "401" ] || [ "$code" = "200" ]; then
+                echo "Public API healthy via server nginx (HTTP ${code})"
+                exit 0
+              fi
+              echo "Server nginx check not ready (attempt ${attempt}/18, status ${code}); retrying in 5s"
+              sleep 5
+            done
+            echo 'Public API health check via server nginx failed'
+            exit 1
 
       - name: Show deploy diagnostics
         if: failure()
