@@ -424,6 +424,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
         <dt>법원·계</dt><dd>${esc(a.courtName||'')} ${esc(a.deptName||'')}</dd>
         <dt>사건번호</dt><dd>${esc(a.caseNo||'')}</dd>
         <dt>도로폭</dt><dd>${a.roadWidthM!=null?esc(a.roadWidthM)+'m':'확인 필요'}</dd>
+        ${d.area_m2!=null?`<dt>목적물 면적</dt><dd>${area(d.area_m2)}</dd>`:''}
         ${d.claim_amt!=null?`<dt>청구금액</dt><dd>${money(d.claim_amt)}</dd>`:''}
         ${d.dividend_deadline?`<dt>배당요구종기</dt><dd>${esc(d.dividend_deadline)}</dd>`:''}
         ${d.acquired_rights?`<dt>인수되는 권리</dt><dd>${esc(d.acquired_rights)} <span style="opacity:.6">(법원 공시)</span></dd>`:''}
