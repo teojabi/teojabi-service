@@ -1,4 +1,4 @@
-# manual-trigger: 2026-09-24T05:18Z
+# manual-trigger: 2026-09-24T06:00Z
 name: Server Diagnostics
 
 # NCP 서버의 디스크/메모리/런타임 상태를 읽기 전용으로 수집해 저장소에 기록한다.
@@ -58,6 +58,18 @@ jobs:
             echo "===== PM2 ====="
             timeout 30 pm2 list 2>/dev/null || true
             ls -lhS "$HOME/.pm2/logs" 2>/dev/null | head -15 || true
+            echo "===== TOP PROCESSES BY MEMORY ====="
+            ps -eo pid,ppid,rss,pmem,etime,comm --sort=-rss 2>/dev/null | head -20 || true
+            echo "===== OOM / KILLED (dmesg) ====="
+            { sudo -n dmesg -T 2>/dev/null || dmesg -T 2>/dev/null; } | grep -iE 'oom|killed process|out of memory' | tail -20 || true
+            echo "===== OOM (journal kernel, 6h) ====="
+            sudo -n journalctl -k --since '-6h' --no-pager 2>/dev/null | grep -iE 'oom|killed process' | tail -20 || true
+            echo "===== PM2 LOG: teojabi-backend (tail) ====="
+            timeout 30 pm2 logs teojabi-backend --lines 40 --nostream 2>/dev/null | tail -50 || true
+            echo "===== PM2 LOG: teojabi-data (tail) ====="
+            timeout 30 pm2 logs teojabi-data --lines 40 --nostream 2>/dev/null | tail -50 || true
+            echo "===== SOCKET SUMMARY ====="
+            ss -s 2>/dev/null || true
             echo "===== BACKEND LAYOUT ====="
             ls -la "$HOME/teojabi-service/backend" 2>/dev/null | grep -E 'node_modules|dist|deploy-lock' || true
             echo "===== DEPLOY LOCK HASH ====="
