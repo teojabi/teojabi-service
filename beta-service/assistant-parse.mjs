@@ -3,6 +3,7 @@ import { DISTRICTS } from './policy.mjs';
 export const WALK_METERS_PER_MIN = 80;
 const BROAD_ZONE = [['주거지역', '주거'], ['상업지역', '상업'], ['공업지역', '공업'], ['녹지지역', '녹지']];
 const COMMERCIAL_TYPES = ['골목상권', '전통시장', '발달상권', '관광특구'];
+const AUCTION_USAGES = ['상가', '근린시설', '오피스텔', '업무', '단독주택', '다가구', '다세대', '연립주택', '빌라', '대지', '임야'];
 const ORIGIN_LABEL = { premium: '터잡이 추천 매물', registered: '터잡이 등록 매물', disco: '디스코 매물', naver: '네이버 매물' };
 const won = value => Math.round(Number(value) * 100000000);
 const m2 = (value, unit) => Math.round((unit === '평' ? Number(value) * 3.305785 : Number(value)) * 100) / 100;
@@ -60,18 +61,19 @@ export function ruleFilters(text) {
   if (/특화구역|관광숙박/.test(t) && /우선|먼저/.test(t)) filters.preferTourism = true;
   const dong = t.match(/([가-힣]{1,5}[0-9]가|[가-힣]{1,6}동)(?=[\s,.]|이|에|은|는|쪽|근처|$)/);
   if (dong) filters.neighborhood = dong[1];
-  // 법원경매·공매 물건 검색. 건물찾기 지도에서 '경매' 소스로 조회한다.
+  // 법원경매·공매 물건 검색. 매물과 의미가 달라 auction 하위 객체로 담는다.
   if (/경매|법원경매|공매/.test(t)) {
-    filters.auction = true;
+    const auction = { enabled: true, usages: [] };
     const usageOptions = [['오피스텔','오피스텔'],['근린','근린시설'],['상가','상가'],['업무','업무'],['단독','단독주택'],['다가구','다가구'],['다세대','다세대'],['연립','연립주택'],['빌라','빌라'],['대지','대지'],['임야','임야']];
     const usage = usageOptions.find(([needle]) => t.includes(needle));
-    if (usage) filters.auctionUsage = usage[1];
-    const fail = t.match(/유찰\s*(\d+)\s*회/);
-    if (fail) filters.auctionFailMax = Number(fail[1]);
+    if (usage) auction.usages.push(usage[1]);
     const minPrice = t.match(/(?:최저가|최저매각|최저)\s*(\d+(?:\.\d+)?)\s*억/);
-    if (minPrice) filters.budgetWon = won(minPrice[1]);
-    const appraised = t.match(/감정가?\s*(\d+(?:\.\d+)?)\s*억/);
-    if (appraised && !filters.budgetWon) filters.budgetWon = won(appraised[1]);
+    if (minPrice) auction.maxPriceWon = won(minPrice[1]);
+    const rate = t.match(/(?:감정가|최저가율|낙찰가율)\s*(?:대비\s*)?(\d+(?:\.\d+)?)\s*(?:%|퍼센트|프로)/);
+    if (rate) auction.maxBidRate = Number(rate[1]);
+    // "경매 5억 이하"처럼 금액만 말하면 예산을 경매 최저매각가에도 적용한다.
+    if (!auction.maxPriceWon && filters.budgetWon) auction.maxPriceWon = filters.budgetWon;
+    filters.auction = auction;
   }
   return filters;
 }
@@ -225,11 +227,17 @@ export function sanitize(raw) {
     else if (raw.kind.includes('building')) out.kind = 'building';
   }
   if (raw.purpose === 'new-build') out.purpose = 'new-build';
-  // 경매 물건 검색(건물찾기 지도의 '경매' 소스).
-  if (raw.auction === true) out.auction = true;
-  if (typeof raw.auctionUsage === 'string' && raw.auctionUsage.trim()) out.auctionUsage = raw.auctionUsage.trim().slice(0, 20);
-  const auctionFailMax = Number(raw.auctionFailMax);
-  if (Number.isFinite(auctionFailMax) && auctionFailMax >= 0 && auctionFailMax <= 50) out.auctionFailMax = Math.round(auctionFailMax);
+  // 경매 물건 조건(매물과 분리된 하위 객체).
+  const auctionSource = raw.auction && typeof raw.auction === 'object' && !Array.isArray(raw.auction) ? raw.auction : raw.auction === true ? { enabled: true } : null;
+  if (auctionSource && auctionSource.enabled === true) {
+    const usages = Array.isArray(auctionSource.usages) ? [...new Set(auctionSource.usages.filter(u => typeof u === 'string' && AUCTION_USAGES.includes(u)))].slice(0, 6) : [];
+    const auction = { enabled: true, usages };
+    const price = Number(auctionSource.maxPriceWon);
+    if (Number.isSafeInteger(price) && price > 0) auction.maxPriceWon = price;
+    const rate = Number(auctionSource.maxBidRate);
+    if (Number.isFinite(rate) && rate > 0 && rate <= 100) auction.maxBidRate = Math.round(rate * 100) / 100;
+    out.auction = auction;
+  }
   // 신축 구역 조건은 기존 검색기와 같은 플래그 이름을 쓴다.
   for (const key of ['preferTourism', 'excludeEducation', 'excludeHeritage']) {
     if (raw[key] === true) out[key] = true;
@@ -310,11 +318,35 @@ export function buildAuctionResult(filters, data) {
   };
 }
 
+// 매물(네이버)과 경매(법원) 결과를 한 화면에 함께 담는다. AI가 둘 다 추천하는 경로.
+export function buildCombinedResult(filters, listingSearch, auctionData) {
+  const auctionRows = (Array.isArray(auctionData?.rows) ? auctionData.rows : []).map(viewAuctionRow);
+  const auctionTotal = Number(auctionData?.total || auctionRows.length);
+  const auctionGroups = auctionRows.map(listing => ({ key: listing.id, pnu: listing.pnu, representative: listing, listings: [listing] }));
+  const base = listingSearch
+    ? buildResult(filters, listingSearch, null)
+    : { status: 'ready', reply: '', filters, chips: chipList(filters), total: 0, groups: [], originTotals: { premium: 0, registered: 0, disco: 0, naver: 0 }, station: null, districts: [], commercial: null, suggestions: [], relaxations: [], unsupported: null, searchedAt: null };
+  const groups = [...base.groups, ...auctionGroups];
+  const total = Number(base.total || 0) + auctionTotal;
+  let reply;
+  if (auctionTotal > 0 && base.total > 0) {
+    reply = `조건에 맞는 매물 ${base.total.toLocaleString('ko-KR')}건과 법원경매 물건 ${auctionTotal.toLocaleString('ko-KR')}건을 함께 찾았어요. 아래에서 확인해 보세요.`;
+  } else if (auctionTotal > 0) {
+    reply = `조건에 맞는 법원경매 물건 ${auctionTotal.toLocaleString('ko-KR')}건을 찾았어요. 대법원 법원경매정보 공시 기준이며, 권리분석·적정 입찰가는 제공하지 않아요.`;
+  } else {
+    reply = base.reply;
+  }
+  return { ...base, reply, total, groups, originTotals: { ...base.originTotals, auction: auctionTotal } };
+}
+
 export function describe(filters) {
   const parts = [];
-  if (filters.auction) parts.push('경매 물건');
-  if (filters.auctionUsage) parts.push(filters.auctionUsage);
-  if (filters.auctionFailMax) parts.push(`유찰 ${filters.auctionFailMax}회 이하`);
+  if (filters.auction?.enabled) {
+    parts.push('경매 물건');
+    if (filters.auction.usages?.length) parts.push(filters.auction.usages.join('·'));
+    if (filters.auction.maxPriceWon) parts.push(`최저 ${(filters.auction.maxPriceWon / 1e8).toLocaleString('ko-KR')}억 이하`);
+    if (filters.auction.maxBidRate) parts.push(`최저가율 ${filters.auction.maxBidRate}% 이하`);
+  }
   if (filters.districts?.length) parts.push(filters.districts.join('·'));
   else if (filters.q) parts.push(filters.q);
   if (filters.neighborhood) parts.push(filters.neighborhood);
@@ -340,9 +372,10 @@ export function describe(filters) {
 
 export function chipList(filters) {
   const chips = [];
-  if (filters.auction) chips.push({ key: 'auction', value: true, label: '경매 물건', kind: 'value' });
-  if (filters.auctionUsage) chips.push({ key: 'auctionUsage', value: filters.auctionUsage, label: filters.auctionUsage, kind: 'value' });
-  if (filters.auctionFailMax) chips.push({ key: 'auctionFailMax', value: filters.auctionFailMax, label: `유찰 ${filters.auctionFailMax}회 이하`, kind: 'value' });
+  if (filters.auction?.enabled) chips.push({ key: 'auction', value: true, label: '경매 물건', kind: 'value' });
+  (filters.auction?.usages || []).forEach(u => chips.push({ key: 'auctionUsage', value: u, label: u, kind: 'list' }));
+  if (filters.auction?.maxPriceWon) chips.push({ key: 'auctionMaxPriceWon', value: filters.auction.maxPriceWon, label: `최저 ${(filters.auction.maxPriceWon / 1e8).toLocaleString('ko-KR')}억 이하`, kind: 'value' });
+  if (filters.auction?.maxBidRate) chips.push({ key: 'auctionMaxBidRate', value: filters.auction.maxBidRate, label: `최저가율 ${filters.auction.maxBidRate}% 이하`, kind: 'value' });
   (filters.districts || []).forEach(d => chips.push({ key: 'districts', value: d, label: d, kind: 'list' }));
   if (filters.neighborhood) chips.push({ key: 'neighborhood', value: filters.neighborhood, label: filters.neighborhood, kind: 'value' });
   (filters.zones || []).forEach(z => chips.push({ key: 'zones', value: z, label: z, kind: 'list' }));
