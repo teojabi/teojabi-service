@@ -71,9 +71,38 @@ jobs:
           PY
 
       - name: Deploy functions
+        id: deploy
         if: steps.token.outputs.ready == 'true'
+        continue-on-error: true
         run: |
-          set -e
-          supabase functions deploy auction --project-ref "$PROJECT_REF" --no-verify-jwt
-          supabase functions deploy data --project-ref "$PROJECT_REF" --no-verify-jwt
-          echo "deployed: https://${PROJECT_REF}.supabase.co/functions/v1/{auction,data}"
+          set +e
+          {
+            echo "=== deploy auction ==="
+            supabase functions deploy auction --project-ref "$PROJECT_REF" --no-verify-jwt 2>&1
+            echo "auction_exit=$?"
+            echo "=== deploy data ==="
+            supabase functions deploy data --project-ref "$PROJECT_REF" --no-verify-jwt 2>&1
+            echo "data_exit=$?"
+          } 2>&1 | tee deploy.log
+          if grep -qE '_exit=[1-9]' deploy.log; then
+            echo "::error::function deploy failed (see server-report/.diagnostics/function-deploy.log)"
+            exit 1
+          fi
+
+      - name: Publish deploy log
+        if: always() && steps.token.outputs.ready == 'true'
+        run: |
+          mkdir -p .diagnostics
+          cp deploy.log .diagnostics/function-deploy.log 2>/dev/null || echo 'no deploy.log' > .diagnostics/function-deploy.log
+          git config user.name "teojabi-diagnostics"
+          git config user.email "teojabi-diagnostics@users.noreply.github.com"
+          git checkout -B server-report
+          git add -f .diagnostics/function-deploy.log
+          git commit -m "Update function deploy log" || echo "no changes"
+          git push -f origin server-report
+
+      - name: Fail if deploy failed
+        if: steps.deploy.outcome == 'failure'
+        run: |
+          echo "function deploy failed; see server-report/.diagnostics/function-deploy.log"
+          exit 1
