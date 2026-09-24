@@ -365,6 +365,52 @@ Deno.serve(async (request: Request) => {
       for (const item of result.cases) item.address = data.rows.find((row) => row.pnu === item.pnu && row.address)?.address || null;
       return json({ ...result, listingId: id }, 200, origin);
     }
+    if (path === "/api/commercial") {
+      const gu = (params.get("gu") || "").trim();
+      const lat = Number(params.get("lat")), lng = Number(params.get("lng")), radius = Number(params.get("radius")) || 500;
+      if (!gu && (!Number.isFinite(lat) || !Number.isFinite(lng))) return json({ status: "missing" }, 400, origin);
+      const { data: com, error } = await db.rpc("teojabi_commercial", { p_query: gu ? { gu } : { lat, lng, radius } });
+      if (error) throw error;
+      return json(com, com && com.status === "error" ? 503 : 200, origin);
+    }
+    if (path === "/api/commercial-areas") {
+      const { data: areas, error } = await db.rpc("teojabi_commercial_areas", { p_query: {} });
+      if (error) throw error;
+      return json(areas, 200, origin);
+    }
+    if (path === "/api/surrounding") {
+      const lat = Number(params.get("lat")), lng = Number(params.get("lng"));
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return json({ status: "missing" }, 400, origin);
+      const radius = Math.max(100, Math.min(3000, Number(params.get("radius")) || 1000));
+      const { data: sur, error } = await db.rpc("teojabi_surrounding", { p_query: { lat, lng, radius } });
+      if (error) throw error;
+      if (!sur || sur.status !== "ready") return json(sur || { status: "missing" }, 200, origin);
+      const merged = new Map(), order = [];
+      for (const r of (sur.rows || [])) {
+        const kind = r.type, name = r.name;
+        const key = kind === "????" ? kind + "|" + String(name || "").slice(0, 2) : kind + "|" + String(name || "");
+        const item = { type: kind, name, gu: r.gu || "", dong: r.dong || "", status: r.status || "", detail: r.detail || "",
+          areaM2: r.areaM2 == null ? null : Number(r.areaM2), date: r.date || "", distanceM: r.distanceM == null ? null : Math.round(Number(r.distanceM)) };
+        if (!merged.has(key)) { merged.set(key, item); order.push(key); }
+        else {
+          const prev = merged.get(key);
+          if (kind === "????" && item.detail && !prev.detail.includes(item.detail)) {
+            const lines = new Set(prev.detail.split("?")); lines.add(item.detail);
+            prev.detail = [...lines].sort().join("?");
+          } else if (kind === "????") {
+            prev.areaM2 = Math.max(prev.areaM2 || 0, item.areaM2 || 0) || null;
+          }
+        }
+      }
+      const projects = [], counts = {};
+      for (const key of order) {
+        const item = merged.get(key), kind = item.type;
+        if ((counts[kind] || 0) >= 3) continue;
+        counts[kind] = (counts[kind] || 0) + 1;
+        projects.push(item);
+      }
+      return json({ status: "ready", basis: { radiusM: radius, locationQuality: "listing-coords" }, projects, source: "??? ?????" }, 200, origin);
+    }
     return json({ status: "not-found" }, 404, origin);
   } catch (_error) {
     return json({ status: "error", message: "데이터를 불러오지 못했습니다." }, 503, origin);
