@@ -10,6 +10,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { selectedCatalog } from "./lib/selected-catalog.mjs";
 import { browseCatalog, suggestCatalogChanges } from "./lib/catalog.mjs";
+import { buildParcelContext } from "./lib/risk-policy.mjs";
 
 const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, {
   auth: { persistSession: false },
@@ -137,6 +138,30 @@ Deno.serve(async (request: Request) => {
       const { data: result, error } = await db.rpc("teojabi_parcel", { p_pnu: pnu });
       if (error) throw error;
       return json(result, 200, origin);
+    }
+    if (path.startsWith("/api/parcel-context/")) {
+      const pnu = decodeURIComponent(path.slice("/api/parcel-context/".length));
+      if (!/^11\d{17}$/.test(pnu)) return json({ status: "error" }, 400, origin);
+      const { data: raw, error } = await db.rpc("teojabi_parcel_context", { p_pnu: pnu });
+      if (error) throw error;
+      const planRows = (raw && raw.plans && raw.plans.rows) || [];
+      const names = [];
+      for (const row of planRows) { for (const key of ["dgmName", "name"]) { const v = row[key]; if (typeof v === "string" && v.trim()) { names.push(v.trim()); break; } } }
+      const farNames = [...new Set(names)].sort().slice(0, 20);
+      if (farNames.length) {
+        const { data: sources } = await db.rpc("teojabi_district_sources", { p_names: farNames });
+        const byName = new Map();
+        for (const item of ((sources && sources.rows) || [])) if (!byName.has(item.dgmName)) byName.set(item.dgmName, item);
+        const mergeKeys = ["baseNoticeNo","baseNoticeDate","baseNoticeName","baseNoticeUrl","originNoticeNo","originNoticeDate","latestNoticeNo","latestNoticeDate","repKind","repGroup","repName","repUrl","repDate","repUsed","guidelines"];
+        for (const row of planRows) { const item = byName.get(row.dgmName); if (!item) continue; for (const k of mergeKeys) row[k] = item[k]; }
+        const { data: far } = await db.rpc("teojabi_far", { p_names: farNames });
+        raw.far = far;
+      } else {
+        raw.far = { status: "mismatch", rows: [] };
+      }
+      raw.recap = { status: "skipped", rows: [] };
+      raw.buildings = { status: "skipped", rows: [] };
+      return json(buildParcelContext(pnu, raw), 200, origin);
     }
     return json({ status: "not-found" }, 404, origin);
   } catch (_error) {

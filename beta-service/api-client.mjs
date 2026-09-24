@@ -5,7 +5,7 @@ const CORE_PATHS = ['/api/runtime','/api/health','/api/catalog','/api/neighborho
 function edgeBase(path) {
   const clean = path.split('?')[0];
   if (clean.startsWith('/api/auctions')) return AUCTION_API_BASE;
-  if (clean.startsWith('/api/parcels/') || CORE_PATHS.includes(clean)) return CORE_API_BASE;
+  if (clean.startsWith('/api/parcels/') || clean.startsWith('/api/parcel-context/') || CORE_PATHS.includes(clean)) return CORE_API_BASE;
   return '';
 }
 export function apiUrl(path, base) {
