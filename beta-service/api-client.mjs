@@ -1,8 +1,7 @@
 // Public deployment configuration contains origins only, never keys or passwords.
 import { DATA_API_BASE, AUCTION_API_BASE, CORE_API_BASE } from './runtime-config.mjs';
 // 서버리스로 이전한 엔드포인트. (미설정 시 기존 데이터 API로 폴백)
-// catalog/activity는 스냅샷 파이프라인 통합 전까지 기존 데이터 API를 쓴다.
-const CORE_PATHS = ['/api/runtime','/api/health','/api/neighborhoods'];
+const CORE_PATHS = ['/api/runtime','/api/health','/api/catalog','/api/neighborhoods','/api/activity','/api/recommendations'];
 function edgeBase(path) {
   const clean = path.split('?')[0];
   if (clean.startsWith('/api/auctions')) return AUCTION_API_BASE;
