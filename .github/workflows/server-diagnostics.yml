@@ -1,0 +1,116 @@
+name: Server Diagnostics
+
+# NCP 서버의 디스크/메모리/런타임 상태를 읽기 전용으로 수집해 저장소에 기록한다.
+# 기록 위치: server-report 브랜치의 .diagnostics/server-report.txt
+on:
+  workflow_dispatch:
+  push:
+    branches: [ "main" ]
+    paths:
+      - '.github/workflows/server-diagnostics.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Install sshpass
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq sshpass
+
+      - name: Collect read-only server report
+        env:
+          SSHPASS: ${{ secrets.NCP_SSH_PASSWORD }}
+        run: |
+          mkdir -p .diagnostics
+          sshpass -e ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=15 \
+            ${{ secrets.NCP_SSH_USER }}@${{ secrets.NCP_SSH_HOST }} 'bash -s' > .diagnostics/server-report.txt 2>&1 <<'REMOTE'
+          echo "===== HOST ====="
+          hostname; uname -a; uptime
+          date -u
+
+          echo "===== DISK (df -h) ====="
+          df -h
+          echo
+          echo "===== INODES (df -i /) ====="
+          df -i / 2>/dev/null || true
+
+          echo "===== MEMORY / SWAP ====="
+          free -m
+          swapon --show 2>/dev/null || true
+          ls -lh /swapfile 2>/dev/null || true
+
+          echo "===== TOP DIRS (/) ====="
+          sudo -n du -xhd1 / 2>/dev/null | sort -h | tail -15 || true
+
+          echo "===== TOP DIRS (home, depth2) ====="
+          du -xhd2 "$HOME" 2>/dev/null | sort -h | tail -30 || true
+
+          echo "===== TOP FILES (home) ====="
+          find "$HOME" -xdev -type f -printf '%s %p\n' 2>/dev/null | sort -nr | head -20 | awk '{printf "%.1f MB  %s\n", $1/1048576, $2}' || true
+
+          echo "===== PM2 ====="
+          pm2 list 2>/dev/null || true
+          du -sh "$HOME/.pm2/logs" 2>/dev/null || true
+          ls -lhS "$HOME/.pm2/logs" 2>/dev/null | head -15 || true
+
+          echo "===== BACKEND RUNTIME LAYOUT ====="
+          du -sh "$HOME/teojabi-service" 2>/dev/null || true
+          du -sh "$HOME/teojabi-service/.git" 2>/dev/null || true
+          du -sh "$HOME/teojabi-runtime" 2>/dev/null || true
+          ls -la "$HOME/teojabi-service/backend" 2>/dev/null | grep -E 'node_modules|dist' || true
+          ls -la "$HOME/teojabi-runtime/beta-service" 2>/dev/null | grep -E '\.venv|\.local' || true
+          du -sh "$HOME/teojabi-runtime/beta-service/.venv" 2>/dev/null || true
+          du -sh "$HOME/teojabi-runtime/beta-service/.local" 2>/dev/null || true
+
+          echo "===== STALE DIRS ====="
+          find "$HOME" -maxdepth 3 \( -name 'node_modules.old' -o -name 'node_modules.new' -o -name 'dist.old' -o -name 'dist.new' \) 2>/dev/null || true
+
+          echo "===== CACHES / LOGS ====="
+          du -sh "$HOME/.npm" 2>/dev/null || true
+          du -sh "$HOME/.cache" 2>/dev/null || true
+          journalctl --disk-usage 2>/dev/null || true
+          sudo -n du -sh /var/cache/apt /var/log /tmp 2>/dev/null || true
+
+          echo "===== DEPLOY LOCK HASH ====="
+          cat "$HOME/teojabi-service/backend/.deploy-lock-hash" 2>/dev/null || echo 'none'
+
+          echo "===== LAST DEPLOY DIAGNOSTICS ====="
+          cat "$HOME/teojabi-service/backend/deploy-diagnostics.txt" 2>/dev/null | tail -100 || echo 'none'
+
+          echo "===== LISTENING PORTS ====="
+          ss -ltn 2>/dev/null | head -30 || true
+          REMOTE
+
+      # 배포 검증이 실패하는 원인이 "러너 IP가 Cloudflare에서 막히는 것"인지 이 러너에서 직접 확인한다.
+      - name: Probe public API from this runner
+        run: |
+          {
+            echo
+            echo "===== RUNNER -> PUBLIC API ====="
+            echo "--- plain curl (deploy check style) ---"
+            for u in "https://api.teojabi.com/api/v1/users/me" "https://api.teojabi.com/api/v1/architects" "https://api.teojabi.com/beta/api/health" "https://teojabi.com/"; do
+              code=$(curl -sS -o /dev/null -w '%{http_code} %{time_total}s' --max-time 15 "$u" 2>&1 || echo ERR)
+              echo "$code  $u"
+            done
+            echo "--- with Origin header ---"
+            curl -sS -o /dev/null -w '%{http_code} %{time_total}s  /api/v1/users/me (Origin)\n' --max-time 15 -H 'Origin: https://teojabi.com' "https://api.teojabi.com/api/v1/users/me" 2>&1 || true
+            echo "--- with browser user agent ---"
+            curl -sS -o /dev/null -w '%{http_code} %{time_total}s  /api/v1/users/me (browser UA)\n' --max-time 15 -A 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36' "https://api.teojabi.com/api/v1/users/me" 2>&1 || true
+            echo "--- response headers (api /api/v1/users/me) ---"
+            curl -sS -D - -o /dev/null --max-time 15 "https://api.teojabi.com/api/v1/users/me" 2>&1 || true
+          } >> .diagnostics/server-report.txt
+
+      - name: Publish report to server-report branch
+        run: |
+          set -e
+          git config user.name "teojabi-diagnostics"
+          git config user.email "teojabi-diagnostics@users.noreply.github.com"
+          git checkout -B server-report
+          git add -f .diagnostics/server-report.txt
+          git commit -m "Update server diagnostics report"
+          git push -f origin server-report
