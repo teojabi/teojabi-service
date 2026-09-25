@@ -130,7 +130,8 @@ Deno.serve(async (request: Request) => {
   if (GUARD_ON && !referer && !ALLOWED_ORIGINS.includes(origin ?? "")) return json({ status: "forbidden" }, 403, origin);
 
   const url = new URL(request.url);
-  const path = url.pathname.replace(/^.*\/onbid(?=\/|$)/, "");
+  // 함수명(onbid) 뒤 경로만 취한다. 라우트(/api/onbid)가 onbid로 끝나므로 non-greedy.
+  const path = url.pathname.replace(/^.*?\/onbid(?=\/|$)/, "");
   const params = url.searchParams;
   try {
     if (path === "/api/onbid") return await doList(params, origin);
