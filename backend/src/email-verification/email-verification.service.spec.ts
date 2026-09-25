@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { EmailVerificationService } from './email-verification.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { MailService } from '../mail/mail.service';
 import { ConfigService } from '@nestjs/config';
 import { BadRequestException, HttpStatus } from '@nestjs/common';
 import axios from 'axios';
@@ -51,6 +52,7 @@ describe('EmailVerificationService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         EmailVerificationService,
+        MailService,
         {
           provide: PrismaService,
           useValue: prismaMock,
