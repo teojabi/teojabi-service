@@ -57,6 +57,15 @@ describe('additional member storage',()=>{
     expect(validateItem('favorite','onbid:2026-0800-046412::6171219',{address:'서울',priceWon:100}).id).toBe('onbid:2026-0800-046412::6171219');
     expect(()=>validateItem('favorite','legacy-id',{})).toThrow();
   });
+  it('keeps auction filters and neighborhoods in saved conditions',()=>{
+    const saved=validateItem('condition','a',{districts:['마포구'],neighborhoods:['성산동'],auction:{enabled:true,source:'onbid',usages:['오피스텔','없는용도'],dealType:'unit',maxPriceWon:500000000,maxBidRate:120}});
+    expect(saved.districts).toEqual(['마포구']);
+    expect(saved.neighborhoods).toEqual(['성산동']);
+    expect(saved.auction).toEqual({enabled:true,usages:['오피스텔'],source:'onbid',dealType:'unit',maxPriceWon:500000000});
+    expect(saved.auction.maxBidRate).toBeUndefined();
+    const invalid=validateItem('condition','a',{auction:{enabled:true,source:'hacked',dealType:'penthouse'}});
+    expect(invalid.auction).toEqual({enabled:true,usages:[]});
+  });
   it('validates saved parcel areas',()=>{
     expect(()=>validateItem('analysis','a',{pnus:['1144012100101610009'],fields:{landArea:199,bcr:101}})).toThrow();
     expect(()=>validateItem('analysis','a',{pnus:['invalid','1144012100101610009'],fields:{landArea:199}})).toThrow();

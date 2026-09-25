@@ -17,6 +17,7 @@ import { EmailVerificationModule } from './email-verification/email-verification
 import { DiscoveryModule } from './discovery/discovery.module';
 import { AdminAccessModule } from './admin-access/admin-access.module';
 import { ArchitectsModule } from './architects/architects.module';
+import { NotificationsModule } from './notifications/notifications.module';
 
 @Module({
   imports: [
@@ -38,6 +39,7 @@ import { ArchitectsModule } from './architects/architects.module';
     DiscoveryModule,
     AdminAccessModule,
     ArchitectsModule,
+    NotificationsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
