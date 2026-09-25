@@ -52,6 +52,9 @@ describe('additional member storage',()=>{
     expect(validateItem('feedback','premium:eb3a7fa1-4e4f-4c75-bc0f-c6dad1326e67',{choice:'like'}).id).toBe('premium:eb3a7fa1-4e4f-4c75-bc0f-c6dad1326e67');
     expect(validateItem('favorite','disco:4pu1m5ht',{address:'서울',priceWon:100}).id).toBe('disco:4pu1m5ht');
     expect(validateItem('feedback','disco:4pu1m5ht',{choice:'like'}).id).toBe('disco:4pu1m5ht');
+    expect(validateItem('favorite','auction:B0002112023013006033611',{address:'서울',priceWon:100}).id).toBe('auction:B0002112023013006033611');
+    expect(validateItem('feedback','auction:B0002112023013006033611',{choice:'like'}).id).toBe('auction:B0002112023013006033611');
+    expect(validateItem('favorite','onbid:2026-0800-046412::6171219',{address:'서울',priceWon:100}).id).toBe('onbid:2026-0800-046412::6171219');
     expect(()=>validateItem('favorite','legacy-id',{})).toThrow();
   });
   it('validates saved parcel areas',()=>{
