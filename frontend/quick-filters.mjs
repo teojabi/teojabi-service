@@ -1,5 +1,5 @@
 import {DISTRICTS,toWon} from './policy.mjs';
-import {PURPOSES,ZONING_OPTIONS,AUCTION_USAGES,purposeLabel,parseAreaRange,areaRangeLabel} from './search-options.mjs';
+import {PURPOSES,ZONING_OPTIONS,AUCTION_USAGES,AUCTION_SOURCES,AUCTION_DEAL_TYPES,purposeLabel,parseAreaRange,areaRangeLabel} from './search-options.mjs';
 import {areaInput} from './recent-search.mjs';
 import {BUILD_DEFAULTS,buildCriteriaFields,buildConditionLabels,buildUseLabel} from './build-criteria.mjs';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -10,13 +10,13 @@ export function mountQuickFilters(root,{getValue,onChange}){
   const $=s=>root.querySelector(s),panel=$('.quick-filter-editor');
   root.insertAdjacentHTML('beforeend','<p class="build-applied-summary" data-build-summary hidden></p>');
   function update(){
-    const v=getValue(),auction=v.auction||{},texts={budget:v.budgetWon?`${(v.budgetWon/1e8).toLocaleString('ko-KR',{maximumFractionDigits:8})}억원 이하`:'예산 제한 없음',districts:v.districts?.join(' · ')||'서울 전체',purpose:purposeLabel(v.purpose),area:areaRangeLabel(v.minAreaM2,v.maxAreaM2,v.areaUnit),zones:v.zones?.join(' · ')||'용도지역 전체',auction:auction.enabled?`포함${auction.usages?.length?' · '+auction.usages.join('·'):''}${auction.maxPriceWon?` · 최저 ${(auction.maxPriceWon/1e8).toLocaleString('ko-KR')}억 이하`:''}${auction.maxBidRate?` · 최저가율 ${auction.maxBidRate}% 이하`:''}`:'미포함'};
+    const v=getValue(),auction=v.auction||{},texts={budget:v.budgetWon?`${(v.budgetWon/1e8).toLocaleString('ko-KR',{maximumFractionDigits:8})}억원 이하`:'예산 제한 없음',districts:v.districts?.join(' · ')||'서울 전체',purpose:purposeLabel(v.purpose),area:areaRangeLabel(v.minAreaM2,v.maxAreaM2,v.areaUnit),zones:v.zones?.join(' · ')||'용도지역 전체',auction:auction.enabled?`포함${auction.source==='onbid'?' · 공매':auction.source==='both'?' · 경매+공매':''}${auction.dealType?` · ${({whole:'건물 통',floor:'층',unit:'호실',land:'토지'}[auction.dealType]||auction.dealType)}`:''}${auction.usages?.length?' · '+auction.usages.join('·'):''}${auction.maxPriceWon?` · 최저 ${(auction.maxPriceWon/1e8).toLocaleString('ko-KR')}억 이하`:''}${auction.maxBidRate?` · 최저가율 ${auction.maxBidRate}% 이하`:''}${auction.failMax?` · 유찰 ${auction.failMax}회 이하`:''}`:'미포함'};
     const buildLabels=buildConditionLabels(v);texts.build=buildUseLabel(v.buildUse)+(buildLabels.length>(v.buildUse?1:0)?` · 조건 ${buildLabels.length-(v.buildUse?1:0)}개`:'');
     $('[data-build-summary]').hidden=v.purpose!=='new-build'||!buildLabels.length;$('[data-build-summary]').textContent=buildLabels.join(' · ');
     for(const b of root.querySelectorAll('[data-filter]')){b.hidden=b.dataset.filter==='build'&&v.purpose!=='new-build';b.querySelector('[data-filter-value]').textContent=texts[b.dataset.filter];b.setAttribute('aria-label',`${labels[b.dataset.filter]} 변경: ${texts[b.dataset.filter]}`);b.setAttribute('aria-expanded',String(active===b.dataset.filter));}
     for(const b of root.querySelectorAll('[data-choice]')){
       const {choice,value}=b.dataset;
-      const chosen=choice==='budget'?(value===''?!v.budgetWon:v.budgetWon===Number(value)*1e8):choice==='purpose'?(v.purpose||'')===value:choice==='districts'?(value===''?!v.districts?.length:v.districts?.includes(value)):choice==='auction'?(value==='on'?Boolean(v.auction?.enabled):!v.auction?.enabled):value===''?!v.zones?.length:v.zones?.includes(value);
+      const chosen=choice==='budget'?(value===''?!v.budgetWon:v.budgetWon===Number(value)*1e8):choice==='purpose'?(v.purpose||'')===value:choice==='districts'?(value===''?!v.districts?.length:v.districts?.includes(value)):choice==='auction'?(value==='on'?Boolean(v.auction?.enabled):!v.auction?.enabled):choice==='auctionSource'?((v.auction?.source||'court')===value):choice==='auctionDealType'?((v.auction?.dealType||'')===value):value===''?!v.zones?.length:v.zones?.includes(value);
       b.setAttribute('aria-pressed',String(Boolean(chosen)));
     }
   }
@@ -41,7 +41,7 @@ export function mountQuickFilters(root,{getValue,onChange}){
     if(active==='auction'){
       const cur=getValue().auction||{};
       dirty=false;
-      commit({auction:{...cur,enabled:true,maxPriceWon:$('#quick-auction-price').value.trim()?Number($('#quick-auction-price').value)*1e8:null,maxBidRate:$('#quick-auction-rate').value.trim()?Number($('#quick-auction-rate').value):null}});
+      commit({auction:{...cur,enabled:true,maxPriceWon:$('#quick-auction-price').value.trim()?Number($('#quick-auction-price').value)*1e8:null,maxBidRate:$('#quick-auction-rate').value.trim()?Number($('#quick-auction-rate').value):null,failMax:$('#quick-auction-fail').value.trim()?Number($('#quick-auction-fail').value):null}});
     }
     return true;
   }
@@ -58,7 +58,7 @@ export function mountQuickFilters(root,{getValue,onChange}){
     if(key==='districts')html=`<p class="quick-help">여러 지역을 함께 선택할 수 있어요.</p><div class="quick-choice-grid quick-districts">${choice('districts','','서울 전체')}${DISTRICTS.map(d=>choice('districts',d,d)).join('')}</div>`;
     if(key==='purpose')html=`<div class="quick-choice-grid quick-purposes">${PURPOSES.map(p=>choice('purpose',p.id,p.label)).join('')}${choice('purpose','','목적 미정')}</div>`;
     if(key==='build')html=buildCriteriaFields(v);
-    if(key==='auction'){const a=v.auction||{};html=`<p class="quick-help">경매 물건도 함께 추천받아요. 아파트는 제외됩니다.</p><div class="quick-choice-grid"><button type="button" class="quick-choice" data-choice="auction" data-value="on" aria-pressed="${a.enabled?'true':'false'}">경매 포함</button><button type="button" class="quick-choice" data-choice="auction" data-value="off" aria-pressed="${a.enabled?'false':'true'}">미포함</button></div><div class="quick-area-row"><label for="quick-auction-price">최저매각가 이하<input class="quick-number" id="quick-auction-price" inputmode="decimal" placeholder="제한 없음" value="${a.maxPriceWon?a.maxPriceWon/1e8:''}"><span>억</span></label><label for="quick-auction-rate">감정가 대비 최저가율 이하<input class="quick-number" id="quick-auction-rate" inputmode="decimal" placeholder="제한 없음" value="${a.maxBidRate??''}"><span>%</span></label></div><p class="quick-help">경매 용도 · 선택하지 않으면 전체</p><div class="quick-choice-grid">${AUCTION_USAGES.map(u=>`<button type="button" class="quick-choice" data-auction-usage="${esc(u)}" aria-pressed="${(a.usages||[]).includes(u)}">${esc(u)}</button>`).join('')}</div>`;}
+    if(key==='auction'){const a=v.auction||{};html=`<p class="quick-help">경매·공매 물건도 함께 추천받아요. 아파트·자동차는 제외됩니다.</p><div class="quick-choice-grid"><button type="button" class="quick-choice" data-choice="auction" data-value="on" aria-pressed="${a.enabled?'true':'false'}">경매·공매 포함</button><button type="button" class="quick-choice" data-choice="auction" data-value="off" aria-pressed="${a.enabled?'false':'true'}">미포함</button></div><p class="quick-help">구분</p><div class="quick-choice-grid">${AUCTION_SOURCES.map(([value,label])=>`<button type="button" class="quick-choice" data-choice="auctionSource" data-value="${value}" aria-pressed="${(a.source||'court')===value}">${esc(label)}</button>`).join('')}</div><p class="quick-help">거래 단위 · 선택하지 않으면 전체</p><div class="quick-choice-grid">${[['','전체'],...AUCTION_DEAL_TYPES].map(([value,label])=>`<button type="button" class="quick-choice" data-choice="auctionDealType" data-value="${value}" aria-pressed="${(a.dealType||'')===value}">${esc(label)}</button>`).join('')}</div><div class="quick-area-row"><label for="quick-auction-price">최저가 이하<input class="quick-number" id="quick-auction-price" inputmode="decimal" placeholder="제한 없음" value="${a.maxPriceWon?a.maxPriceWon/1e8:''}"><span>억</span></label><label for="quick-auction-rate">최저가율 이하<input class="quick-number" id="quick-auction-rate" inputmode="decimal" placeholder="제한 없음" value="${a.maxBidRate??''}"><span>%</span></label><label for="quick-auction-fail">유찰 횟수 이하<input class="quick-number" id="quick-auction-fail" inputmode="numeric" placeholder="제한 없음" value="${a.failMax??''}"><span>회</span></label></div><p class="quick-help">경매 용도 · 선택하지 않으면 전체</p><div class="quick-choice-grid">${AUCTION_USAGES.map(u=>`<button type="button" class="quick-choice" data-auction-usage="${esc(u)}" aria-pressed="${(a.usages||[]).includes(u)}">${esc(u)}</button>`).join('')}</div>`;}
     if(key==='zones')html=`<p class="quick-help">여러 용도지역을 선택할 수 있어요. 준주거는 주거지역, 준공업은 공업지역에 포함돼요.</p><div class="quick-choice-grid">${choice('zones','','용도지역 전체')}${ZONING_OPTIONS.map(z=>choice('zones',z,z)).join('')}</div>`;
     if(key==='area'){
       const unit=v.areaUnit||'pyeong',min=areaInput(v.minAreaM2,unit),max=areaInput(v.maxAreaM2,unit);openingArea={min,max,minM2:v.minAreaM2,maxM2:v.maxAreaM2};
@@ -83,6 +83,8 @@ export function mountQuickFilters(root,{getValue,onChange}){
     if(key==='budget'){commit({budgetWon:value===''?null:toWon(value,'EOK')});$('#quick-budget').value=value;}
     else if(key==='purpose')commit({purpose:value||null,...(value!=='new-build'?BUILD_DEFAULTS:{})});
     else if(key==='auction')commit({auction:{...(v.auction||{}),enabled:value==='on'}});
+    else if(key==='auctionSource')commit({auction:{...(v.auction||{}),source:value||'court'}});
+    else if(key==='auctionDealType')commit({auction:{...(v.auction||{}),dealType:value||null}});
     else {const values=v[key]||[];commit({[key]:value===''?[]:values.includes(value)?values.filter(x=>x!==value):[...values,value]});}
   },{signal:abort.signal});
   root.addEventListener('input',e=>{if(!e.target.matches('.quick-number'))return;dirty=true;clearTimeout(timer);timer=setTimeout(flush,650);},{signal:abort.signal});

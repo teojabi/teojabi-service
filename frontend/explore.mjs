@@ -298,6 +298,40 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     const suggestions=$('.search-suggestions');
     if(suggestions.innerHTML)suggestions.innerHTML=`<div class="compact-suggestions" role="group" aria-label="조건 조정 제안"><span>조건 제안</span>${suggestions.innerHTML}</div>`;
   }
+  // 조건에 경매·공매가 켜져 있으면 같은 조건으로 경매/공매 물건도 함께 가져온다.
+  async function fetchConditionAuctions(){
+    const a=criteria.auction;if(!a?.enabled)return null;
+    const source=a.source||'court';
+    const wantCourt=source!=='onbid',wantOnbid=source!=='court';
+    const gu=[...(conditions?.districts||[])];
+    const build=onbid=>{
+      const p=new URLSearchParams({size:'60',page:'1'});
+      gu.forEach(g=>p.append('gu',g));
+      (a.usages||[]).slice(0,6).forEach(u=>p.append('usage',u));
+      if(a.maxPriceWon)p.set('maxPrice',String(a.maxPriceWon));
+      if(onbid){
+        if(a.dealType)p.set('dealType',a.dealType);
+        p.set('sort','bid');
+        return p;
+      }
+      (criteria.zones||[]).forEach(z=>p.append('zone',z));
+      if(criteria.minAreaM2!=null)p.set('minArea',String(criteria.minAreaM2));
+      if(criteria.maxAreaM2!=null)p.set('maxArea',String(criteria.maxAreaM2));
+      if(a.dealType)p.set('dealType',a.dealType);
+      if(a.maxBidRate)p.set('maxBidRate',String(a.maxBidRate));
+      if(a.failMax)p.set('maxFail',String(a.failMax));
+      p.set('sort','sale');
+      return p;
+    };
+    const calls=[];
+    if(wantCourt)calls.push(apiFetch(`/api/auctions?${build(false)}`,{signal:abort.signal}).then(r=>r.ok?r.json():null).catch(()=>null));
+    if(wantOnbid)calls.push(apiFetch(`/api/onbid?${build(true)}`,{signal:abort.signal}).then(r=>r.ok?r.json():null).catch(()=>null));
+    const results=await Promise.all(calls);
+    const groups=[];let total=0,index=0;
+    if(wantCourt){const d=results[index++];if(d&&d.status==='ready'){(d.rows||[]).map(auctionToListing).forEach(row=>groups.push({key:row.id,pnu:row.pnu,representative:row,listings:[row]}));total+=Number(d.total||0);}}
+    if(wantOnbid){const d=results[index++];if(d&&d.status==='ready'){(d.rows||[]).map(onbidToListing).forEach(row=>groups.push({key:row.id,pnu:row.pnu,representative:row,listings:[row]}));total+=Number(d.total||0);}}
+    return groups.length?{groups,total}:null;
+  }
   async function load({fit=true}={}) {
     clearTimeout(loadTimer);
     if(source==='assistant')return loadAssistant();
@@ -316,7 +350,9 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     try {
       const response=await apiFetch(`/api/catalog?${params}`,{signal:abort.signal});
       const data=await response.json();if(!response.ok || data.status!=='ready')throw new Error(data.reason||'unavailable');
+      const merged=await fetchConditionAuctions();
       if(disposed||current!==version)return;
+      if(merged){data.groups=mixAssistantGroups([...(data.groups||[]),...merged.groups]);data.auctionTotal=merged.total;}
       result=data;
       $('.explore-list').removeAttribute('aria-busy');drawCards();map.setGroups(showAllPicks?(pickGroups||[]):mapGroups(),selected,fit);
       if(initialId){const id=initialId;initialId=null;openDetail(id);}
