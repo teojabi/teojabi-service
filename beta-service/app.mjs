@@ -99,6 +99,15 @@ window.addEventListener('teojabi-open-saved',event=>{
   if(kind==='analysis'){state.siteDraft={...createSiteDraft(),restore:{pnus:p.pnus,fields:p.fields},memo:p.memo,name:p.name};state.screen='analyze';history.replaceState(null,'',location.pathname);}
   render();
 });
+window.addEventListener('teojabi-edit-condition',event=>{
+  const p=event.detail?.payload||{};
+  state.applied={...p,areaUnit:'m2',minArea:p.minAreaM2==null?'':String(p.minAreaM2),maxArea:p.maxAreaM2==null?'':String(p.maxAreaM2)};
+  state.draft=appliedDraft();
+  state.editing=true;
+  state.screen='region';
+  history.replaceState(null,'',location.pathname);
+  render();
+});
 window.addEventListener('teojabi-open-favorites',()=>{
   state.screen='results';
   history.replaceState(null,'',location.pathname+'#favorites');
