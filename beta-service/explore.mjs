@@ -153,7 +153,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
   function setSource(next){
     if(next===source)return;
     source=next;showAllPicks=false;selected=null;compared.clear();assistantShown=5;
-    if(next==='auction')limit=100;else if(next==='conditions')limit=5;
+    if(next==='auction'){limit=100;syncAuctionFiltersFromCondition();mountAuctionUi();}else if(next==='conditions')limit=5;
     closeDetail();applySourceUi();
     history.replaceState(null,'',source==='favorites'?location.pathname+'#favorites':source==='auction'?location.pathname+'#auction':location.pathname+(conditions?'#search':''));
     load();
@@ -176,21 +176,39 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     $('[name=sort]').closest('label').querySelector('span').textContent=criteria.preferTourism?'특화구역 우선 후 정렬':'정렬';
   };
   const currentConditions=()=>({...conditions,...criteria,budgetWon:conditions?.budgetWon??null,districts:conditions?.districts||[],bounds,query,sort});
+  // 경매 전용 탭과 관심 조건(빠른 조건·편집기)을 같은 값으로 맞춘다.
+  const syncAuctionFiltersFromCondition=()=>{
+    const a=criteria.auction||{};
+    auctionFilters={...auctionFilters,gu:[...(conditions?.districts||[])],usage:(a.usages||[])[0]||'',dealType:a.dealType||'',maxPrice:a.maxPriceWon?String(a.maxPriceWon/1e8):'',maxBidRate:a.maxBidRate!=null?String(a.maxBidRate):'',failMax:a.failMax!=null?String(a.failMax):'',listingSource:a.source==='onbid'?'onbid':'court'};
+  };
+  const applyAuctionFiltersToCondition=()=>{
+    criteria={...criteria,auction:{...(criteria.auction||{}),enabled:true,source:auctionFilters.listingSource==='onbid'?'onbid':'court',usages:auctionFilters.usage?[auctionFilters.usage]:[],dealType:auctionFilters.dealType||null,maxPriceWon:auctionFilters.maxPrice?Number(auctionFilters.maxPrice)*1e8:null,maxBidRate:auctionFilters.maxBidRate?Number(auctionFilters.maxBidRate):null,failMax:auctionFilters.failMax?Number(auctionFilters.failMax):null}};
+    conditions={...conditions,districts:[...(auctionFilters.gu||[])]};
+    quickFilters?.update();updateCriteria();
+    onConditionsChange?.(currentConditions());
+  };
+  let auctionFiltersUi;
+  const mountAuctionUi=()=>{
+    auctionFiltersUi?.destroy?.();
+    auctionFiltersUi=mountAuctionFilters($('#auction-filters'),{getValue:()=>auctionFilters,onChange:next=>{
+      auctionFilters={...auctionFilters,...next};
+      applyAuctionFiltersToCondition();
+      ++version;limit=100;closeDetail(true,false);clearTimeout(loadTimer);
+      body.scrollTop=0;
+      $('#result-count').textContent='변경한 조건으로 경매 물건을 찾고 있어요.';
+      load();
+    }});
+  };
   quickFilters=mountQuickFilters($('.quick-filters'),{getValue:currentConditions,onChange:patch=>{
     conditions={...conditions,...patch};criteria={...criteria,...patch};updateCriteria();
+    if(source==='auction'){syncAuctionFiltersFromCondition();mountAuctionUi();}
     ++version;limit=5;closeDetail(true,false);clearTimeout(loadTimer);
     $('.search-suggestions').replaceChildren();
     quickFilters.setRemembered(onConditionsChange?.(currentConditions())!==false);
     $('#result-count').textContent='변경한 조건으로 찾고 있어요.';
     loadTimer=setTimeout(()=>load(),300);
   }});updateCriteria();
-  const auctionFiltersUi=mountAuctionFilters($('#auction-filters'),{getValue:()=>auctionFilters,onChange:next=>{
-    auctionFilters={...auctionFilters,...next};
-    ++version;limit=100;closeDetail(true,false);clearTimeout(loadTimer);
-    body.scrollTop=0;
-    $('#result-count').textContent='변경한 조건으로 경매 물건을 찾고 있어요.';
-    load();
-  }});
+  syncAuctionFiltersFromCondition();mountAuctionUi();
   const map=new ListingMap($('#map-host'),{areaUnit:getAreaDisplayUnit(),onSelect:id=>openDetail(id),onMapClick:()=>{if(matchMedia('(max-width:700px)').matches)setSheet(false);window.dispatchEvent(new CustomEvent('teojabi-map-click'));},onTransaction:id=>{
     setSheet(true);
     $('.explore-board').classList.remove('transaction-map-open');
