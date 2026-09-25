@@ -111,6 +111,9 @@ def _where(payload):
     q = _text(payload.get('q'), 60)
     kind = (payload.get('kind') or '').strip().lower() or None
     usages = _usage_list(payload.get('usage'))
+    zones = _usage_list(payload.get('zone'))
+    min_area = _num(payload.get('minArea'))
+    max_area = _num(payload.get('maxArea'))
     min_price = _num(payload.get('minPrice'))
     max_price = _num(payload.get('maxPrice'))
     max_rate = _num(payload.get('maxBidRate'))
@@ -137,6 +140,19 @@ def _where(payload):
     if deal_type in ('whole', 'floor', 'unit', 'land'):
         where.append('deal_type = %(dealtype)s')
         params['dealtype'] = deal_type
+    if zones:
+        clauses = []
+        for index, token in enumerate(zones[:4]):
+            key = f'zone{index}'
+            clauses.append(f'use_zone ILIKE %({key})s')
+            params[key] = f'%{token}%'
+        where.append('(' + ' OR '.join(clauses) + ')')
+    if min_area is not None:
+        where.append('area_max >= %(minarea)s')
+        params['minarea'] = min_area
+    if max_area is not None:
+        where.append('area_max <= %(maxarea)s')
+        params['maxarea'] = max_area
     if q:
         where.append("(coalesce(full_address, '') ILIKE %(q)s OR coalesce(case_no, '') ILIKE %(q)s "
                      "OR coalesce(usage_name, '') ILIKE %(q)s OR coalesce(dong, '') ILIKE %(q)s)")
