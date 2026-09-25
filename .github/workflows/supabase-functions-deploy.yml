@@ -83,6 +83,9 @@ jobs:
             echo "=== deploy auction ==="
             npx --yes supabase@latest functions deploy auction --project-ref "$PROJECT_REF" --no-verify-jwt 2>&1
             echo "auction_exit=$?"
+            echo "=== deploy onbid ==="
+            npx --yes supabase@latest functions deploy onbid --project-ref "$PROJECT_REF" --no-verify-jwt 2>&1
+            echo "onbid_exit=$?"
             echo "=== deploy data ==="
             npx --yes supabase@latest functions deploy data --project-ref "$PROJECT_REF" --no-verify-jwt 2>&1
             echo "data_exit=$?"
