@@ -112,3 +112,22 @@ input,textarea,select{color:var(--text);background:var(--card)}button:focus-visi
 
 /* iOS Safari 자동 확대 방지: 모바일 입력창은 16px 이상으로 둔다. */
 @media(max-width:700px){.assistant-form input,.assistant-opts input[type=number],.save-dialog input,.member-dialog input,.assistant-panel input,input[type=text],input[type=number],input[type=search],select,textarea{font-size:16px}}
+
+/* 내 보관함 상세 카드 */
+.member-items article.member-item{display:block;align-items:stretch}
+.member-item-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.member-item-head small{color:var(--muted);font-size:12px;flex-shrink:0}
+.member-item-facts{margin:10px 0 0;display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:6px 18px}
+.member-item-facts>div{display:flex;gap:8px;font-size:13px;line-height:1.6}
+.member-item-facts dt{color:var(--muted);flex:0 0 62px;margin:0}
+.member-item-facts dd{margin:0;overflow-wrap:anywhere}
+.member-item-actions{display:flex;gap:7px;margin-top:12px}
+.member-item-actions button{padding:8px 10px;font-size:13px}
+.member-section-title{font-size:15px;margin:6px 0 10px}
+.member-section-title small{color:var(--muted);font-weight:500;font-size:12px;margin-left:6px}
+.member-alerts{margin:6px 0 18px;padding:14px 16px;border:1px solid var(--line);border-radius:12px;background:var(--selected)}
+.member-alert{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 0;border-top:1px solid var(--line)}
+.member-alert:first-of-type{border-top:0}
+.member-alert-kind{margin:0;font-size:12px;color:var(--primary);font-weight:800}
+.member-alert h4{margin:2px 0;font-size:15px}
+.member-alert p{margin:0;font-size:13px;color:var(--muted)}
