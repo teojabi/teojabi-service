@@ -55,9 +55,12 @@ function clampInt(value: string | null, fallback: number, lo: number, hi: number
 function applyFilters(query: any, params: URLSearchParams) {
   const xgus = params.getAll("gu").flatMap((v) => v.split(",")).map((v) => v.trim()).filter(Boolean);
   const usages = params.getAll("usage").flatMap((v) => v.split(",")).map((v) => v.trim()).filter(Boolean).slice(0, 6);
+  const zones = params.getAll("zone").flatMap((v) => v.split(",")).map((v) => v.trim()).filter(Boolean).slice(0, 4);
   const kind = (params.get("kind") || "").trim().toLowerCase();
   const dealType = (params.get("dealType") || "").trim().toLowerCase();
   const keyword = (params.get("q") || "").trim().slice(0, 60);
+  const minArea = num(params.get("minArea"));
+  const maxArea = num(params.get("maxArea"));
   const minPrice = num(params.get("minPrice"));
   const maxPrice = num(params.get("maxPrice"));
   const maxBidRate = num(params.get("maxBidRate"));
@@ -71,6 +74,9 @@ function applyFilters(query: any, params: URLSearchParams) {
     .not("usage_name", "ilike", "%자동차%");
   if (xgus.length) q = q.in("sigu", xgus);
   if (usages.length) q = q.or(usages.map((u) => `usage_name.ilike.%${u}%`).join(","));
+  if (zones.length) q = q.or(zones.map((z) => `use_zone.ilike.%${z}%`).join(","));
+  if (minArea != null) q = q.gte("area_max", minArea);
+  if (maxArea != null) q = q.lte("area_max", maxArea);
   if (kind === "land") q = q.eq("deal_type", "land");
   else if (kind === "building") q = q.in("deal_type", ["unit", "whole"]);
   if (["whole", "floor", "unit", "land"].includes(dealType)) q = q.eq("deal_type", dealType);
