@@ -1,7 +1,8 @@
 import { apiFetch, getRuntime } from './api-client.mjs';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 export const GUEST_FAVORITES_KEY='teojabi.guest-favorites.v1';
-const validGuestFavorite=item=>item&&item.kind==='favorite'&&typeof item.key==='string'&&item.key.length<=80&&item.payload?.id===item.key;
+const favoriteKey=/^(?:naver:\d{1,30}|naver-land:\d{1,30}|premium:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}|disco:[A-Za-z0-9]{4,24}|auction:[A-Za-z0-9]{4,40}|onbid:[A-Za-z0-9-]{4,30}(?:::[A-Za-z0-9-]{1,30})?)$/;
+const validGuestFavorite=item=>item&&item.kind==='favorite'&&typeof item.key==='string'&&favoriteKey.test(item.key)&&item.payload?.id===item.key;
 export class MemberStore extends EventTarget {
   constructor(storage=globalThis.localStorage){super();this.items=[];this.user=null;this.status='idle';this.base='';this.storage=storage;}
   guestItems(){try{const rows=JSON.parse(this.storage?.getItem(GUEST_FAVORITES_KEY)||'[]');return Array.isArray(rows)?rows.filter(validGuestFavorite).slice(0,100):[];}catch{return [];}}

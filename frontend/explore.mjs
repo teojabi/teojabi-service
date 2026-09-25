@@ -274,7 +274,11 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     for(const cardEl of root.querySelectorAll('[data-card-id]')){
       const id=cardEl.dataset.cardId;
       const rep=result?.groups.find(group=>group.representative.id===id)?.representative;
-      if(rep?.cohort==='auction'||rep?.cohort==='onbid')continue;
+      if(rep?.cohort==='auction'||rep?.cohort==='onbid'){
+        const saved=Boolean(member.get('favorite',id));
+        cardEl.insertAdjacentHTML('beforeend',`<div class="property-actions"><button class="outline" data-explore="favorite" data-id="${esc(id)}" aria-pressed="${saved}">${saved?'♥ 찜함':'♡ 찜'}</button></div>`);
+        continue;
+      }
       cardEl.insertAdjacentHTML('beforeend',`<div class="property-actions"><button class="outline" data-explore="compare-toggle" data-id="${esc(id)}" aria-pressed="${compared.has(id)}">${compared.has(id)?'✓ 비교 선택됨':'＋ 비교'}</button><button class="outline" data-explore="favorite" data-id="${esc(id)}" aria-pressed="${Boolean(member.get('favorite',id))}">${member.get('favorite',id)?'♥ 찜함':'♡ 찜'}</button><button class="outline" data-explore="feedback" data-id="${esc(id)}">내 의견</button></div>`);
       if(!favoritesMode&&!assistantMode&&criteria.purpose==='new-build'){
         const facts=rep?.development,labels=[];
@@ -339,12 +343,29 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     }
     $('#result-count').textContent='찜한 매물을 불러오고 있어요.';
     try {
-      const params=new URLSearchParams({ids:ids.join(','),sort,limit:100});
-      const response=await apiFetch(`/api/catalog?${params}`,{signal:abort.signal});
-      const data=await response.json();if(!response.ok||data.status!=='ready')throw new Error(data.reason||'unavailable');
+      const specialIds=ids.filter(id=>id.startsWith('auction:')||id.startsWith('onbid:'));
+      const catalogIds=ids.filter(id=>!(id.startsWith('auction:')||id.startsWith('onbid:')));
+      const params=new URLSearchParams({ids:catalogIds.join(','),sort,limit:100});
+      const catalogPromise=catalogIds.length
+        ? apiFetch(`/api/catalog?${params}`,{signal:abort.signal}).then(async response=>{const data=await response.json();if(!response.ok||data.status!=='ready')throw new Error(data.reason||'unavailable');return data;})
+        : Promise.resolve({groups:[]});
+      const specialPromise=Promise.all(specialIds.map(async id=>{
+        try {
+          if(id.startsWith('auction:')){
+            const response=await apiFetch(`/api/auctions/${encodeURIComponent(id.slice('auction:'.length))}`,{signal:abort.signal});
+            const data=await response.json();if(data?.status!=='ready')return null;
+            const row=auctionToListing(data.item);return {key:row.id,pnu:row.pnu,representative:row,listings:[row]};
+          }
+          const response=await apiFetch(`/api/onbid/${encodeURIComponent(id.slice('onbid:'.length))}`,{signal:abort.signal});
+          const data=await response.json();if(data?.status!=='ready')return null;
+          const row=onbidToListing(data.item);return {key:row.id,pnu:row.pnu,representative:row,listings:[row]};
+        } catch {return null;}
+      }));
+      const [data,specialGroups]=await Promise.all([catalogPromise,specialPromise]);
       if(disposed||current!==version)return;
-      const found=new Set(data.groups.map(group=>group.representative.id));
-      result={...data,missingFavorites:ids.filter(id=>!found.has(id))};
+      const groups=[...(data.groups||[]),...specialGroups.filter(Boolean)];
+      const found=new Set(groups.map(group=>group.representative.id));
+      result={status:'ready',groups,totalParcels:groups.length,totalListings:groups.length,hasMore:false,observedAt:data.observedAt||null,missingFavorites:ids.filter(id=>!found.has(id))};
       $('.explore-list').removeAttribute('aria-busy');drawCards();map.setGroups(result.groups,selected,fit);
       if(initialId){const id=initialId;initialId=null;openDetail(id);}
     } catch {
