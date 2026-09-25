@@ -275,6 +275,25 @@ export function sanitize(raw) {
 }
 
 const originOf = row => ['premium', 'registered', 'disco', 'naver'].includes(row.origin) ? row.origin : 'naver';
+const SOURCE_BLOCK_ORDER = ['premium', 'registered', 'auction', 'onbid', 'naver', 'disco'];
+// 매물·경매·공매·네이버·디스코를 3개씩 번갈아 섞어, 한 소스만 먼저 쏟아지지 않게 한다.
+const mixBySource = rows => {
+  const buckets = new Map(SOURCE_BLOCK_ORDER.map(origin => [origin, []]));
+  for (const row of rows) {
+    const origin = buckets.has(row.origin) ? row.origin : 'naver';
+    buckets.get(origin).push(row);
+  }
+  const out = [];
+  let moved = true;
+  while (moved) {
+    moved = false;
+    for (const origin of SOURCE_BLOCK_ORDER) {
+      const bucket = buckets.get(origin);
+      if (bucket.length) { out.push(...bucket.splice(0, 3)); moved = true; }
+    }
+  }
+  return out;
+};
 
 export function viewRow(row) {
   const broad = BROAD_ZONE.find(z => String(row.zoning || '').includes(z[1]));
@@ -367,14 +386,13 @@ export function buildAuctionResult(filters, data) {
 export function buildCombinedResult(filters, listingSearch, auctionData, onbidData) {
   const auctionRows = (Array.isArray(auctionData?.rows) ? auctionData.rows : []).map(viewAuctionRow);
   const auctionTotal = auctionData == null ? 0 : Number(auctionData.total || auctionRows.length);
-  const auctionGroups = auctionRows.map(listing => ({ key: listing.id, pnu: listing.pnu, representative: listing, listings: [listing] }));
   const onbidRows = (Array.isArray(onbidData?.rows) ? onbidData.rows : []).map(viewOnbidRow);
   const onbidTotal = onbidData == null ? 0 : Number(onbidData.total || onbidRows.length);
-  const onbidGroups = onbidRows.map(listing => ({ key: listing.id, pnu: listing.pnu, representative: listing, listings: [listing] }));
   const base = listingSearch
     ? buildResult(filters, listingSearch, null)
     : { status: 'ready', reply: '', filters, chips: chipList(filters), total: 0, groups: [], originTotals: { premium: 0, registered: 0, disco: 0, naver: 0 }, station: null, districts: [], commercial: null, suggestions: [], relaxations: [], unsupported: null, searchedAt: null };
-  const groups = [...base.groups, ...auctionGroups, ...onbidGroups];
+  const groups = mixBySource([...base.groups.map(group => group.representative), ...auctionRows, ...onbidRows])
+    .map(listing => ({ key: listing.id, pnu: listing.pnu, representative: listing, listings: [listing] }));
   const total = Number(base.total || 0) + auctionTotal + onbidTotal;
   const lines = [];
   if (base.total > 0) lines.push(`매물 ${base.total.toLocaleString('ko-KR')}건`);
