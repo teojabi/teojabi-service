@@ -58,10 +58,10 @@ describe('additional member storage',()=>{
     expect(()=>validateItem('favorite','legacy-id',{})).toThrow();
   });
   it('keeps auction filters and neighborhoods in saved conditions',()=>{
-    const saved=validateItem('condition','a',{districts:['마포구'],neighborhoods:['성산동'],auction:{enabled:true,source:'onbid',usages:['오피스텔','없는용도'],dealType:'unit',maxPriceWon:500000000,maxBidRate:120}});
+    const saved=validateItem('condition','a',{districts:['마포구'],neighborhoods:['성산동'],auction:{enabled:true,source:'onbid',usages:['오피스텔','없는용도'],dealType:'unit',maxPriceWon:500000000,maxBidRate:120,failMax:3}});
     expect(saved.districts).toEqual(['마포구']);
     expect(saved.neighborhoods).toEqual(['성산동']);
-    expect(saved.auction).toEqual({enabled:true,usages:['오피스텔'],source:'onbid',dealType:'unit',maxPriceWon:500000000});
+    expect(saved.auction).toEqual({enabled:true,usages:['오피스텔'],source:'onbid',dealType:'unit',maxPriceWon:500000000,failMax:3});
     expect(saved.auction.maxBidRate).toBeUndefined();
     const invalid=validateItem('condition','a',{auction:{enabled:true,source:'hacked',dealType:'penthouse'}});
     expect(invalid.auction).toEqual({enabled:true,usages:[]});

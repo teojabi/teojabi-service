@@ -18,6 +18,7 @@ const conditionAuction=(input:any)=>{
   if(AUCTION_DEAL_TYPES.includes(input.dealType))auction.dealType=input.dealType;
   const price=positive(input.maxPriceWon);if(price)auction.maxPriceWon=price;
   const rate=positive(input.maxBidRate,100);if(rate)auction.maxBidRate=rate;
+  const fail=positive(input.failMax,100);if(fail)auction.failMax=Math.round(fail);
   return auction;
 };
 const listingKey=/^(?:naver:\d{1,30}|naver-land:\d{1,30}|premium:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}|disco:[A-Za-z0-9]{4,24}|auction:[A-Za-z0-9]{4,40}|onbid:[A-Za-z0-9-]{4,30}(?:::[A-Za-z0-9-]{1,30})?)$/;
