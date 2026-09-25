@@ -48,6 +48,12 @@ function hasUsableFilters(filters) {
   return Object.entries(filters || {}).some(([key, value]) => key !== 'limit' && (Array.isArray(value) ? value.length : value !== null && value !== undefined && value !== ''));
 }
 
+// 저장 조건으로 찾을 때는 경매·공매 물건도 함께 포함한다.
+function withAuction(condition) {
+  const auction = condition?.auction && typeof condition.auction === 'object' ? condition.auction : {};
+  return { ...(condition || {}), auction: { ...auction, enabled: true, source: auction.source || 'both' } };
+}
+
 // 매물을 고른 뒤 "이 주위 상권 알려줘" 같은 자유 질문을 매물 메뉴로 연결한다.
 function listingQuestion(message) {
   const t = String(message || '');
@@ -363,11 +369,11 @@ export function mountAssistant({ onResults, onAnalyze } = {}) {
 
   function renderResult(body, data, openEditor) {
     const groups = Array.isArray(data.groups) ? data.groups : [];
-    const cards = groups.map((group, index) => cardMarkup(group.representative, index >= 5)).join('');
+    const cards = groups.map((group, index) => cardMarkup(group.representative, index >= 8)).join('');
     let reply = `<p>${esc(data.reply || '결과를 가져왔어요.').replace(/\n/g, '<br>')}</p>`;
     if (data.conditionNote) reply += `<p class="assistant-note">${esc(data.conditionNote)}</p>`;
     if (cards) reply += `<div class="assistant-cards">${cards}</div>`;
-    if (groups.length > 5) reply += `<button type="button" class="assistant-chip assistant-more" data-more>더보기 (남은 ${groups.length - 5}건)</button>`;
+    if (groups.length > 8) reply += `<button type="button" class="assistant-chip assistant-more" data-more>더보기 (남은 ${groups.length - 8}건)</button>`;
     if (data.commercial) {
       const c = data.commercial;
       const sales = c.monthlySalesWon ? `${(c.monthlySalesWon / 1e8).toLocaleString('ko-KR', { maximumFractionDigits: 1 })}억` : '자료 없음';
@@ -522,7 +528,7 @@ export function mountAssistant({ onResults, onAnalyze } = {}) {
   panel.addEventListener('click', event => {
     if (event.target.closest('[data-condition]')) {
       const condition = savedCondition();
-      if (condition && hasUsableFilters(condition)) runSearch(null, condition);
+      if (condition && hasUsableFilters(condition)) runSearch(null, withAuction(condition));
       else addBot('저장된 조건이 없어요. 지역·예산 같은 조건을 말씀해 주세요.');
       return;
     }
