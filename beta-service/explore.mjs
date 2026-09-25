@@ -52,6 +52,7 @@ const detailFactItems=row=>{
 };
 // 경매 물건(auction_item)을 건물찾기 카드·지도·상세가 쓰는 매물 모양으로 맞춘다.
 const AUCTION_LAND_RE=/토지|대지|임야|전답|잡종지|과수원|답|전/;
+const AUCTION_DEAL_LABEL={whole:'건물 통',unit:'호실',land:'토지',vehicle:'차량'};
 // 법원 소재지를 대지위치(지번)와 상세주소(건물·호)로 나눈다.
 const splitAuctionAddress=row=>{
   const full=String(row.full_address||'').trim(),lot=String(row.lot_no||'').trim();
@@ -65,7 +66,8 @@ const auctionToListing=row=>{
   const position=Number.isFinite(row.lat)&&Number.isFinite(row.lng)?{lat:Number(row.lat),lng:Number(row.lng)}:null;
   const broad=/주거/.test(zone)?'주거지역':/상업/.test(zone)?'상업지역':/공업/.test(zone)?'공업지역':/녹지/.test(zone)?'녹지지역':null;
   const id=`auction:${row.docid}`,addr=splitAuctionAddress(row);
-  return {id,source:'auction',sourceId:String(row.docid),cohort:'auction',
+  const dealType=row.deal_type||(AUCTION_LAND_RE.test(usage)?'land':(/\d+\s*호/.test(String(row.full_address||'')+String(row.building_list||''))?'unit':'whole'));
+  return {id,source:'auction',sourceId:String(row.docid),cohort:'auction',dealType,
     district:row.sigu||'',neighborhood:row.dong||'',address:addr.land,detailAddress:addr.detail,
     pnu:/^\d{19}$/.test(String(row.pnu||''))?row.pnu:null,position,
     priceWon:row.min_price==null?null:Number(row.min_price),areaM2:row.area_max==null?null:Number(row.area_max),
@@ -88,7 +90,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
   let assistantResult=assistant&&Array.isArray(assistant.groups)?assistant:null;
   let source=assistantResult?'assistant':initialSource==='favorites'?'favorites':initialSource==='auction'?'auction':'conditions';
   const conditionAuction=conditions?.auction||null;
-  let auctionFilters={gu:[...(conditions?.districts||[])],usage:(conditionAuction?.usages||[])[0]||'',kind:'',sort:'sale',maxPrice:conditionAuction?.maxPriceWon?String(conditionAuction.maxPriceWon/1e8):'',maxBidRate:conditionAuction?.maxBidRate!=null?String(conditionAuction.maxBidRate):'',failMax:''};
+  let auctionFilters={gu:[...(conditions?.districts||[])],usage:(conditionAuction?.usages||[])[0]||'',dealType:'',kind:'',sort:'sale',maxPrice:conditionAuction?.maxPriceWon?String(conditionAuction.maxPriceWon/1e8):'',maxBidRate:conditionAuction?.maxBidRate!=null?String(conditionAuction.maxBidRate):'',failMax:''};
   if(source==='auction')limit=100;
   let criteria={purpose:conditions?.purpose||null,minArea:conditions?.minArea||'',maxArea:conditions?.maxArea||'',areaUnit:conditions?.areaUnit||'pyeong',zones:conditions?.zones||[],minAreaM2:conditions?.minAreaM2??null,maxAreaM2:conditions?.maxAreaM2??null,auction:conditions?.auction||null,...BUILD_DEFAULTS,...(validateBuildCriteria(conditions||{}).value||{})};
   const defaultTitle=()=>source==='assistant'?'AI 비서 결과':source==='favorites'?'찜한 매물':source==='auction'?'경매 물건':picksOnlyMode?'터잡이 선별 매물':conditions?'내 조건으로 살펴보기':'지도에서 매물 살펴보기';
@@ -203,7 +205,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
   // 경매 물건 카드: 건물찾기 카드와 같은 골격에 경매 사실정보(감정가·최저가·기일·유찰)를 담는다.
   function auctionCard(group) {
     const row=group.representative,a=row.auction||{};
-    return `<article class="property-card${selected===row.id?' selected':''}" data-card-id="${esc(row.id)}"><button class="property-select" data-explore="detail" data-id="${esc(row.id)}" aria-label="${esc(rowTitle(row))} ${money(row.priceWon)} 상세 보기"><div class="property-location"><span>${esc(rowTitle(row))}</span><em class="pick-badge auction-badge">경매</em>${member.get('favorite',row.id)?'<em class="pick-badge favorite-badge">♥ 찜한 물건</em>':''}</div><h2>${money(row.priceWon)}</h2><div class="area-pair"><span>감정가 <b>${money(a.appraisedWon)}</b></span><span>최저매각가 <b>${money(a.minPrice)}</b></span></div><p class="property-zoning">${esc(a.usageName||'용도 미기재')} · ${esc(row.district||'')} ${esc(row.neighborhood||'')}</p><p class="property-description">${esc(a.caseNo||'')} · 매각기일 ${esc(a.saleDate||'')} ${dday(a.saleDate)} · 유찰 ${a.failCount??0}회</p><span class="property-link">상세 보기 <span aria-hidden="true">↗</span></span></button></article>`;
+    return `<article class="property-card${selected===row.id?' selected':''}" data-card-id="${esc(row.id)}"><button class="property-select" data-explore="detail" data-id="${esc(row.id)}" aria-label="${esc(rowTitle(row))} ${money(row.priceWon)} 상세 보기"><div class="property-location"><span>${esc(rowTitle(row))}</span><em class="pick-badge auction-badge">경매${AUCTION_DEAL_LABEL[row.dealType]?` · ${AUCTION_DEAL_LABEL[row.dealType]}`:''}</em>${member.get('favorite',row.id)?'<em class="pick-badge favorite-badge">♥ 찜한 물건</em>':''}</div><h2>${money(row.priceWon)}</h2><div class="area-pair"><span>감정가 <b>${money(a.appraisedWon)}</b></span><span>최저매각가 <b>${money(a.minPrice)}</b></span></div><p class="property-zoning">${esc(a.usageName||'용도 미기재')} · ${esc(row.district||'')} ${esc(row.neighborhood||'')}</p><p class="property-description">${esc(a.caseNo||'')} · 매각기일 ${esc(a.saleDate||'')} ${dday(a.saleDate)} · 유찰 ${a.failCount??0}회</p><span class="property-link">상세 보기 <span aria-hidden="true">↗</span></span></button></article>`;
   }
   // AI 결과는 화면에 보이는 만큼(5개 → 더보기)만 지도에도 표시한다.
   const mapGroups=()=>source==='assistant'&&result?result.groups.slice(0,assistantShown):(result?.groups||[]);
@@ -329,10 +331,11 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     }
   }
   // 조건에 포함된 경매를 건물찾기 목록·지도에 넣기 위해 같은 모양의 그룹으로 만든다.
-  async function fetchAuctionGroups({districts=[],usages=[],maxPriceWon=null,maxBidRate=null,limit=100}={}){
+  async function fetchAuctionGroups({districts=[],usages=[],maxPriceWon=null,maxBidRate=null,dealType='',limit=100}={}){
     const params=new URLSearchParams({size:String(limit),page:'1',sort:'sale'});
     (districts||[]).forEach(d=>params.append('gu',d));
     (usages||[]).forEach(u=>params.append('usage',u));
+    if(dealType)params.set('dealType',dealType);
     if(maxPriceWon)params.set('maxPrice',String(maxPriceWon));
     if(maxBidRate)params.set('maxBidRate',String(maxBidRate));
     const response=await apiFetch(`/api/auctions?${params}`,{signal:abort.signal});
@@ -350,6 +353,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
       const params=new URLSearchParams({size:String(Math.min(200,Math.max(limit,20))),page:'1'});
       (auctionFilters.gu||[]).forEach(g=>params.append('gu',g));
       if(auctionFilters.usage)params.set('usage',auctionFilters.usage);
+      if(auctionFilters.dealType)params.set('dealType',auctionFilters.dealType);
       if(auctionFilters.kind)params.set('kind',auctionFilters.kind);
       if(auctionFilters.maxPrice)params.set('maxPrice',String(Number(auctionFilters.maxPrice)*1e8));
       if(auctionFilters.maxBidRate)params.set('maxBidRate',String(Number(auctionFilters.maxBidRate)));
@@ -417,6 +421,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
       <nav class="detail-shortcuts" aria-label="상세 내용 이동"><button data-explore="section" data-section="property-auction">경매 정보</button><button data-explore="section" data-section="property-parcel">필지 위치</button><button data-explore="section" data-section="property-commercial">상권</button><button data-explore="section" data-section="property-surrounding">주변 사업</button><button data-explore="section" data-section="property-documents">서류 확인</button><button data-explore="section" data-section="property-context">주변 조건</button><button data-explore="section" data-section="property-transactions">주변 실거래</button></nav>
       <section class="detail-section" id="property-auction"><h3>경매 정보</h3><dl class="auction-facts">
         <dt>용도</dt><dd>${esc(a.usageName||'미기재')}</dd>
+        <dt>거래 구분</dt><dd>${AUCTION_DEAL_LABEL[row.dealType]||'확인 필요'}</dd>
         <dt>감정가</dt><dd>${money(a.appraisedWon)}</dd>
         <dt>최저매각가</dt><dd>${money(a.minPrice)} <small style="opacity:.6">(감정가의 ${a.notiMinRate!=null?esc(a.notiMinRate)+'%':'—'})</small></dd>
         <dt>매각기일</dt><dd>${esc(a.saleDate||'')} ${esc(a.saleHour||'')} ${dday(a.saleDate)}</dd>

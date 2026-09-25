@@ -22,7 +22,7 @@ from psycopg2.extensions import parse_dsn
 from psycopg2.extras import RealDictCursor
 
 # 서비스 대상에서 제외하는 용도(콤마로 나눈 토큰 기준). 상가·토지·개인주택 위주.
-EXCLUDED_USAGE = ('아파트',)
+EXCLUDED_USAGE = ('아파트', '자동차')
 # 토지 계열로 보는 용도 키워드. '전답'·'잡종지' 등은 '전'·'답'을 포함한다.
 LAND_PATTERN = '토지|대지|임야|전답|잡종지|과수원|목장|답|전'
 
@@ -96,13 +96,17 @@ def _usage_list(value):
 LIST_COLUMNS = ('docid, court_name, dept_name, case_no, usage_name, appraised_amt, min_price, '
                 'noti_min_price, noti_min_rate, fail_count, sale_date, sale_hour, sido, sigu, dong, '
                 'lot_no, building_list, jimok, area_min, area_max, lat, lng, pnu, use_zone, '
-                'road_width_m, full_address, source_url')
+                'road_width_m, full_address, source_url, deal_type')
 
 
 def _where(payload):
-    where = ["court_code IS NOT NULL",
-             "NOT (%(excluded)s = ANY(string_to_array(coalesce(usage_name, ''), ',')))"]
-    params = {'excluded': EXCLUDED_USAGE[0]}
+    where = ["court_code IS NOT NULL"]
+    params = {}
+    for index, token in enumerate(EXCLUDED_USAGE):
+        key = f'excluded{index}'
+        where.append(f"NOT (%({key})s = ANY(string_to_array(coalesce(usage_name, ''), ',')))")
+        params[key] = token
+    deal_type = (payload.get('dealType') or '').strip().lower() or None
     gus = _usage_list(payload.get('gu'))
     q = _text(payload.get('q'), 60)
     kind = (payload.get('kind') or '').strip().lower() or None
@@ -130,6 +134,9 @@ def _where(payload):
     elif kind == 'building':
         where.append(f"coalesce(usage_name, '') !~ %(landpat)s")
         params['landpat'] = LAND_PATTERN
+    if deal_type in ('whole', 'unit', 'land'):
+        where.append('deal_type = %(dealtype)s')
+        params['dealtype'] = deal_type
     if q:
         where.append("(coalesce(full_address, '') ILIKE %(q)s OR coalesce(case_no, '') ILIKE %(q)s "
                      "OR coalesce(usage_name, '') ILIKE %(q)s OR coalesce(dong, '') ILIKE %(q)s)")
