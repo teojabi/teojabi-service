@@ -26,7 +26,7 @@ export const AUCTION_SORT_OPTIONS = Object.freeze([
 ]);
 
 const CHIPS = [['listingSource', '구분'], ['districts', '지역'], ['usage', '용도'], ['dealType', '거래 단위'], ['maxPrice', '최저매각가'], ['maxBidRate', '최저가율'], ['failMax', '유찰'], ['sort', '정렬']];
-const DEAL_LABEL = { whole: '건물 통', unit: '호실', land: '토지' };
+const DEAL_LABEL = { whole: '건물 통', floor: '층', unit: '호실', land: '토지' };
 const LISTING_LABEL = { court: '경매', onbid: '공매' };
 const emptyDraft = () => ({ listingSource: 'court', gu: [], usage: '', dealType: '', sort: 'sale', maxPrice: '', maxBidRate: '', failMax: '' });
 
@@ -73,7 +73,7 @@ export function mountAuctionFilters(root, { getValue, onChange } = {}) {
     if (key === 'listingSource') html = `<p class="quick-help">법원경매와 온비드 공매를 구분해 볼 수 있어요.</p><div class="quick-choice-grid">${choice('listingSource', 'court', '경매(법원)')}${choice('listingSource', 'onbid', '공매(온비드)')}</div>`;
     if (key === 'districts') html = `<p class="quick-help">여러 지역을 함께 선택할 수 있어요.</p><div class="quick-choice-grid quick-districts">${choice('districts', '', '서울 전체')}${DISTRICTS.map(d => choice('districts', d, d)).join('')}</div>`;
     if (key === 'usage') html = `<div class="quick-choice-grid quick-purposes">${AUCTION_USAGE_OPTIONS.map(([value, label]) => choice('usage', value, label)).join('')}</div>`;
-    if (key === 'dealType') html = `<p class="quick-help">건물 전체가 나온 물건과 호실 단위 물건을 구분해 볼 수 있어요.</p><div class="quick-choice-grid">${choice('dealType', '', '전체')}${choice('dealType', 'whole', '건물 통')}${choice('dealType', 'unit', '호실')}${choice('dealType', 'land', '토지')}</div>`;
+    if (key === 'dealType') html = `<p class="quick-help">건물 전체와 부분(층·호실)을 구분해 볼 수 있어요.</p><div class="quick-choice-grid">${choice('dealType', '', '전체')}${choice('dealType', 'whole', '건물 통')}${choice('dealType', 'floor', '층')}${choice('dealType', 'unit', '호실')}${choice('dealType', 'land', '토지')}</div>`;
     if (key === 'maxPrice') html = `<p class="quick-help">최저매각가 기준이에요.</p><label class="quick-number-label" for="auction-max-price">최저매각가 직접 입력 <span>억원 이하</span></label><input id="auction-max-price" class="quick-number" inputmode="decimal" autocomplete="off" placeholder="예: 10" value="${esc(draft.maxPrice || '')}">`;
     if (key === 'maxBidRate') html = `<p class="quick-help">감정가 대비 최저매각가 비율이에요. 낮을수록 낮은 가격에 나온 물건이에요.</p><label class="quick-number-label" for="auction-max-rate">최저가율 직접 입력 <span>% 이하</span></label><input id="auction-max-rate" class="quick-number" inputmode="decimal" autocomplete="off" placeholder="예: 70" value="${esc(draft.maxBidRate || '')}">`;
     if (key === 'failMax') html = `<div class="quick-choice-grid">${[0, 1, 2, 3, 4, 5].map(n => choice('failMax', String(n), `${n}회 이하`)).join('')}${choice('failMax', '', '제한 없음')}</div>`;

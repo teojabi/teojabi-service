@@ -52,7 +52,7 @@ const detailFactItems=row=>{
 };
 // 경매 물건(auction_item)을 건물찾기 카드·지도·상세가 쓰는 매물 모양으로 맞춘다.
 const AUCTION_LAND_RE=/토지|대지|임야|전답|잡종지|과수원|답|전/;
-const AUCTION_DEAL_LABEL={whole:'건물 통',unit:'호실',land:'토지',vehicle:'차량'};
+const AUCTION_DEAL_LABEL={whole:'건물 통',floor:'층',unit:'호실',land:'토지',vehicle:'차량'};
 // 법원 소재지를 대지위치(지번)와 상세주소(건물·호)로 나눈다.
 const splitAuctionAddress=row=>{
   const full=String(row.full_address||'').trim(),lot=String(row.lot_no||'').trim();

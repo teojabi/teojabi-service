@@ -73,7 +73,7 @@ function applyFilters(query: any, params: URLSearchParams) {
   if (usages.length) q = q.or(usages.map((u) => `usage_name.ilike.%${u}%`).join(","));
   if (kind === "land") q = q.eq("deal_type", "land");
   else if (kind === "building") q = q.in("deal_type", ["unit", "whole"]);
-  if (["whole", "unit", "land"].includes(dealType)) q = q.eq("deal_type", dealType);
+  if (["whole", "floor", "unit", "land"].includes(dealType)) q = q.eq("deal_type", dealType);
   if (keyword) q = q.or(`full_address.ilike.%${keyword}%,case_no.ilike.%${keyword}%,usage_name.ilike.%${keyword}%,dong.ilike.%${keyword}%`);
   if (minPrice != null) q = q.gte("min_price", minPrice);
   if (maxPrice != null) q = q.lte("min_price", maxPrice);
