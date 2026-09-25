@@ -134,7 +134,7 @@ def _where(payload):
     elif kind == 'building':
         where.append(f"coalesce(usage_name, '') !~ %(landpat)s")
         params['landpat'] = LAND_PATTERN
-    if deal_type in ('whole', 'unit', 'land'):
+    if deal_type in ('whole', 'floor', 'unit', 'land'):
         where.append('deal_type = %(dealtype)s')
         params['dealtype'] = deal_type
     if q:
