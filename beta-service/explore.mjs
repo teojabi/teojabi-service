@@ -87,7 +87,7 @@ const onbidToListing=row=>{
   const usage=String(row.usg_mcls_nm||row.usg_lcls_nm||'');
   const land=/토지|대지|임야|전답|잡종지|과수원|답/.test(usage);
   const id=`onbid:${row.cltr_mng_no}::${row.pbct_cdtn_no}`;
-  return {id,source:'onbid',sourceId:String(row.cltr_mng_no),cohort:'onbid',dealType:land?'land':null,
+  return {id,source:'onbid',sourceId:String(row.cltr_mng_no),cohort:'onbid',dealType:row.deal_type||(land?'land':null),
     district:row.sigu||'',neighborhood:row.dong||'',address:row.full_address||'',detailAddress:'',
     pnu:/^11\d{17}$/.test(String(row.pnu||''))?row.pnu:null,
     position:Number.isFinite(row.lat)&&Number.isFinite(row.lng)?{lat:Number(row.lat),lng:Number(row.lng)}:null,
@@ -382,8 +382,8 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
       if(auctionFilters.sort)params.set('sort',auctionFilters.sort);
       else params.set('sort',isOnbid?'bid':'sale');
       if(auctionFilters.maxPrice)params.set('maxPrice',String(Number(auctionFilters.maxPrice)*1e8));
+      if(auctionFilters.dealType)params.set('dealType',auctionFilters.dealType);
       if(!isOnbid){
-        if(auctionFilters.dealType)params.set('dealType',auctionFilters.dealType);
         if(auctionFilters.kind)params.set('kind',auctionFilters.kind);
         if(auctionFilters.maxBidRate)params.set('maxBidRate',String(Number(auctionFilters.maxBidRate)));
         if(auctionFilters.failMax)params.set('maxFail',auctionFilters.failMax);
