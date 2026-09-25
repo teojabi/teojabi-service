@@ -66,6 +66,17 @@ describe('additional member storage',()=>{
     const invalid=validateItem('condition','a',{auction:{enabled:true,source:'hacked',dealType:'penthouse'}});
     expect(invalid.auction).toEqual({enabled:true,usages:[]});
   });
+  it('persists build and register zone flags in saved conditions',()=>{
+    const saved=validateItem('condition','a',{purpose:'new-build',buildUse:'hotel',minRoadWidthM:6,preferTourism:true,excludeEducation:true,excludeHeritage:false});
+    expect(saved.buildUse).toBe('hotel');
+    expect(saved.minRoadWidthM).toBe(6);
+    expect(saved.preferTourism).toBe(true);
+    expect(saved.excludeEducation).toBe(true);
+    expect(saved.excludeHeritage).toBe(false);
+    const bad=validateItem('condition','a',{buildUse:'mansion',minRoadWidthM:5});
+    expect(bad.buildUse).toBeNull();
+    expect(bad.minRoadWidthM).toBeNull();
+  });
   it('validates saved parcel areas',()=>{
     expect(()=>validateItem('analysis','a',{pnus:['1144012100101610009'],fields:{landArea:199,bcr:101}})).toThrow();
     expect(()=>validateItem('analysis','a',{pnus:['invalid','1144012100101610009'],fields:{landArea:199}})).toThrow();

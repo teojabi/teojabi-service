@@ -8,6 +8,8 @@ const optionalNumber=(v:unknown,max=1e15)=>{
 };
 const AUCTION_SOURCES=['court','onbid','both'];
 const AUCTION_DEAL_TYPES=['whole','floor','unit','land'];
+const BUILD_USES=['hotel','office','retail','residential','mixed','other'];
+const ROAD_WIDTHS=[4,6,8,12,20];
 const AUCTION_USAGES=['상가','근린시설','근린생활시설','오피스텔','업무','업무시설','단독주택','주택','도시형생활주택','다가구','다세대','연립주택','빌라','대지','임야','토지'];
 // 저장 조건의 경매·공매 필터(알림 대상 계산에 쓴다). 화이트리스트만 남긴다.
 const conditionAuction=(input:any)=>{
@@ -45,7 +47,12 @@ export function validateItem(kind:string,key:string,input:any) {
       neighborhoods:Array.isArray(input.neighborhoods)?[...new Set(input.neighborhoods.filter((n:any)=>typeof n==='string'&&n.length<=12))].slice(0,10):[],
       purpose:['new-build','renovate','invest','own-use'].includes(input.purpose)?input.purpose:null,minAreaM2:min,maxAreaM2:max,
       zones:Array.isArray(input.zones)?[...new Set(input.zones.filter((z:any)=>zones.includes(z)))]:[],query:clean(input.query,100),sort:input.sort==='area'?'area':'price',
-      auction:conditionAuction(input.auction)};
+      auction:conditionAuction(input.auction),
+      buildUse:BUILD_USES.includes(input.buildUse)?input.buildUse:null,
+      minRoadWidthM:ROAD_WIDTHS.includes(Number(input.minRoadWidthM))?Number(input.minRoadWidthM):null,
+      preferTourism:input.preferTourism===true,
+      excludeEducation:input.excludeEducation===true,
+      excludeHeritage:input.excludeHeritage===true};
   }
   if(!Array.isArray(input.pnus)||input.pnus.some((p:any)=>typeof p!=='string'||!/^11\d{17}$/.test(p)))throw new BadRequestException('Invalid parcels');
   const pnus=[...new Set(input.pnus)];
