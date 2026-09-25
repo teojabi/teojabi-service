@@ -67,7 +67,7 @@ const auctionToListing=row=>{
   const broad=/주거/.test(zone)?'주거지역':/상업/.test(zone)?'상업지역':/공업/.test(zone)?'공업지역':/녹지/.test(zone)?'녹지지역':null;
   const id=`auction:${row.docid}`,addr=splitAuctionAddress(row);
   const dealType=row.deal_type||(AUCTION_LAND_RE.test(usage)?'land':(/\d+\s*호/.test(String(row.full_address||'')+String(row.building_list||''))?'unit':'whole'));
-  return {id,source:'auction',sourceId:String(row.docid),cohort:'auction',dealType,
+  return {id,source:'auction',sourceId:String(row.docid),cohort:'auction',dealType,verifyStatus:row.verify_status||null,verify:row.verify_data||null,
     district:row.sigu||'',neighborhood:row.dong||'',address:addr.land,detailAddress:addr.detail,
     pnu:/^\d{19}$/.test(String(row.pnu||''))?row.pnu:null,position,
     priceWon:row.min_price==null?null:Number(row.min_price),areaM2:row.area_max==null?null:Number(row.area_max),
@@ -411,6 +411,13 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     const row=detail.listing,a=row.auction||{},d=detail.auctionDetail||{};
     const stats=Array.isArray(d.around_stats)?d.around_stats[0]:null;
     const sourceUrl=esc(a.sourceUrl||'https://www.courtauction.go.kr/');
+    const v=row.verify||null,wb=(row.dealType==='whole'&&v)?v.building:null,wl=v&&v.land||null;
+    const fa=n=>n==null?'—':`${Number(n).toLocaleString('ko-KR',{maximumFractionDigits:2})}㎡`;
+    let verifySection='';
+    if(row.dealType==='whole'&&row.verifyStatus){
+      const judge=row.verifyStatus==='matched'?'<b style="color:var(--green)">건축물대장 연면적과 일치</b>':row.verifyStatus==='mismatch'?`<b style="color:#b45309">건축물대장과 차이 ${fa(v&&v.floorAreaDiff)}</b>`:row.verifyStatus==='reference'?'<b>대장은 확인되나 경매 연면적을 계산하지 못했어요</b>':'<b>대장을 찾지 못했어요</b>';
+      verifySection=`<section class="detail-section" id="property-verify"><h3>검증 <small>통 건물 · 보유 공공자료 대조</small></h3><p class="case-note">법원 공시가 아니라 터잡이 보유 공공자료와 대조한 결과예요. 기준일이 달라 다를 수 있어요.</p><dl class="auction-facts">${v&&v.auctionFloorArea!=null?`<dt>경매 연면적(층별 합)</dt><dd>${fa(v.auctionFloorArea)}</dd>`:''}${wb?`<dt>건축물대장 연면적</dt><dd>${fa(wb.floorArea)}</dd><dt>건축물대장 주용도</dt><dd>${esc(wb.mainUse||'—')}</dd><dt>지상·지하 층수</dt><dd>${wb.aboveFloors!=null?esc(wb.aboveFloors)+'층':'-'}${wb.belowFloors?` / 지하 ${esc(wb.belowFloors)}층`:''}</dd>${wb.approvalDate?`<dt>사용승인일</dt><dd>${esc(wb.approvalDate)}</dd>`:''}${wb.structure?`<dt>구조</dt><dd>${esc(wb.structure)}</dd>`:''}`:''}${wl?`<dt>대지면적(토지대장)</dt><dd>${fa(wl.area)}</dd>${wl.category?`<dt>지목</dt><dd>${esc(wl.category)}</dd>`:''}`:''}</dl><p class="case-note">검증 결과: ${judge}</p></section>`;
+    }
     $('#listing-detail').innerHTML=`<div class="detail-top"><button type="button" class="detail-back" data-explore="back-list">← 매물 목록</button><button class="detail-close" data-explore="close" aria-label="경매 상세 닫기">×</button></div>
       <div class="detail-content"><p class="detail-location">${esc(rowTitle(row))}<em class="pick-badge detail-pick-badge auction-badge">경매</em></p><h2 tabindex="-1" id="detail-title">${money(a.minPrice)}</h2>
       <p class="detail-listing-number">사건번호 ${esc(a.caseNo||'')} · ${esc(a.courtName||'')} ${esc(a.deptName||'')}</p>
@@ -435,6 +442,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
         ${d.legal_superficies?`<dt>법정지상권</dt><dd>${esc(d.legal_superficies)}</dd>`:''}
         ${stats?`<dt>주변 12개월</dt><dd>낙찰가율 ${esc(stats.term12MgakPrcRate ?? '—')}% · 평균유찰 ${esc(stats.term12AvgFlbdNcnt ?? '—')}회</dd>`:''}
       </dl><p class="case-note chk">※ 권리분석·적정 입찰가는 제공하지 않아요. 인수권리·점유 등은 법원 원문을 확인하세요.</p><p class="case-note">경매 공시 사실정보예요. 자세한 조건은 법원경매정보 원문에서 확인해 주세요.</p><div class="detail-links"><a class="outline" href="${sourceUrl}" target="_blank" rel="noopener noreferrer">법원경매정보에서 보기 ↗</a></div></section>
+      ${verifySection}
       <section class="detail-section" id="property-parcel"><h3>필지 위치</h3><p><span class="parcel-label">대지위치</span> ${esc(row.address||rowTitle(row))}</p>${row.detailAddress?`<p><span class="parcel-label">상세주소</span> ${esc(row.detailAddress)}</p>`:''}</section>
       <section class="detail-section" id="property-holdings"><h3>보유 공공자료 <small>터잡이 DB · 법원 공시와 다름</small></h3><p class="case-note">법원 공시가 아니라 터잡이가 보유한 공공데이터예요. 기준일이 달라 경매 공시와 다를 수 있어요.</p><dl class="auction-facts"><dt>용도지역</dt><dd>${row.zoning?.status==='matched'&&Array.isArray(row.zoning.entries)&&row.zoning.entries.length?row.zoning.entries.map(e=>esc(e.name)).join('<br>'):'확인 필요'}</dd><dt>도로폭</dt><dd>${a.roadWidthM!=null?esc(a.roadWidthM)+'m':'확인 필요'}</dd></dl></section>
       <section class="detail-section nearby-section" id="property-transactions"><details id="nearby-details" class="nearby-details"><summary class="nearby-summary"><span class="nearby-summary-title">주변 실거래</span><span class="nearby-summary-count" id="nearby-count"></span></summary><div class="nearby-body"><div class="nearby-heading"><button class="outline" data-explore="transactions" aria-pressed="true" disabled>지도 표시</button></div>${areaUnitControls()}<div id="nearby-cases" aria-live="polite"><p class="case-note">가까운 토지·건물 거래를 찾고 있어요.</p></div></div></details></section>
