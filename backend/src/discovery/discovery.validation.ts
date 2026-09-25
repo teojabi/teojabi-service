@@ -6,6 +6,20 @@ const optionalNumber=(v:unknown,max=1e15)=>{
   if(v===null||v===undefined||v==='')return null;
   const n=positive(v,max);if(n===null)throw new BadRequestException('Invalid number');return n;
 };
+const AUCTION_SOURCES=['court','onbid','both'];
+const AUCTION_DEAL_TYPES=['whole','floor','unit','land'];
+const AUCTION_USAGES=['상가','근린시설','근린생활시설','오피스텔','업무','업무시설','단독주택','주택','도시형생활주택','다가구','다세대','연립주택','빌라','대지','임야','토지'];
+// 저장 조건의 경매·공매 필터(알림 대상 계산에 쓴다). 화이트리스트만 남긴다.
+const conditionAuction=(input:any)=>{
+  if(!input||typeof input!=='object'||Array.isArray(input)||input.enabled!==true)return null;
+  const usages=Array.isArray(input.usages)?[...new Set(input.usages.filter((u:any)=>typeof u==='string'&&AUCTION_USAGES.includes(u)))].slice(0,6):[];
+  const auction:any={enabled:true,usages};
+  if(AUCTION_SOURCES.includes(input.source))auction.source=input.source;
+  if(AUCTION_DEAL_TYPES.includes(input.dealType))auction.dealType=input.dealType;
+  const price=positive(input.maxPriceWon);if(price)auction.maxPriceWon=price;
+  const rate=positive(input.maxBidRate,100);if(rate)auction.maxBidRate=rate;
+  return auction;
+};
 const listingKey=/^(?:naver:\d{1,30}|naver-land:\d{1,30}|premium:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}|disco:[A-Za-z0-9]{4,24}|auction:[A-Za-z0-9]{4,40}|onbid:[A-Za-z0-9-]{4,30}(?:::[A-Za-z0-9-]{1,30})?)$/;
 export function validateItem(kind:string,key:string,input:any) {
   if(!KINDS.includes(kind)||!input||typeof input!=='object'||Array.isArray(input)||JSON.stringify(input).length>32768)throw new BadRequestException('Invalid saved item');
@@ -27,8 +41,10 @@ export function validateItem(kind:string,key:string,input:any) {
     if(input.districts!==undefined&&(!Array.isArray(input.districts)||input.districts.some((d:any)=>!districts.includes(d))))throw new BadRequestException('Invalid districts');
     if(input.zones!==undefined&&(!Array.isArray(input.zones)||input.zones.some((z:any)=>!zones.includes(z))))throw new BadRequestException('Invalid zones');
     return {name:clean(input.name,80),budgetWon:optionalNumber(input.budgetWon),bounds,districts:Array.isArray(input.districts)?[...new Set(input.districts)]:[],
+      neighborhoods:Array.isArray(input.neighborhoods)?[...new Set(input.neighborhoods.filter((n:any)=>typeof n==='string'&&n.length<=12))].slice(0,10):[],
       purpose:['new-build','renovate','invest','own-use'].includes(input.purpose)?input.purpose:null,minAreaM2:min,maxAreaM2:max,
-      zones:Array.isArray(input.zones)?[...new Set(input.zones.filter((z:any)=>zones.includes(z)))]:[],query:clean(input.query,100),sort:input.sort==='area'?'area':'price'};
+      zones:Array.isArray(input.zones)?[...new Set(input.zones.filter((z:any)=>zones.includes(z)))]:[],query:clean(input.query,100),sort:input.sort==='area'?'area':'price',
+      auction:conditionAuction(input.auction)};
   }
   if(!Array.isArray(input.pnus)||input.pnus.some((p:any)=>typeof p!=='string'||!/^11\d{17}$/.test(p)))throw new BadRequestException('Invalid parcels');
   const pnus=[...new Set(input.pnus)];
