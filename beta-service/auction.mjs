@@ -126,7 +126,7 @@ async function openDetail(docid) {
         ${stats?`<dt>주변 12개월</dt><dd>낙찰가율 ${esc(stats.term12MgakPrcRate ?? '—')}% · 평균유찰 ${esc(stats.term12AvgFlbdNcnt ?? '—')}회</dd>`:''}
       </dl>
       <p class="chk">※ 권리분석·적정 입찰가는 제공하지 않아요. 인수권리·점유 등은 법원 원문(매각물건명세서·현황조사서)을 확인하세요.</p>
-      <p><a href="https://www.courtauction.go.kr/" target="_blank" rel="noopener">법원경매정보에서 원문 확인 ↗</a></p>`;
+      <p><a href="https://www.courtauction.go.kr/pgj/index.on?w2xPath=/pgj/ui/pgj100/PGJ159M00.xml&pgjId=159M00" target="_blank" rel="noopener">법원경매정보에서 사건 검색 ↗</a><br><small>사건번호 ${esc(it.case_no||'')}를 검색창에 입력해 원문을 확인하세요.</small></p>`;
   } catch {
     detailEl.innerHTML = '<p style="opacity:.7">상세를 불러오지 못했어요.</p>';
   }
