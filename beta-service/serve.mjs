@@ -387,23 +387,8 @@ createServer(async (request, response) => {
         }
         return;
       }
-      const spatialKeys = ['preferTourism', 'excludeEducation', 'excludeHeritage'];
-      const hasSpatial = parsed.filters && spatialKeys.some(key => parsed.filters[key]);
-      // 구역 조건은 실시간 공간 질의가 무거워, 나머지 조건으로 찾고 안내를 덧붙인다.
-      // 구역 조건만 있으면 검색 없이 설정 위치를 안내한다.
-      let spatialNote = null;
-      if (hasSpatial) {
-        const stripped = { ...parsed.filters };
-        for (const key of spatialKeys) delete stripped[key];
-        if (!hasMeaningfulFilters(stripped)) {
-          send(response,request,{status:'ready',
-            reply:'관광숙박특화구역·교육보호구역·문화재보존구역 조건은 메인 화면의 "건물 찾기 > 신축 검토"에서 설정하면 결과를 볼 수 있어요. 여기서는 지역·예산·면적·용도지역·역거리·도로폭으로 찾아드릴게요.',
-            filters:stripped,chips:[],total:0,groups:[],originTotals:{premium:0,registered:0,disco:0,naver:0},station:null,districts:[],suggestions:[],relaxations:[],unsupported:null,searchedAt:null});
-          return;
-        }
-        parsed.filters = stripped;
-        spatialNote = '관광숙박특화구역·교육보호구역·문화재보존구역 조건은 메인 화면의 "건물 찾기 > 신축 검토"에서 확인할 수 있어요. 여기서는 구역 조건을 빼고 찾았어요.';
-      }
+      // 저장·말한 구역 조건(관광숙박특화구역 우선, 교육보호구역·문화재보존구역 제외)은
+      // assistant.py가 그대로 판정하므로 걷어내지 않고 함께 넘긴다.
       let search;
       try { search=await runAssistant(root,parsed.filters); }
       catch {
@@ -420,7 +405,6 @@ createServer(async (request, response) => {
       }
       const result=buildResult(parsed.filters,search,parsed.unsupported);
       if(parsed.source==='spoken'&&parsed.conflicts?.length)result.conditionNote='저장하신 조건과 다른 부분이 있어 말씀하신 조건으로 찾았어요.';
-      if(spatialNote) result.conditionNote = result.conditionNote ? result.conditionNote + ' ' + spatialNote : spatialNote;
       send(response,request,result);
     } catch {send(response,request,{status:'error'},503);}
     return;

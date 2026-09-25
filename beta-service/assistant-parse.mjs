@@ -553,8 +553,7 @@ export async function parseAssistant(message, condition, geminiKey, editedFilter
     return { filters, unsupported: null, source: 'edited' };
   }
   const saved = sanitize(condition || {});
-  // 저장 조건의 신축 구역 플래그는 비서 검색에서 다루지 않으므로 제외한다(메인 '신축 검토'에서 처리).
-  for (const key of SPATIAL_KEYS) delete saved[key];
+  // 저장 조건의 구역 플래그(관광숙박특화구역 우선·교육/문화재구역 제외)도 비서 검색에 반영한다.
   const spoken = ruleFilters(message);
   let merged = mergeFilters(spoken, saved);
   let unsupported = null;
