@@ -75,10 +75,68 @@ const previewItems=[
   {kind:'feedback',key:'naver:2646055258',payload:{id:'naver:2646055258',choice:'hide',reasons:['가격','개발가능성']},updatedAt:new Date(Date.now()-3600000).toISOString()}
 ];
 export function previewMember(){
-  member.base='preview';member.status='ready';member.user={id:'preview',name:'미리보기 회원'};member.items=previewItems.map(item=>({...item,payload:{...item.payload}}));member.emit();openMember();
+  member.base='preview';member.status='ready';member.user={id:'preview',name:'미리보기 회원'};member.items=previewItems.map(item=>({...item,payload:{...item.payload}}));
+  memberAlerts=[{kindLabel:'경매 D-3',title:'서울 마포구 성산동 상가',detail:'근린생활시설 · 최저 3억원 · 매각기일 (예시)',key:''},{kindLabel:'공매 D-5',title:'서울 강서구 화곡동 근린시설',detail:'상가용및업무용건물 · 최저입찰 2.1억원 · 입찰마감 (예시)',key:''}];
+  member.emit();openMember();
 }
 let closeCurrent;
 const labels={favorite:'찜한 매물',condition:'관심 조건',analysis:'내 땅 검토',feedback:'매물 의견'};
+const SOURCE_LABEL={premium:'터잡이 추천',registered:'터잡이 등록',disco:'디스코 매물',naver:'네이버 매물','naver-land':'네이버 매물',auction:'경매 물건',onbid:'공매 물건'};
+const DEAL_LABEL={whole:'건물 통',floor:'층',unit:'호실',land:'토지',vehicle:'차량'};
+const feedbackLabel={like:'좋아요',dislike:'아쉬워요',hide:'목록에서 숨김'};
+const moneyText=v=>Number(v)>0?`${(Number(v)/1e8).toLocaleString('ko-KR',{maximumFractionDigits:2})}억원`:'가격 미기재';
+const m2Text=v=>Number(v)>0?`${Number(v).toLocaleString('ko-KR',{maximumFractionDigits:1})}㎡`:'—';
+const sourceOf=key=>String(key||'').split(':')[0];
+// 알림함 데이터. 백엔드/로컬에서 채워지면 보관함 상단에 임박 알림으로 표시된다.
+let memberAlerts=[];
+const buildAlerts=()=>memberAlerts;
+const conditionRows=p=>{
+  const rows=[];
+  if(p.districts?.length)rows.push(['지역',p.districts.join(' · ')]);
+  if(p.neighborhoods?.length)rows.push(['동',p.neighborhoods.join(' · ')]);
+  rows.push(['예산',p.budgetWon?`${(p.budgetWon/1e8).toLocaleString('ko-KR')}억원 이하`:'제한 없음']);
+  if(p.kind)rows.push(['유형',p.kind==='land'?'토지':'건물']);
+  if(p.zones?.length)rows.push(['용도지역',p.zones.join(' · ')]);
+  const minA=p.minAreaM2!=null?`${Math.round(p.minAreaM2)}㎡ 이상`:'',maxA=p.maxAreaM2!=null?`${Math.round(p.maxAreaM2)}㎡ 이하`:'';
+  if(minA||maxA)rows.push(['대지면적',[minA,maxA].filter(Boolean).join(' · ')]);
+  if(p.minRoadWidthM)rows.push(['도로폭',`${p.minRoadWidthM}m 이상`]);
+  if(p.stationName)rows.push(['역',`${p.stationName}역${p.maxDistanceM?` ${p.maxDistanceM}m 이내`:''}`]);
+  if(p.purpose==='new-build')rows.push(['목적','신축 검토']);
+  if(p.commercialName)rows.push(['상권',`${p.commercialName} 인근`]);
+  if(p.auction?.enabled){
+    const a=p.auction;
+    rows.push(['경매·공매',`${a.source==='onbid'?'공매(온비드)':a.source==='both'?'경매+공매':'경매(법원)'}${a.dealType?` · ${DEAL_LABEL[a.dealType]||a.dealType}`:''}`]);
+    if(a.usages?.length)rows.push(['용도',a.usages.join(' · ')]);
+    if(a.maxPriceWon)rows.push(['최저가',`${(a.maxPriceWon/1e8).toLocaleString('ko-KR')}억원 이하`]);
+    if(a.maxBidRate)rows.push(['최저가율',`${a.maxBidRate}% 이하`]);
+  }
+  if(p.query)rows.push(['검색어',p.query]);
+  if(p.sort)rows.push(['정렬',p.sort==='area'?'면적순':'가격순']);
+  return rows;
+};
+const memberDetail=item=>{
+  const p=item.payload||{};
+  let rows=[];
+  if(item.kind==='favorite'){
+    rows=[['구분',SOURCE_LABEL[sourceOf(item.key)]||'매물']];
+    if(p.address)rows.push(['주소',p.address]);
+    rows.push(['가격',moneyText(p.priceWon)]);
+    if(p.areaM2)rows.push(['대지',m2Text(p.areaM2)]);
+    if(p.floorAreaM2)rows.push(['연면적',m2Text(p.floorAreaM2)]);
+    if(p.teojabiNo)rows.push(['매물번호',String(p.teojabiNo)]);
+  } else if(item.kind==='condition'){
+    rows=conditionRows(p);
+  } else if(item.kind==='analysis'){
+    rows=[['필지',`${p.pnus?.length||0}개`],['대지면적',p.fields?.landArea?`${p.fields.landArea}㎡`:'미입력']];
+    if(p.fields?.far)rows.push(['용적률',`${p.fields.far}%`]);
+    if(p.fields?.bcr)rows.push(['건폐율',`${p.fields.bcr}%`]);
+    if(p.fields?.height)rows.push(['높이',`${p.fields.height}m`]);
+    rows.push(['메모',p.memo||'—']);
+  } else {
+    rows=[['주소',p.address||'—'],['의견',feedbackLabel[p.choice]||'—'],['이유',p.reasons?.join(' · ')||'—']];
+  }
+  return rows.length?`<dl class="member-item-facts">${rows.map(([k,v])=>`<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl>`:'';
+};
 export function openMember(mode='member'){
   closeCurrent?.();const before=document.activeElement,dialog=document.createElement('dialog');dialog.className='member-dialog';dialog.setAttribute('aria-labelledby','member-title');
   let filter='favorite';
@@ -86,10 +144,11 @@ export function openMember(mode='member'){
     const status=member.status;
     const architectLink=/architect\.html$/.test(location.pathname)?'':'<p class="member-architect-link">건축사이신가요? <a href="./architect.html">건축사 입점 신청 ↗</a></p>';
     const available=status==='ready'||status==='guest';
-    dialog.innerHTML=`<div class="modal-heading"><div><span class="eyebrow">MY TEOJABI</span><h2 id="member-title">${available?'내 보관함':'로그인·회원가입'}</h2></div><button class="outline" data-member="close" aria-label="창 닫기">×</button></div>${architectLink}${available?`<p class="case-note">${status==='ready'?`${esc(member.user.name||'회원')}님의 계정에 저장한 내용이에요.`:'이 브라우저에 임시 저장한 찜 목록이에요. 로그인하면 계정으로 옮겨집니다.'}</p><div class="member-tabs">${Object.entries(labels).filter(([k])=>status==='ready'||k==='favorite').map(([k,v])=>`<button class="outline" data-member="tab" data-kind="${k}" aria-pressed="${filter===k}">${v} ${member.items.filter(i=>i.kind===k).length}</button>`).join('')}</div>${filter==='favorite'&&member.items.some(i=>i.kind==='favorite')?`<div class="member-favorites-actions"><button class="primary" data-member="open-favorites">찜한 매물 전체 보기 ${member.items.filter(i=>i.kind==='favorite').length}</button></div>`:''}<div class="member-items">${member.items.filter(i=>i.kind===filter).map(i=>{
+    const alerts=buildAlerts();
+    dialog.innerHTML=`<div class="modal-heading"><div><span class="eyebrow">MY TEOJABI</span><h2 id="member-title">${available?'내 보관함':'로그인·회원가입'}</h2></div><button class="outline" data-member="close" aria-label="창 닫기">×</button></div>${architectLink}${available?`<p class="case-note">${status==='ready'?`${esc(member.user.name||'회원')}님의 계정에 저장한 내용이에요.`:'이 브라우저에 임시 저장한 찜 목록이에요. 로그인하면 계정으로 옮겨집니다.'}</p><div class="member-tabs">${Object.entries(labels).filter(([k])=>status==='ready'||k==='favorite').map(([k,v])=>`<button class="outline" data-member="tab" data-kind="${k}" aria-pressed="${filter===k}">${v} ${member.items.filter(i=>i.kind===k).length}</button>`).join('')}</div>${filter==='favorite'&&member.items.some(i=>i.kind==='favorite')?`<div class="member-favorites-actions"><button class="primary" data-member="open-favorites">찜한 매물 전체 보기 ${member.items.filter(i=>i.kind==='favorite').length}</button></div>`:''}${alerts.length?`<section class="member-alerts" aria-label="임박 알림"><h3 class="member-section-title">임박 알림 <small>찜·조건 기준 · 사실 안내</small></h3>${alerts.map(a=>`<article class="member-alert"><div><p class="member-alert-kind">${esc(a.kindLabel)}</p><h4>${esc(a.title)}</h4><p>${esc(a.detail)}</p></div><div>${a.key?`<button class="outline" data-member="open" data-key="${esc(a.key)}">다시 보기</button>`:''}</div></article>`).join('')}</section>`:''}<div class="member-items">${member.items.filter(i=>i.kind===filter).map(i=>{
       const p=i.payload,title=p.name||p.address||(p.teojabiNo?`매물번호 ${p.teojabiNo}`:i.kind==='feedback'?'저장한 매물 의견':i.key);
-      const description=i.kind==='favorite'?`${p.priceWon?Number(p.priceWon/1e8).toLocaleString('ko-KR')+'억원':'가격 미기재'} · 저장 시점 정보`:i.kind==='condition'?`${p.budgetWon?Number(p.budgetWon/1e8).toLocaleString('ko-KR')+'억원 이하':'예산 제한 없음'} · ${p.districts?.join(' · ')||'서울 전체'}${p.auction?.enabled?' · 경매 포함':''}`:i.kind==='analysis'?`선택 ${p.pnus?.length||0}개 필지 · 대지 ${p.fields?.landArea||'미입력'}㎡`:({like:'좋아요',dislike:'아쉬워요',hide:'숨김'}[p.choice]||'')+' · '+(p.reasons?.join(', ')||'이유 미선택');
-      return `<article><div><h3>${esc(title)}</h3><p>${esc(description)}</p><small>${new Date(i.updatedAt).toLocaleDateString('ko-KR')} 저장</small></div><div>${i.kind!=='feedback'?`<button class="outline" data-member="open" data-key="${esc(i.key)}">다시 보기</button>`:''}<button class="outline" data-member="remove" data-key="${esc(i.key)}">${i.kind==='feedback'?'의견 되돌리기':'저장 해제'}</button></div></article>`;
+      const detail=memberDetail(i);
+      return `<article class="member-item"><div class="member-item-head"><h3>${esc(title)}</h3><small>${new Date(i.updatedAt).toLocaleDateString('ko-KR')} 저장</small></div>${detail}${i.kind!=='feedback'?`<div class="member-item-actions"><button class="outline" data-member="open" data-key="${esc(i.key)}">다시 보기</button><button class="outline" data-member="remove" data-key="${esc(i.key)}">저장 해제</button></div>`:`<div class="member-item-actions"><button class="outline" data-member="remove" data-key="${esc(i.key)}">의견 되돌리기</button></div>`}</article>`;
     }).join('')||'<div class="empty"><p>아직 저장한 내용이 없어요.</p><small>매물이나 검토 화면에서 저장해 보세요.</small></div>'}</div>${status==='guest'?`<div class="member-guest-login"><p>로그인하면 찜 목록을 계정에 저장하고 다른 기기에서도 볼 수 있어요.</p>${loginChoices()}</div>`:''}`:`<div class="member-empty"><h3>${status==='loading'?'회원 연결을 확인하고 있어요.':status==='signed-out'?'로그인하거나 간편가입해 주세요.':'로그인·회원가입이 필요해요.'}</h3><p>${status==='pending'?'현재 미리보기에서는 회원 API 주소가 아직 연결되지 않았어요. 운영 사이트 로그인 페이지로 이동할 수 있어요.':status==='error'?'회원 서버에 연결하지 못했어요. 잠시 후 다시 확인해 주세요.':'가입된 계정이면 바로 로그인되고, 처음이라면 필수 약관 동의 후 간편가입으로 이어져요.'}</p>${status==='pending'?`<div class="login-provider-grid"><button class="primary" data-member="preview" type="button">보관함 미리보기</button><a class="outline login-provider" href="https://teojabi.com/" target="_blank" rel="noopener noreferrer">운영 사이트에서 계속하기 ↗</a></div>`:loginChoices()}<p class="login-note">완료 후 돌아오면 내 보관함이 자동으로 연결돼요.</p></div>`}<div class="member-bottom"><span role="status" class="member-message"></span><div>${status==='ready'?'<button class="outline" data-member="logout">로그아웃</button>':''}<button class="outline" data-member="refresh" ${status==='loading'?'disabled':''}>연결 다시 확인</button></div></div>`;
   };
   const close=()=>{member.removeEventListener('change',render);dialog.remove();before?.focus();};closeCurrent=close;
@@ -102,10 +161,12 @@ export function openMember(mode='member'){
     if(b.dataset.member==='open-favorites'){dialog.close();window.dispatchEvent(new CustomEvent('teojabi-open-favorites'));return;}
     if(b.dataset.member==='logout'){b.disabled=true;try{if(await member.logout())dialog.close();}catch(error){dialog.querySelector('.member-message').textContent=error.message;b.disabled=false;}return;}
     if(b.dataset.member==='tab'){filter=b.dataset.kind;render();return;}
-    const item=member.get(filter,b.dataset.key);if(!item)return;
+    const item=member.items.find(i=>i.key===b.dataset.key)||member.get(filter,b.dataset.key);if(!item)return;
     if(b.dataset.member==='open'){dialog.close();window.dispatchEvent(new CustomEvent('teojabi-open-saved',{detail:item}));}
-    if(b.dataset.member==='remove'){b.disabled=true;try{await member.remove(filter,item.key);}catch(error){dialog.querySelector('.member-message').textContent=error.message;b.disabled=false;}}
-  });render();document.body.append(dialog);dialog.showModal();if(member.status==='idle')member.refresh();return close;
+    if(b.dataset.member==='remove'){b.disabled=true;try{await member.remove(item.kind,item.key);}catch(error){dialog.querySelector('.member-message').textContent=error.message;b.disabled=false;}}
+  });render();document.body.append(dialog);dialog.showModal();
+  if(member.status==='ready'){member.request('/notifications').then(data=>{if(dialog.open&&Array.isArray(data?.items)){memberAlerts=data.items;render();}}).catch(()=>{});}
+  if(member.status==='idle')member.refresh();return close;
 }
 export async function saveNamed(kind,payload){
   if(member.status!=='ready'){openMember();return false;}
