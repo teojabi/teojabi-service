@@ -868,3 +868,20 @@ body.architect-lightbox-open{overflow:hidden}
 .map-first .auction-filters .quick-chip-label{display:inline}
 .auction-filter-note{font-size:11px;color:var(--muted);margin:10px 0 0;line-height:1.5}
 .parcel-label{display:inline-block;min-width:56px;color:var(--muted);font-size:12px}
+
+/* 경매·공매 조건 편집 (조건 바꾸기 화면) */
+.criteria-auction{border:0;border-top:1px solid var(--line);padding:22px 0 0;margin:28px 0 0;min-width:0}
+.criteria-auction legend{font-weight:600;font-size:16px;padding:0 12px 0 0}
+.criteria-auction legend small{font-size:11px;color:var(--muted);font-weight:400;margin-left:8px}
+.auction-toggle{display:inline-flex;align-items:center;gap:8px;margin:10px 0 2px;font-size:14px;cursor:pointer}
+.auction-condition-body{display:grid;gap:16px;margin-top:14px}
+.auction-row{display:grid;gap:7px}
+.auction-row-label{font-size:13px;color:var(--muted)}
+.auction-row-label small{font-weight:400;opacity:.85}
+.auction-pill-choices{grid-template-columns:repeat(auto-fit,minmax(104px,1fr));margin-top:0}
+.auction-pill-choices span{min-height:42px;font-size:13px}
+.auction-usage-choices{grid-template-columns:repeat(auto-fill,minmax(96px,1fr));margin-top:0}
+.auction-price-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.auction-price-row label{display:grid;gap:6px;font-size:12px;color:var(--muted);min-width:0}
+.auction-price-row input{width:100%;min-height:46px;border:1px solid var(--line);border-radius:9px;background:var(--card);color:var(--text);padding:10px 12px;font-size:14px;min-width:0}
+@media(max-width:700px){.auction-price-row{grid-template-columns:1fr}.auction-pill-choices,.auction-usage-choices{grid-template-columns:repeat(2,1fr)}}

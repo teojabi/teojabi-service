@@ -137,3 +137,6 @@ input,textarea,select{color:var(--text);background:var(--card)}button:focus-visi
 .member-pref-opts{display:flex;gap:6px}
 .member-pref-opts button{padding:7px 12px;font-size:13px}
 .member-pref-opts [aria-pressed=true]{color:var(--primary);background:var(--selected);border-color:var(--primary)}
+
+/* 모바일 입력 확대(줌) 방지: 포커스 시 자동 확대를 막으려면 입력 글자가 16px 이상이어야 한다. */
+@media(max-width:700px){input,select,textarea{font-size:16px!important}}
