@@ -10,10 +10,10 @@ import { criteriaFields, readCriteriaFields, areaHelp } from './criteria-ui.mjs'
 import {readRecentSearch,writeRecentSearch,readMemberSearch,writeMemberSearch} from './recent-search.mjs';
 import {BUILD_DEFAULTS,buildCriteriaFields,buildConditionLabels,validateBuildCriteria} from './build-criteria.mjs';
 const app = document.querySelector('#app');
-const emptyAuction=()=>({enabled:false,usages:[],maxPriceEok:'',maxBidRate:''});
+const emptyAuction=()=>({enabled:false,source:'court',dealType:'',failMax:'',usages:[],maxPriceEok:'',maxBidRate:''});
 const emptyDraft=()=>({budgetEok:'',districts:[],neighborhoods:[],purpose:null,minArea:'',maxArea:'',areaUnit:'pyeong',zones:[],auction:emptyAuction(),...BUILD_DEFAULTS});
 const state = { screen: 'home', siteDraft:null, draft: emptyDraft(), applied: readRecentSearch(), editing: false, pane: 'list', activity:null, activityError:false, search:null, neighborhoodsOpen:false };
-const appliedAuctionDraft=auction=>auction?{enabled:auction.enabled===true,usages:Array.isArray(auction.usages)?[...auction.usages]:[],maxPriceEok:auction.maxPriceWon?String(auction.maxPriceWon/1e8):'',maxBidRate:auction.maxBidRate??''}:emptyAuction();
+const appliedAuctionDraft=auction=>auction?{enabled:auction.enabled===true,source:auction.source||'court',dealType:auction.dealType||'',failMax:auction.failMax??'',usages:Array.isArray(auction.usages)?[...auction.usages]:[],maxPriceEok:auction.maxPriceWon?String(auction.maxPriceWon/1e8):'',maxBidRate:auction.maxBidRate??''}:emptyAuction();
 const appliedDraft=()=>state.applied?{...emptyDraft(),...state.applied,budgetEok:state.applied.budgetWon?String(state.applied.budgetWon/1e8):'',districts:[...state.applied.districts],zones:[...state.applied.zones],auction:appliedAuctionDraft(state.applied.auction)}:emptyDraft();
 let disposeExplorer;
 let renderVersion=0;
@@ -307,7 +307,7 @@ document.addEventListener('click', event => {
     if(!range.ok){app.querySelector('#criteria-error').textContent=range.message;app.querySelector('[name="maxArea"]').focus();return;}
     const draftAuction=state.draft.auction||{};
     state.applied = { ...state.draft,budgetWon:budgetWon(),districts:[...state.draft.districts],neighborhoods:[...(state.draft.neighborhoods||[])],zones:[...state.draft.zones],minAreaM2:range.minAreaM2,maxAreaM2:range.maxAreaM2,sort:'price',
-      auction:normalizeAuction({enabled:draftAuction.enabled===true,usages:draftAuction.usages,maxPriceWon:draftAuction.maxPriceEok?Number(draftAuction.maxPriceEok)*1e8:null,maxBidRate:draftAuction.maxBidRate?Number(draftAuction.maxBidRate):null}) };
+      auction:normalizeAuction({enabled:draftAuction.enabled===true,source:draftAuction.source,dealType:draftAuction.dealType,failMax:draftAuction.failMax,usages:draftAuction.usages,maxPriceWon:draftAuction.maxPriceEok?Number(draftAuction.maxPriceEok)*1e8:null,maxBidRate:draftAuction.maxBidRate?Number(draftAuction.maxBidRate):null}) };
     completedThisVisit=true;rememberSearch(state.applied);
     state.screen = 'results'; state.editing = false;
     history.replaceState(null,'',location.pathname);
@@ -324,7 +324,7 @@ document.addEventListener('click', event => {
 });
 
 app.addEventListener('input', event => {
-  if(state.screen==='region'&&event.target.matches('[name=minArea],[name=maxArea],[name=areaUnit],[name=zone],[name=auction],[name=auctionUsage],[name=auctionMaxPrice],[name=auctionMaxBidRate]')){
+  if(state.screen==='region'&&event.target.matches('[name=minArea],[name=maxArea],[name=areaUnit],[name=zone],[name=auction],[name=auctionSource],[name=auctionDealType],[name=auctionUsage],[name=auctionMaxPrice],[name=auctionMaxBidRate],[name=auctionFailMax]')){
     Object.assign(state.draft,readCriteriaFields(app));
     app.querySelector('[data-area-help]').textContent=areaHelp(state.draft);
     const body=app.querySelector('.auction-condition-body');if(body)body.hidden=!state.draft.auction?.enabled;

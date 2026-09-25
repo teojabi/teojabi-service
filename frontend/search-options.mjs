@@ -37,7 +37,9 @@ export function validateExtraCriteria(input) {
 }
 // 경매 용도(법원 공시 용도명). 건물·토지·개인주택 위주로 운영하며 아파트는 제외한다.
 export const AUCTION_USAGES=Object.freeze(['상가','근린시설','오피스텔','업무','단독주택','다가구','다세대','연립주택','빌라','대지','임야']);
-// 경매 조건은 매물과 의미가 달라 별도 하위 객체로 둔다. (용도·최저매각가·감정가 대비 최저가율)
+export const AUCTION_SOURCES=Object.freeze([['court','경매(법원)'],['onbid','공매(온비드)'],['both','경매+공매']]);
+export const AUCTION_DEAL_TYPES=Object.freeze([['whole','건물 통'],['floor','층'],['unit','호실'],['land','토지']]);
+// 경매·공매 조건은 매물과 의미가 달라 별도 하위 객체로 둔다. (구분·거래단위·용도·최저가·최저가율·유찰)
 export function normalizeAuction(raw) {
   const source=raw&&typeof raw==='object'&&!Array.isArray(raw)?raw:raw===true?{enabled:true}:null;
   const enabled=Boolean(source&&source.enabled===true);
@@ -47,7 +49,11 @@ export function normalizeAuction(raw) {
   const maxPriceWon=Number.isSafeInteger(priceRaw)&&priceRaw>0?priceRaw:null;
   const rateRaw=Number(source.maxBidRate);
   const maxBidRate=Number.isFinite(rateRaw)&&rateRaw>0&&rateRaw<=100?Math.round(rateRaw*100)/100:null;
-  return {enabled:true,usages,maxPriceWon,maxBidRate};
+  const failRaw=Number(source.failMax);
+  const failMax=Number.isFinite(failRaw)&&failRaw>0?Math.round(failRaw):null;
+  const auctionSource=AUCTION_SOURCES.some(([value])=>value===source.source)?source.source:'court';
+  const dealType=AUCTION_DEAL_TYPES.some(([value])=>value===source.dealType)?source.dealType:null;
+  return {enabled:true,source:auctionSource,dealType,failMax,usages,maxPriceWon,maxBidRate};
 }
 export function areaRangeLabel(min,max,unit='m2') {
   const scale=unit==='pyeong'?121/400:1,suffix=unit==='pyeong'?'평':'㎡';
