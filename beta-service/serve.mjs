@@ -372,7 +372,8 @@ createServer(async (request, response) => {
           }
           const courtPromise=wantCourt
             ?auctionRead('list',JSON.stringify({gu:parsed.filters.districts||[],kind:parsed.filters.kind||'',usage:a.usages||[],
-              q:parsed.filters.q||'',maxPrice:a.maxPriceWon||'',maxBidRate:a.maxBidRate||'',dealType:a.dealType||'',sort:'sale',size:60})).catch(()=>null)
+              zone:parsed.filters.zones||[],minArea:parsed.filters.minAreaM2||'',maxArea:parsed.filters.maxAreaM2||'',
+              q:parsed.filters.q||'',maxPrice:a.maxPriceWon||'',maxBidRate:a.maxBidRate||'',maxFail:a.failMax||'',dealType:a.dealType||'',sort:'sale',size:60})).catch(()=>null)
             :Promise.resolve(null);
           const onbidPromise=wantOnbid
             ?onbidRead('list',JSON.stringify({gu:parsed.filters.districts||[],usage:a.usages||[],
@@ -627,7 +628,7 @@ createServer(async (request, response) => {
   if (path === '/api/auctions' || path === '/api/auctions/map' || path.startsWith('/api/auctions/')) {
     try {
       const url=new URL(request.url,'http://localhost');
-      const AUCTION_KEYS=['kind','q','dealType','minPrice','maxPrice','minFail','maxFail','maxBidRate','saleFrom','saleTo','sort','page','size'];
+      const AUCTION_KEYS=['kind','q','dealType','minPrice','maxPrice','minArea','maxArea','zone','minFail','maxFail','maxBidRate','saleFrom','saleTo','sort','page','size'];
       const auctionPayload=q=>{
         const payload={};
         for(const key of AUCTION_KEYS)if(q.get(key)!=null)payload[key]=q.get(key);
