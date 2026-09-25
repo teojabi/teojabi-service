@@ -1,10 +1,11 @@
 // Public deployment configuration contains origins only, never keys or passwords.
-import { DATA_API_BASE, AUCTION_API_BASE, CORE_API_BASE } from './runtime-config.mjs';
+import { DATA_API_BASE, AUCTION_API_BASE, ONBID_API_BASE, CORE_API_BASE } from './runtime-config.mjs';
 // 서버리스로 이전한 엔드포인트. (미설정 시 기존 데이터 API로 폴백)
 const CORE_PATHS = ['/api/runtime','/api/health','/api/catalog','/api/neighborhoods','/api/activity','/api/recommendations','/api/site-parcels','/api/commercial','/api/commercial-areas','/api/surrounding'];
 function edgeBase(path) {
   const clean = path.split('?')[0];
   if (clean.startsWith('/api/auctions')) return AUCTION_API_BASE;
+  if (clean.startsWith('/api/onbid')) return ONBID_API_BASE;
   if (clean.startsWith('/api/parcels/') || clean.startsWith('/api/parcel-context/') || clean.startsWith('/api/parcel-documents/') || clean.startsWith('/api/risk/') || clean.startsWith('/api/site-context/') || clean.startsWith('/api/building-records/') || clean.startsWith('/api/land-record/') || clean.startsWith('/api/nearby-transactions/') || CORE_PATHS.includes(clean)) return CORE_API_BASE;
   return '';
 }
