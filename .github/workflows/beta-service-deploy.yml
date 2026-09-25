@@ -61,6 +61,17 @@ jobs:
           script: |
             set -e
             cd ~/teojabi-runtime/beta-service
+
+            # 디스크가 차면 tar 해제가 실패해 배포가 조용히 되돌아간다. 해제 전에 먼저 비운다.
+            pm2 flush teojabi-data >/dev/null 2>&1 || true
+            find "$HOME/.pm2/logs" -type f -name 'teojabi-data-*.log' -size +20M -exec truncate -s 0 {} \; 2>/dev/null || true
+            rm -rf "$HOME/.npm/_cacache"
+            rm -f beta-service-deploy.tgz
+            sudo -n apt-get clean >/dev/null 2>&1 || true
+            sudo -n journalctl --vacuum-size=50M >/dev/null 2>&1 || true
+            echo '--- DISK AFTER PRE-CLEANUP ---'
+            df -h .
+
             tar -xzf beta-service-deploy.tgz
             rm -f beta-service-deploy.tgz
 
