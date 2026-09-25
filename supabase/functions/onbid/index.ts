@@ -19,7 +19,7 @@ const LIST_COLUMNS =
   "onbid_cltrno, cltr_mng_no, pbct_cdtn_no, cltr_nm, prpt_div_cd, prpt_div_nm, " +
   "dsps_mthod_nm, bid_mthod_nm, cptn_mthod_nm, usg_lcls_nm, usg_mcls_nm, usg_scls_nm, " +
   "appraised_amt, lowst_bid_prc, lowst_bid_disp, apsl_ctrs_lowst_ratio, bid_begin_dt, bid_end_dt, " +
-  "sido, sigu, dong, lot_no, full_address, pnu, lat, lng";
+  "sido, sigu, dong, lot_no, full_address, pnu, lat, lng, deal_type";
 
 function corsHeaders(origin: string | null): Record<string, string> {
   return {
@@ -57,11 +57,13 @@ function applyFilters(query: any, params: URLSearchParams) {
   const minPrice = num(params.get("minPrice"));
   const maxPrice = num(params.get("maxPrice"));
   const prpt = (params.get("prptDivCd") || "").trim();
+  const dealType = (params.get("dealType") || "").trim().toLowerCase();
 
   let q = query.not("cltr_mng_no", "is", null);
   if (gus.length) q = q.in("sigu", gus);
   if (usages.length) q = q.or(usages.map((u) => `usg_mcls_nm.ilike.%${u}%`).join(","));
   if (prpt) q = q.eq("prpt_div_cd", prpt);
+  if (["whole", "floor", "unit", "land"].includes(dealType)) q = q.eq("deal_type", dealType);
   if (keyword) q = q.or(`cltr_nm.ilike.%${keyword}%,full_address.ilike.%${keyword}%`);
   if (minPrice != null) q = q.gte("lowst_bid_prc", minPrice);
   if (maxPrice != null) q = q.lte("lowst_bid_prc", maxPrice);

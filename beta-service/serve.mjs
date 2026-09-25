@@ -596,7 +596,7 @@ createServer(async (request, response) => {
   if (path === '/api/onbid' || path === '/api/onbid/map' || path.startsWith('/api/onbid/')) {
     try {
       const url=new URL(request.url,'http://localhost');
-      const ONBID_KEYS=['q','prptDivCd','minPrice','maxPrice','sort','page','size'];
+      const ONBID_KEYS=['q','prptDivCd','dealType','minPrice','maxPrice','sort','page','size'];
       const onbidPayload=q=>{
         const payload={};
         for(const key of ONBID_KEYS)if(q.get(key)!=null)payload[key]=q.get(key);
