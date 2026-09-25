@@ -4,3 +4,5 @@ export const DATA_API_BASE = '';
 export const AUCTION_API_BASE = '';
 // beta-service는 자체 serve.mjs의 /api/* 를 쓰므로 비워 둔다.
 export const CORE_API_BASE = '';
+// beta-service는 자체 serve.mjs의 /api/onbid* 를 쓰므로 비워 둔다.
+export const ONBID_API_BASE = '';

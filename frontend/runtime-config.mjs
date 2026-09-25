@@ -3,3 +3,5 @@ export const DATA_API_BASE = "https://api.teojabi.com/beta";
 export const AUCTION_API_BASE = "https://tvrfrgozfoiucoeojrta.supabase.co/functions/v1/auction";
 // 핵심 데이터 API(runtime·catalog·neighborhoods·activity). NCP 부담을 줄이기 위해 서버리스로 처리.
 export const CORE_API_BASE = "https://tvrfrgozfoiucoeojrta.supabase.co/functions/v1/data";
+// 공매(온비드/캠코) API 전용(Supabase Edge Function).
+export const ONBID_API_BASE = "https://tvrfrgozfoiucoeojrta.supabase.co/functions/v1/onbid";

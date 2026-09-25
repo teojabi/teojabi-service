@@ -112,6 +112,11 @@ async function auctionRead(operation,value) {
     [join(root,'auction_reader.py'),operation,...(value?[value]:[])],{windowsHide:true,timeout:25000,maxBuffer:32*1024*1024,encoding:'utf8'});
   return JSON.parse(stdout);
 }
+async function onbidRead(operation,value) {
+  const {stdout}=await execute(process.env.TEOJABI_PYTHON || 'C:/Users/yoon/AppData/Local/Programs/Python/Python310/python.exe',
+    [join(root,'onbid_reader.py'),operation,...(value?[value]:[])],{windowsHide:true,timeout:25000,maxBuffer:32*1024*1024,encoding:'utf8'});
+  return JSON.parse(stdout);
+}
 // 비서가 찾은 일반 네이버 매물은 선별 카탈로그에 없다. DB에서 같은 id로 다시 구성해 상세·대장 조회에 쓴다.
 async function naverListing(sourceId) {
   if(!/^\d{1,30}$/.test(String(sourceId||'')))return null;
@@ -586,6 +591,30 @@ createServer(async (request, response) => {
         send(response,request,parcelCache.get(pnu));
       }
     } catch {send(response,request,{status:'error',message:'로컬 매물 자료를 불러오지 못했습니다.'},503);}
+    return;
+  }
+  if (path === '/api/onbid' || path === '/api/onbid/map' || path.startsWith('/api/onbid/')) {
+    try {
+      const url=new URL(request.url,'http://localhost');
+      const ONBID_KEYS=['q','prptDivCd','minPrice','maxPrice','sort','page','size'];
+      const onbidPayload=q=>{
+        const payload={};
+        for(const key of ONBID_KEYS)if(q.get(key)!=null)payload[key]=q.get(key);
+        const usages=q.getAll('usage').filter(Boolean);if(usages.length)payload.usage=usages;
+        const gus=q.getAll('gu').filter(Boolean);if(gus.length)payload.gu=gus;
+        return payload;
+      };
+      if (path === '/api/onbid') {
+        send(response,request,await onbidRead('list',JSON.stringify(onbidPayload(url.searchParams))));
+      } else if (path === '/api/onbid/map') {
+        const q=url.searchParams, payload={...onbidPayload(q),
+          swLng:q.get('swLng'),swLat:q.get('swLat'),neLng:q.get('neLng'),neLat:q.get('neLat')};
+        send(response,request,await onbidRead('map',JSON.stringify(payload)));
+      } else {
+        const docid=decodeURIComponent(path.slice('/api/onbid/'.length));
+        send(response,request,await onbidRead('detail',docid));
+      }
+    } catch { send(response,request,{status:'error',message:'공매 자료를 불러오지 못했습니다.'},503); }
     return;
   }
   if (path === '/api/auctions' || path === '/api/auctions/map' || path.startsWith('/api/auctions/')) {
