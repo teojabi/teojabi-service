@@ -591,7 +591,7 @@ createServer(async (request, response) => {
   if (path === '/api/auctions' || path === '/api/auctions/map' || path.startsWith('/api/auctions/')) {
     try {
       const url=new URL(request.url,'http://localhost');
-      const AUCTION_KEYS=['kind','q','minPrice','maxPrice','minFail','maxFail','maxBidRate','saleFrom','saleTo','sort','page','size'];
+      const AUCTION_KEYS=['kind','q','dealType','minPrice','maxPrice','minFail','maxFail','maxBidRate','saleFrom','saleTo','sort','page','size'];
       const auctionPayload=q=>{
         const payload={};
         for(const key of AUCTION_KEYS)if(q.get(key)!=null)payload[key]=q.get(key);

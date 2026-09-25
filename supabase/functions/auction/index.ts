@@ -2,10 +2,11 @@
 // NCP의 Python/Node 부담을 줄이기 위한 파일럿. Supabase(PostgREST)만 사용한다.
 //
 // 라우트(함수 접두사 뒤):
-//   GET .../auction/api/auctions            -> list  (?gu&usage&minPrice&maxPrice&failMax&saleFrom&saleTo&sort&page&size)
+//   GET .../auction/api/auctions            -> list  (?gu(다중)&usage(다중)&kind&q&minPrice&maxPrice&maxBidRate&minFail&maxFail&saleFrom&saleTo&dealType&sort&page&size)
 //   GET .../auction/api/auctions/map        -> map   (?swLng&swLat&neLng&neLat + 필터, limit<=2000)
 //   GET .../auction/api/auctions/<docid>    -> detail
 //
+// 아파트·자동차는 항상 제외한다. deal_type(whole/unit/land)은 auction_item 생성 컬럼.
 // 보안: beta-service와 동일하게 Origin/Referer 가드. (긴급 시 AUCTION_GUARD=off)
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -19,10 +20,10 @@ const GUARD_ON = Deno.env.get("AUCTION_GUARD") !== "off";
 const LIST_COLUMNS =
   "docid, court_name, dept_name, case_no, usage_name, appraised_amt, min_price, noti_min_price, " +
   "noti_min_rate, fail_count, sale_date, sale_hour, sido, sigu, dong, lot_no, building_list, " +
-  "area_min, area_max, lat, lng, pnu, use_zone, road_width_m, full_address";
+  "area_min, area_max, lat, lng, pnu, use_zone, road_width_m, full_address, deal_type";
 
 function corsHeaders(origin: string | null): Record<string, string> {
-  const headers: Record<string, string> = {
+  return {
     "Access-Control-Allow-Origin": origin && ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0],
     "Access-Control-Allow-Credentials": "true",
     "Access-Control-Allow-Methods": "GET,HEAD,OPTIONS",
@@ -32,7 +33,6 @@ function corsHeaders(origin: string | null): Record<string, string> {
     "Cache-Control": "no-store",
     "X-Content-Type-Options": "nosniff",
   };
-  return headers;
 }
 
 function json(body: unknown, status: number, origin: string | null): Response {
@@ -51,22 +51,35 @@ function clampInt(value: string | null, fallback: number, lo: number, hi: number
   return Math.max(lo, Math.min(hi, parsed));
 }
 
-// auction_reader._where 와 동일한 필터.
+// auction_reader._where 와 동일한 필터. (아파트·자동차 제외, 다중 지역·용도 지원)
 function applyFilters(query: any, params: URLSearchParams) {
-  const gu = (params.get("gu") || "").trim();
-  const usage = (params.get("usage") || "").trim();
+  const xgus = params.getAll("gu").flatMap((v) => v.split(",")).map((v) => v.trim()).filter(Boolean);
+  const usages = params.getAll("usage").flatMap((v) => v.split(",")).map((v) => v.trim()).filter(Boolean).slice(0, 6);
+  const kind = (params.get("kind") || "").trim().toLowerCase();
+  const dealType = (params.get("dealType") || "").trim().toLowerCase();
+  const keyword = (params.get("q") || "").trim().slice(0, 60);
   const minPrice = num(params.get("minPrice"));
   const maxPrice = num(params.get("maxPrice"));
-  const failMax = num(params.get("failMax"));
+  const maxBidRate = num(params.get("maxBidRate"));
+  const minFail = num(params.get("minFail"));
+  const maxFail = num(params.get("maxFail"));
   const saleFrom = (params.get("saleFrom") || "").trim();
   const saleTo = (params.get("saleTo") || "").trim();
 
-  let q = query.not("court_code", "is", null);
-  if (gu) q = q.eq("sigu", gu);
-  if (usage) q = q.ilike("usage_name", `%${usage}%`);
+  let q = query.not("court_code", "is", null)
+    .not("usage_name", "ilike", "%아파트%")
+    .not("usage_name", "ilike", "%자동차%");
+  if (xgus.length) q = q.in("sigu", xgus);
+  if (usages.length) q = q.or(usages.map((u) => `usage_name.ilike.%${u}%`).join(","));
+  if (kind === "land") q = q.eq("deal_type", "land");
+  else if (kind === "building") q = q.in("deal_type", ["unit", "whole"]);
+  if (["whole", "unit", "land"].includes(dealType)) q = q.eq("deal_type", dealType);
+  if (keyword) q = q.or(`full_address.ilike.%${keyword}%,case_no.ilike.%${keyword}%,usage_name.ilike.%${keyword}%,dong.ilike.%${keyword}%`);
   if (minPrice != null) q = q.gte("min_price", minPrice);
   if (maxPrice != null) q = q.lte("min_price", maxPrice);
-  if (failMax != null) q = q.lte("fail_count", failMax);
+  if (maxBidRate != null) q = q.lte("noti_min_rate", maxBidRate);
+  if (minFail != null) q = q.gte("fail_count", minFail);
+  if (maxFail != null) q = q.lte("fail_count", maxFail);
   if (saleFrom) q = q.gte("sale_date", saleFrom);
   if (saleTo) q = q.lte("sale_date", saleTo);
   return q;
@@ -85,8 +98,9 @@ function orderFor(sort: string): { column: string; ascending: boolean } {
 
 async function doList(params: URLSearchParams, origin: string | null): Promise<Response> {
   const page = clampInt(params.get("page"), 1, 1, 500);
-  const size = clampInt(params.get("size"), 20, 1, 100);
-  const { column, ascending } = orderFor((params.get("sort") || "sale").trim());
+  const size = clampInt(params.get("size"), 20, 1, 200);
+  const sort = (params.get("sort") || "sale").trim();
+  const { column, ascending } = orderFor(sort);
 
   let query = db.from("auction_item").select(LIST_COLUMNS, { count: "exact" });
   query = applyFilters(query, params);
@@ -94,7 +108,7 @@ async function doList(params: URLSearchParams, origin: string | null): Promise<R
 
   const { data, count, error } = await query;
   if (error) throw error;
-  return json({ status: "ready", total: count ?? 0, page, size, rows: data ?? [] }, 200, origin);
+  return json({ status: "ready", total: count ?? 0, page, size, sort, rows: data ?? [] }, 200, origin);
 }
 
 async function doMap(params: URLSearchParams, origin: string | null): Promise<Response> {
@@ -108,7 +122,7 @@ async function doMap(params: URLSearchParams, origin: string | null): Promise<Re
   const limit = clampInt(params.get("limit"), 800, 1, 2000);
 
   let query = db.from("auction_item").select(
-    "docid, usage_name, min_price, appraised_amt, fail_count, sale_date, lat, lng, sigu, dong",
+    "docid, usage_name, min_price, appraised_amt, fail_count, sale_date, lat, lng, sigu, dong, deal_type",
   );
   query = applyFilters(query, params);
   query = query
