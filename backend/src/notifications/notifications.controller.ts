@@ -1,4 +1,4 @@
-import { Controller, Get, Query, Request, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Put, Query, Request, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { NotificationsService } from './notifications.service';
 
@@ -9,8 +9,17 @@ export class NotificationsController {
 
   @Get()
   inbox(@Request() req: any, @Query('leadDays') leadDays?: string) {
-    const parsed = parseInt(leadDays ?? '7', 10);
-    const days = Math.min(Math.max(Number.isFinite(parsed) ? parsed : 7, 1), 14);
-    return this.notifications.getInbox(req.user.id, days);
+    const parsed = parseInt(leadDays ?? '', 10);
+    return this.notifications.getInboxForUser(req.user.id, Number.isFinite(parsed) ? parsed : undefined);
+  }
+
+  @Get('preferences')
+  preferences(@Request() req: any) {
+    return this.notifications.getPreferences(req.user.id);
+  }
+
+  @Put('preferences')
+  savePreferences(@Request() req: any, @Body() body: any) {
+    return this.notifications.savePreferences(req.user.id, body);
   }
 }

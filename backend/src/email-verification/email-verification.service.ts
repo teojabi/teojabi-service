@@ -3,13 +3,12 @@ import {
   HttpException,
   HttpStatus,
   Injectable,
-  InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
-import axios from 'axios';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
-import { createHash, createHmac, randomBytes } from 'crypto';
+import { MailService } from '../mail/mail.service';
+import { createHash, randomBytes } from 'crypto';
 
 const TOKEN_TTL_MINUTES = 30;
 const RESEND_COOLDOWN_SECONDS = 60;
@@ -19,6 +18,7 @@ export class EmailVerificationService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
+    private readonly mail: MailService,
   ) {}
 
   async sendVerificationLink(
@@ -94,7 +94,27 @@ export class EmailVerificationService {
       });
     });
 
-    await this.sendMail(userEmail, this.buildVerificationUrl(rawToken));
+    const verificationUrl = this.buildVerificationUrl(rawToken);
+    await this.mail.send({
+      to: userEmail,
+      title: '[터잡이] 이메일 인증을 완료해 주세요',
+      body: `
+<div style="font-family: 'Apple SD Gothic Neo', 'Malgun Gothic', Arial, sans-serif; max-width: 560px; margin: 0 auto; color: #111827; line-height: 1.6;">
+  <h2 style="margin: 0 0 12px; font-size: 20px; color: #111827;">[터잡이] 이메일 인증 안내</h2>
+  <p style="margin: 0 0 12px;">안녕하세요.</p>
+  <p style="margin: 0 0 20px;">아래 버튼을 눌러 이메일 인증을 완료해 주세요.</p>
+  <p style="margin: 0 0 20px;">
+    <a href="${verificationUrl}" style="display: inline-block; padding: 12px 20px; background: #2563eb; color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: 700;">
+      이메일 인증하기
+    </a>
+  </p>
+  <p style="margin: 0 0 8px; font-size: 14px; color: #374151;">인증 링크 유효시간: <strong>${TOKEN_TTL_MINUTES}분</strong></p>
+  <p style="margin: 0; font-size: 13px; color: #6b7280; word-break: break-all;">
+    버튼이 동작하지 않으면 아래 링크를 브라우저에 복사해 접속해 주세요.<br />
+    <a href="${verificationUrl}" style="color: #2563eb; text-decoration: underline;">${verificationUrl}</a>
+  </p>
+</div>`.trim(),
+    });
 
     return {
       success: true,
@@ -160,77 +180,4 @@ export class EmailVerificationService {
     return `${baseUrl}/api/v1/email-verification/confirm?token=${encodeURIComponent(rawToken)}`;
   }
 
-  private async sendMail(to: string, verificationUrl: string) {
-    const baseUrl =
-      this.configService.get<string>('NCLOUD_MAIL_BASE_URL') ||
-      'https://mail.apigw.ntruss.com';
-    const accessKey = this.configService.get<string>('NCLOUD_ACCESS_KEY');
-    const secretKey = this.configService.get<string>('NCLOUD_SECRET_KEY');
-    const senderAddress = this.configService.get<string>('NCLOUD_MAIL_SENDER_ADDRESS');
-    const senderName = this.configService.get<string>('NCLOUD_MAIL_SENDER_NAME');
-    const apiPath = '/api/v1/mails';
-
-    const missingKeys: string[] = [];
-    if (!accessKey) missingKeys.push('NCLOUD_ACCESS_KEY');
-    if (!secretKey) missingKeys.push('NCLOUD_SECRET_KEY');
-    if (!senderAddress) missingKeys.push('NCLOUD_MAIL_SENDER_ADDRESS');
-
-    if (missingKeys.length > 0) {
-      throw new InternalServerErrorException(
-        `이메일 전송 설정(Cloud Outbound Mailer)이 누락되었습니다. 누락 항목: ${missingKeys.join(', ')}`,
-      );
-    }
-
-    try {
-      const timestamp = Date.now().toString();
-      const signature = createHmac('sha256', secretKey as string)
-        .update(`POST ${apiPath}\n${timestamp}\n${accessKey}`)
-        .digest('base64');
-
-      const payload = {
-        senderAddress,
-        senderName,
-        title: '[터잡이] 이메일 인증을 완료해 주세요',
-        body: `
-<div style="font-family: 'Apple SD Gothic Neo', 'Malgun Gothic', Arial, sans-serif; max-width: 560px; margin: 0 auto; color: #111827; line-height: 1.6;">
-  <h2 style="margin: 0 0 12px; font-size: 20px; color: #111827;">[터잡이] 이메일 인증 안내</h2>
-  <p style="margin: 0 0 12px;">안녕하세요.</p>
-  <p style="margin: 0 0 20px;">아래 버튼을 눌러 이메일 인증을 완료해 주세요.</p>
-  <p style="margin: 0 0 20px;">
-    <a href="${verificationUrl}" style="display: inline-block; padding: 12px 20px; background: #2563eb; color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: 700;">
-      이메일 인증하기
-    </a>
-  </p>
-  <p style="margin: 0 0 8px; font-size: 14px; color: #374151;">인증 링크 유효시간: <strong>${TOKEN_TTL_MINUTES}분</strong></p>
-  <p style="margin: 0; font-size: 13px; color: #6b7280; word-break: break-all;">
-    버튼이 동작하지 않으면 아래 링크를 브라우저에 복사해 접속해 주세요.<br />
-    <a href="${verificationUrl}" style="color: #2563eb; text-decoration: underline;">${verificationUrl}</a>
-  </p>
-</div>`.trim(),
-        recipients: [
-          {
-            address: to,
-            type: 'R',
-          },
-        ],
-        individual: true,
-        confirmAndSend: false,
-        advertising: false,
-      };
-
-      await axios.post(`${baseUrl.replace(/\/$/, '')}${apiPath}`, payload, {
-        headers: {
-          'Content-Type': 'application/json; charset=UTF-8',
-          'x-ncp-apigw-timestamp': timestamp,
-          'x-ncp-iam-access-key': accessKey as string,
-          'x-ncp-apigw-signature-v2': signature,
-        },
-      });
-    } catch (error) {
-      console.error('[EmailVerificationService] Failed to send email', error);
-      throw new InternalServerErrorException(
-        '인증 메일 발송에 실패했습니다. 잠시 후 다시 시도해 주세요.',
-      );
-    }
-  }
 }

@@ -1,9 +1,16 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
+import { Cron } from '@nestjs/schedule';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { MailService } from '../mail/mail.service';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
+const SITE_URL = 'https://teojabi.com/';
+const clampLead = (value: unknown) => {
+  const n = Number(value);
+  return Number.isFinite(n) ? Math.min(Math.max(Math.round(n), 1), 14) : 7;
+};
 
 type SavedRow = { kind: string; key: string; payload: any };
 type Alert = {
@@ -16,10 +23,33 @@ type Alert = {
   title: string;
   detail: string;
 };
+export type NotificationPreferences = {
+  email: boolean;
+  webPush: boolean;
+  kakao: boolean;
+  favorites: boolean;
+  conditions: boolean;
+  leadDays: number;
+};
+
+// 이메일·푸시·카카오는 명시적 수신 동의(옵트인) 전까지 꺼둔다. 알림함(웹)은 동의 없이도 보인다.
+const DEFAULT_PREFERENCES: NotificationPreferences = {
+  email: false,
+  webPush: false,
+  kakao: false,
+  favorites: true,
+  conditions: true,
+  leadDays: 7,
+};
 
 @Injectable()
 export class NotificationsService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(NotificationsService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly mail: MailService,
+  ) {}
 
   private kst(shiftDays = 0) {
     return new Date(Date.now() + KST_OFFSET_MS + shiftDays * DAY_MS);
@@ -52,6 +82,111 @@ export class NotificationsService {
     return n > 0 ? `${(n / 1e8).toLocaleString('ko-KR', { maximumFractionDigits: 2 })}억원` : '가격 미기재';
   }
 
+  async getPreferences(userId: string): Promise<NotificationPreferences> {
+    const rows = await this.prisma.$queryRaw<Array<any>>`
+      SELECT email, web_push AS "webPush", kakao, favorites, conditions, lead_days AS "leadDays"
+      FROM public.notification_preference WHERE user_id=${userId} LIMIT 1`;
+    if (!rows.length) return { ...DEFAULT_PREFERENCES };
+    const row = rows[0];
+    return {
+      email: row.email !== false,
+      webPush: row.webPush === true,
+      kakao: row.kakao === true,
+      favorites: row.favorites !== false,
+      conditions: row.conditions !== false,
+      leadDays: clampLead(row.leadDays),
+    };
+  }
+
+  async savePreferences(userId: string, input: any): Promise<NotificationPreferences> {
+    const current = await this.getPreferences(userId);
+    const next: NotificationPreferences = {
+      email: typeof input?.email === 'boolean' ? input.email : current.email,
+      webPush: typeof input?.webPush === 'boolean' ? input.webPush : current.webPush,
+      kakao: typeof input?.kakao === 'boolean' ? input.kakao : current.kakao,
+      favorites: typeof input?.favorites === 'boolean' ? input.favorites : current.favorites,
+      conditions: typeof input?.conditions === 'boolean' ? input.conditions : current.conditions,
+      leadDays: input?.leadDays != null ? clampLead(input.leadDays) : current.leadDays,
+    };
+    await this.prisma.$executeRaw`
+      INSERT INTO public.notification_preference(user_id,email,web_push,kakao,favorites,conditions,lead_days,updated_at)
+      VALUES (${userId},${next.email},${next.webPush},${next.kakao},${next.favorites},${next.conditions},${next.leadDays},now())
+      ON CONFLICT (user_id) DO UPDATE SET email=EXCLUDED.email,web_push=EXCLUDED.web_push,kakao=EXCLUDED.kakao,
+        favorites=EXCLUDED.favorites,conditions=EXCLUDED.conditions,lead_days=EXCLUDED.lead_days,updated_at=now()`;
+    return next;
+  }
+
+  async getInboxForUser(userId: string, leadDays?: number) {
+    const preferences = await this.getPreferences(userId);
+    const days = clampLead(leadDays ?? preferences.leadDays);
+    return this.getInbox(userId, days, { favorites: preferences.favorites, conditions: preferences.conditions });
+  }
+
+  @Cron('0 30 8 * * *', { timeZone: 'Asia/Seoul' })
+  async dispatchDailyEmail() {
+    if (!this.mail.isConfigured()) {
+      this.logger.warn('Email digest skipped: Cloud Outbound Mailer is not configured.');
+      return;
+    }
+    const recipients = await this.prisma.$queryRaw<Array<{ userId: string; email: string }>>`
+      SELECT p.user_id AS "userId", u.email AS email
+      FROM public.notification_preference p
+      JOIN public."user" u ON u.id = p.user_id
+      WHERE p.email = true AND u.email IS NOT NULL AND u.email <> ''`;
+    const today = this.date();
+    let sent = 0;
+    for (const recipient of recipients) {
+      try {
+        const preferences = await this.getPreferences(recipient.userId);
+        if (!preferences.email) continue;
+        const inbox = await this.getInbox(recipient.userId, preferences.leadDays, {
+          favorites: preferences.favorites,
+          conditions: preferences.conditions,
+        });
+        if (!inbox.items.length) continue;
+        const dedupeKey = `email:${recipient.userId}:${today}`;
+        const inserted = await this.prisma.$executeRaw`
+          INSERT INTO public.notification_delivery(user_id,dedupe_key,channel,item_count,status)
+          VALUES (${recipient.userId},${dedupeKey},'email',${inbox.items.length},'SENT')
+          ON CONFLICT (dedupe_key) DO NOTHING`;
+        if (inserted === 0) continue;
+        await this.mail.send({
+          to: recipient.email,
+          title: `[터잡이] 임박한 경매·공매 ${inbox.items.length}건`,
+          body: this.buildDigestBody(inbox.items),
+        });
+        sent += 1;
+      } catch (error) {
+        this.logger.error(`Email digest failed for ${recipient.userId}`, error as Error);
+        await this.prisma
+          .$executeRaw`UPDATE public.notification_delivery SET status='FAILED', error=${String((error as Error)?.message ?? error).slice(0, 200)} WHERE dedupe_key=${`email:${recipient.userId}:${today}`}`
+          .catch(() => undefined);
+      }
+    }
+    this.logger.log(`Email digest dispatched: ${sent}/${recipients.length}`);
+  }
+
+  private buildDigestBody(items: Alert[]) {
+    const rows = items
+      .map(
+        (item) =>
+          `<li style="margin:0 0 10px;"><strong>${this.escape(item.kindLabel)}</strong><br>${this.escape(item.title)}<br><span style="color:#6b7280;font-size:13px;">${this.escape(item.detail)}</span></li>`,
+      )
+      .join('');
+    return `
+<div style="font-family:'Apple SD Gothic Neo','Malgun Gothic',Arial,sans-serif;max-width:600px;margin:0 auto;color:#111827;line-height:1.6;">
+  <h2 style="margin:0 0 8px;font-size:20px;">[터잡이] 임박한 경매·공매 ${items.length}건</h2>
+  <p style="margin:0 0 16px;font-size:14px;color:#374151;">찜·저장 조건 기준으로 매각기일·입찰마감이 임박한 물건이에요. 사실 안내이며, 입찰 전 원문을 확인하세요.</p>
+  <ul style="padding-left:18px;margin:0 0 20px;">${rows}</ul>
+  <p style="margin:0 0 20px;"><a href="${SITE_URL}" style="display:inline-block;padding:12px 20px;background:#2563eb;color:#fff;text-decoration:none;border-radius:8px;font-weight:700;">터잡이에서 확인하기</a></p>
+  <p style="margin:0;font-size:12px;color:#6b7280;">권리분석·적정 입찰가는 제공하지 않아요. 알림 수신은 내 보관함 &gt; 알림 설정에서 끌 수 있어요.</p>
+</div>`.trim();
+  }
+
+  private escape(value: unknown) {
+    return String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string));
+  }
+
   private auctionAlert(r: any, origin: 'favorite' | 'condition', conditionName: string | null): Alert {
     const date = this.dateOf(r.sale_date);
     return {
@@ -80,7 +215,9 @@ export class NotificationsService {
     };
   }
 
-  async getInbox(userId: string, leadDays: number) {
+  async getInbox(userId: string, leadDays: number, options: { favorites?: boolean; conditions?: boolean } = {}) {
+    const includeFavorites = options.favorites !== false;
+    const includeConditions = options.conditions !== false;
     const saved = await this.prisma.$queryRaw<SavedRow[]>`
       SELECT kind, item_key AS key, payload FROM public.discovery_item
       WHERE user_id=${userId} AND kind IN ('favorite','condition')`;
@@ -90,8 +227,12 @@ export class NotificationsService {
     const endStamp = this.stamp(leadDays);
     const items: Alert[] = [];
 
-    const favAuction = saved.filter((r) => r.kind === 'favorite' && r.key.startsWith('auction:')).map((r) => r.key.slice('auction:'.length));
-    const favOnbid = saved.filter((r) => r.kind === 'favorite' && r.key.startsWith('onbid:')).map((r) => r.key.slice('onbid:'.length));
+    const favAuction = includeFavorites
+      ? saved.filter((r) => r.kind === 'favorite' && r.key.startsWith('auction:')).map((r) => r.key.slice('auction:'.length))
+      : [];
+    const favOnbid = includeFavorites
+      ? saved.filter((r) => r.kind === 'favorite' && r.key.startsWith('onbid:')).map((r) => r.key.slice('onbid:'.length))
+      : [];
 
     if (favAuction.length) {
       const rows = await this.prisma.$queryRaw<any[]>(Prisma.sql`
@@ -117,7 +258,7 @@ export class NotificationsService {
       }
     }
 
-    for (const savedRow of saved.filter((r) => r.kind === 'condition')) {
+    for (const savedRow of includeConditions ? saved.filter((r) => r.kind === 'condition') : []) {
       const auction = savedRow.payload?.auction;
       if (!auction?.enabled) continue;
       const conditionName = savedRow.payload?.name || '저장 조건';
