@@ -360,22 +360,29 @@ createServer(async (request, response) => {
           filters:parsed.filters,chips:[],total:0,groups:[],originTotals:{premium:0,registered:0,disco:0,naver:0},station:null,districts:[],suggestions:[],relaxations:[],unsupported:parsed.unsupported||null,searchedAt:null});
         return;
       }
-      // 경매 조건이 있으면 매물(네이버)과 경매(법원)를 함께 찾아 추천한다.
+      // 경매·공매 조건이 있으면 매물(네이버)과 경매(법원)·공매(온비드)를 함께 찾아 추천한다.
       if(parsed.filters.auction?.enabled){
         try {
-          const a=parsed.filters.auction;
-          const payload={gu:parsed.filters.districts||[],kind:parsed.filters.kind||'',usage:a.usages||[],
-            q:parsed.filters.q||'',maxPrice:a.maxPriceWon||'',maxBidRate:a.maxBidRate||'',sort:'sale',size:60};
+          const a=parsed.filters.auction,source=a.source||'court';
+          const wantCourt=source==='court'||source==='both',wantOnbid=source==='onbid'||source==='both';
           const listingFilters={...parsed.filters};delete listingFilters.auction;
           let listingSearch=null;
           if(hasMeaningfulFilters(listingFilters)){
             try{listingSearch=await runAssistant(root,listingFilters);}catch{listingSearch=null;}
           }
-          const auctionData=await auctionRead('list',JSON.stringify(payload));
-          send(response,request,buildCombinedResult(parsed.filters,listingSearch,auctionData));
+          const courtPromise=wantCourt
+            ?auctionRead('list',JSON.stringify({gu:parsed.filters.districts||[],kind:parsed.filters.kind||'',usage:a.usages||[],
+              q:parsed.filters.q||'',maxPrice:a.maxPriceWon||'',maxBidRate:a.maxBidRate||'',dealType:a.dealType||'',sort:'sale',size:60})).catch(()=>null)
+            :Promise.resolve(null);
+          const onbidPromise=wantOnbid
+            ?onbidRead('list',JSON.stringify({gu:parsed.filters.districts||[],usage:a.usages||[],
+              q:parsed.filters.q||'',maxPrice:a.maxPriceWon||'',dealType:a.dealType||'',sort:'bid',size:60})).catch(()=>null)
+            :Promise.resolve(null);
+          const [auctionData,onbidData]=await Promise.all([courtPromise,onbidPromise]);
+          send(response,request,buildCombinedResult(parsed.filters,listingSearch,auctionData,onbidData));
         } catch {
-          send(response,request,{status:'ready',reply:'경매 자료를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.',
-            filters:parsed.filters,chips:[],total:0,groups:[],originTotals:{premium:0,registered:0,disco:0,naver:0,auction:0},station:null,districts:[],suggestions:[],relaxations:[],unsupported:null,searchedAt:null});
+          send(response,request,{status:'ready',reply:'경매·공매 자료를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.',
+            filters:parsed.filters,chips:[],total:0,groups:[],originTotals:{premium:0,registered:0,disco:0,naver:0,auction:0,onbid:0},station:null,districts:[],suggestions:[],relaxations:[],unsupported:null,searchedAt:null});
         }
         return;
       }

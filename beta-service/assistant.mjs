@@ -7,7 +7,8 @@ import { renderInlineContext, renderFarSummary } from './inline-context.mjs';
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const money = won => won > 0 ? `${(won / 1e8).toLocaleString('ko-KR', { maximumFractionDigits: 2 })}억` : '가격 미기재';
 const area = value => value > 0 ? formatArea(value, getAreaDisplayUnit()) : '면적 미기재';
-const originLabel = origin => ({ premium: '★ 터잡이 추천', registered: '터잡이 등록', disco: '디스코 매물', naver: '네이버 매물', auction: '경매 물건' }[origin] || '네이버 매물');
+const originLabel = origin => ({ premium: '★ 터잡이 추천', registered: '터잡이 등록', disco: '디스코 매물', naver: '네이버 매물', auction: '경매 물건', onbid: '공매 물건' }[origin] || '네이버 매물');
+const publicSale = origin => origin === 'auction' || origin === 'onbid';
 import { ASSISTANT_ROBOT } from './assistant-icon.mjs';
 export { ASSISTANT_ROBOT };
 const ROBOT = ASSISTANT_ROBOT;
@@ -130,8 +131,8 @@ function cardMarkup(listing, hidden = false) {
   return `<article class="assistant-card${hidden ? ' is-hidden' : ''}" data-open="${esc(listing.id)}" data-origin="${esc(listing.origin)}">
     <div class="assistant-card-top"><span class="assistant-origin origin-${esc(listing.origin)}">${esc(originLabel(listing.origin))}</span><b>${money(listing.priceWon)}</b></div>
     <p class="assistant-card-address">${esc(listing.district)} ${esc(listing.neighborhood || '')} · ${esc(listing.address)}</p>
-    <div class="assistant-card-meta"><span>대지 ${area(listing.areaM2)}</span><span>${esc(listing.origin === 'auction' ? (listing.auction?.usageName || '경매 물건') : listing.kind === 'land' ? '토지' : listing.mainUse || '건물')}</span></div>${station}${commercial}
-    ${listing.origin === 'auction' ? '' : `<button type="button" class="assistant-card-ask" data-ask="${esc(listing.id)}">이 매물 물어보기</button>`}
+    <div class="assistant-card-meta"><span>대지 ${area(listing.areaM2)}</span><span>${esc(publicSale(listing.origin) ? (listing.auction?.usageName || originLabel(listing.origin)) : listing.kind === 'land' ? '토지' : listing.mainUse || '건물')}</span></div>${station}${commercial}
+    ${publicSale(listing.origin) ? '' : `<button type="button" class="assistant-card-ask" data-ask="${esc(listing.id)}">이 매물 물어보기</button>`}
   </article>`;
 }
 

@@ -111,7 +111,7 @@ def _where(payload):
         clauses = []
         for index, token in enumerate(usages[:6]):
             key = f'usage{index}'
-            clauses.append(f'usg_mcls_nm ILIKE %({key})s')
+            clauses.append(f'(usg_mcls_nm ILIKE %({key})s OR usg_scls_nm ILIKE %({key})s)')
             params[key] = f'%{token}%'
         where.append('(' + ' OR '.join(clauses) + ')')
     if prpt:
