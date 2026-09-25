@@ -234,16 +234,17 @@ def zone_overlap_sql(key):
     - tourism: 운영 tour_zones.geom(4326) / 로컬 tourist_accommodation_zone.geom
     필지 geom은 seoul_parcel_map(5174)을 쓰고, 레이어 SRID에 맞춰 변환한다.
     """
-    remote = os.getenv('TEOJABI_DATA_SOURCE') in ('supabase', 'remote')
+    # 운영(Supabase)은 사전계산한 필지별 구역 플래그를 쓴다(실시간 공간질의 타임아웃 방지).
+    if os.getenv('TEOJABI_DATA_SOURCE') in ('supabase', 'remote'):
+        column = {'education': 'education', 'heritage': 'heritage'}.get(key)
+        if column:
+            return 'NOT EXISTS (SELECT 1 FROM public.parcel_zone_flags f WHERE f.pnu = n.pnu AND f.' + column + ')'
     if key == 'education':
-        table, column, srid = ('education_safezones', 'geom', 4326) if remote else ('education_protection', 'geom_5174', 5174)
+        table, column, srid = ('education_protection', 'geom_5174', 5174)
         restriction = 'true'
-    elif key == 'heritage':
+    else:  # heritage
         table, column, srid = ('heritage_layers', 'the_geom', 4326)
         restriction = "s.layer_name IN ('CHL_PMPG_AS_1','CHL_PMPG_AS_23')"
-    else:  # tourism
-        table, column, srid = ('tour_zones', 'geom', 4326) if remote else ('tourist_accommodation_zone', 'geom', 4326)
-        restriction = 'true'
     parcel_geom = 'p.geom' if srid == 5174 else 'ST_Transform(p.geom,4326)'
     return ('''NOT EXISTS (
         SELECT 1 FROM public.seoul_parcel_map p
@@ -259,12 +260,13 @@ def zone_overlap_sql(key):
 
 def tourism_rank_sql():
     """관광숙박특화구역 포함·걸침이면 0, 아니면 1. 정렬 전용이라 행을 제외하지 않는다."""
-    remote = os.getenv('TEOJABI_DATA_SOURCE') in ('supabase', 'remote')
-    table = 'tour_zones' if remote else 'tourist_accommodation_zone'
+    # 운영(Supabase)은 사전계산한 필지별 구역 플래그를 쓴다.
+    if os.getenv('TEOJABI_DATA_SOURCE') in ('supabase', 'remote'):
+        return 'CASE WHEN EXISTS (SELECT 1 FROM public.parcel_zone_flags f WHERE f.pnu = n.pnu AND f.tourism) THEN 0 ELSE 1 END'
     parcel_geom = 'ST_Transform(p.geom,4326)'
     return ('''CASE WHEN EXISTS (
         SELECT 1 FROM public.seoul_parcel_map p
-        JOIN public.''' + table + ''' s ON s.geom && ''' + parcel_geom + '''
+        JOIN public.tourist_accommodation_zone s ON s.geom && ''' + parcel_geom + '''
         WHERE p.pnu = n.pnu AND s.geom IS NOT NULL AND ST_SRID(s.geom) = 4326
           AND GeometryType(s.geom) IN ('POLYGON','MULTIPOLYGON')
           AND ST_IsValid(s.geom) AND NOT ST_IsEmpty(s.geom)
