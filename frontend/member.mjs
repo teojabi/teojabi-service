@@ -77,6 +77,7 @@ const previewItems=[
 export function previewMember(){
   member.base='preview';member.status='ready';member.user={id:'preview',name:'미리보기 회원'};member.items=previewItems.map(item=>({...item,payload:{...item.payload}}));
   memberAlerts=[{kindLabel:'경매 D-3',title:'서울 마포구 성산동 상가',detail:'근린생활시설 · 최저 3억원 · 매각기일 (예시)',key:''},{kindLabel:'공매 D-5',title:'서울 강서구 화곡동 근린시설',detail:'상가용및업무용건물 · 최저입찰 2.1억원 · 입찰마감 (예시)',key:''}];
+  memberPrefs={email:false,webPush:false,kakao:false,favorites:true,conditions:true,leadDays:7};
   member.emit();openMember();
 }
 let closeCurrent;
@@ -87,8 +88,9 @@ const feedbackLabel={like:'좋아요',dislike:'아쉬워요',hide:'목록에서 
 const moneyText=v=>Number(v)>0?`${(Number(v)/1e8).toLocaleString('ko-KR',{maximumFractionDigits:2})}억원`:'가격 미기재';
 const m2Text=v=>Number(v)>0?`${Number(v).toLocaleString('ko-KR',{maximumFractionDigits:1})}㎡`:'—';
 const sourceOf=key=>String(key||'').split(':')[0];
-// 알림함 데이터. 백엔드/로컬에서 채워지면 보관함 상단에 임박 알림으로 표시된다.
+// 알림함/설정 데이터. 백엔드에서 채워지면 보관함 상단에 임박 알림·설정으로 표시된다.
 let memberAlerts=[];
+let memberPrefs=null;
 const buildAlerts=()=>memberAlerts;
 const conditionRows=p=>{
   const rows=[];
@@ -145,7 +147,8 @@ export function openMember(mode='member'){
     const architectLink=/architect\.html$/.test(location.pathname)?'':'<p class="member-architect-link">건축사이신가요? <a href="./architect.html">건축사 입점 신청 ↗</a></p>';
     const available=status==='ready'||status==='guest';
     const alerts=buildAlerts();
-    dialog.innerHTML=`<div class="modal-heading"><div><span class="eyebrow">MY TEOJABI</span><h2 id="member-title">${available?'내 보관함':'로그인·회원가입'}</h2></div><button class="outline" data-member="close" aria-label="창 닫기">×</button></div>${architectLink}${available?`<p class="case-note">${status==='ready'?`${esc(member.user.name||'회원')}님의 계정에 저장한 내용이에요.`:'이 브라우저에 임시 저장한 찜 목록이에요. 로그인하면 계정으로 옮겨집니다.'}</p><div class="member-tabs">${Object.entries(labels).filter(([k])=>status==='ready'||k==='favorite').map(([k,v])=>`<button class="outline" data-member="tab" data-kind="${k}" aria-pressed="${filter===k}">${v} ${member.items.filter(i=>i.kind===k).length}</button>`).join('')}</div>${filter==='favorite'&&member.items.some(i=>i.kind==='favorite')?`<div class="member-favorites-actions"><button class="primary" data-member="open-favorites">찜한 매물 전체 보기 ${member.items.filter(i=>i.kind==='favorite').length}</button></div>`:''}${alerts.length?`<section class="member-alerts" aria-label="임박 알림"><h3 class="member-section-title">임박 알림 <small>찜·조건 기준 · 사실 안내</small></h3>${alerts.map(a=>`<article class="member-alert"><div><p class="member-alert-kind">${esc(a.kindLabel)}</p><h4>${esc(a.title)}</h4><p>${esc(a.detail)}</p></div><div>${a.key?`<button class="outline" data-member="open" data-key="${esc(a.key)}">다시 보기</button>`:''}</div></article>`).join('')}</section>`:''}<div class="member-items">${member.items.filter(i=>i.kind===filter).map(i=>{
+    const prefsSection=status==='ready'?`<section class="member-prefs"><h3 class="member-section-title">알림 설정 <small>이메일 · 사실 안내</small></h3><div class="member-pref-row"><span>이메일 알림</span><div class="member-pref-opts"><button type="button" class="outline" data-member="pref" data-field="email" data-value="true" aria-pressed="${memberPrefs?.email===true}">받기</button><button type="button" class="outline" data-member="pref" data-field="email" data-value="false" aria-pressed="${memberPrefs?.email!==true}">끄기</button></div></div><div class="member-pref-row"><span>알림 기준</span><div class="member-pref-opts">${[1,3,7].map(d=>`<button type="button" class="outline" data-member="pref" data-field="leadDays" data-value="${d}" aria-pressed="${(memberPrefs?.leadDays??7)===d}">D-${d}</button>`).join('')}</div></div><p class="case-note">찜·저장 조건을 기준으로 매각기일·입찰마감이 임박한 경매·공매를 이메일로 보내드려요. 권리분석·적정 입찰가는 제공하지 않아요.</p></section>`:'';
+    dialog.innerHTML=`<div class="modal-heading"><div><span class="eyebrow">MY TEOJABI</span><h2 id="member-title">${available?'내 보관함':'로그인·회원가입'}</h2></div><button class="outline" data-member="close" aria-label="창 닫기">×</button></div>${architectLink}${available?`<p class="case-note">${status==='ready'?`${esc(member.user.name||'회원')}님의 계정에 저장한 내용이에요.`:'이 브라우저에 임시 저장한 찜 목록이에요. 로그인하면 계정으로 옮겨집니다.'}</p><div class="member-tabs">${Object.entries(labels).filter(([k])=>status==='ready'||k==='favorite').map(([k,v])=>`<button class="outline" data-member="tab" data-kind="${k}" aria-pressed="${filter===k}">${v} ${member.items.filter(i=>i.kind===k).length}</button>`).join('')}</div>${filter==='favorite'&&member.items.some(i=>i.kind==='favorite')?`<div class="member-favorites-actions"><button class="primary" data-member="open-favorites">찜한 매물 전체 보기 ${member.items.filter(i=>i.kind==='favorite').length}</button></div>`:''}${alerts.length?`<section class="member-alerts" aria-label="임박 알림"><h3 class="member-section-title">임박 알림 <small>찜·조건 기준 · 사실 안내</small></h3>${alerts.map(a=>`<article class="member-alert"><div><p class="member-alert-kind">${esc(a.kindLabel)}</p><h4>${esc(a.title)}</h4><p>${esc(a.detail)}</p></div><div>${a.key?`<button class="outline" data-member="open" data-key="${esc(a.key)}">다시 보기</button>`:''}</div></article>`).join('')}</section>`:''}${prefsSection}<div class="member-items">${member.items.filter(i=>i.kind===filter).map(i=>{
       const p=i.payload,title=p.name||p.address||(p.teojabiNo?`매물번호 ${p.teojabiNo}`:i.kind==='feedback'?'저장한 매물 의견':i.key);
       const detail=memberDetail(i);
       return `<article class="member-item"><div class="member-item-head"><h3>${esc(title)}</h3><small>${new Date(i.updatedAt).toLocaleDateString('ko-KR')} 저장</small></div>${detail}${i.kind!=='feedback'?`<div class="member-item-actions"><button class="outline" data-member="open" data-key="${esc(i.key)}">다시 보기</button><button class="outline" data-member="remove" data-key="${esc(i.key)}">저장 해제</button></div>`:`<div class="member-item-actions"><button class="outline" data-member="remove" data-key="${esc(i.key)}">의견 되돌리기</button></div>`}</article>`;
@@ -161,11 +164,18 @@ export function openMember(mode='member'){
     if(b.dataset.member==='open-favorites'){dialog.close();window.dispatchEvent(new CustomEvent('teojabi-open-favorites'));return;}
     if(b.dataset.member==='logout'){b.disabled=true;try{if(await member.logout())dialog.close();}catch(error){dialog.querySelector('.member-message').textContent=error.message;b.disabled=false;}return;}
     if(b.dataset.member==='tab'){filter=b.dataset.kind;render();return;}
+    if(b.dataset.member==='pref'){
+      const field=b.dataset.field,value=b.dataset.value,next={...(memberPrefs||{})};
+      if(field==='leadDays')next.leadDays=Number(value);else next[field]=value==='true';
+      memberPrefs=next;render();
+      member.request('/notifications/preferences',{method:'PUT',body:JSON.stringify(next)}).then(saved=>{if(dialog.open&&saved&&typeof saved==='object'){memberPrefs=saved;render();}}).catch(()=>{});
+      return;
+    }
     const item=member.items.find(i=>i.key===b.dataset.key)||member.get(filter,b.dataset.key);if(!item)return;
     if(b.dataset.member==='open'){dialog.close();window.dispatchEvent(new CustomEvent('teojabi-open-saved',{detail:item}));}
     if(b.dataset.member==='remove'){b.disabled=true;try{await member.remove(item.kind,item.key);}catch(error){dialog.querySelector('.member-message').textContent=error.message;b.disabled=false;}}
   });render();document.body.append(dialog);dialog.showModal();
-  if(member.status==='ready'){member.request('/notifications').then(data=>{if(dialog.open&&Array.isArray(data?.items)){memberAlerts=data.items;render();}}).catch(()=>{});}
+  if(member.status==='ready'){Promise.all([member.request('/notifications').catch(()=>null),member.request('/notifications/preferences').catch(()=>null)]).then(([inbox,prefs])=>{if(!dialog.open)return;if(Array.isArray(inbox?.items))memberAlerts=inbox.items;if(prefs&&typeof prefs==='object')memberPrefs=prefs;render();});}
   if(member.status==='idle')member.refresh();return close;
 }
 export async function saveNamed(kind,payload){
