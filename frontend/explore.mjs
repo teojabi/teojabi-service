@@ -53,6 +53,9 @@ const detailFactItems=row=>{
 // 경매 물건(auction_item)을 건물찾기 카드·지도·상세가 쓰는 매물 모양으로 맞춘다.
 const AUCTION_LAND_RE=/토지|대지|임야|전답|잡종지|과수원|답|전/;
 const AUCTION_DEAL_LABEL={whole:'건물 통',floor:'층',unit:'호실',land:'토지',vehicle:'차량'};
+const SOURCE_ORDER=['premium','registered','auction','onbid','naver','disco'];
+// AI 결과를 출처별로 3개씩 섞어, 경매·공매가 목록 뒤로 밀리지 않게 한다.
+const mixAssistantGroups=groups=>{const buckets=new Map(SOURCE_ORDER.map(o=>[o,[]]));for(const g of groups){const o=g?.representative?.origin;buckets.get(buckets.has(o)?o:'naver').push(g);}const out=[];let moved=true;while(moved){moved=false;for(const o of SOURCE_ORDER){const b=buckets.get(o);if(b.length){out.push(...b.splice(0,3));moved=true;}}}return out;};
 // 법원 소재지를 대지위치(지번)와 상세주소(건물·호)로 나눈다.
 const splitAuctionAddress=row=>{
   const full=String(row.full_address||'').trim(),lot=String(row.lot_no||'').trim();
@@ -328,7 +331,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
   function loadAssistant() {
     if(!assistantResult){source='conditions';return load();}
     const data=assistantResult;assistantShown=5;
-    result={status:'ready',groups:data.groups||[],totalParcels:Number(data.total||0),totalListings:Number(data.total||0),hasMore:false,observedAt:data.searchedAt||null,station:data.station||null,reply:data.reply||''};
+    result={status:'ready',groups:mixAssistantGroups(data.groups||[]),totalParcels:Number(data.total||0),totalListings:Number(data.total||0),hasMore:false,observedAt:data.searchedAt||null,station:data.station||null,reply:data.reply||''};
     $('.explore-list').removeAttribute('aria-busy');drawCards();map.setGroups(mapGroups(),selected,true);
     if(initialId){const id=initialId;initialId=null;openDetail(id);}
   }

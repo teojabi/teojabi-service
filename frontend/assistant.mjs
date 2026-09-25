@@ -27,6 +27,25 @@ const BUDGET_PRESETS = [10, 20, 30, 50, 100, 200];
 const AREA_PRESETS = [50, 100, 200, 300, 500];
 const ROAD_PRESETS = [4, 6, 8, 12];
 const DISTANCE_PRESETS = [100, 200, 300, 500, 1000];
+const SOURCE_ORDER = ['premium', 'registered', 'auction', 'onbid', 'naver', 'disco'];
+// 출처별로 3개씩 번갈아 섞어, 한 소스(경매 등)만 뒤로 밀리지 않게 한다.
+function mixGroups(groups) {
+  const buckets = new Map(SOURCE_ORDER.map(origin => [origin, []]));
+  for (const group of groups) {
+    const origin = group?.representative?.origin;
+    buckets.get(buckets.has(origin) ? origin : 'naver').push(group);
+  }
+  const out = [];
+  let moved = true;
+  while (moved) {
+    moved = false;
+    for (const origin of SOURCE_ORDER) {
+      const bucket = buckets.get(origin);
+      if (bucket.length) { out.push(...bucket.splice(0, 3)); moved = true; }
+    }
+  }
+  return out;
+}
 
 function savedCondition() {
   if (member.status !== 'ready') return null;
@@ -368,7 +387,7 @@ export function mountAssistant({ onResults, onAnalyze } = {}) {
   };
 
   function renderResult(body, data, openEditor) {
-    const groups = Array.isArray(data.groups) ? data.groups : [];
+    const groups = mixGroups(Array.isArray(data.groups) ? data.groups : []);
     const cards = groups.map((group, index) => cardMarkup(group.representative, index >= 8)).join('');
     let reply = `<p>${esc(data.reply || '결과를 가져왔어요.').replace(/\n/g, '<br>')}</p>`;
     if (data.conditionNote) reply += `<p class="assistant-note">${esc(data.conditionNote)}</p>`;
