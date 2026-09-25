@@ -270,6 +270,7 @@ export class NotificationsService {
       const dealType = auction.dealType || '';
       const maxPrice = Number(auction.maxPriceWon) || 0;
       const maxRate = Number(auction.maxBidRate) || 0;
+      const failMax = Number(auction.failMax) || 0;
 
       if (wantCourt) {
         const conditions: Prisma.Sql[] = [Prisma.sql`a.sale_date >= ${start}::date AND a.sale_date <= ${end}::date`];
@@ -278,6 +279,7 @@ export class NotificationsService {
         if (dealType) conditions.push(Prisma.sql`a.deal_type = ${dealType}`);
         if (maxPrice) conditions.push(Prisma.sql`a.min_price <= ${maxPrice}`);
         if (maxRate) conditions.push(Prisma.sql`a.noti_min_rate <= ${maxRate}`);
+        if (failMax) conditions.push(Prisma.sql`a.fail_count <= ${failMax}`);
         const rows = await this.prisma.$queryRaw<any[]>(Prisma.sql`
           SELECT a.docid, a.full_address, a.min_price, a.usage_name, a.sale_date, a.sale_hour
           FROM public.auction_item a WHERE ${Prisma.join(conditions, ' AND ')}
