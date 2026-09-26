@@ -173,6 +173,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
   const conditionAuction=conditions?.auction||null;
   let auctionFilters={listingSource:'court',gu:[...(conditions?.districts||[])],usage:(conditionAuction?.usages||[])[0]||'',dealType:'',saleKind:conditionAuction?.saleKind||'',risk:[],kind:'',sort:'sale',maxPrice:conditionAuction?.maxPriceWon?String(conditionAuction.maxPriceWon/1e8):'',maxBidRate:conditionAuction?.maxBidRate!=null?String(conditionAuction.maxBidRate):'',failMax:''};
   if(source==='auction')limit=100;
+  let auctionPage=1,auctionLoaded=0;
   let criteria={purpose:conditions?.purpose||null,minArea:conditions?.minArea||'',maxArea:conditions?.maxArea||'',areaUnit:conditions?.areaUnit||'pyeong',zones:conditions?.zones||[],minAreaM2:conditions?.minAreaM2??null,maxAreaM2:conditions?.maxAreaM2??null,auction:conditions?.auction||null,...BUILD_DEFAULTS,...(validateBuildCriteria(conditions||{}).value||{})};
   const defaultTitle=()=>source==='assistant'?'AI 비서 결과':source==='favorites'?'찜한 매물':source==='auction'?'경매 물건':picksOnlyMode?'터잡이 선별 매물':conditions?'내 조건으로 살펴보기':'지도에서 매물 살펴보기';
   const title=defaultTitle();
@@ -515,15 +516,17 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     const groups=auctionGroups((data.rows||[]).map(auctionToListing));
     return {groups,total:Number(data.total||groups.length)};
   }
-  async function loadAuctions({fit=true}={}) {
+  async function loadAuctions({fit=true,append=false}={}) {
     const current=++version;
     const isOnbid=auctionFilters.listingSource==='onbid';
     const label=isOnbid?'공매':'경매';
+    const size=Math.min(200,Math.max(limit,20));
+    const page=append?auctionPage+1:1;
     $('.explore-list').setAttribute('aria-busy','true');
     $('.search-suggestions').replaceChildren();
     $('#result-count').textContent=`${label} 물건을 불러오고 있어요.`;
     try {
-      const params=new URLSearchParams({size:String(Math.min(200,Math.max(limit,20))),page:'1'});
+      const params=new URLSearchParams({size:String(size),page:String(page)});
       (auctionFilters.gu||[]).forEach(g=>params.append('gu',g));
       if(auctionFilters.usage)params.set('usage',auctionFilters.usage);
       if(auctionFilters.sort)params.set('sort',auctionFilters.sort);
@@ -547,8 +550,15 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
       const response=await apiFetch(`${endpoint}?${params}`,{signal:abort.signal});
       const data=await response.json();if(!response.ok||data.status!=='ready')throw new Error(data.reason||'unavailable');
       if(disposed||current!==version)return;
-      const groups=auctionGroups((data.rows||[]).map(mapper));
-      result={status:'ready',mode:isOnbid?'onbid':'auction',groups,totalParcels:Number(data.total||groups.length),totalListings:Number(data.total||groups.length),hasMore:(data.rows||[]).length<Number(data.total||0),observedAt:null,suggestions:[]};
+      const fresh=auctionGroups((data.rows||[]).map(mapper));
+      let groups=fresh;
+      if(append&&result&&Array.isArray(result.groups)&&auctionPage===page-1){
+        const seen=new Set(result.groups.map(g=>g.key));
+        groups=[...result.groups,...fresh.filter(g=>!seen.has(g.key))];
+      }
+      auctionPage=page;
+      auctionLoaded=groups.reduce((sum,g)=>sum+(g.listings?.length||1),0);
+      result={status:'ready',mode:isOnbid?'onbid':'auction',groups,totalParcels:Number(data.total||groups.length),totalListings:Number(data.total||groups.length),hasMore:auctionLoaded<Number(data.total||0),observedAt:null,suggestions:[]};
       $('.explore-list').removeAttribute('aria-busy');drawCards();map.setGroups(mapGroups(),selected,fit);
       if(initialId){const id=initialId;initialId=null;openDetail(id);}
     } catch(error) {
@@ -891,7 +901,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
       case 'retry-detail':openDetail(selected);break;
       case 'back-list':setSheet(true);closeDetail();break;
       case 'close':closeDetail();break;
-      case 'more':if(source==='assistant'){assistantShown+=5;drawCards();map.setGroups(showAllPicks?(pickGroups||[]):mapGroups(),selected,true);}else if(source==='auction'){limit=Math.min(200,limit+40);load({fit:false});}else{limit=Math.min(500,limit+20);load({fit:false});}break;
+      case 'more':if(source==='assistant'){assistantShown+=5;drawCards();map.setGroups(showAllPicks?(pickGroups||[]):mapGroups(),selected,true);}else if(source==='auction'){loadAuctions({fit:false,append:true});}else{limit=Math.min(500,limit+20);load({fit:false});}break;
       case 'retry':load();break;
       case 'pane':$('.explore-board').dataset.pane=button.dataset.value;root.querySelectorAll('[data-explore="pane"]').forEach(b=>b.setAttribute('aria-pressed',String(b===button)));break;
       case 'search-map':if(mapView){bounds=mapView.bounds;limit=5;closeDetail();load({fit:false});}break;
