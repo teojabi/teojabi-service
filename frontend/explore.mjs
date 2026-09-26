@@ -496,6 +496,11 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
         if(auctionFilters.maxBidRate)params.set('maxBidRate',String(Number(auctionFilters.maxBidRate)));
         if(auctionFilters.failMax)params.set('maxFail',auctionFilters.failMax);
         (auctionFilters.risk||[]).forEach(k=>params.append('risk',k));
+        // 일반매물에서 고른 조건(용도지역·교육보호구역/문화재 제외·관광특구 우선)을 경매에도 자동 반영한다.
+        (criteria.zones||[]).forEach(z=>params.append('zone',z));
+        if(criteria.excludeEducation)params.set('excludeEducation','1');
+        if(criteria.excludeHeritage)params.set('excludeHeritage','1');
+        if(criteria.preferTourism)params.set('preferTourism','1');
       }
       const mapper=isOnbid?onbidToListing:auctionToListing;
       const endpoint=isOnbid?'/api/onbid':'/api/auctions';

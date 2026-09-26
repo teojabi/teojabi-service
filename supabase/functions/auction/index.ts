@@ -101,6 +101,12 @@ function applyFilters(query: any, params: URLSearchParams) {
   if (maxFail != null) q = q.lte("fail_count", maxFail);
   if (saleFrom) q = q.gte("sale_date", saleFrom);
   if (saleTo) q = q.lte("sale_date", saleTo);
+  // 일반매물의 부지 조건(교육보호구역·문화재보존구역 제외)을 경매에도 적용한다.
+  //   자료 미확인(null)도 제외한다(매물 검색과 동일한 보수적 기준).
+  const excludeEducation = ["1", "true"].includes((params.get("excludeEducation") || "").toLowerCase());
+  const excludeHeritage = ["1", "true"].includes((params.get("excludeHeritage") || "").toLowerCase());
+  if (excludeEducation) q = q.eq("education", false);
+  if (excludeHeritage) q = q.eq("heritage", false);
   return q;
 }
 
@@ -123,6 +129,10 @@ async function doList(params: URLSearchParams, origin: string | null): Promise<R
 
   let query = db.from("auction_item").select(LIST_COLUMNS, { count: "exact" });
   query = applyFilters(query, params);
+  // 관광숙박특화구역 우선 보기: 해당 구역 물건을 먼저 정렬한다(필터가 아니라 우선순위).
+  if (["1", "true"].includes((params.get("preferTourism") || "").toLowerCase())) {
+    query = query.order("tourism", { ascending: false, nullsFirst: false });
+  }
   query = query.order(column, { ascending, nullsFirst: false }).range((page - 1) * size, (page - 1) * size + size - 1);
 
   const { data, count, error } = await query;
