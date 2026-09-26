@@ -34,12 +34,20 @@ const normalizeFloorScale=value=>{
   if(above)parts.push(`지상 ${above}층`);
   return parts.join(' / ')||text;
 };
+// 용도지역 법정 허용 용적률·건폐율(%). 지구단위계획 기준은 상세 '주변 조건'에 별도 표시된다.
+const ZONE_FAR_LIMITS={'제1종전용주거지역':[100,50],'제2종전용주거지역':[120,40],'제1종일반주거지역':[150,60],'제2종일반주거지역':[200,60],'제3종일반주거지역':[250,50],'준주거지역':[400,60],'중심상업지역':[1000,60],'일반상업지역':[800,60],'근린상업지역':[600,60],'유통상업지역':[600,60],'전용공업지역':[200,60],'일반공업지역':[200,60],'준공업지역':[400,60],'보전녹지지역':[50,20],'생산녹지지역':[50,20],'자연녹지지역':[50,20]};
+const zoneFactsOf=row=>{for(const e of (row.zoning?.entries||[])){const n=String(e.name||'').replace(/\s+/g,'').replace(/\((?:7|12)층(?:이하)?\)$/,'');if(ZONE_FAR_LIMITS[n])return {zone:n,far:ZONE_FAR_LIMITS[n][0],bcr:ZONE_FAR_LIMITS[n][1]};}return null;};
 const detailFactItems=row=>{
   const facts=row.buildingFacts||{},items=[];
   const landArea=row.areaM2||facts.landAreaM2||null;
   const floorArea=row.floorAreaM2||facts.floorAreaM2||null;
   items.push(['대지면적',area(landArea)]);
   items.push(['연면적',area(floorArea)]);
+  const currentFar=(landArea&&floorArea)?Math.round(Number(floorArea)/Number(landArea)*100):null;
+  const zoneFacts=zoneFactsOf(row);
+  if(currentFar!=null)items.push(['현재 용적률',`${currentFar}%`]);
+  if(zoneFacts)items.push(['허용 용적률',`${zoneFacts.far}% (용도지역 기준)`]);
+  if(zoneFacts&&currentFar!=null)items.push(['여유 용적률',`${Math.round((zoneFacts.far-currentFar)*10)/10}%`]);
   if(facts.floorAreaM2&&(!floorArea||Number(facts.floorAreaM2)!==Number(floorArea)))items.push(['기존 연면적',area(facts.floorAreaM2)]);
   const floorScale=facts.floorScale||normalizeFloorScale(row.floorInfo);
   if(floorScale)items.push(['기존 규모',esc(floorScale)]);
