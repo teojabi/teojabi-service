@@ -75,7 +75,8 @@ const auctionToListing=row=>{
   const broad=/주거/.test(zone)?'주거지역':/상업/.test(zone)?'상업지역':/공업/.test(zone)?'공업지역':/녹지/.test(zone)?'녹지지역':null;
   const id=`auction:${row.docid}`,addr=splitAuctionAddress(row);
   const isLand=row.obj_kind==='land'||AUCTION_LAND_RE.test(usage);
-  const dealType=row.deal_type_final||row.deal_type||(isLand?'land':(/\d+\s*호/.test(String(row.full_address||'')+String(row.building_list||''))?'unit':'whole'));
+  // 상세 확정값(deal_type_final)이 없을 때: 목적물이 토지(obj_kind)면 목록의 용도기반 deal_type(whole 등)보다 토지를 우선한다.
+  const dealType=row.deal_type_final||(isLand?'land':(row.deal_type||(/\d+\s*호/.test(String(row.full_address||'')+String(row.building_list||''))?'unit':'whole')));
   // 호실 매각은 목록의 전유면적(area_max)을 우선하고, 없으면 상세 목적물 면적으로 대체한다.
   const listedArea=row.area_max==null?null:Number(row.area_max),detailArea=row.obj_area_m2==null?null:Number(row.obj_area_m2);
   const areaValue=dealType==='unit'?(listedArea!=null?listedArea:detailArea):(detailArea!=null?detailArea:listedArea);
