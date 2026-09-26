@@ -14,14 +14,24 @@ const clampLead = (value: unknown) => {
 
 type SavedRow = { kind: string; key: string; payload: any };
 type Alert = {
-  type: 'auction' | 'onbid';
+  type: 'auction' | 'onbid' | 'notice';
   key: string;
-  origin: 'favorite' | 'condition';
+  origin: 'favorite' | 'condition' | 'notice';
   conditionName: string | null;
   date: string;
   kindLabel: string;
   title: string;
   detail: string;
+};
+type InboxRow = {
+  key: string;
+  kind: string;
+  origin: string;
+  conditionName: string | null;
+  date: string | null;
+  title: string | null;
+  detail: string | null;
+  readAt: Date | null;
 };
 export type NotificationPreferences = {
   email: boolean;
@@ -82,6 +92,12 @@ export class NotificationsService {
     return n > 0 ? `${(n / 1e8).toLocaleString('ko-KR', { maximumFractionDigits: 2 })}억원` : '가격 미기재';
   }
 
+  private kindLabelFor(kind: string, date: string | null) {
+    if (kind === 'notice') return '공지';
+    const prefix = kind === 'auction' ? '경매' : '공매';
+    return date ? `${prefix} ${this.labelFor(date)}` : prefix;
+  }
+
   async getPreferences(userId: string): Promise<NotificationPreferences> {
     const rows = await this.prisma.$queryRaw<Array<any>>`
       SELECT email, web_push AS "webPush", kakao, favorites, conditions, lead_days AS "leadDays"
@@ -116,106 +132,91 @@ export class NotificationsService {
     return next;
   }
 
+  // --- 알림함(개별 항목) -----------------------------------------------------
+
   async getInboxForUser(userId: string, leadDays?: number) {
     const preferences = await this.getPreferences(userId);
     const days = clampLead(leadDays ?? preferences.leadDays);
     return this.getInbox(userId, days, { favorites: preferences.favorites, conditions: preferences.conditions });
   }
 
-  @Cron('0 30 8 * * *', { timeZone: 'Asia/Seoul' })
-  async dispatchDailyEmail() {
-    if (!this.mail.isConfigured()) {
-      this.logger.warn('Email digest skipped: Cloud Outbound Mailer is not configured.');
-      return;
+  async markRead(userId: string) {
+    await this.prisma.$executeRaw`
+      UPDATE public.notification_item SET read_at=now() WHERE user_id=${userId} AND read_at IS NULL`;
+    return { status: 'ok' };
+  }
+
+  // 저장된 최근 알림 항목을 반환한다(목록 + 안 읽은 개수).
+  private async listInbox(userId: string) {
+    const rows = await this.prisma.$queryRaw<InboxRow[]>`
+      SELECT item_key AS "key", kind, origin, condition_name AS "conditionName",
+             to_char(event_date,'YYYY-MM-DD') AS "date", title, detail, read_at AS "readAt"
+      FROM public.notification_item
+      WHERE user_id=${userId}
+      ORDER BY (read_at IS NULL) DESC, event_date ASC NULLS LAST, created_at DESC
+      LIMIT 60`;
+    const items = rows.map((row) => ({
+      type: row.kind as Alert['type'],
+      key: row.key,
+      origin: row.origin as Alert['origin'],
+      conditionName: row.conditionName,
+      date: row.date ?? '',
+      kindLabel: this.kindLabelFor(row.kind, row.date),
+      title: row.title ?? '',
+      detail: row.detail ?? '',
+      read: row.readAt != null,
+    }));
+    const unreadCount = items.filter((item) => !item.read).length;
+    return { status: 'ready', generatedAt: new Date().toISOString(), count: items.length, unreadCount, items };
+  }
+
+  // 새로 생긴 매칭·공지만 알림 항목으로 추가한다. 첫 조회는 기준선(기존 매칭은 읽음 처리)으로 삼아
+  // 과거 물건이 한꺼번에 알림으로 쏟아지지 않게 한다.
+  private async syncInbox(userId: string, candidates: Alert[]) {
+    const existingRows = await this.prisma.$queryRaw<Array<{ item_key: string }>>`
+      SELECT item_key FROM public.notification_item WHERE user_id=${userId}`;
+    const existing = new Set(existingRows.map((r) => r.item_key));
+    const firstRun = existing.size === 0;
+    const readAt = firstRun ? new Date() : null;
+
+    for (const candidate of candidates) {
+      if (!candidate.key || existing.has(candidate.key)) continue;
+      existing.add(candidate.key);
+      await this.prisma.$executeRaw`
+        INSERT INTO public.notification_item
+          (user_id,item_key,kind,origin,condition_name,event_date,title,detail,read_at)
+        VALUES (${userId},${candidate.key},${candidate.type},${candidate.origin},${candidate.conditionName},
+                ${candidate.date || null}::date,${candidate.title},${candidate.detail},${readAt})
+        ON CONFLICT (user_id,item_key) DO NOTHING`;
     }
-    const recipients = await this.prisma.$queryRaw<Array<{ userId: string; email: string }>>`
-      SELECT p.user_id AS "userId", u.email AS email
-      FROM public.notification_preference p
-      JOIN public."user" u ON u.id = p.user_id
-      WHERE p.email = true AND u.email IS NOT NULL AND u.email <> ''`;
-    const today = this.date();
-    let sent = 0;
-    for (const recipient of recipients) {
-      try {
-        const preferences = await this.getPreferences(recipient.userId);
-        if (!preferences.email) continue;
-        const inbox = await this.getInbox(recipient.userId, preferences.leadDays, {
-          favorites: preferences.favorites,
-          conditions: preferences.conditions,
-        });
-        if (!inbox.items.length) continue;
-        const dedupeKey = `email:${recipient.userId}:${today}`;
-        const inserted = await this.prisma.$executeRaw`
-          INSERT INTO public.notification_delivery(user_id,dedupe_key,channel,item_count,status)
-          VALUES (${recipient.userId},${dedupeKey},'email',${inbox.items.length},'SENT')
-          ON CONFLICT (dedupe_key) DO NOTHING`;
-        if (inserted === 0) continue;
-        await this.mail.send({
-          to: recipient.email,
-          title: `[터잡이] 임박한 경매·공매 ${inbox.items.length}건`,
-          body: this.buildDigestBody(inbox.items),
-        });
-        sent += 1;
-      } catch (error) {
-        this.logger.error(`Email digest failed for ${recipient.userId}`, error as Error);
-        await this.prisma
-          .$executeRaw`UPDATE public.notification_delivery SET status='FAILED', error=${String((error as Error)?.message ?? error).slice(0, 200)} WHERE dedupe_key=${`email:${recipient.userId}:${today}`}`
-          .catch(() => undefined);
-      }
+
+    const notices = await this.prisma.$queryRaw<Array<{ id: bigint; title: string; body: string | null; date: string }>>`
+      SELECT id, title, body, to_char(published_at,'YYYY-MM-DD') AS date
+      FROM public.notice WHERE active=true ORDER BY published_at DESC LIMIT 20`;
+    for (const notice of notices) {
+      const key = `notice:${notice.id}`;
+      if (existing.has(key)) continue;
+      existing.add(key);
+      await this.prisma.$executeRaw`
+        INSERT INTO public.notification_item
+          (user_id,item_key,kind,origin,condition_name,event_date,title,detail,read_at)
+        VALUES (${userId},${key},'notice','notice',NULL,${notice.date}::date,${notice.title},${notice.body ?? ''},${readAt})
+        ON CONFLICT (user_id,item_key) DO NOTHING`;
     }
-    this.logger.log(`Email digest dispatched: ${sent}/${recipients.length}`);
-  }
-
-  private buildDigestBody(items: Alert[]) {
-    const rows = items
-      .map(
-        (item) =>
-          `<li style="margin:0 0 10px;"><strong>${this.escape(item.kindLabel)}</strong><br>${this.escape(item.title)}<br><span style="color:#6b7280;font-size:13px;">${this.escape(item.detail)}</span></li>`,
-      )
-      .join('');
-    return `
-<div style="font-family:'Apple SD Gothic Neo','Malgun Gothic',Arial,sans-serif;max-width:600px;margin:0 auto;color:#111827;line-height:1.6;">
-  <h2 style="margin:0 0 8px;font-size:20px;">[터잡이] 임박한 경매·공매 ${items.length}건</h2>
-  <p style="margin:0 0 16px;font-size:14px;color:#374151;">찜·저장 조건 기준으로 매각기일·입찰마감이 임박한 물건이에요. 사실 안내이며, 입찰 전 원문을 확인하세요.</p>
-  <ul style="padding-left:18px;margin:0 0 20px;">${rows}</ul>
-  <p style="margin:0 0 20px;"><a href="${SITE_URL}" style="display:inline-block;padding:12px 20px;background:#2563eb;color:#fff;text-decoration:none;border-radius:8px;font-weight:700;">터잡이에서 확인하기</a></p>
-  <p style="margin:0;font-size:12px;color:#6b7280;">권리분석·적정 입찰가는 제공하지 않아요. 알림 수신은 내 보관함 &gt; 알림 설정에서 끌 수 있어요.</p>
-</div>`.trim();
-  }
-
-  private escape(value: unknown) {
-    return String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string));
-  }
-
-  private auctionAlert(r: any, origin: 'favorite' | 'condition', conditionName: string | null): Alert {
-    const date = this.dateOf(r.sale_date);
-    return {
-      type: 'auction',
-      key: `auction:${r.docid}`,
-      origin,
-      conditionName,
-      date,
-      kindLabel: `경매 ${this.labelFor(date)}`,
-      title: String(r.full_address || r.docid || ''),
-      detail: `${String(r.usage_name || '용도 미기재')} · 최저 ${this.money(r.min_price)} · 매각기일 ${date}${r.sale_hour ? ` ${r.sale_hour}` : ''}`,
-    };
-  }
-
-  private onbidAlert(r: any, origin: 'favorite' | 'condition', conditionName: string | null): Alert {
-    const date = this.dateOf(r.bid_end_dt);
-    return {
-      type: 'onbid',
-      key: `onbid:${r.cltr_mng_no}::${r.pbct_cdtn_no}`,
-      origin,
-      conditionName,
-      date,
-      kindLabel: `공매 ${this.labelFor(date)}`,
-      title: String(r.cltr_nm || r.cltr_mng_no || ''),
-      detail: `${String(r.usg_mcls_nm || '용도 미기재')} · 최저입찰 ${this.money(r.lowst_bid_prc)} · 입찰마감 ${date}`,
-    };
   }
 
   async getInbox(userId: string, leadDays: number, options: { favorites?: boolean; conditions?: boolean } = {}) {
+    const candidates = await this.collectAlerts(userId, leadDays, options);
+    await this.syncInbox(userId, candidates);
+    return this.listInbox(userId);
+  }
+
+  // 찜·저장 조건에 맞는 현재 물건을 모은다(임박 기간 내).
+  private async collectAlerts(
+    userId: string,
+    leadDays: number,
+    options: { favorites?: boolean; conditions?: boolean } = {},
+  ): Promise<Alert[]> {
     const includeFavorites = options.favorites !== false;
     const includeConditions = options.conditions !== false;
     const saved = await this.prisma.$queryRaw<SavedRow[]>`
@@ -303,10 +304,102 @@ export class NotificationsService {
 
     const dedup = new Map<string, Alert>();
     for (const item of items) if (item.key && !dedup.has(item.key)) dedup.set(item.key, item);
-    const list = [...dedup.values()]
-      .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0))
-      .slice(0, 60);
+    return [...dedup.values()];
+  }
 
-    return { status: 'ready', generatedAt: new Date().toISOString(), leadDays, count: list.length, items: list };
+  @Cron('0 30 8 * * *', { timeZone: 'Asia/Seoul' })
+  async dispatchDailyEmail() {
+    if (!this.mail.isConfigured()) {
+      this.logger.warn('Email digest skipped: Cloud Outbound Mailer is not configured.');
+      return;
+    }
+    const recipients = await this.prisma.$queryRaw<Array<{ userId: string; email: string }>>`
+      SELECT p.user_id AS "userId", u.email AS email
+      FROM public.notification_preference p
+      JOIN public."user" u ON u.id = p.user_id
+      WHERE p.email = true AND u.email IS NOT NULL AND u.email <> ''`;
+    const today = this.date();
+    let sent = 0;
+    for (const recipient of recipients) {
+      try {
+        const preferences = await this.getPreferences(recipient.userId);
+        if (!preferences.email) continue;
+        const inbox = await this.getInbox(recipient.userId, preferences.leadDays, {
+          favorites: preferences.favorites,
+          conditions: preferences.conditions,
+        });
+        // 읽지 않은 새 알림만 메일로 보낸다(이미 본 항목 반복 발송 방지).
+        const unread = inbox.items.filter((item) => !item.read);
+        if (!unread.length) continue;
+        const dedupeKey = `email:${recipient.userId}:${today}`;
+        const inserted = await this.prisma.$executeRaw`
+          INSERT INTO public.notification_delivery(user_id,dedupe_key,channel,item_count,status)
+          VALUES (${recipient.userId},${dedupeKey},'email',${unread.length},'SENT')
+          ON CONFLICT (dedupe_key) DO NOTHING`;
+        if (inserted === 0) continue;
+        await this.mail.send({
+          to: recipient.email,
+          title: `[터잡이] 새 경매·공매 알림 ${unread.length}건`,
+          body: this.buildDigestBody(unread as Alert[]),
+        });
+        await this.markRead(recipient.userId);
+        sent += 1;
+      } catch (error) {
+        this.logger.error(`Email digest failed for ${recipient.userId}`, error as Error);
+        await this.prisma
+          .$executeRaw`UPDATE public.notification_delivery SET status='FAILED', error=${String((error as Error)?.message ?? error).slice(0, 200)} WHERE dedupe_key=${`email:${recipient.userId}:${today}`}`
+          .catch(() => undefined);
+      }
+    }
+    this.logger.log(`Email digest dispatched: ${sent}/${recipients.length}`);
+  }
+
+  private buildDigestBody(items: Alert[]) {
+    const rows = items
+      .map(
+        (item) =>
+          `<li style="margin:0 0 10px;"><strong>${this.escape(item.kindLabel)}</strong><br>${this.escape(item.title)}<br><span style="color:#6b7280;font-size:13px;">${this.escape(item.detail)}</span></li>`,
+      )
+      .join('');
+    return `
+<div style="font-family:'Apple SD Gothic Neo','Malgun Gothic',Arial,sans-serif;max-width:600px;margin:0 auto;color:#111827;line-height:1.6;">
+  <h2 style="margin:0 0 8px;font-size:20px;">[터잡이] 새 경매·공매 알림 ${items.length}건</h2>
+  <p style="margin:0 0 16px;font-size:14px;color:#374151;">찜·저장 조건에 <b>새로 올라온</b> 물건이에요. 사실 안내이며, 입찰 전 원문을 확인하세요.</p>
+  <ul style="padding-left:18px;margin:0 0 20px;">${rows}</ul>
+  <p style="margin:0 0 20px;"><a href="${SITE_URL}" style="display:inline-block;padding:12px 20px;background:#2563eb;color:#fff;text-decoration:none;border-radius:8px;font-weight:700;">터잡이에서 확인하기</a></p>
+  <p style="margin:0;font-size:12px;color:#6b7280;">권리분석·적정 입찰가는 제공하지 않아요. 알림 수신은 내 보관함 &gt; 알림 설정에서 끌 수 있어요.</p>
+</div>`.trim();
+  }
+
+  private escape(value: unknown) {
+    return String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string));
+  }
+
+  private auctionAlert(r: any, origin: 'favorite' | 'condition', conditionName: string | null): Alert {
+    const date = this.dateOf(r.sale_date);
+    return {
+      type: 'auction',
+      key: `auction:${r.docid}`,
+      origin,
+      conditionName,
+      date,
+      kindLabel: `경매 ${this.labelFor(date)}`,
+      title: String(r.full_address || r.docid || ''),
+      detail: `${String(r.usage_name || '용도 미기재')} · 최저 ${this.money(r.min_price)} · 매각기일 ${date}${r.sale_hour ? ` ${r.sale_hour}` : ''}`,
+    };
+  }
+
+  private onbidAlert(r: any, origin: 'favorite' | 'condition', conditionName: string | null): Alert {
+    const date = this.dateOf(r.bid_end_dt);
+    return {
+      type: 'onbid',
+      key: `onbid:${r.cltr_mng_no}::${r.pbct_cdtn_no}`,
+      origin,
+      conditionName,
+      date,
+      kindLabel: `공매 ${this.labelFor(date)}`,
+      title: String(r.cltr_nm || r.cltr_mng_no || ''),
+      detail: `${String(r.usg_mcls_nm || '용도 미기재')} · 최저입찰 ${this.money(r.lowst_bid_prc)} · 입찰마감 ${date}`,
+    };
   }
 }
