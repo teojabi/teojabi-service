@@ -106,7 +106,9 @@ LIST_COLUMNS = ('docid, court_name, dept_name, case_no, usage_name, appraised_am
 
 
 def _where(payload):
-    where = ["court_code IS NOT NULL", "cancelled IS NOT TRUE"]
+    # 지분 매각은 서비스 대상이 아니므로 항상 제외한다(건물주 목적 사용자 대상).
+    where = ["court_code IS NOT NULL", "cancelled IS NOT TRUE",
+             "coalesce(sale_kind, 'whole') <> 'share'"]
     params = {}
     for index, token in enumerate(EXCLUDED_USAGE):
         key = f'excluded{index}'

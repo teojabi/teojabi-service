@@ -80,10 +80,12 @@ function applyFilters(query: any, params: URLSearchParams) {
   const saleFrom = (params.get("saleFrom") || "").trim();
   const saleTo = (params.get("saleTo") || "").trim();
 
+  // 지분 매각은 서비스 대상이 아니므로 항상 제외한다(건물주 목적 사용자 대상).
   let q = query.not("court_code", "is", null)
     .not("usage_name", "ilike", "%아파트%")
     .not("usage_name", "ilike", "%자동차%")
-    .not("cancelled", "is", true);
+    .not("cancelled", "is", true)
+    .not("sale_kind", "eq", "share");
   if (xgus.length) q = q.in("sigu", xgus);
   if (usages.length) q = q.or(usages.map((u) => `usage_name.ilike.%${u}%`).join(","));
   if (zones.length) q = q.or(zones.map((z) => `use_zone.ilike.%${z}%`).join(","));
