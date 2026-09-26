@@ -39,6 +39,7 @@ export class PreferencesService {
     const commercialTypes: WeightMap = {};
     const commercialNames: WeightMap = {};
     const buildUses: WeightMap = {};
+    const purposes: WeightMap = {};
     let bMin: number | null = null;
     let bMax: number | null = null;
     let bSum = 0;
@@ -63,6 +64,7 @@ export class PreferencesService {
         (p.zones || []).forEach((z: unknown) => inc(zones, z));
         addBudget(p.budgetWon);
         inc(buildUses, p.buildUse);
+        inc(purposes, p.purpose);
         if (p.preferTourism) preferTourism += 1;
         if (p.excludeEducation) excludeEducation += 1;
         if (p.excludeHeritage) excludeHeritage += 1;
@@ -89,6 +91,7 @@ export class PreferencesService {
       (p.zones || []).forEach((z: unknown) => inc(zones, z, 2));
       addBudget(p.budgetWon);
       inc(buildUses, p.buildUse, 2);
+      inc(purposes, p.purpose, 2);
       if (p.preferTourism) preferTourism += 1;
       if (p.excludeEducation) excludeEducation += 1;
       if (p.excludeHeritage) excludeHeritage += 1;
@@ -102,6 +105,7 @@ export class PreferencesService {
       commercialTypes: top(commercialTypes),
       commercialNames: top(commercialNames),
       buildUses: top(buildUses),
+      purposes: top(purposes),
       budget: bN ? { min: bMin, max: bMax, avg: Math.round(bSum / bN) } : null,
       flags: { preferTourism: preferTourism > 0, excludeEducation: excludeEducation > 0, excludeHeritage: excludeHeritage > 0 },
       eventCount: events.length,
