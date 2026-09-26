@@ -9,6 +9,8 @@ import { criteriaFields, readCriteriaFields, areaHelp } from './criteria-ui.mjs'
 
 import {readRecentSearch,writeRecentSearch,readMemberSearch,writeMemberSearch} from './recent-search.mjs';
 import {BUILD_DEFAULTS,buildCriteriaFields,buildConditionLabels,validateBuildCriteria} from './build-criteria.mjs';
+import {openNotifications,scheduleNotificationBadge,refreshNotificationBadge} from './notifications.mjs';
+import {logEvent} from './events.mjs';
 const app = document.querySelector('#app');
 const emptyAuction=()=>({enabled:false,source:'court',dealType:'',saleKind:'',failMax:'',usages:[],maxPriceEok:'',maxBidRate:''});
 const emptyDraft=()=>({budgetEok:'',districts:[],neighborhoods:[],purpose:null,minArea:'',maxArea:'',areaUnit:'pyeong',zones:[],auction:emptyAuction(),...BUILD_DEFAULTS});
@@ -137,6 +139,7 @@ function updateMemberButton(){
 }
 member.addEventListener('change',()=>{
   updateMemberButton();
+  scheduleNotificationBadge();
   if(member.status!=='ready'||!member.user?.id||enteredMember===member.user.id)return;
   enteredMember=member.user.id;
   if(completedThisVisit&&state.applied){writeMemberSearch(member.user,state.applied);return;}
@@ -146,6 +149,7 @@ member.addEventListener('change',()=>{
   history.replaceState(null,'',location.pathname+'#search');render(false);
 });
 updateMemberButton();
+scheduleNotificationBadge();
 member.refresh();
 resumeSignup(member);
 let assistantPayload=null,assistantOpenId=null;
@@ -257,6 +261,7 @@ document.addEventListener('click', event => {
   if (action === 'assistant') {ensureAssistant().then(controls=>controls.open());return;}
   if (action === 'preview-member') {previewMember();return;}
   if (action === 'saved') {openMember();return;}
+  if (action === 'notifications') {openNotifications();return;}
   if (action === 'home') { state.screen = 'home'; state.editing = false; }
   if (action === 'browse') { state.screen='results';state.applied=null;state.editing=false;state.picksOnly=true;history.replaceState(null,'',location.pathname); }
   if (action === 'find') {
@@ -309,6 +314,7 @@ document.addEventListener('click', event => {
     state.applied = { ...state.draft,budgetWon:budgetWon(),districts:[...state.draft.districts],neighborhoods:[...(state.draft.neighborhoods||[])],zones:[...state.draft.zones],minAreaM2:range.minAreaM2,maxAreaM2:range.maxAreaM2,sort:'price',
       auction:normalizeAuction({enabled:draftAuction.enabled===true,source:draftAuction.source,dealType:draftAuction.dealType,saleKind:draftAuction.saleKind,failMax:draftAuction.failMax,usages:draftAuction.usages,maxPriceWon:draftAuction.maxPriceEok?Number(draftAuction.maxPriceEok)*1e8:null,maxBidRate:draftAuction.maxBidRate?Number(draftAuction.maxBidRate):null}) };
     completedThisVisit=true;rememberSearch(state.applied);
+    logEvent('condition_applied',{districts:state.applied.districts||[],budgetWon:state.applied.budgetWon||null,minAreaM2:state.applied.minAreaM2??null,maxAreaM2:state.applied.maxAreaM2??null,zones:state.applied.zones||[],purpose:state.applied.purpose||null,buildUse:state.applied.buildUse||null,preferTourism:state.applied.preferTourism===true,excludeEducation:state.applied.excludeEducation===true,excludeHeritage:state.applied.excludeHeritage===true,auctionEnabled:state.applied.auction?.enabled===true});
     state.screen = 'results'; state.editing = false;
     history.replaceState(null,'',location.pathname);
   }
