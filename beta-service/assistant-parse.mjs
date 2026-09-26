@@ -332,7 +332,7 @@ export function viewAuctionRow(row) {
   const id = `auction:${row.docid}`, addr = splitAuctionAddress(row);
   return {
     id, source: 'auction', sourceId: String(row.docid), sourceUrl: row.source_url || 'https://www.courtauction.go.kr/', cohort: 'auction', origin: 'auction',
-    saleKind: row.sale_kind || 'whole', flags: row.flags || null,
+    saleKind: row.sale_kind || 'whole', flags: row.flags || null, acquiredRights: row.acquired_rights || null,
     district: row.sigu || '', neighborhood: row.dong || '', address: addr.land, detailAddress: addr.detail,
     pnu: row.pnu || null, position: Number.isFinite(row.lat) && Number.isFinite(row.lng) ? { lat: Number(row.lat), lng: Number(row.lng) } : null,
     priceWon: row.min_price == null ? null : Number(row.min_price), areaM2: row.obj_area_m2 != null ? Number(row.obj_area_m2) : (row.area_max == null ? null : Number(row.area_max)), floorAreaM2: null,
