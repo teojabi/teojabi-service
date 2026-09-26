@@ -361,6 +361,9 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
         return p;
       }
       (criteria.zones||[]).forEach(z=>p.append('zone',z));
+      if(criteria.excludeEducation)p.set('excludeEducation','1');
+      if(criteria.excludeHeritage)p.set('excludeHeritage','1');
+      if(criteria.preferTourism)p.set('preferTourism','1');
       if(criteria.minAreaM2!=null)p.set('minArea',String(criteria.minAreaM2));
       if(criteria.maxAreaM2!=null)p.set('maxArea',String(criteria.maxAreaM2));
       if(a.dealType)p.set('dealType',a.dealType);
