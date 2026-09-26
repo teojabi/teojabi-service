@@ -9,6 +9,35 @@ const positive = value => {
   if (!['string','number'].includes(typeof value) || !/^\d+(?:\.\d+)?$/.test(String(value))) return null;
   const n=Number(value); return Number.isFinite(n) && n>0 ? n : null;
 };
+// 사용자의 관심 프로필(목적·지역·용도지역·용도·예산)을 압축해 받아 매물 점수를 낸다.
+export function parsePref(value) {
+  if (!value) return null;
+  try {
+    const p = JSON.parse(value);
+    if (!p || typeof p !== 'object') return null;
+    const list = (v, n) => Array.isArray(v) ? v.filter(x => typeof x === 'string' && x.trim()).slice(0, n) : [];
+    return { d: list(p.d, 6), z: list(p.z, 4), u: list(p.u, 4),
+      b: Number.isFinite(Number(p.b)) && Number(p.b) > 0 ? Number(p.b) : null,
+      p: typeof p.p === 'string' ? p.p : null, bu: typeof p.bu === 'string' ? p.bu : null };
+  } catch { return null; }
+}
+export function prefScore(row, pref) {
+  if (!pref) return 0;
+  const has = (list, key) => list.some(k => key.includes(k) || k.includes(key));
+  let score = 0;
+  if (pref.d.length && has(pref.d, String(row.district || ''))) score += 3;
+  const zoneNames = (row.zoning?.entries || []).map(e => String(e.name || '')).join(' ');
+  if (pref.z.length && pref.z.some(z => zoneNames.includes(z))) score += 2;
+  const usage = String(row.buildingFacts?.mainUse || (row.kind === 'land' ? '토지' : ''));
+  if (pref.u.length && pref.u.some(u => usage.includes(u))) score += 2;
+  const price = Number(row.priceWon);
+  if (pref.b && price > 0) score += 2 * Math.max(0, 1 - Math.abs(price - pref.b) / pref.b);
+  if (pref.p === 'new-build') { if (/상업|준주거|준공업/.test(zoneNames)) score += 1.5; if (row.kind === 'land') score += 1; }
+  else if (pref.p === 'invest') { if (price > 0) score += 1; }
+  else if (pref.p === 'own-use') { if (pref.u.length && pref.u.some(u => usage.includes(u))) score += 1; }
+  if (pref.bu === 'hotel' && /상업|관광/.test(zoneNames)) score += 1.5;
+  return score;
+}
 export function validPosition(position) {
   return Number.isFinite(position?.lat) && Number.isFinite(position?.lng) && position.lat>=37.3 && position.lat<=37.8 && position.lng>=126.7 && position.lng<=127.3;
 }
@@ -79,6 +108,7 @@ export function browseCatalog(catalog, query) {
   try {bounds=parseBounds(query.get('bounds'));} catch {return {status:'invalid'};}
   const sort=query.get('sort')||'price';
   if (!['price','price-desc','area'].includes(sort)) return {status:'invalid'};
+  const pref=parsePref(query.get('pref'));
   const maxLimit=requestedIds?100:catalog.mode==='selected-preview'?500:20;
   const limit=requestedIds?maxLimit:Math.min(maxLimit,Math.max(5,Math.floor(Number(query.get('limit')))||5));
   const keyword=text(query.get('q'),100).toLocaleLowerCase('ko-KR');
@@ -104,7 +134,10 @@ export function browseCatalog(catalog, query) {
     if (!groups.has(key)) groups.set(key,{key,pnu:row.pnu,representative:row,listings:[]});
     groups.get(key).listings.push(row);
   }
-  const orderedGroups=[...groups.values()].sort((a,b)=>(build.preferTourism?tourismRank(a.representative)-tourismRank(b.representative):0)||(sort==='area'?b.representative.areaM2-a.representative.areaM2:
+  // 목적·프로필 가중은 기본 정렬(가격순)에서 대표 매물 점수로 먼저 정렬한다.
+  const prefRank=new Map();
+  if(pref&&sort==='price')for(const g of groups.values())prefRank.set(g,prefScore(g.representative,pref));
+  const orderedGroups=[...groups.values()].sort((a,b)=>(build.preferTourism?tourismRank(a.representative)-tourismRank(b.representative):0)||((prefRank.get(b)||0)-(prefRank.get(a)||0))||(sort==='area'?b.representative.areaM2-a.representative.areaM2:
     sort==='price-desc'?(b.representative.priceWon??-Infinity)-(a.representative.priceWon??-Infinity):(a.representative.priceWon??Infinity)-(b.representative.priceWon??Infinity))||a.representative.id.localeCompare(b.representative.id));
   return {status:'ready',mode:catalog.mode||'local-snapshot',observedAt:catalog.observedAt,
     criteria:extra.value,zoningAvailable:catalog.zoningAvailable,
