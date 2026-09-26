@@ -630,7 +630,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
       if(disposed||current!==detailVersion)return;
       detail={listing:auctionToListing(data.item),auctionDetail:data.detail||null};
       renderAuctionDetail();
-      logEvent('view_detail',{source:'auction',usage:detail.listing.auction?.usageName||'',priceWon:detail.listing.priceWon||null,address:detail.listing.address||''},detail.listing.id);
+      logEvent('view_detail',{source:'auction',usage:detail.listing.auction?.usageName||'',district:detail.listing.district||'',priceWon:detail.listing.priceWon||null,address:detail.listing.address||''},detail.listing.id);
       closeContext=mountInlineContext($('#context-facts'),detail.listing);
       closeRecords=mountBuildingRecords($('#building-records'),$('#building-records-toggle'),detail.listing);
       closeLand=mountLandRecords($('#land-area-comparison'),$('#land-records'),$('#land-records-toggle'),detail.listing);
@@ -717,7 +717,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
       }
       if(disposed||current!==detailVersion)return;
       detail=data;renderDetail();
-      logEvent('view_detail',{source:data.listing.cohort||data.listing.source||'',usage:data.listing.auction?.usageName||data.listing.mainUse||'',priceWon:data.listing.priceWon||null,address:data.listing.address||''},data.listing.id);
+      logEvent('view_detail',{source:data.listing.cohort||data.listing.source||'',usage:data.listing.auction?.usageName||data.listing.mainUse||'',district:data.listing.district||'',priceWon:data.listing.priceWon||null,address:data.listing.address||''},data.listing.id);
       const favoriteActive=Boolean(member.get('favorite',data.listing.id));
       $('.detail-content').insertAdjacentHTML('afterbegin',`<div class="detail-conversion"><a class="primary" href="https://pf.kakao.com/_qSQxhX/chat" target="_blank" rel="noopener noreferrer">터잡이와 상담하기 ↗</a><button class="outline" data-explore="favorite" data-favorite-detail="true" data-id="${esc(data.listing.id)}" aria-pressed="${favoriteActive}">${favoriteActive?'♥ 찜함':'♡ 찜하기'}</button><button class="outline" data-explore="copy-consult">상담할 매물 정보 복사</button><small>주소와 가격을 복사해서 상담 채널에 보내주세요.</small></div>`);
       closeContext=mountInlineContext($('#context-facts'),data.listing);closeRecords=mountBuildingRecords($('#building-records'),$('#building-records-toggle'),data.listing);closeLand=mountLandRecords($('#land-area-comparison'),$('#land-records'),$('#land-records-toggle'),data.listing);closeCommercial=mountCommercial($('#commercial-facts'),data.listing);closeSurrounding=mountSurrounding($('#surrounding-facts'),data.listing);closeStreetPreview=mountStreetPreview($('#street-inline'),data.listing.position);map.select(data.listing);$('#detail-title').focus({preventScroll:true});
@@ -788,7 +788,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
         button.disabled=true;try{
           if(member.get('favorite',row.id))await member.remove('favorite',row.id);else await member.save('favorite',row.id,row);
           const active=Boolean(member.get('favorite',row.id));
-          logEvent(active?'favorite':'unfavorite',{source:row.cohort||row.source||'',usage:row.auction?.usageName||row.mainUse||'',priceWon:row.priceWon||null,address:row.address||''},row.id);
+          logEvent(active?'favorite':'unfavorite',{source:row.cohort||row.source||'',usage:row.auction?.usageName||row.mainUse||'',district:row.district||'',priceWon:row.priceWon||null,address:row.address||''},row.id);
           root.querySelectorAll('[data-explore="favorite"]').forEach(item=>{if(item.dataset.id!==row.id)return;item.setAttribute('aria-pressed',String(active));item.textContent=active?'♥ 찜함':(item.dataset.favoriteDetail==='true'?'♡ 찜하기':'♡ 찜');});
         }catch(error){$('.discovery-notice').textContent=error.message;}button.disabled=false;break;
       }

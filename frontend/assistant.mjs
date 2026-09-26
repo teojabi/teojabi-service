@@ -10,6 +10,7 @@ const area = value => value > 0 ? formatArea(value, getAreaDisplayUnit()) : '면
 const originLabel = origin => ({ premium: '★ 터잡이 추천', registered: '터잡이 등록', disco: '디스코 매물', naver: '네이버 매물', auction: '경매 물건', onbid: '공매 물건' }[origin] || '네이버 매물');
 const publicSale = origin => origin === 'auction' || origin === 'onbid';
 import { ASSISTANT_ROBOT } from './assistant-icon.mjs';
+import { logEvent } from './events.mjs';
 export { ASSISTANT_ROBOT };
 const ROBOT = ASSISTANT_ROBOT;
 const SCAN_MS = 8000;
@@ -202,6 +203,28 @@ function editorMarkup(filters) {
     <div class="assistant-editor-row"><span>도로폭</span><div class="assistant-opts">${ROAD_PRESETS.map(v => `<button type="button" data-num="minRoadWidthM" data-value="${v}" aria-pressed="${road === v}">${v}m 이상</button>`).join('')}</div></div>
     <div class="assistant-editor-actions"><button type="button" class="outline" data-editor-cancel>닫기</button><button type="submit" class="primary">이 조건으로 다시 찾기</button></div>
   </form>`;
+}
+
+// AI 검색 의도(지역·용도·역·상권)를 회원 행동 로그로 남긴다. 로그인 회원만 기록된다.
+function logSearchIntent(message, filters) {
+  const f = filters || {};
+  logEvent('assistant_query', {
+    text: String(message || '').slice(0, 200),
+    districts: f.districts || [],
+    zones: f.zones || [],
+    kind: f.kind || null,
+    purpose: f.purpose || null,
+  });
+  if (f.stationName) logEvent('station_filter', { station: f.stationName, maxDistanceM: f.maxDistanceM || null });
+  if (f.commercialName || (f.commercialType || []).length || f.minCommercialSalesWon || f.minCommercialPopulation) {
+    logEvent('commercial_select', {
+      name: f.commercialName || null,
+      types: f.commercialType || [],
+      radiusM: f.commercialRadiusM || null,
+      minSalesWon: f.minCommercialSalesWon || null,
+      minPopulation: f.minCommercialPopulation || null,
+    });
+  }
 }
 
 export function mountAssistant({ onResults, onAnalyze } = {}) {
@@ -537,6 +560,7 @@ export function mountAssistant({ onResults, onAnalyze } = {}) {
         scan.remove();
       }
       lastFilters = { ...(data.filters || {}) };
+      logSearchIntent(message, data.filters || editedFilters || {});
       renderResult(null, data, !message && Boolean(editedFilters));
     } catch {
       timers.forEach(clearTimeout); if (scan) scan.remove();
