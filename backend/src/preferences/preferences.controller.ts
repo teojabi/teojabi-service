@@ -7,9 +7,10 @@ import { PreferencesService } from './preferences.service';
 export class PreferencesController {
   constructor(private readonly preferences: PreferencesService) {}
 
-  // 내 관심 프로필을 다시 계산해 돌려준다.
+  // 내 관심 프로필. 저장돼 있으면 그대로, 없으면 한 번 계산해 돌려준다.
   @Get('me')
-  me(@Request() req: any) {
-    return this.preferences.rebuild(req.user.id);
+  async me(@Request() req: any) {
+    const existing = await this.preferences.get(req.user.id);
+    return existing ?? this.preferences.rebuild(req.user.id);
   }
 }

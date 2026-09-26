@@ -70,6 +70,24 @@ const auctionRightsBadge=row=>row.acquiredRights?`<em class="pick-badge risk-bad
 const SOURCE_ORDER=['premium','registered','auction','onbid','naver','disco'];
 // AI 결과를 출처별로 3개씩 섞어, 경매·공매가 목록 뒤로 밀리지 않게 한다.
 const mixAssistantGroups=groups=>{const buckets=new Map(SOURCE_ORDER.map(o=>[o,[]]));for(const g of groups){const o=g?.representative?.origin;buckets.get(buckets.has(o)?o:'naver').push(g);}const out=[];let moved=true;while(moved){moved=false;for(const o of SOURCE_ORDER){const b=buckets.get(o);if(b.length){out.push(...b.splice(0,3));moved=true;}}}return out;};
+// 로그인 회원의 관심 프로필을 압축해 카탈로그 정렬 파라미터(pref)로 보낸다. (목적별 가중 랭킹)
+let userPrefPromise=null;
+const distillPref=profile=>{
+  if(!profile||typeof profile!=='object')return null;
+  const keys=(list,n)=>(Array.isArray(list)?list.slice(0,n).map(x=>x&&x.key).filter(Boolean):[]);
+  return {d:keys(profile.districts,6),z:keys(profile.zones,3),u:keys(profile.usages,3),b:Number(profile.budget?.avg)>0?Number(profile.budget.avg):null,p:profile.purposes?.[0]?.key||null,bu:profile.buildUses?.[0]?.key||null};
+};
+const loadUserPref=()=>{
+  userPrefPromise??=(async()=>{if(member.status!=='ready')return null;try{return distillPref(await member.request('/preferences/me'));}catch{return null;}})();
+  // 로그인 상태가 바뀌면 다시 불러온다.
+  return userPrefPromise.catch(()=>null);
+};
+const prefParamOf=(criteria,userPref,budgetWon)=>{
+  const pref={d:userPref?.d||[],z:userPref?.z||[],u:userPref?.u||[],b:userPref?.b||(Number(budgetWon)>0?Number(budgetWon):null),p:criteria?.purpose||userPref?.p||null,bu:criteria?.buildUse||userPref?.bu||null};
+  if(criteria?.zones?.length&&!pref.z.length)pref.z=[...criteria.zones];
+  if(!pref.d.length&&!pref.z.length&&!pref.u.length&&!pref.b&&!pref.p&&!pref.bu)return null;
+  return JSON.stringify(pref);
+};
 // 법원 소재지를 대지위치(지번)와 상세주소(건물·호)로 나눈다.
 const splitAuctionAddress=row=>{
   const full=String(row.full_address||'').trim(),lot=String(row.lot_no||'').trim();
@@ -411,6 +429,8 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     if(criteria.minAreaM2!=null)params.set('minAreaM2',criteria.minAreaM2);if(criteria.maxAreaM2!=null)params.set('maxAreaM2',criteria.maxAreaM2);criteria.zones.forEach(z=>params.append('zone',z));
     member.hiddenIds().forEach(id=>params.append('exclude',id));
     if(query)params.set('q',query);if(bounds)params.set('bounds',bounds.join(','));
+    const prefParam=prefParamOf(criteria,await loadUserPref(),conditions?.budgetWon);
+    if(prefParam)params.set('pref',prefParam);
     $('#result-count').textContent='조건에 맞는 매물을 불러오고 있어요.';$('.explore-list').setAttribute('aria-busy','true');
     $('.search-suggestions').replaceChildren();
     try {
