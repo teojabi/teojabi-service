@@ -19,6 +19,7 @@ import { AdminAccessModule } from './admin-access/admin-access.module';
 import { ArchitectsModule } from './architects/architects.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { EventsModule } from './events/events.module';
+import { PreferencesModule } from './preferences/preferences.module';
 
 @Module({
   imports: [
@@ -42,6 +43,7 @@ import { EventsModule } from './events/events.module';
     ArchitectsModule,
     NotificationsModule,
     EventsModule,
+    PreferencesModule,
   ],
   controllers: [AppController],
   providers: [AppService],
