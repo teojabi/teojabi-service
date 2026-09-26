@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Put, Query, Request, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Post, Put, Query, Request, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { NotificationsService } from './notifications.service';
 
@@ -11,6 +11,11 @@ export class NotificationsController {
   inbox(@Request() req: any, @Query('leadDays') leadDays?: string) {
     const parsed = parseInt(leadDays ?? '', 10);
     return this.notifications.getInboxForUser(req.user.id, Number.isFinite(parsed) ? parsed : undefined);
+  }
+
+  @Post('read')
+  markRead(@Request() req: any) {
+    return this.notifications.markRead(req.user.id);
   }
 
   @Get('preferences')

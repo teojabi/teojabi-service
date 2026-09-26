@@ -11,7 +11,7 @@ export async function refreshNotificationBadge() {
   if (member.status !== 'ready') { badge.hidden = true; badge.textContent = ''; return; }
   try {
     const data = await member.request('/notifications');
-    const count = Array.isArray(data?.items) ? data.items.length : 0;
+    const count = Number.isFinite(data?.unreadCount) ? Number(data.unreadCount) : (Array.isArray(data?.items) ? data.items.length : 0);
     badge.textContent = count > 99 ? '99+' : String(count);
     badge.hidden = count === 0;
   } catch {
@@ -64,4 +64,6 @@ export function openNotifications() {
   document.body.append(dialog);
   dialog.showModal();
   renderInbox();
+  // 알림함을 열면 새 알림을 읽음 처리하고 배지를 지운다.
+  member.request('/notifications/read', { method: 'POST' }).then(() => refreshNotificationBadge()).catch(() => {});
 }
