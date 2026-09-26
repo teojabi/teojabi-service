@@ -622,7 +622,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
         <dt>용도</dt><dd>${esc(a.usageName||'미기재')}</dd>
         <dt>거래 구분</dt><dd>${AUCTION_DEAL_LABEL[row.dealType]||'확인 필요'}</dd>
         <dt>${inBatch?'감정가 (일괄 전체)':'감정가'}</dt><dd>${money(a.appraisedWon)}</dd>
-        <dt>${inBatch?'최저매각가 (일괄 전체)':'최저매각가'}</dt><dd>${money(a.minPrice)} <small style="opacity:.6">(감정가의 ${a.notiMinRate!=null?esc(a.notiMinRate)+'%':'—'})</small></dd>
+        <dt>${inBatch?'최저매각가 (일괄 전체)':'최저매각가'}</dt><dd>${money(a.minPrice)} <small style="opacity:.6">(감정가의 ${(a.appraisedWon>0&&a.minPrice>0)?Math.round(a.minPrice/a.appraisedWon*100)+'%':'—'})</small></dd>
         <dt>${onbidMode?'입찰마감':'매각기일'}</dt><dd>${esc(a.saleDate||'')} ${esc(a.saleHour||'')} ${dday(a.saleDate)}</dd>
         ${onbidMode?(od&&od.failed_bid!=null?`<dt>유찰횟수</dt><dd>${esc(od.failed_bid)}회</dd>`:''):`<dt>유찰횟수</dt><dd>${a.failCount??0}회</dd>`}
         <dt>법원·계</dt><dd>${esc(a.courtName||'')} ${esc(a.deptName||'')}</dd>
