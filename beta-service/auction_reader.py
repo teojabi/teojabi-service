@@ -108,6 +108,7 @@ def _where(payload):
         where.append(f"NOT (%({key})s = ANY(string_to_array(coalesce(usage_name, ''), ',')))")
         params[key] = token
     deal_type = (payload.get('dealType') or '').strip().lower() or None
+    sale_kind = (payload.get('saleKind') or '').strip().lower() or None
     gus = _usage_list(payload.get('gu'))
     q = _text(payload.get('q'), 60)
     kind = (payload.get('kind') or '').strip().lower() or None
@@ -141,6 +142,9 @@ def _where(payload):
     if deal_type in ('whole', 'floor', 'unit', 'land'):
         where.append('deal_type = %(dealtype)s')
         params['dealtype'] = deal_type
+    if sale_kind in ('whole', 'share', 'bundle'):
+        where.append('sale_kind = %(salekind)s')
+        params['salekind'] = sale_kind
     if zones:
         clauses = []
         for index, token in enumerate(zones[:4]):
