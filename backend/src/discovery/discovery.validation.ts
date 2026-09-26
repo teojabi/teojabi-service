@@ -18,6 +18,7 @@ const conditionAuction=(input:any)=>{
   const auction:any={enabled:true,usages};
   if(AUCTION_SOURCES.includes(input.source))auction.source=input.source;
   if(AUCTION_DEAL_TYPES.includes(input.dealType))auction.dealType=input.dealType;
+  if(['whole','share','bundle'].includes(input.saleKind))auction.saleKind=input.saleKind;
   const price=positive(input.maxPriceWon);if(price)auction.maxPriceWon=price;
   const rate=positive(input.maxBidRate,100);if(rate)auction.maxBidRate=rate;
   const fail=positive(input.failMax,100);if(fail)auction.failMax=Math.round(fail);

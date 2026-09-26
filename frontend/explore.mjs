@@ -114,7 +114,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
   let assistantResult=assistant&&Array.isArray(assistant.groups)?assistant:null;
   let source=assistantResult?'assistant':initialSource==='favorites'?'favorites':initialSource==='auction'?'auction':'conditions';
   const conditionAuction=conditions?.auction||null;
-  let auctionFilters={listingSource:'court',gu:[...(conditions?.districts||[])],usage:(conditionAuction?.usages||[])[0]||'',dealType:'',kind:'',sort:'sale',maxPrice:conditionAuction?.maxPriceWon?String(conditionAuction.maxPriceWon/1e8):'',maxBidRate:conditionAuction?.maxBidRate!=null?String(conditionAuction.maxBidRate):'',failMax:''};
+  let auctionFilters={listingSource:'court',gu:[...(conditions?.districts||[])],usage:(conditionAuction?.usages||[])[0]||'',dealType:'',saleKind:conditionAuction?.saleKind||'',kind:'',sort:'sale',maxPrice:conditionAuction?.maxPriceWon?String(conditionAuction.maxPriceWon/1e8):'',maxBidRate:conditionAuction?.maxBidRate!=null?String(conditionAuction.maxBidRate):'',failMax:''};
   if(source==='auction')limit=100;
   let criteria={purpose:conditions?.purpose||null,minArea:conditions?.minArea||'',maxArea:conditions?.maxArea||'',areaUnit:conditions?.areaUnit||'pyeong',zones:conditions?.zones||[],minAreaM2:conditions?.minAreaM2??null,maxAreaM2:conditions?.maxAreaM2??null,auction:conditions?.auction||null,...BUILD_DEFAULTS,...(validateBuildCriteria(conditions||{}).value||{})};
   const defaultTitle=()=>source==='assistant'?'AI 비서 결과':source==='favorites'?'찜한 매물':source==='auction'?'경매 물건':picksOnlyMode?'터잡이 선별 매물':conditions?'내 조건으로 살펴보기':'지도에서 매물 살펴보기';
@@ -180,10 +180,10 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
   // 경매 전용 탭과 관심 조건(빠른 조건·편집기)을 같은 값으로 맞춘다.
   const syncAuctionFiltersFromCondition=()=>{
     const a=criteria.auction||{};
-    auctionFilters={...auctionFilters,gu:[...(conditions?.districts||[])],usage:(a.usages||[])[0]||'',dealType:a.dealType||'',maxPrice:a.maxPriceWon?String(a.maxPriceWon/1e8):'',maxBidRate:a.maxBidRate!=null?String(a.maxBidRate):'',failMax:a.failMax!=null?String(a.failMax):'',listingSource:a.source==='onbid'?'onbid':'court'};
+    auctionFilters={...auctionFilters,gu:[...(conditions?.districts||[])],usage:(a.usages||[])[0]||'',dealType:a.dealType||'',saleKind:a.saleKind||'',maxPrice:a.maxPriceWon?String(a.maxPriceWon/1e8):'',maxBidRate:a.maxBidRate!=null?String(a.maxBidRate):'',failMax:a.failMax!=null?String(a.failMax):'',listingSource:a.source==='onbid'?'onbid':'court'};
   };
   const applyAuctionFiltersToCondition=()=>{
-    criteria={...criteria,auction:{...(criteria.auction||{}),enabled:true,source:auctionFilters.listingSource==='onbid'?'onbid':'court',usages:auctionFilters.usage?[auctionFilters.usage]:[],dealType:auctionFilters.dealType||null,maxPriceWon:auctionFilters.maxPrice?Number(auctionFilters.maxPrice)*1e8:null,maxBidRate:auctionFilters.maxBidRate?Number(auctionFilters.maxBidRate):null,failMax:auctionFilters.failMax?Number(auctionFilters.failMax):null}};
+    criteria={...criteria,auction:{...(criteria.auction||{}),enabled:true,source:auctionFilters.listingSource==='onbid'?'onbid':'court',usages:auctionFilters.usage?[auctionFilters.usage]:[],dealType:auctionFilters.dealType||null,saleKind:auctionFilters.saleKind||null,maxPriceWon:auctionFilters.maxPrice?Number(auctionFilters.maxPrice)*1e8:null,maxBidRate:auctionFilters.maxBidRate?Number(auctionFilters.maxBidRate):null,failMax:auctionFilters.failMax?Number(auctionFilters.failMax):null}};
     conditions={...conditions,districts:[...(auctionFilters.gu||[])]};
     quickFilters?.update();updateCriteria();
     onConditionsChange?.(currentConditions());
@@ -247,11 +247,12 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
   // 경매 물건 카드: 건물찾기 카드와 같은 골격에 경매 사실정보(감정가·최저가·기일·유찰)를 담는다.
   function auctionCard(group) {
     const row=group.representative,a=row.auction||{},isOnbid=row.cohort==='onbid';
-    const kindNote=row.saleKind==='share'?' · 지분매각':row.saleKind==='bundle'?' · 일괄매각':'';
-    const badge=`${isOnbid?'공매':'경매'}${AUCTION_DEAL_LABEL[row.dealType]?` · ${AUCTION_DEAL_LABEL[row.dealType]}`:''}${kindNote}`;
+    const badge=`${isOnbid?'공매':'경매'}${AUCTION_DEAL_LABEL[row.dealType]?` · ${AUCTION_DEAL_LABEL[row.dealType]}`:''}`;
+    const kindBadge=row.saleKind==='share'?'<em class="pick-badge warn-badge">지분</em>':row.saleKind==='bundle'?'<em class="pick-badge warn-badge">일괄</em>':'';
+    const verifyBadge=row.verifyStatus==='matched'?'<em class="pick-badge ok-badge">대장 일치</em>':row.verifyStatus==='mismatch'?'<em class="pick-badge warn-badge">대장 차이</em>':'';
     const priceLabel=isOnbid?'최저입찰가':'최저매각가';
     const dateNote=isOnbid?`입찰마감 ${esc(a.saleDate||'')} ${dday(a.saleDate)}`:`매각기일 ${esc(a.saleDate||'')} ${dday(a.saleDate)} · 유찰 ${a.failCount??0}회`;
-    return `<article class="property-card${selected===row.id?' selected':''}" data-card-id="${esc(row.id)}"><button class="property-select" data-explore="detail" data-id="${esc(row.id)}" aria-label="${esc(rowTitle(row))} ${money(row.priceWon)} 상세 보기"><div class="property-location"><span>${esc(rowTitle(row))}</span><em class="pick-badge auction-badge">${badge}</em>${member.get('favorite',row.id)?'<em class="pick-badge favorite-badge">♥ 찜한 물건</em>':''}</div><h2>${money(row.priceWon)}</h2><div class="area-pair"><span>감정가 <b>${money(a.appraisedWon)}</b></span><span>${priceLabel} <b>${money(a.minPrice)}</b></span></div><p class="property-zoning">${esc(a.usageName||'용도 미기재')} · ${esc(row.district||'')} ${esc(row.neighborhood||'')}</p><p class="property-description">${esc(a.caseNo||'')} · ${dateNote}</p><span class="property-link">상세 보기 <span aria-hidden="true">↗</span></span></button></article>`;
+    return `<article class="property-card${selected===row.id?' selected':''}" data-card-id="${esc(row.id)}"><button class="property-select" data-explore="detail" data-id="${esc(row.id)}" aria-label="${esc(rowTitle(row))} ${money(row.priceWon)} 상세 보기"><div class="property-location"><span>${esc(rowTitle(row))}</span><em class="pick-badge auction-badge">${badge}</em>${kindBadge}${verifyBadge}${member.get('favorite',row.id)?'<em class="pick-badge favorite-badge">♥ 찜한 물건</em>':''}</div><h2>${money(row.priceWon)}</h2><div class="area-pair"><span>감정가 <b>${money(a.appraisedWon)}</b></span><span>${priceLabel} <b>${money(a.minPrice)}</b></span></div><p class="property-zoning">${esc(a.usageName||'용도 미기재')} · ${esc(row.district||'')} ${esc(row.neighborhood||'')}</p><p class="property-description">${esc(a.caseNo||'')} · ${dateNote}</p><span class="property-link">상세 보기 <span aria-hidden="true">↗</span></span></button></article>`;
   }
   // AI 결과는 화면에 보이는 만큼(5개 → 더보기)만 지도에도 표시한다.
   const mapGroups=()=>source==='assistant'&&result?result.groups.slice(0,assistantShown):(result?.groups||[]);
@@ -338,6 +339,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
       if(criteria.minAreaM2!=null)p.set('minArea',String(criteria.minAreaM2));
       if(criteria.maxAreaM2!=null)p.set('maxArea',String(criteria.maxAreaM2));
       if(a.dealType)p.set('dealType',a.dealType);
+      if(a.saleKind)p.set('saleKind',a.saleKind);
       if(a.maxBidRate)p.set('maxBidRate',String(a.maxBidRate));
       if(a.failMax)p.set('maxFail',String(a.failMax));
       p.set('sort','sale');
@@ -463,6 +465,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
       else params.set('sort',isOnbid?'bid':'sale');
       if(auctionFilters.maxPrice)params.set('maxPrice',String(Number(auctionFilters.maxPrice)*1e8));
       if(auctionFilters.dealType)params.set('dealType',auctionFilters.dealType);
+      if(auctionFilters.saleKind)params.set('saleKind',auctionFilters.saleKind);
       if(!isOnbid){
         if(auctionFilters.kind)params.set('kind',auctionFilters.kind);
         if(auctionFilters.maxBidRate)params.set('maxBidRate',String(Number(auctionFilters.maxBidRate)));

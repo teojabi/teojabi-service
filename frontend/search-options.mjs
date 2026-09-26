@@ -53,7 +53,8 @@ export function normalizeAuction(raw) {
   const failMax=Number.isFinite(failRaw)&&failRaw>0?Math.round(failRaw):null;
   const auctionSource=AUCTION_SOURCES.some(([value])=>value===source.source)?source.source:'court';
   const dealType=AUCTION_DEAL_TYPES.some(([value])=>value===source.dealType)?source.dealType:null;
-  return {enabled:true,source:auctionSource,dealType,failMax,usages,maxPriceWon,maxBidRate};
+  const saleKind=['whole','share','bundle'].includes(source.saleKind)?source.saleKind:null;
+  return {enabled:true,source:auctionSource,dealType,saleKind,failMax,usages,maxPriceWon,maxBidRate};
 }
 export function areaRangeLabel(min,max,unit='m2') {
   const scale=unit==='pyeong'?121/400:1,suffix=unit==='pyeong'?'평':'㎡';

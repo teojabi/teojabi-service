@@ -6,6 +6,8 @@ const COMMERCIAL_TYPES = ['골목상권', '전통시장', '발달상권', '관�
 const AUCTION_USAGES = ['상가', '근린시설', '근린생활시설', '오피스텔', '업무', '업무시설', '단독주택', '주택', '도시형생활주택', '다가구', '다세대', '연립주택', '빌라', '대지', '임야', '토지'];
 const AUCTION_SOURCES = ['court', 'onbid', 'both'];
 const AUCTION_DEAL_TYPES = ['whole', 'floor', 'unit', 'land'];
+const AUCTION_SALE_KINDS = ['whole', 'share', 'bundle'];
+const AUCTION_SALE_LABEL = { whole: '전체', share: '지분', bundle: '일괄' };
 const AUCTION_DEAL_LABEL = { whole: '건물 통', floor: '층', unit: '호실', land: '토지' };
 const ORIGIN_LABEL = { premium: '터잡이 추천 매물', registered: '터잡이 등록 매물', disco: '디스코 매물', naver: '네이버 매물' };
 const won = value => Math.round(Number(value) * 100000000);
@@ -245,6 +247,7 @@ export function sanitize(raw) {
     const auction = { enabled: true, usages };
     if (AUCTION_SOURCES.includes(auctionSource.source)) auction.source = auctionSource.source;
     if (AUCTION_DEAL_TYPES.includes(auctionSource.dealType)) auction.dealType = auctionSource.dealType;
+    if (AUCTION_SALE_KINDS.includes(auctionSource.saleKind)) auction.saleKind = auctionSource.saleKind;
     const price = Number(auctionSource.maxPriceWon);
     if (Number.isSafeInteger(price) && price > 0) auction.maxPriceWon = price;
     const rate = Number(auctionSource.maxBidRate);
@@ -415,6 +418,7 @@ export function describe(filters) {
   if (filters.auction?.enabled) {
     parts.push(filters.auction.source === 'onbid' ? '공매 물건' : filters.auction.source === 'both' ? '경매·공매 물건' : '경매 물건');
     if (filters.auction.dealType) parts.push(AUCTION_DEAL_LABEL[filters.auction.dealType] || filters.auction.dealType);
+    if (filters.auction.saleKind) parts.push(AUCTION_SALE_LABEL[filters.auction.saleKind] || filters.auction.saleKind);
     if (filters.auction.usages?.length) parts.push(filters.auction.usages.join('·'));
     if (filters.auction.maxPriceWon) parts.push(`최저 ${(filters.auction.maxPriceWon / 1e8).toLocaleString('ko-KR')}억 이하`);
     if (filters.auction.maxBidRate) parts.push(`최저가율 ${filters.auction.maxBidRate}% 이하`);
@@ -447,6 +451,7 @@ export function chipList(filters) {
   if (filters.auction?.enabled) chips.push({ key: 'auction', value: true, label: filters.auction.source === 'onbid' ? '공매 물건' : filters.auction.source === 'both' ? '경매·공매 물건' : '경매 물건', kind: 'value' });
   if (filters.auction?.source) chips.push({ key: 'auctionSource', value: filters.auction.source, label: filters.auction.source === 'onbid' ? '온비드 공매' : filters.auction.source === 'both' ? '경매+공매' : '법원경매', kind: 'value' });
   if (filters.auction?.dealType) chips.push({ key: 'auctionDealType', value: filters.auction.dealType, label: AUCTION_DEAL_LABEL[filters.auction.dealType] || filters.auction.dealType, kind: 'value' });
+  if (filters.auction?.saleKind) chips.push({ key: 'auctionSaleKind', value: filters.auction.saleKind, label: AUCTION_SALE_LABEL[filters.auction.saleKind] || filters.auction.saleKind, kind: 'value' });
   (filters.auction?.usages || []).forEach(u => chips.push({ key: 'auctionUsage', value: u, label: u, kind: 'list' }));
   if (filters.auction?.maxPriceWon) chips.push({ key: 'auctionMaxPriceWon', value: filters.auction.maxPriceWon, label: `최저 ${(filters.auction.maxPriceWon / 1e8).toLocaleString('ko-KR')}억 이하`, kind: 'value' });
   if (filters.auction?.maxBidRate) chips.push({ key: 'auctionMaxBidRate', value: filters.auction.maxBidRate, label: `최저가율 ${filters.auction.maxBidRate}% 이하`, kind: 'value' });

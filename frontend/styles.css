@@ -849,6 +849,8 @@ body.architect-lightbox-open{overflow:hidden}
 .auction-filter-reset{min-height:40px;align-self:flex-end}
 .auction-filter-note{font-size:11px;color:var(--muted);margin:8px 0 0;line-height:1.5}
 .auction-badge{color:#b45309;border-color:#f59e0b;background:#fffbeb}
+.pick-badge.warn-badge{color:#b45309;border-color:#f59e0b;background:#fffbeb}
+.pick-badge.ok-badge{color:var(--green);border-color:var(--green);background:var(--selected)}
 .map-first .auction-filter-row{flex-wrap:nowrap;overflow-x:auto;padding-bottom:4px}
 .map-first .auction-filter-row label{flex:0 0 auto}
 .auction-facts{display:grid;grid-template-columns:auto 1fr;gap:6px 12px;font-size:13px;margin:8px 0}
