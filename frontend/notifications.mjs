@@ -30,6 +30,7 @@ function devLine(d) {
   if (!d || typeof d !== 'object') return '';
   const parts = [];
   if (d.zone) parts.push(d.zone);
+  if (d.districtPlan) parts.push(`지구단위계획 ${d.districtPlan}`);
   if (d.allowedFar != null) parts.push(`허용 ${d.allowedFar}%`);
   if (d.currentFar != null) parts.push(`현재 ${d.currentFar}%`);
   if (d.remainingFar != null) parts.push(`여유 ${d.remainingFar}%`);
