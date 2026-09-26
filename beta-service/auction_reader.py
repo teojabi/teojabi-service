@@ -191,6 +191,11 @@ def _where(payload):
     if sale_to:
         where.append('sale_date <= %(sto)s')
         params['sto'] = sale_to
+    # 일반매물 부지 조건(교육보호구역·문화재보존구역 제외)을 경매에도 적용한다. 자료 미확인(null)도 제외.
+    if str(payload.get('excludeEducation')).lower() in ('1', 'true'):
+        where.append('education = false')
+    if str(payload.get('excludeHeritage')).lower() in ('1', 'true'):
+        where.append('heritage = false')
     return where, params
 
 
@@ -208,6 +213,9 @@ def do_list(payload):
     size = _int(payload.get('size'), 20, 1, 200)
     sort = payload.get('sort') or 'sale'
     order = ORDER.get(sort, ORDER['sale'])
+    # 관광숙박특화구역 우선 보기(필터가 아니라 정렬 우선순위).
+    if str(payload.get('preferTourism')).lower() in ('1', 'true'):
+        order = 'tourism DESC NULLS LAST, ' + order
     where, params = _where(payload)
     clause = ' AND '.join(where)
     params['limit'] = size
