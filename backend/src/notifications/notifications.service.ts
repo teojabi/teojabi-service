@@ -151,10 +151,10 @@ export class NotificationsService {
   private async listInbox(userId: string) {
     const rows = await this.prisma.$queryRaw<InboxRow[]>`
       SELECT item_key AS "key", kind, origin, condition_name AS "conditionName",
-             to_char(event_date,'YYYY-MM-DD') AS "date", title, detail, meta, read_at AS "readAt"
+             to_char(event_date,'YYYY-MM-DD') AS "date", title, detail, meta, score, read_at AS "readAt"
       FROM public.notification_item
       WHERE user_id=${userId}
-      ORDER BY (read_at IS NULL) DESC, event_date ASC NULLS LAST, created_at DESC
+      ORDER BY (read_at IS NULL) DESC, score DESC NULLS LAST, event_date ASC NULLS LAST, created_at DESC
       LIMIT 60`;
     const items = rows.map((row) => ({
       type: row.kind as Alert['type'],
@@ -186,10 +186,11 @@ export class NotificationsService {
       existing.add(candidate.key);
       await this.prisma.$executeRaw`
         INSERT INTO public.notification_item
-          (user_id,item_key,kind,origin,condition_name,event_date,title,detail,meta,read_at)
+          (user_id,item_key,kind,origin,condition_name,event_date,title,detail,meta,score,read_at)
         VALUES (${userId},${candidate.key},${candidate.type},${candidate.origin},${candidate.conditionName},
                 ${candidate.date || null}::date,${candidate.title},${candidate.detail},
-                ${candidate.meta ? JSON.stringify(candidate.meta) : null}::jsonb,${readAt})
+                ${candidate.meta ? JSON.stringify(candidate.meta) : null}::jsonb,
+                ${candidate.meta?.score ?? null},${readAt})
         ON CONFLICT (user_id,item_key) DO NOTHING`;
     }
 
@@ -211,8 +212,52 @@ export class NotificationsService {
   async getInbox(userId: string, leadDays: number, options: { favorites?: boolean; conditions?: boolean } = {}) {
     const zoneMap = await this.zoneLimits();
     const candidates = await this.collectAlerts(userId, leadDays, options, zoneMap);
+    const profile = await this.userProfile(userId);
+    for (const candidate of candidates) {
+      const score = this.scoreCandidate(profile, candidate);
+      if (score != null) candidate.meta = { ...(candidate.meta || {}), score };
+    }
     await this.syncInbox(userId, candidates);
     return this.listInbox(userId);
+  }
+
+  private async userProfile(userId: string): Promise<any | null> {
+    const rows = await this.prisma.$queryRaw<Array<{ profile: any }>>`
+      SELECT profile FROM public.user_preference WHERE user_id=${userId} LIMIT 1`;
+    return rows[0]?.profile ?? null;
+  }
+
+  // 프로필과 매물 특징을 견줘 0~100 점수를 낸다(목적별 가중). 프로필·특징이 없으면 null.
+  private scoreCandidate(profile: any, candidate: Alert): number | null {
+    const features = candidate.meta?.features as any;
+    if (!profile || !features) return null;
+    const norm = (list: any[], key: string) => {
+      if (!Array.isArray(list) || !list.length || !key) return 0;
+      const max = Math.max(...list.map((x) => Number(x.weight) || 0)) || 1;
+      const hit = list.find((x) => key.includes(String(x.key)) || String(x.key).includes(key));
+      return hit ? (Number(hit.weight) || 0) / max : 0;
+    };
+    let score = 0;
+    score += 30 * norm(profile.districts, features.district || '');
+    score += 15 * norm(profile.zones, features.zone || '');
+    score += 15 * norm(profile.usages, features.usage || '');
+    const avg = Number(profile.budget?.avg);
+    const price = Number(features.price);
+    if (avg > 0 && price > 0) score += 15 * Math.max(0, 1 - Math.abs(price - avg) / avg);
+    const purpose = profile.purposes?.[0]?.key;
+    if (purpose === 'new-build') {
+      const remaining = Number(features.remainingFar);
+      if (Number.isFinite(remaining)) score += remaining > 0 ? 20 * Math.min(1, remaining / 200) : -10;
+      const buildUse = profile.buildUses?.[0]?.key;
+      if (buildUse === 'hotel' && /관광|상업/.test(String(features.specialZone) + String(features.zone))) score += 10;
+    } else if (purpose === 'renovate') {
+      if (features.currentFar != null) score += 8;
+    } else if (purpose === 'invest') {
+      score += 6;
+    } else if (purpose === 'own-use') {
+      score += 4 * norm(profile.usages, features.usage || '');
+    }
+    return Math.round(Math.max(0, Math.min(100, score)));
   }
 
   // 용도지역별 허용 건폐율·용적률(법정 상한) 조회. 개발여력 계산에 쓴다.
@@ -275,7 +320,8 @@ export class NotificationsService {
     if (favAuction.length) {
       const rows = await this.prisma.$queryRaw<any[]>(Prisma.sql`
         SELECT docid, full_address, min_price, usage_name, sale_date, sale_hour,
-               use_zone, land_area_m2, building_area_m2, far_limit, bcr_limit, district_plan
+               use_zone, land_area_m2, building_area_m2, far_limit, bcr_limit, district_plan,
+               sigu, special_zone, height_district
         FROM public.auction_item
         WHERE docid IN (${Prisma.join(favAuction)})
           AND sale_date >= ${start}::date AND sale_date <= ${end}::date
@@ -321,7 +367,8 @@ export class NotificationsService {
         if (failMax) conditions.push(Prisma.sql`a.fail_count <= ${failMax}`);
         const rows = await this.prisma.$queryRaw<any[]>(Prisma.sql`
           SELECT a.docid, a.full_address, a.min_price, a.usage_name, a.sale_date, a.sale_hour,
-                 a.use_zone, a.land_area_m2, a.building_area_m2, a.far_limit, a.bcr_limit, a.district_plan
+                 a.use_zone, a.land_area_m2, a.building_area_m2, a.far_limit, a.bcr_limit, a.district_plan,
+                 a.sigu, a.special_zone, a.height_district
           FROM public.auction_item a WHERE ${Prisma.join(conditions, ' AND ')}
           ORDER BY a.sale_date ASC LIMIT 20`);
         for (const r of rows) items.push(this.auctionAlert(r, 'condition', conditionName, zoneMap));
@@ -431,7 +478,19 @@ export class NotificationsService {
       kindLabel: `경매 ${this.labelFor(date)}`,
       title: String(r.full_address || r.docid || ''),
       detail: `${String(r.usage_name || '용도 미기재')} · 최저 ${this.money(r.min_price)} · 매각기일 ${date}${r.sale_hour ? ` ${r.sale_hour}` : ''}`,
-      meta: development ? { development } : undefined,
+      meta: {
+        ...(development ? { development } : {}),
+        features: {
+          district: String(r.sigu || ''),
+          zone: String(r.use_zone || ''),
+          usage: String(r.usage_name || ''),
+          price: Number(r.min_price) || 0,
+          specialZone: String(r.special_zone || ''),
+          heightDistrict: String(r.height_district || ''),
+          currentFar: development?.currentFar ?? null,
+          remainingFar: development?.remainingFar ?? null,
+        },
+      },
     };
   }
 

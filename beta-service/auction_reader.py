@@ -101,7 +101,8 @@ LIST_COLUMNS = ('docid, court_name, dept_name, case_no, usage_name, appraised_am
                 'lot_no, building_list, jimok, area_min, area_max, lat, lng, pnu, use_zone, '
                 'road_width_m, full_address, source_url, deal_type, sale_kind, flags, detail_address, '
                 'obj_area_m2, building_area_m2, land_area_m2, deal_type_final, area_source, obj_kind, '
-                'cancelled, acquired_rights, far_limit, bcr_limit, district_plan')
+                'cancelled, acquired_rights, far_limit, bcr_limit, district_plan, '
+                'height_limit, height_district, landscape_district, special_zone, other_zone')
 
 
 def _where(payload):
