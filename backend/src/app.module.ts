@@ -18,6 +18,7 @@ import { DiscoveryModule } from './discovery/discovery.module';
 import { AdminAccessModule } from './admin-access/admin-access.module';
 import { ArchitectsModule } from './architects/architects.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { EventsModule } from './events/events.module';
 
 @Module({
   imports: [
@@ -40,6 +41,7 @@ import { NotificationsModule } from './notifications/notifications.module';
     AdminAccessModule,
     ArchitectsModule,
     NotificationsModule,
+    EventsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
