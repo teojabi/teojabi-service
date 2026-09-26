@@ -326,6 +326,7 @@ const splitAuctionAddress = row => {
 // 경매 물건(auction_item)을 건물찾기 카드·지도가 쓰는 매물 모양으로 맞춘다.
 export function viewAuctionRow(row) {
   const usage = String(row.usage_name || ''), zone = String(row.use_zone || '');
+  const isLand = row.obj_kind === 'land' || /토지|대지|임야|전답|잡종지|답|전/.test(usage);
   const broad = BROAD_ZONE.find(z => zone.includes(z[1]));
   const zoning = zone ? { status: 'matched', groups: broad ? [broad[0]] : [], entries: [{ name: zone }] } : { status: 'missing', groups: [], entries: [] };
   const id = `auction:${row.docid}`, addr = splitAuctionAddress(row);
@@ -336,7 +337,8 @@ export function viewAuctionRow(row) {
     pnu: row.pnu || null, position: Number.isFinite(row.lat) && Number.isFinite(row.lng) ? { lat: Number(row.lat), lng: Number(row.lng) } : null,
     priceWon: row.min_price == null ? null : Number(row.min_price), areaM2: row.obj_area_m2 != null ? Number(row.obj_area_m2) : (row.area_max == null ? null : Number(row.area_max)), floorAreaM2: null,
     buildingAreaM2: row.building_area_m2 == null ? null : Number(row.building_area_m2), landAreaM2: row.land_area_m2 == null ? null : Number(row.land_area_m2), detailAddress: row.detail_address || addr.detail,
-    description: '', floorInfo: '', kind: /토지|대지|임야|전답|잡종지|답|전/.test(usage) ? 'land' : 'building', kindConfirmed: true,
+    description: '', floorInfo: '', kind: isLand ? 'land' : 'building', kindConfirmed: true,
+    dealType: row.deal_type_final || row.deal_type || (isLand ? 'land' : 'whole'),
     areaSource: 'listing', floorAreaSource: 'listing', locationStatus: 'pin-estimated', zoning, development: null, nearbyTransactions: { status: 'unavailable', cases: [] },
     groupKey: id,
     auction: {

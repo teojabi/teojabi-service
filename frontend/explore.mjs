@@ -69,13 +69,14 @@ const auctionToListing=row=>{
   const position=Number.isFinite(row.lat)&&Number.isFinite(row.lng)?{lat:Number(row.lat),lng:Number(row.lng)}:null;
   const broad=/주거/.test(zone)?'주거지역':/상업/.test(zone)?'상업지역':/공업/.test(zone)?'공업지역':/녹지/.test(zone)?'녹지지역':null;
   const id=`auction:${row.docid}`,addr=splitAuctionAddress(row);
-  const dealType=row.deal_type_final||row.deal_type||(AUCTION_LAND_RE.test(usage)?'land':(/\d+\s*호/.test(String(row.full_address||'')+String(row.building_list||''))?'unit':'whole'));
+  const isLand=row.obj_kind==='land'||AUCTION_LAND_RE.test(usage);
+  const dealType=row.deal_type_final||row.deal_type||(isLand?'land':(/\d+\s*호/.test(String(row.full_address||'')+String(row.building_list||''))?'unit':'whole'));
   return {id,source:'auction',sourceId:String(row.docid),cohort:'auction',dealType,saleKind:row.sale_kind||'whole',flags:row.flags||null,verifyStatus:row.verify_status||null,verify:row.verify_data||null,
     district:row.sigu||'',neighborhood:row.dong||'',address:addr.land,detailAddress:row.detail_address||addr.detail,
     pnu:/^\d{19}$/.test(String(row.pnu||''))?row.pnu:null,position,
     priceWon:row.min_price==null?null:Number(row.min_price),areaM2:row.obj_area_m2!=null?Number(row.obj_area_m2):(row.area_max==null?null:Number(row.area_max)),
     buildingAreaM2:row.building_area_m2==null?null:Number(row.building_area_m2),landAreaM2:row.land_area_m2==null?null:Number(row.land_area_m2),areaSource:row.area_source||'listed',
-    floorAreaM2:null,kind:AUCTION_LAND_RE.test(usage)?'land':'building',kindConfirmed:true,
+    floorAreaM2:null,kind:isLand?'land':'building',kindConfirmed:true,
     description:'',floorInfo:'',areaSource:'listing',floorAreaSource:'listing',locationStatus:'pin-estimated',
     zoning:zone?{status:'matched',groups:broad?[broad]:[],entries:[{name:zone}]}:{status:'missing',groups:[],entries:[]},
     development:null,nearbyTransactions:{status:'unavailable',cases:[]},groupKey:id,

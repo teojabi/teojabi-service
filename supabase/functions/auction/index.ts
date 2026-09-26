@@ -21,7 +21,7 @@ const LIST_COLUMNS =
   "docid, court_name, dept_name, case_no, usage_name, appraised_amt, min_price, noti_min_price, " +
   "noti_min_rate, fail_count, sale_date, sale_hour, sido, sigu, dong, lot_no, building_list, " +
   "area_min, area_max, lat, lng, pnu, use_zone, road_width_m, full_address, deal_type, sale_kind, flags, " +
-  "detail_address, obj_area_m2, building_area_m2, land_area_m2, deal_type_final, area_source";
+  "detail_address, obj_area_m2, building_area_m2, land_area_m2, deal_type_final, area_source, obj_kind, cancelled";
 
 function corsHeaders(origin: string | null): Record<string, string> {
   return {
@@ -73,7 +73,8 @@ function applyFilters(query: any, params: URLSearchParams) {
 
   let q = query.not("court_code", "is", null)
     .not("usage_name", "ilike", "%아파트%")
-    .not("usage_name", "ilike", "%자동차%");
+    .not("usage_name", "ilike", "%자동차%")
+    .not("cancelled", "is", true);
   if (xgus.length) q = q.in("sigu", xgus);
   if (usages.length) q = q.or(usages.map((u) => `usage_name.ilike.%${u}%`).join(","));
   if (zones.length) q = q.or(zones.map((z) => `use_zone.ilike.%${z}%`).join(","));
