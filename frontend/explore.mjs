@@ -322,7 +322,8 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     $('#listing-list').innerHTML=renderGroups.map(renderCard).join('')||(favoritesMode?'<div class="empty"><h2>찜한 매물이 없어요.</h2><p>마음에 드는 매물을 ♡ 찜하면 여기에서 한 번에 볼 수 있어요.</p></div>':auctionMode?'<div class="empty"><h2>조건에 맞는 경매 물건이 없어요.</h2><p>지역·용도·최저가·유찰 조건을 바꿔 다시 찾아보세요.</p></div>':'<div class="empty"><h2>조건에 맞는 매물이 없어요.</h2><p>주소·면적·지도 범위를 바꾸거나 예산과 지역을 다시 선택해 주세요.</p></div>');
     if(auctionMode){
       const onbidMode=auctionFilters.listingSource==='onbid',label=onbidMode?'공매':'경매';
-      $('#result-count').textContent=`${label} 물건 ${result.totalParcels.toLocaleString('ko-KR')}건 중 ${result.groups.length}건 표시`;
+      const groupedNote=result.totalParcels>result.groups.length?' (일괄 목적물 묶음)':'';
+      $('#result-count').textContent=`${label} 물건 ${result.totalParcels.toLocaleString('ko-KR')}건 · ${result.groups.length}개 표시${groupedNote}`;
       $('[data-explore="more"]').hidden=!result.hasMore;
       $('[data-explore="more"]').textContent=`${label} 물건 더 보기`;
       $('#explore-foot').textContent=onbidMode?'한국자산관리공사 온비드 공매 물건 · 권리분석·적정 입찰가는 제공하지 않아요. 입찰 전 온비드 원문을 확인하세요.':'대법원 법원경매정보 공시 물건 · 아파트 제외 · 권리분석·적정 입찰가는 제공하지 않아요. 입찰 전 법원 원문을 확인하세요.';
