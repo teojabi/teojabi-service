@@ -25,6 +25,18 @@ export function scheduleNotificationBadge() {
   badgeTimer = setTimeout(refreshNotificationBadge, 400);
 }
 
+// 개발여력(신축 검토) 한 줄: 용도지역 · 허용/현재/여유 용적률 · 여유 연면적
+function devLine(d) {
+  if (!d || typeof d !== 'object') return '';
+  const parts = [];
+  if (d.zone) parts.push(d.zone);
+  if (d.allowedFar != null) parts.push(`허용 ${d.allowedFar}%`);
+  if (d.currentFar != null) parts.push(`현재 ${d.currentFar}%`);
+  if (d.remainingFar != null) parts.push(`여유 ${d.remainingFar}%`);
+  if (d.buildableFloorAreaM2) parts.push(`여유 연면적 ${Number(d.buildableFloorAreaM2).toLocaleString('ko-KR')}㎡`);
+  return parts.join(' · ');
+}
+
 async function renderInbox() {
   if (!dialog || !dialog.open) return;
   const body = dialog.querySelector('.notif-body');
@@ -34,7 +46,7 @@ async function renderInbox() {
     if (!items.length) {
       body.innerHTML = '<div class="empty"><h3>새 알림이 없어요.</h3><p>찜한 물건이나 저장 조건에 맞는 경매·공매가 임박하면 여기에서 알려드려요.</p></div>';
     } else {
-      body.innerHTML = items.map(a => `<article class="member-alert"><div><p class="member-alert-kind">${esc(a.kindLabel || '')}${a.conditionName ? ` · ${esc(a.conditionName)}` : ''}</p><h4>${esc(a.title || '')}</h4><p>${esc(a.detail || '')}</p></div><div>${a.key ? `<button class="outline" data-notif="open" data-key="${esc(a.key)}">다시 보기</button>` : ''}</div></article>`).join('');
+      body.innerHTML = items.map(a => `<article class="member-alert"><div><p class="member-alert-kind">${esc(a.kindLabel || '')}${a.conditionName ? ` · ${esc(a.conditionName)}` : ''}</p><h4>${esc(a.title || '')}</h4><p>${esc(a.detail || '')}</p>${a.meta?.development ? `<p class="case-note">${esc(devLine(a.meta.development))}</p>` : ''}</div><div>${a.key ? `<button class="outline" data-notif="open" data-key="${esc(a.key)}">다시 보기</button>` : ''}</div></article>`).join('');
     }
   } catch (error) {
     body.innerHTML = `<p class="case-note">${error?.status === 401 ? '로그인 후 알림을 볼 수 있어요.' : '알림을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.'}</p>`;

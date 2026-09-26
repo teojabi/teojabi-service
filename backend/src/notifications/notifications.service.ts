@@ -22,6 +22,7 @@ type Alert = {
   kindLabel: string;
   title: string;
   detail: string;
+  meta?: Record<string, unknown>;
 };
 type InboxRow = {
   key: string;
@@ -150,7 +151,7 @@ export class NotificationsService {
   private async listInbox(userId: string) {
     const rows = await this.prisma.$queryRaw<InboxRow[]>`
       SELECT item_key AS "key", kind, origin, condition_name AS "conditionName",
-             to_char(event_date,'YYYY-MM-DD') AS "date", title, detail, read_at AS "readAt"
+             to_char(event_date,'YYYY-MM-DD') AS "date", title, detail, meta, read_at AS "readAt"
       FROM public.notification_item
       WHERE user_id=${userId}
       ORDER BY (read_at IS NULL) DESC, event_date ASC NULLS LAST, created_at DESC
@@ -164,6 +165,7 @@ export class NotificationsService {
       kindLabel: this.kindLabelFor(row.kind, row.date),
       title: row.title ?? '',
       detail: row.detail ?? '',
+      meta: (row as any).meta ?? null,
       read: row.readAt != null,
     }));
     const unreadCount = items.filter((item) => !item.read).length;
@@ -184,9 +186,10 @@ export class NotificationsService {
       existing.add(candidate.key);
       await this.prisma.$executeRaw`
         INSERT INTO public.notification_item
-          (user_id,item_key,kind,origin,condition_name,event_date,title,detail,read_at)
+          (user_id,item_key,kind,origin,condition_name,event_date,title,detail,meta,read_at)
         VALUES (${userId},${candidate.key},${candidate.type},${candidate.origin},${candidate.conditionName},
-                ${candidate.date || null}::date,${candidate.title},${candidate.detail},${readAt})
+                ${candidate.date || null}::date,${candidate.title},${candidate.detail},
+                ${candidate.meta ? JSON.stringify(candidate.meta) : null}::jsonb,${readAt})
         ON CONFLICT (user_id,item_key) DO NOTHING`;
     }
 
@@ -206,9 +209,38 @@ export class NotificationsService {
   }
 
   async getInbox(userId: string, leadDays: number, options: { favorites?: boolean; conditions?: boolean } = {}) {
-    const candidates = await this.collectAlerts(userId, leadDays, options);
+    const zoneMap = await this.zoneLimits();
+    const candidates = await this.collectAlerts(userId, leadDays, options, zoneMap);
     await this.syncInbox(userId, candidates);
     return this.listInbox(userId);
+  }
+
+  // 용도지역별 허용 건폐율·용적률(법정 상한) 조회. 개발여력 계산에 쓴다.
+  private async zoneLimits() {
+    const rows = await this.prisma.$queryRaw<Array<{ zone_name: string; bcr: any; far: any }>>`
+      SELECT zone_name, bcr_limit AS bcr, far_limit AS far FROM public.zoning_regulation`;
+    const map: Record<string, { bcr: number; far: number }> = {};
+    for (const row of rows) map[row.zone_name] = { bcr: Number(row.bcr), far: Number(row.far) };
+    return map;
+  }
+
+  // 매물의 개발여력 포맷: 허용/현재/여유 용적률과 여유 연면적(신축 검토용).
+  private development(row: any, zoneMap: Record<string, { bcr: number; far: number }>) {
+    const zone = String(row?.use_zone || '').trim() || null;
+    const reg = zone ? zoneMap[zone] : undefined;
+    const land = Number(row?.land_area_m2);
+    const building = Number(row?.building_area_m2);
+    const allowedFar = reg ? reg.far : null;
+    const allowedBcr = reg ? reg.bcr : null;
+    const currentFar = Number.isFinite(land) && land > 0 && Number.isFinite(building) && building > 0
+      ? Math.round((building / land) * 100)
+      : null;
+    const remainingFar = allowedFar != null && currentFar != null ? Math.round((allowedFar - currentFar) * 10) / 10 : null;
+    const buildableFloorAreaM2 = remainingFar != null && remainingFar > 0 && Number.isFinite(land) && land > 0
+      ? Math.round((remainingFar / 100) * land)
+      : null;
+    if (!zone && currentFar == null) return null;
+    return { zone, allowedFar, allowedBcr, currentFar, remainingFar, buildableFloorAreaM2 };
   }
 
   // 찜·저장 조건에 맞는 현재 물건을 모은다(임박 기간 내).
@@ -216,6 +248,7 @@ export class NotificationsService {
     userId: string,
     leadDays: number,
     options: { favorites?: boolean; conditions?: boolean } = {},
+    zoneMap: Record<string, { bcr: number; far: number }> = {},
   ): Promise<Alert[]> {
     const includeFavorites = options.favorites !== false;
     const includeConditions = options.conditions !== false;
@@ -237,12 +270,13 @@ export class NotificationsService {
 
     if (favAuction.length) {
       const rows = await this.prisma.$queryRaw<any[]>(Prisma.sql`
-        SELECT docid, full_address, min_price, usage_name, sale_date, sale_hour
+        SELECT docid, full_address, min_price, usage_name, sale_date, sale_hour,
+               use_zone, land_area_m2, building_area_m2
         FROM public.auction_item
         WHERE docid IN (${Prisma.join(favAuction)})
           AND sale_date >= ${start}::date AND sale_date <= ${end}::date
         ORDER BY sale_date ASC LIMIT 50`);
-      for (const r of rows) items.push(this.auctionAlert(r, 'favorite', null));
+      for (const r of rows) items.push(this.auctionAlert(r, 'favorite', null, zoneMap));
     }
 
     if (favOnbid.length) {
@@ -282,10 +316,11 @@ export class NotificationsService {
         if (maxRate) conditions.push(Prisma.sql`a.noti_min_rate <= ${maxRate}`);
         if (failMax) conditions.push(Prisma.sql`a.fail_count <= ${failMax}`);
         const rows = await this.prisma.$queryRaw<any[]>(Prisma.sql`
-          SELECT a.docid, a.full_address, a.min_price, a.usage_name, a.sale_date, a.sale_hour
+          SELECT a.docid, a.full_address, a.min_price, a.usage_name, a.sale_date, a.sale_hour,
+                 a.use_zone, a.land_area_m2, a.building_area_m2
           FROM public.auction_item a WHERE ${Prisma.join(conditions, ' AND ')}
           ORDER BY a.sale_date ASC LIMIT 20`);
-        for (const r of rows) items.push(this.auctionAlert(r, 'condition', conditionName));
+        for (const r of rows) items.push(this.auctionAlert(r, 'condition', conditionName, zoneMap));
       }
 
       if (wantOnbid) {
@@ -375,8 +410,14 @@ export class NotificationsService {
     return String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string));
   }
 
-  private auctionAlert(r: any, origin: 'favorite' | 'condition', conditionName: string | null): Alert {
+  private auctionAlert(
+    r: any,
+    origin: 'favorite' | 'condition',
+    conditionName: string | null,
+    zoneMap: Record<string, { bcr: number; far: number }> = {},
+  ): Alert {
     const date = this.dateOf(r.sale_date);
+    const development = this.development(r, zoneMap);
     return {
       type: 'auction',
       key: `auction:${r.docid}`,
@@ -386,6 +427,7 @@ export class NotificationsService {
       kindLabel: `경매 ${this.labelFor(date)}`,
       title: String(r.full_address || r.docid || ''),
       detail: `${String(r.usage_name || '용도 미기재')} · 최저 ${this.money(r.min_price)} · 매각기일 ${date}${r.sale_hour ? ` ${r.sale_hour}` : ''}`,
+      meta: development ? { development } : undefined,
     };
   }
 
