@@ -96,7 +96,8 @@ def _usage_list(value):
 LIST_COLUMNS = ('docid, court_name, dept_name, case_no, usage_name, appraised_amt, min_price, '
                 'noti_min_price, noti_min_rate, fail_count, sale_date, sale_hour, sido, sigu, dong, '
                 'lot_no, building_list, jimok, area_min, area_max, lat, lng, pnu, use_zone, '
-                'road_width_m, full_address, source_url, deal_type, sale_kind, flags')
+                'road_width_m, full_address, source_url, deal_type, sale_kind, flags, detail_address, '
+                'obj_area_m2, building_area_m2, land_area_m2, deal_type_final, area_source')
 
 
 def _where(payload):
