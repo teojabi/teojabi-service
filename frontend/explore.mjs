@@ -551,6 +551,10 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     const row=detail.listing,a=row.auction||{},d=detail.auctionDetail||{};
     const rights=d.acquired_rights||row.acquiredRights||'';
     const flagLabels=auctionFlagLabels(row);
+    // 일괄매각이면 사건 전체 목적물을 모아 보여준다(감정가·최저가는 일괄 전체 기준).
+    const grp=result&&result.groups?result.groups.find(g=>g.listings.some(r=>r.id===row.id)):null;
+    const bundleLots=row.saleKind==='bundle'&&grp&&grp.listings.length>1?grp.listings:[];
+    const inBatch=bundleLots.length>0;
     const stats=Array.isArray(d.around_stats)?d.around_stats[0]:null;
     const sourceUrl=esc(a.sourceUrl||'https://www.courtauction.go.kr/');
     const onbidMode=row.cohort==='onbid',od=detail.onbidDetail||null;
@@ -565,15 +569,16 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
       <div class="detail-content"><p class="detail-location">${esc(rowTitle(row))}<em class="pick-badge detail-pick-badge auction-badge">${onbidMode?'공매':'경매'}</em>${auctionFlagBadges(row,6)}${rights?`<em class="pick-badge risk-badge">인수권리</em>`:''}</p><h2 tabindex="-1" id="detail-title">${money(a.minPrice)}</h2>
       <p class="detail-listing-number">${onbidMode?'물건관리번호':'사건번호'} ${esc(a.caseNo||'')} · ${esc(a.courtName||'')} ${esc(a.deptName||'')}</p>
       <div class="detail-conversion"><a class="primary" href="${onbidMode?sourceUrl:'https://www.courtauction.go.kr/pgj/index.on?w2xPath=/pgj/ui/pgj100/PGJ159M00.xml&pgjId=159M00'}" target="_blank" rel="noopener noreferrer">${onbidMode?'온비드 공매 원문 ↗':'법원경매정보에서 사건 검색 ↗'}</a><button class="outline" data-explore="copy-auction">물건 정보 복사</button><button class="outline" data-explore="favorite" data-id="${esc(row.id)}" aria-pressed="${Boolean(member.get('favorite',row.id))}">${member.get('favorite',row.id)?'♥ 찜함':'♡ 찜하기'}</button><small>${onbidMode?'입찰 전 온비드 공고 원문을 확인하세요.':`사건번호 ${esc(a.caseNo||'')}를 검색창에 입력해 원문(매각물건명세서·현황조사서)을 확인하세요.`}</small></div>
-      ${areaUnitControls()}<div class="detail-areas"><div><span>감정가</span><strong>${money(a.appraisedWon)}</strong></div><div><span>최저매각가</span><strong>${money(a.minPrice)}</strong></div><div><span>${row.dealType==='unit'?'전유면적':'목적물 면적'}</span><strong>${area(row.areaM2)}</strong></div><div><span>유찰횟수</span><strong>${a.failCount??0}회</strong></div>${row.landAreaM2!=null?`<div><span>${row.dealType==='unit'?'대지권(필지) 면적':'필지 대지면적'}</span><strong>${area(row.landAreaM2)}</strong></div>`:''}${row.buildingAreaM2!=null?`<div><span>${row.dealType==='unit'?'건물 전체 연면적(공용 포함)':'건축 연면적'}</span><strong>${area(row.buildingAreaM2)}</strong></div>`:''}</div>
+      ${areaUnitControls()}<div class="detail-areas"><div><span>${inBatch?'일괄 전체 감정가':'감정가'}</span><strong>${money(a.appraisedWon)}</strong></div><div><span>${inBatch?'일괄 전체 최저매각가':'최저매각가'}</span><strong>${money(a.minPrice)}</strong></div><div><span>${inBatch?'이 목적물 면적':(row.dealType==='unit'?'전유면적':'목적물 면적')}</span><strong>${area(row.areaM2)}</strong></div><div><span>유찰횟수</span><strong>${a.failCount??0}회</strong></div>${row.landAreaM2!=null?`<div><span>${row.dealType==='unit'?'대지권(필지) 면적':'필지 대지면적'}</span><strong>${area(row.landAreaM2)}</strong></div>`:''}${row.buildingAreaM2!=null?`<div><span>${row.dealType==='unit'?'건물 전체 연면적(공용 포함)':'건축 연면적'}</span><strong>${area(row.buildingAreaM2)}</strong></div>`:''}</div>
+      ${inBatch?`<details class="auction-rounds auction-batch" open><summary>일괄매각 목적물 ${bundleLots.length}개</summary><ul>${bundleLots.map(r=>`<li>${esc(r.address||'')}${r.detailAddress?` ${esc(r.detailAddress)}`:''} · ${area(r.areaM2)}</li>`).join('')}</ul><small>감정가·최저매각가·유찰은 <b>일괄 전체</b> 기준이에요. 목적물별 값은 법원 원문을 확인하세요.</small></details>`:''}
       <div id="land-area-comparison" aria-live="polite"></div>
       <div class="detail-street"><div class="street-inline" id="street-inline" aria-label="네이버 거리뷰"><span class="street-inline-state">거리뷰를 불러오고 있어요.</span></div><button type="button" class="street-expand" data-explore="street" aria-label="거리뷰 크게 보기" title="거리뷰 크게 보기">⛶</button></div>
       <nav class="detail-shortcuts" aria-label="상세 내용 이동"><button data-explore="section" data-section="property-auction">${onbidMode?'공매':'경매'} 공시</button><button data-explore="section" data-section="property-parcel">필지 위치</button><button data-explore="section" data-section="property-commercial">상권</button><button data-explore="section" data-section="property-surrounding">주변 사업</button><button data-explore="section" data-section="property-documents">보유자료</button><button data-explore="section" data-section="property-context">주변 조건</button><button data-explore="section" data-section="property-transactions">주변 실거래</button></nav>
       <section class="detail-section" id="property-auction"><h3>${row.cohort==='onbid'?'공매':'경매'} 공시 정보 <small>${row.cohort==='onbid'?'온비드(캠코)':'법원경매정보'} · 사실정보</small></h3><p class="case-note">아래는 ${row.cohort==='onbid'?'한국자산관리공사 온비드':'법원경매정보'} 공시 기준이에요. 터잡이 <b>보유 공공자료</b>와 출처·기준일이 달라 다를 수 있어요.</p><dl class="auction-facts">
         <dt>용도</dt><dd>${esc(a.usageName||'미기재')}</dd>
         <dt>거래 구분</dt><dd>${AUCTION_DEAL_LABEL[row.dealType]||'확인 필요'}</dd>
-        <dt>감정가</dt><dd>${money(a.appraisedWon)}</dd>
-        <dt>최저매각가</dt><dd>${money(a.minPrice)} <small style="opacity:.6">(감정가의 ${a.notiMinRate!=null?esc(a.notiMinRate)+'%':'—'})</small></dd>
+        <dt>${inBatch?'감정가 (일괄 전체)':'감정가'}</dt><dd>${money(a.appraisedWon)}</dd>
+        <dt>${inBatch?'최저매각가 (일괄 전체)':'최저매각가'}</dt><dd>${money(a.minPrice)} <small style="opacity:.6">(감정가의 ${a.notiMinRate!=null?esc(a.notiMinRate)+'%':'—'})</small></dd>
         <dt>${onbidMode?'입찰마감':'매각기일'}</dt><dd>${esc(a.saleDate||'')} ${esc(a.saleHour||'')} ${dday(a.saleDate)}</dd>
         ${onbidMode?(od&&od.failed_bid!=null?`<dt>유찰횟수</dt><dd>${esc(od.failed_bid)}회</dd>`:''):`<dt>유찰횟수</dt><dd>${a.failCount??0}회</dd>`}
         <dt>법원·계</dt><dd>${esc(a.courtName||'')} ${esc(a.deptName||'')}</dd>
