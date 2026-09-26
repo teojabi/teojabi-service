@@ -95,6 +95,19 @@ const auctionToListing=row=>{
       jimok:row.jimok||'',lotNo:row.lot_no||'',sourceUrl:row.source_url||'https://www.courtauction.go.kr/'}};
 };
 
+// 일괄매각(bundle)은 여러 목적물이 한 사건·한 가격으로 매각되므로 사건 단위로 묶어
+// 같은 가격 카드·핀이 반복되는 것을 막는다. 그 외에는 물건별로 그대로 둔다.
+const auctionGroups=rows=>{
+  const map=new Map();
+  for(const row of rows){
+    const bundle=row.source==='auction'&&row.saleKind==='bundle'&&row.auction&&row.auction.caseNo;
+    const key=bundle?`case:${row.auction.courtName||''}:${row.auction.caseNo}`:row.id;
+    const g=map.get(key);
+    if(!g)map.set(key,{key,pnu:row.pnu,representative:row,listings:[row]});
+    else{g.listings.push(row);if((row.areaM2||0)>(g.representative.areaM2||0))g.representative=row;}
+  }
+  return [...map.values()];
+};
 // 공매(온비드) 물건을 건물찾기 카드·지도·상세가 쓰는 매물 모양으로 맞춘다.
 const onbidToListing=row=>{
   const usage=String(row.usg_mcls_nm||row.usg_lcls_nm||'');
@@ -257,7 +270,8 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
   function auctionCard(group) {
     const row=group.representative,a=row.auction||{},isOnbid=row.cohort==='onbid';
     const badge=`${isOnbid?'공매':'경매'}${AUCTION_DEAL_LABEL[row.dealType]?` · ${AUCTION_DEAL_LABEL[row.dealType]}`:''}`;
-    const kindBadge=row.saleKind==='share'?'<em class="pick-badge warn-badge">지분</em>':row.saleKind==='bundle'?'<em class="pick-badge warn-badge">일괄</em>':'';
+    const bundleN=group.listings.length;
+    const kindBadge=row.saleKind==='share'?'<em class="pick-badge warn-badge">지분</em>':row.saleKind==='bundle'?`<em class="pick-badge warn-badge">일괄${bundleN>1?` · 목적물 ${bundleN}개`:''}</em>`:'';
     const verifyBadge=row.verifyStatus==='matched'?'<em class="pick-badge ok-badge">대장 일치</em>':row.verifyStatus==='mismatch'?'<em class="pick-badge warn-badge">대장 차이</em>':'';
     const flagBadges=auctionFlagBadges(row),rightsBadge=auctionRightsBadge(row);
     const priceLabel=isOnbid?'최저입찰가':'최저매각가';
@@ -360,8 +374,8 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     if(wantOnbid)calls.push(apiFetch(`/api/onbid?${build(true)}`,{signal:abort.signal}).then(r=>r.ok?r.json():null).catch(()=>null));
     const results=await Promise.all(calls);
     const groups=[];let total=0,index=0;
-    if(wantCourt){const d=results[index++];if(d&&d.status==='ready'){(d.rows||[]).map(auctionToListing).forEach(row=>groups.push({key:row.id,pnu:row.pnu,representative:row,listings:[row]}));total+=Number(d.total||0);}}
-    if(wantOnbid){const d=results[index++];if(d&&d.status==='ready'){(d.rows||[]).map(onbidToListing).forEach(row=>groups.push({key:row.id,pnu:row.pnu,representative:row,listings:[row]}));total+=Number(d.total||0);}}
+    if(wantCourt){const d=results[index++];if(d&&d.status==='ready'){groups.push(...auctionGroups((d.rows||[]).map(auctionToListing)));total+=Number(d.total||0);}}
+    if(wantOnbid){const d=results[index++];if(d&&d.status==='ready'){groups.push(...auctionGroups((d.rows||[]).map(onbidToListing)));total+=Number(d.total||0);}}
     return groups.length?{groups,total}:null;
   }
   async function load({fit=true}={}) {
@@ -457,7 +471,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     const response=await apiFetch(`/api/auctions?${params}`,{signal:abort.signal});
     const data=await response.json();
     if(!response.ok||data.status!=='ready')return null;
-    const groups=(data.rows||[]).map(auctionToListing).map(row=>({key:row.id,pnu:row.pnu,representative:row,listings:[row]}));
+    const groups=auctionGroups((data.rows||[]).map(auctionToListing));
     return {groups,total:Number(data.total||groups.length)};
   }
   async function loadAuctions({fit=true}={}) {
@@ -487,8 +501,8 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
       const response=await apiFetch(`${endpoint}?${params}`,{signal:abort.signal});
       const data=await response.json();if(!response.ok||data.status!=='ready')throw new Error(data.reason||'unavailable');
       if(disposed||current!==version)return;
-      const groups=(data.rows||[]).map(mapper).map(row=>({key:row.id,pnu:row.pnu,representative:row,listings:[row]}));
-      result={status:'ready',mode:isOnbid?'onbid':'auction',groups,totalParcels:Number(data.total||groups.length),totalListings:Number(data.total||groups.length),hasMore:Number(data.total||0)>groups.length,observedAt:null,suggestions:[]};
+      const groups=auctionGroups((data.rows||[]).map(mapper));
+      result={status:'ready',mode:isOnbid?'onbid':'auction',groups,totalParcels:Number(data.total||groups.length),totalListings:Number(data.total||groups.length),hasMore:(data.rows||[]).length<Number(data.total||0),observedAt:null,suggestions:[]};
       $('.explore-list').removeAttribute('aria-busy');drawCards();map.setGroups(mapGroups(),selected,fit);
       if(initialId){const id=initialId;initialId=null;openDetail(id);}
     } catch(error) {
