@@ -230,8 +230,11 @@ export class NotificationsService {
     const reg = zone ? zoneMap[zone] : undefined;
     const land = Number(row?.land_area_m2);
     const building = Number(row?.building_area_m2);
-    const allowedFar = reg ? reg.far : null;
-    const allowedBcr = reg ? reg.bcr : null;
+    // 허용 용적률/건폐율: master_land(지구단위계획 반영) 값을 우선하고, 없으면 용도지역 법정 상한.
+    const rowFar = Number(row?.far_limit);
+    const rowBcr = Number(row?.bcr_limit);
+    const allowedFar = row?.far_limit != null && Number.isFinite(rowFar) ? rowFar : (reg ? reg.far : null);
+    const allowedBcr = row?.bcr_limit != null && Number.isFinite(rowBcr) ? rowBcr : (reg ? reg.bcr : null);
     const currentFar = Number.isFinite(land) && land > 0 && Number.isFinite(building) && building > 0
       ? Math.round((building / land) * 100)
       : null;
@@ -239,8 +242,9 @@ export class NotificationsService {
     const buildableFloorAreaM2 = remainingFar != null && remainingFar > 0 && Number.isFinite(land) && land > 0
       ? Math.round((remainingFar / 100) * land)
       : null;
-    if (!zone && currentFar == null) return null;
-    return { zone, allowedFar, allowedBcr, currentFar, remainingFar, buildableFloorAreaM2 };
+    const districtPlan = String(row?.district_plan || '').trim() || null;
+    if (!zone && currentFar == null && !districtPlan) return null;
+    return { zone, allowedFar, allowedBcr, currentFar, remainingFar, buildableFloorAreaM2, districtPlan };
   }
 
   // 찜·저장 조건에 맞는 현재 물건을 모은다(임박 기간 내).
@@ -271,7 +275,7 @@ export class NotificationsService {
     if (favAuction.length) {
       const rows = await this.prisma.$queryRaw<any[]>(Prisma.sql`
         SELECT docid, full_address, min_price, usage_name, sale_date, sale_hour,
-               use_zone, land_area_m2, building_area_m2
+               use_zone, land_area_m2, building_area_m2, far_limit, bcr_limit, district_plan
         FROM public.auction_item
         WHERE docid IN (${Prisma.join(favAuction)})
           AND sale_date >= ${start}::date AND sale_date <= ${end}::date
@@ -317,7 +321,7 @@ export class NotificationsService {
         if (failMax) conditions.push(Prisma.sql`a.fail_count <= ${failMax}`);
         const rows = await this.prisma.$queryRaw<any[]>(Prisma.sql`
           SELECT a.docid, a.full_address, a.min_price, a.usage_name, a.sale_date, a.sale_hour,
-                 a.use_zone, a.land_area_m2, a.building_area_m2
+                 a.use_zone, a.land_area_m2, a.building_area_m2, a.far_limit, a.bcr_limit, a.district_plan
           FROM public.auction_item a WHERE ${Prisma.join(conditions, ' AND ')}
           ORDER BY a.sale_date ASC LIMIT 20`);
         for (const r of rows) items.push(this.auctionAlert(r, 'condition', conditionName, zoneMap));
