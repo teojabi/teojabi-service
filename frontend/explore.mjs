@@ -69,11 +69,12 @@ const auctionToListing=row=>{
   const position=Number.isFinite(row.lat)&&Number.isFinite(row.lng)?{lat:Number(row.lat),lng:Number(row.lng)}:null;
   const broad=/주거/.test(zone)?'주거지역':/상업/.test(zone)?'상업지역':/공업/.test(zone)?'공업지역':/녹지/.test(zone)?'녹지지역':null;
   const id=`auction:${row.docid}`,addr=splitAuctionAddress(row);
-  const dealType=row.deal_type||(AUCTION_LAND_RE.test(usage)?'land':(/\d+\s*호/.test(String(row.full_address||'')+String(row.building_list||''))?'unit':'whole'));
+  const dealType=row.deal_type_final||row.deal_type||(AUCTION_LAND_RE.test(usage)?'land':(/\d+\s*호/.test(String(row.full_address||'')+String(row.building_list||''))?'unit':'whole'));
   return {id,source:'auction',sourceId:String(row.docid),cohort:'auction',dealType,saleKind:row.sale_kind||'whole',flags:row.flags||null,verifyStatus:row.verify_status||null,verify:row.verify_data||null,
-    district:row.sigu||'',neighborhood:row.dong||'',address:addr.land,detailAddress:addr.detail,
+    district:row.sigu||'',neighborhood:row.dong||'',address:addr.land,detailAddress:row.detail_address||addr.detail,
     pnu:/^\d{19}$/.test(String(row.pnu||''))?row.pnu:null,position,
-    priceWon:row.min_price==null?null:Number(row.min_price),areaM2:row.area_max==null?null:Number(row.area_max),
+    priceWon:row.min_price==null?null:Number(row.min_price),areaM2:row.obj_area_m2!=null?Number(row.obj_area_m2):(row.area_max==null?null:Number(row.area_max)),
+    buildingAreaM2:row.building_area_m2==null?null:Number(row.building_area_m2),landAreaM2:row.land_area_m2==null?null:Number(row.land_area_m2),areaSource:row.area_source||'listed',
     floorAreaM2:null,kind:AUCTION_LAND_RE.test(usage)?'land':'building',kindConfirmed:true,
     description:'',floorInfo:'',areaSource:'listing',floorAreaSource:'listing',locationStatus:'pin-estimated',
     zoning:zone?{status:'matched',groups:broad?[broad]:[],entries:[{name:zone}]}:{status:'missing',groups:[],entries:[]},
@@ -533,7 +534,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
       <div class="detail-content"><p class="detail-location">${esc(rowTitle(row))}<em class="pick-badge detail-pick-badge auction-badge">${onbidMode?'공매':'경매'}</em></p><h2 tabindex="-1" id="detail-title">${money(a.minPrice)}</h2>
       <p class="detail-listing-number">${onbidMode?'물건관리번호':'사건번호'} ${esc(a.caseNo||'')} · ${esc(a.courtName||'')} ${esc(a.deptName||'')}</p>
       <div class="detail-conversion"><a class="primary" href="${onbidMode?sourceUrl:'https://www.courtauction.go.kr/pgj/index.on?w2xPath=/pgj/ui/pgj100/PGJ159M00.xml&pgjId=159M00'}" target="_blank" rel="noopener noreferrer">${onbidMode?'온비드 공매 원문 ↗':'법원경매정보에서 사건 검색 ↗'}</a><button class="outline" data-explore="copy-auction">물건 정보 복사</button><button class="outline" data-explore="favorite" data-id="${esc(row.id)}" aria-pressed="${Boolean(member.get('favorite',row.id))}">${member.get('favorite',row.id)?'♥ 찜함':'♡ 찜하기'}</button><small>${onbidMode?'입찰 전 온비드 공고 원문을 확인하세요.':`사건번호 ${esc(a.caseNo||'')}를 검색창에 입력해 원문(매각물건명세서·현황조사서)을 확인하세요.`}</small></div>
-      ${areaUnitControls()}<div class="detail-areas"><div><span>감정가</span><strong>${money(a.appraisedWon)}</strong></div><div><span>최저매각가</span><strong>${money(a.minPrice)}</strong></div><div><span>목적물 면적</span><strong>${area(row.areaM2)}</strong></div><div><span>유찰횟수</span><strong>${a.failCount??0}회</strong></div></div>
+      ${areaUnitControls()}<div class="detail-areas"><div><span>감정가</span><strong>${money(a.appraisedWon)}</strong></div><div><span>최저매각가</span><strong>${money(a.minPrice)}</strong></div><div><span>목적물 면적</span><strong>${area(row.areaM2)}</strong></div><div><span>유찰횟수</span><strong>${a.failCount??0}회</strong></div>${row.landAreaM2!=null?`<div><span>필지 대지면적</span><strong>${area(row.landAreaM2)}</strong></div>`:''}${row.buildingAreaM2!=null?`<div><span>건축 연면적</span><strong>${area(row.buildingAreaM2)}</strong></div>`:''}</div>
       <div id="land-area-comparison" aria-live="polite"></div>
       <div class="detail-street"><div class="street-inline" id="street-inline" aria-label="네이버 거리뷰"><span class="street-inline-state">거리뷰를 불러오고 있어요.</span></div><button type="button" class="street-expand" data-explore="street" aria-label="거리뷰 크게 보기" title="거리뷰 크게 보기">⛶</button></div>
       <nav class="detail-shortcuts" aria-label="상세 내용 이동"><button data-explore="section" data-section="property-auction">${onbidMode?'공매':'경매'} 공시</button><button data-explore="section" data-section="property-parcel">필지 위치</button><button data-explore="section" data-section="property-commercial">상권</button><button data-explore="section" data-section="property-surrounding">주변 사업</button><button data-explore="section" data-section="property-documents">보유자료</button><button data-explore="section" data-section="property-context">주변 조건</button><button data-explore="section" data-section="property-transactions">주변 실거래</button></nav>
