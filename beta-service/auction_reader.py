@@ -25,6 +25,9 @@ from psycopg2.extras import RealDictCursor
 EXCLUDED_USAGE = ('아파트', '자동차')
 # 토지 계열로 보는 용도 키워드. '전답'·'잡종지' 등은 '전'·'답'을 포함한다.
 LAND_PATTERN = '토지|대지|임야|전답|잡종지|과수원|목장|답|전'
+# 비고 플래그(flags jsonb) 중 필터로 노출하는 위험·특이사항 키. 선택 항목 중 하나라도 있으면 표시.
+RISK_COLUMNS = ('lien', 'legalSuperficies', 'landSeparate', 'unregistered', 'illegalBuilding',
+                'saleExcluded', 'specialSale', 'farmland', 'coOwned', 'extraBuilding')
 
 
 def _local_dsn():
@@ -97,7 +100,8 @@ LIST_COLUMNS = ('docid, court_name, dept_name, case_no, usage_name, appraised_am
                 'noti_min_price, noti_min_rate, fail_count, sale_date, sale_hour, sido, sigu, dong, '
                 'lot_no, building_list, jimok, area_min, area_max, lat, lng, pnu, use_zone, '
                 'road_width_m, full_address, source_url, deal_type, sale_kind, flags, detail_address, '
-                'obj_area_m2, building_area_m2, land_area_m2, deal_type_final, area_source, obj_kind, cancelled')
+                'obj_area_m2, building_area_m2, land_area_m2, deal_type_final, area_source, obj_kind, '
+                'cancelled, acquired_rights')
 
 
 def _where(payload):
@@ -145,6 +149,10 @@ def _where(payload):
     if sale_kind in ('whole', 'share', 'bundle'):
         where.append('sale_kind = %(salekind)s')
         params['salekind'] = sale_kind
+    risks = [key for key in _usage_list(payload.get('risk')) if key in RISK_COLUMNS][:10]
+    if risks:
+        where.append('(' + ' OR '.join(f"coalesce(flags->>'{key}', 'false') = 'true'"
+                                       for key in risks) + ')')
     if zones:
         clauses = []
         for index, token in enumerate(zones[:4]):

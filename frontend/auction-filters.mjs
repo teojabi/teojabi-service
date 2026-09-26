@@ -25,11 +25,14 @@ export const AUCTION_SORT_OPTIONS = Object.freeze([
   ['area', '면적 큰순'],
 ]);
 
-const CHIPS = [['listingSource', '구분'], ['districts', '지역'], ['usage', '용도'], ['dealType', '거래 단위'], ['saleKind', '매각 구분'], ['maxPrice', '최저매각가'], ['maxBidRate', '최저가율'], ['failMax', '유찰'], ['sort', '정렬']];
+const CHIPS = [['listingSource', '구분'], ['districts', '지역'], ['usage', '용도'], ['dealType', '거래 단위'], ['saleKind', '매각 구분'], ['risk', '위험'], ['maxPrice', '최저매각가'], ['maxBidRate', '최저가율'], ['failMax', '유찰'], ['sort', '정렬']];
 const DEAL_LABEL = { whole: '건물 통', floor: '층', unit: '호실', land: '토지' };
 const SALE_LABEL = { whole: '전체 소유', share: '지분', bundle: '일괄' };
 const LISTING_LABEL = { court: '경매', onbid: '공매' };
-const emptyDraft = () => ({ listingSource: 'court', gu: [], usage: '', dealType: '', saleKind: '', sort: 'sale', maxPrice: '', maxBidRate: '', failMax: '' });
+// 법원 공시 비고(mulBigo)에서 파생한 위험·특이사항 필터. 선택한 항목 중 하나라도 있으면 표시한다.
+export const AUCTION_RISK_OPTIONS = Object.freeze([['lien', '유치권'], ['legalSuperficies', '법정지상권'], ['landSeparate', '토지별도등기'], ['unregistered', '대지권미등기'], ['illegalBuilding', '위반건축물'], ['saleExcluded', '매각제외'], ['specialSale', '특별매각'], ['farmland', '농지취득'], ['coOwned', '공유'], ['extraBuilding', '제시외']]);
+const RISK_LABEL = Object.fromEntries(AUCTION_RISK_OPTIONS);
+const emptyDraft = () => ({ listingSource: 'court', gu: [], usage: '', dealType: '', saleKind: '', risk: [], sort: 'sale', maxPrice: '', maxBidRate: '', failMax: '' });
 
 // 경매 조건 UI. 건물찾기(매물) 퀵필터와 같은 칩 + 편집 패널 구조.
 // 칩에는 조건 이름이 함께 보이고, 아래 '이 조건으로 검색하기'로 조회한다.
@@ -46,6 +49,7 @@ export function mountAuctionFilters(root, { getValue, onChange } = {}) {
       usage: draft.usage || '용도 전체',
       dealType: DEAL_LABEL[draft.dealType] || '전체',
       saleKind: SALE_LABEL[draft.saleKind] || '전체',
+      risk: (draft.risk || []).length ? draft.risk.map(k => RISK_LABEL[k] || k).join(' · ') : '전체',
       maxPrice: draft.maxPrice ? `${draft.maxPrice}억 이하` : '제한 없음',
       maxBidRate: draft.maxBidRate ? `${draft.maxBidRate}% 이하` : '제한 없음',
       failMax: (draft.failMax !== '' && draft.failMax != null) ? `${draft.failMax}회 이하` : '제한 없음',
@@ -66,6 +70,7 @@ export function mountAuctionFilters(root, { getValue, onChange } = {}) {
         : group === 'usage' ? String(draft.usage || '') === value
         : group === 'dealType' ? String(draft.dealType || '') === value
         : group === 'saleKind' ? String(draft.saleKind || '') === value
+        : group === 'risk' ? (draft.risk || []).includes(value)
         : group === 'sort' ? String(draft.sort || 'sale') === value
         : group === 'failMax' ? String(draft.failMax ?? '') === value : false;
       button.setAttribute('aria-pressed', String(Boolean(on)));
@@ -78,6 +83,7 @@ export function mountAuctionFilters(root, { getValue, onChange } = {}) {
     if (key === 'usage') html = `<div class="quick-choice-grid quick-purposes">${AUCTION_USAGE_OPTIONS.map(([value, label]) => choice('usage', value, label)).join('')}</div>`;
     if (key === 'dealType') html = `<p class="quick-help">건물 전체와 부분(층·호실)을 구분해 볼 수 있어요.</p><div class="quick-choice-grid">${choice('dealType', '', '전체')}${choice('dealType', 'whole', '건물 통')}${choice('dealType', 'floor', '층')}${choice('dealType', 'unit', '호실')}${choice('dealType', 'land', '토지')}</div>`;
     if (key === 'saleKind') html = `<p class="quick-help">지분·일괄 매각을 구분해 볼 수 있어요. 지분은 표시 면적·가격이 매각 대상 전체 기준이에요.</p><div class="quick-choice-grid">${choice('saleKind', '', '전체')}${choice('saleKind', 'whole', '전체 소유')}${choice('saleKind', 'share', '지분')}${choice('saleKind', 'bundle', '일괄')}</div>`;
+    if (key === 'risk') html = `<p class="quick-help">법원 공시 비고에 표시된 위험·특이사항이에요. 여러 항목을 고르면 그중 하나라도 해당하는 물건을 찾아요. 권리분석이 아니라 공시 사실 표시예요.</p><div class="quick-choice-grid">${AUCTION_RISK_OPTIONS.map(([value, label]) => choice('risk', value, label)).join('')}</div>`;
     if (key === 'maxPrice') html = `<p class="quick-help">최저매각가 기준이에요.</p><label class="quick-number-label" for="auction-max-price">최저매각가 직접 입력 <span>억원 이하</span></label><input id="auction-max-price" class="quick-number" inputmode="decimal" autocomplete="off" placeholder="예: 10" value="${esc(draft.maxPrice || '')}">`;
     if (key === 'maxBidRate') html = `<p class="quick-help">감정가 대비 최저매각가 비율이에요. 낮을수록 낮은 가격에 나온 물건이에요.</p><label class="quick-number-label" for="auction-max-rate">최저가율 직접 입력 <span>% 이하</span></label><input id="auction-max-rate" class="quick-number" inputmode="decimal" autocomplete="off" placeholder="예: 70" value="${esc(draft.maxBidRate || '')}">`;
     if (key === 'failMax') html = `<div class="quick-choice-grid">${[0, 1, 2, 3, 4, 5].map(n => choice('failMax', String(n), `${n}회 이하`)).join('')}${choice('failMax', '', '제한 없음')}</div>`;
@@ -89,7 +95,7 @@ export function mountAuctionFilters(root, { getValue, onChange } = {}) {
   function open(key) { active = key; panel.hidden = false; renderEditor(); update(); }
   function close() { active = null; panel.hidden = true; update(); }
   function apply() {
-    onChange({ listingSource: draft.listingSource || 'court', gu: [...draft.gu], usage: draft.usage || '', dealType: draft.dealType || '', saleKind: draft.saleKind || '', sort: draft.sort || 'sale', maxPrice: draft.maxPrice || '', maxBidRate: draft.maxBidRate || '', failMax: draft.failMax ?? '' });
+    onChange({ listingSource: draft.listingSource || 'court', gu: [...draft.gu], usage: draft.usage || '', dealType: draft.dealType || '', saleKind: draft.saleKind || '', risk: [...(draft.risk || [])], sort: draft.sort || 'sale', maxPrice: draft.maxPrice || '', maxBidRate: draft.maxBidRate || '', failMax: draft.failMax ?? '' });
     close();
   }
   root.addEventListener('click', event => {
@@ -105,6 +111,7 @@ export function mountAuctionFilters(root, { getValue, onChange } = {}) {
     else if (group === 'usage') draft.usage = value;
     else if (group === 'dealType') draft.dealType = value;
     else if (group === 'saleKind') draft.saleKind = value;
+    else if (group === 'risk') draft.risk = (draft.risk || []).includes(value) ? draft.risk.filter(x => x !== value) : [...(draft.risk || []), value];
     else if (group === 'sort') draft.sort = value || 'sale';
     else if (group === 'failMax') draft.failMax = value;
     syncChoices(); update();

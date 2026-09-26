@@ -17,11 +17,18 @@ const db = createClient(SUPABASE_URL, SERVICE_ROLE, { auth: { persistSession: fa
 const ALLOWED_ORIGINS = ["https://teojabi.com", "https://www.teojabi.com"];
 const GUARD_ON = Deno.env.get("AUCTION_GUARD") !== "off";
 
+// 경매 비고에서 파생한 위험·특이사항(flags jsonb) 필터 키. 선택 항목 중 하나라도 있으면 표시.
+const RISK_COLUMNS = new Set([
+  "lien", "legalSuperficies", "landSeparate", "unregistered", "illegalBuilding",
+  "saleExcluded", "specialSale", "farmland", "coOwned", "extraBuilding",
+]);
+
 const LIST_COLUMNS =
   "docid, court_name, dept_name, case_no, usage_name, appraised_amt, min_price, noti_min_price, " +
   "noti_min_rate, fail_count, sale_date, sale_hour, sido, sigu, dong, lot_no, building_list, " +
   "area_min, area_max, lat, lng, pnu, use_zone, road_width_m, full_address, deal_type, sale_kind, flags, " +
-  "detail_address, obj_area_m2, building_area_m2, land_area_m2, deal_type_final, area_source, obj_kind, cancelled";
+  "detail_address, obj_area_m2, building_area_m2, land_area_m2, deal_type_final, area_source, obj_kind, " +
+  "cancelled, acquired_rights";
 
 function corsHeaders(origin: string | null): Record<string, string> {
   return {
@@ -60,6 +67,7 @@ function applyFilters(query: any, params: URLSearchParams) {
   const kind = (params.get("kind") || "").trim().toLowerCase();
   const dealType = (params.get("dealType") || "").trim().toLowerCase();
   const saleKind = (params.get("saleKind") || "").trim().toLowerCase();
+  const risks = params.getAll("risk").flatMap((v) => v.split(",")).map((v) => v.trim()).filter((v) => RISK_COLUMNS.has(v)).slice(0, 10);
   const keyword = (params.get("q") || "").trim().slice(0, 60);
   const minArea = num(params.get("minArea"));
   const maxArea = num(params.get("maxArea"));
@@ -84,6 +92,7 @@ function applyFilters(query: any, params: URLSearchParams) {
   else if (kind === "building") q = q.in("deal_type", ["unit", "whole"]);
   if (["whole", "floor", "unit", "land"].includes(dealType)) q = q.eq("deal_type", dealType);
   if (["whole", "share", "bundle"].includes(saleKind)) q = q.eq("sale_kind", saleKind);
+  if (risks.length) q = q.or(risks.map((key) => `flags->>${key}.eq.true`).join(","));
   if (keyword) q = q.or(`full_address.ilike.%${keyword}%,case_no.ilike.%${keyword}%,usage_name.ilike.%${keyword}%,dong.ilike.%${keyword}%`);
   if (minPrice != null) q = q.gte("min_price", minPrice);
   if (maxPrice != null) q = q.lte("min_price", maxPrice);

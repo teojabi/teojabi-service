@@ -850,6 +850,7 @@ body.architect-lightbox-open{overflow:hidden}
 .auction-filter-note{font-size:11px;color:var(--muted);margin:8px 0 0;line-height:1.5}
 .auction-badge{color:#b45309;border-color:#f59e0b;background:#fffbeb}
 .pick-badge.warn-badge{color:#b45309;border-color:#f59e0b;background:#fffbeb}
+.pick-badge.risk-badge{color:#b91c1c;border-color:#ef4444;background:#fef2f2}
 .pick-badge.ok-badge{color:var(--green);border-color:var(--green);background:var(--selected)}
 .map-first .auction-filter-row{flex-wrap:nowrap;overflow-x:auto;padding-bottom:4px}
 .map-first .auction-filter-row label{flex:0 0 auto}
