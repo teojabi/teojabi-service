@@ -15,6 +15,13 @@ const buildingFacts=value=>value&&typeof value==='object'?{
   mainUse:optionalText(value.mainUse),
   approvalDate:optionalText(value.approvalDate)
 }:null;
+// 관리자가 터잡이픽에 붙인 '신축분석' 공개 자료. 본문 + 공개 이미지 URL(https)만 노출한다.
+const pickAnalysis=value=>{if(!value||typeof value!=='object')return null;
+  const analysis=String(value.analysis||'').trim().slice(0,4000);
+  const images=Array.isArray(value.images)
+    ?value.images.filter(u=>typeof u==='string'&&/^https:\/\/[^\s"'<>]{1,480}$/.test(u)).slice(0,12)
+    :[];
+  return analysis||images.length?{analysis,images}:null;};
 
 export function selectedCatalog(snapshot,zoningSnapshot,developmentSnapshot) {
   if(snapshot?.source!=='selected-preview-v1'||!Array.isArray(snapshot.rows)||!snapshot.rows.length)throw new Error('Selected inventory unavailable');
@@ -23,7 +30,8 @@ export function selectedCatalog(snapshot,zoningSnapshot,developmentSnapshot) {
   for(const item of snapshot.rows) {
     if(!validListingId(item.id)||seen.has(item.id)||!validPosition(item.position)||!DISTRICTS.includes(item.district)||!positive(item.priceWon))throw new Error('Invalid selected inventory');
     seen.add(item.id);
-    // Explicit public DTO: no broker contacts, review notes, alternatives, images or consent history.
+    // Explicit public DTO: no broker contacts, review notes, alternatives or consent history.
+    // 예외적으로 관리자가 작성한 '신축분석'(pickAnalysis)만 공개한다.
     rows.push({id:item.id,source:item.source,sourceId:item.sourceId,cohort:item.cohort,
       teojabiNo:/^\d{4}$/.test(String(item.teojabiNo||''))?String(item.teojabiNo):null,
       district:item.district,neighborhood:item.neighborhood,address:item.address,
@@ -34,6 +42,7 @@ export function selectedCatalog(snapshot,zoningSnapshot,developmentSnapshot) {
       kind:item.kind,kindConfirmed:true,areaSource:'listing',floorAreaSource:'listing',locationStatus:'pin-estimated',
       zoning:zoning.index.get(item.pnu)||{status:'missing',groups:[],entries:[]},
       development:development.index.get(item.pnu)||null,nearbyTransactions:{status:'unavailable',cases:[]},
+      pickAnalysis:pickAnalysis(item.pickAnalysis),
       groupKey:addressKey(item.address)||item.id});
   }
   // Existing manually registered inventory takes precedence over a candidate at the same address.

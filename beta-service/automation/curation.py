@@ -25,6 +25,56 @@ TABLE = 'public.teojabi_curation_candidates'
 HIDDEN_FILE = Path(__file__).resolve().parents[1] / ('.local/supabase' if os.getenv('TEOJABI_DATA_SOURCE') in ('supabase','remote') else '.local') / 'curation-hidden.json'
 REGISTERED_SNAPSHOT_FILE = Path(__file__).resolve().parents[1] / ('.local/supabase' if os.getenv('TEOJABI_DATA_SOURCE') in ('supabase','remote') else '.local') / 'curation-registered.json'
 SOURCE_SNAPSHOT_FILE = Path(__file__).resolve().parents[1] / ('.local/supabase' if os.getenv('TEOJABI_DATA_SOURCE') in ('supabase','remote') else '.local') / 'curation-sources.json'
+ANALYSIS_TABLE = 'public.pick_analysis'
+ANALYSIS_ID = re.compile(r'(?:naver|naver-land|premium):[A-Za-z0-9_-]{1,64}')
+
+def ensure_analysis_table(cur):
+    cur.execute('''CREATE TABLE IF NOT EXISTS public.pick_analysis (
+        listing_id text PRIMARY KEY,
+        analysis text NOT NULL DEFAULT '',
+        images jsonb NOT NULL DEFAULT '[]'::jsonb,
+        updated_at timestamptz NOT NULL DEFAULT now())''')
+
+def analysis_map(cur):
+    """listing_id(catalog id) -> {analysis, images}. 테이블이 없으면 빈 값(읽기 전용이라 생성하지 않음)."""
+    try:
+        cur.execute('SELECT listing_id, analysis, images FROM public.pick_analysis')
+    except Exception:
+        return {}
+    return {r['listing_id']:{'analysis':r['analysis'] or '','images':clean(r['images']) if isinstance(r['images'],list) else []} for r in cur.fetchall()}
+
+def save_analysis(conn,data):
+    if not isinstance(data,dict): raise ValueError('Invalid fields')
+    listing_id=str(data.get('id') or '').strip()
+    if not ANALYSIS_ID.fullmatch(listing_id): raise ValueError('Invalid id')
+    analysis=str(data.get('analysis') or '').strip()[:4000]
+    raw=data.get('images') if isinstance(data.get('images'),list) else []
+    images=[]
+    for url in raw:
+        url=str(url or '').strip()
+        if re.fullmatch(r'https?://[^\s"\'<>]{1,480}',url) and url not in images: images.append(url)
+    images=images[:12]
+    with conn.cursor(cursor_factory=RealDictCursor) as cur:
+        cur.execute('SELECT pg_advisory_xact_lock(174209151)')
+        ensure_analysis_table(cur)
+        if not analysis and not images:
+            cur.execute('DELETE FROM public.pick_analysis WHERE listing_id=%s',(listing_id,))
+            return {'status':'saved','listingId':listing_id,'cleared':True}
+        cur.execute('''INSERT INTO public.pick_analysis(listing_id,analysis,images,updated_at)
+            VALUES(%s,%s,%s,now())
+            ON CONFLICT(listing_id) DO UPDATE SET analysis=EXCLUDED.analysis,images=EXCLUDED.images,updated_at=now()''',
+            (listing_id,analysis,Json(images)))
+        return {'status':'saved','listingId':listing_id,'images':len(images)}
+
+def delete_analysis(conn,data):
+    if not isinstance(data,dict): raise ValueError('Invalid fields')
+    listing_id=str(data.get('id') or '').strip()
+    if not ANALYSIS_ID.fullmatch(listing_id): raise ValueError('Invalid id')
+    with conn.cursor(cursor_factory=RealDictCursor) as cur:
+        cur.execute('SELECT pg_advisory_xact_lock(174209151)')
+        ensure_analysis_table(cur)
+        cur.execute('DELETE FROM public.pick_analysis WHERE listing_id=%s',(listing_id,))
+        return {'status':'saved','listingId':listing_id,'cleared':True}
 
 def catalog_id(table,sid):
     return f"naver-land:{sid}" if table=='naver_land' else f"premium:{sid}" if table=='premium' else f"naver:{sid}"
@@ -297,6 +347,11 @@ def listing(conn):
         cur.execute(f'''SELECT id,rank,category,budget,snapshot,review_status,cooperation_status,
             advertising_status,notes,version,created_at,updated_at FROM {TABLE} ORDER BY rank,id''')
         rows=cur.fetchall()
+        analysis=analysis_map(cur)
+        for row in rows:
+            item=analysis.get(catalog_id(row['source_table'],row['source_id']))
+            if item:
+                snap=dict(row.get('snapshot') or {}); snap['pickAnalysis']=item; row['snapshot']=snap
         cur.execute(f'SELECT selection_meta FROM {TABLE} ORDER BY id LIMIT 1')
         meta=cur.fetchone()
         return write_registered_snapshot({'status':'ready','rows':rows,'meta':meta['selection_meta'] if meta else {}})
@@ -559,6 +614,10 @@ def audit_removed(conn):
         return {'status':'checked','rows':rows,'completedAt':sync['completed_at']}
 
 def update(conn,data):
+    if isinstance(data,dict) and data.get('action')=='save_analysis':
+        result=save_analysis(conn,data); listing(conn); return result
+    if isinstance(data,dict) and data.get('action')=='delete_analysis':
+        result=delete_analysis(conn,data); listing(conn); return result
     if isinstance(data,dict) and data.get('action')=='audit_removed':
         return audit_removed(conn)
     if isinstance(data,dict) and data.get('action')=='delete_removed':

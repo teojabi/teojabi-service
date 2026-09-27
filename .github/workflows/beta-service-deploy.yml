@@ -52,12 +52,15 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_BUCKET: ${{ secrets.SUPABASE_BUCKET }}
         with:
           host: ${{ secrets.NCP_SSH_HOST }}
           username: ${{ secrets.NCP_SSH_USER }}
           password: ${{ secrets.NCP_SSH_PASSWORD }}
           command_timeout: 10m
-          envs: DATABASE_URL,GEMINI_API_KEY
+          envs: DATABASE_URL,GEMINI_API_KEY,SUPABASE_URL,SUPABASE_SERVICE_ROLE_KEY,SUPABASE_BUCKET
           script: |
             set -e
             cd ~/teojabi-runtime/beta-service
@@ -128,6 +131,9 @@ jobs:
             ACCOUNT_API_INTERNAL_BASE=http://127.0.0.1:3001
             GEMINI_API_KEY=${GEMINI_API_KEY}
             NAVER_MAP_CLIENT_ID=f8td9fq8kq
+            SUPABASE_URL=${SUPABASE_URL}
+            SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+            SUPABASE_BUCKET=${SUPABASE_BUCKET}
             PORT=4173
             ENVEOF
             chmod 600 .env
