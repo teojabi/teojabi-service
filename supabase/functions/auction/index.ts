@@ -94,10 +94,11 @@ function applyFilters(query: any, params: URLSearchParams) {
   if (zones.length) q = q.or(zones.map((z) => `use_zone.ilike.%${z}%`).join(","));
   if (minArea != null) q = q.gte("area_max", minArea);
   if (maxArea != null) q = q.lte("area_max", maxArea);
-  if (kind === "land") q = q.eq("deal_type", "land");
-  else if (kind === "building") q = q.in("deal_type", ["unit", "whole"]);
-  if (dealTypes.length) q = q.in("deal_type", dealTypes);
-  else if (["whole", "floor", "unit", "land"].includes(dealType)) q = q.eq("deal_type", dealType);
+  if (kind === "land") q = q.eq("deal_type_final", "land");
+  else if (kind === "building") q = q.in("deal_type_final", ["unit", "whole"]);
+  // 상세에서 보정된 deal_type_final을 기준으로 거래단위를 거른다(원본 deal_type은 호실→통 오분류가 있음).
+  if (dealTypes.length) q = q.in("deal_type_final", dealTypes);
+  else if (["whole", "floor", "unit", "land"].includes(dealType)) q = q.eq("deal_type_final", dealType);
   if (["whole", "share", "bundle"].includes(saleKind)) q = q.eq("sale_kind", saleKind);
   if (risks.length) q = q.or(risks.map((key) => `flags->>${key}.eq.true`).join(","));
   if (keyword) q = q.or(`full_address.ilike.%${keyword}%,case_no.ilike.%${keyword}%,usage_name.ilike.%${keyword}%,dong.ilike.%${keyword}%`);

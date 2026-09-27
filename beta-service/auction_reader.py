@@ -149,11 +149,12 @@ def _where(payload):
     elif kind == 'building':
         where.append(f"coalesce(usage_name, '') !~ %(landpat)s")
         params['landpat'] = LAND_PATTERN
+    # 상세에서 보정된 deal_type_final 우선(원본 deal_type은 호실→통 오분류가 있음).
     if deal_types:
-        where.append('deal_type = ANY(%(dealtypes)s)')
+        where.append('coalesce(deal_type_final, deal_type) = ANY(%(dealtypes)s)')
         params['dealtypes'] = deal_types
     elif deal_type in ('whole', 'floor', 'unit', 'land'):
-        where.append('deal_type = %(dealtype)s')
+        where.append('coalesce(deal_type_final, deal_type) = %(dealtype)s')
         params['dealtype'] = deal_type
     if sale_kind in ('whole', 'share', 'bundle'):
         where.append('sale_kind = %(salekind)s')
