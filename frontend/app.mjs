@@ -215,7 +215,7 @@ function render(focus = true) {
     loadExplorer().then(({mountExplorer})=>{
       if(version!==renderVersion||state.screen!=='results')return;
       const assistant=assistantPayload,openId=assistantOpenId;assistantPayload=null;assistantOpenId=null;const picksOnly=Boolean(state.picksOnly);state.picksOnly=false;
-      disposeExplorer=mountExplorer(app,{conditions:state.applied,picksOnly,assistant:assistant||undefined,initialSource:location.hash==='#favorites'?'favorites':location.hash==='#auction'?'auction':undefined,initialId:openId||new URLSearchParams(location.hash.slice(1)).get('listing'),onAnalyze:listing=>{if(state.siteDraft?.listingId!==listing.id)state.siteDraft=createSiteDraft(listing);state.screen='analyze';history.replaceState(null,'',location.pathname);render();},onConditionsChange:next=>{state.applied=next;if(!new URLSearchParams(location.hash.slice(1)).has('listing'))history.replaceState(null,'',location.pathname+'#search');return rememberSearch(next);},onEdit:()=>{
+      disposeExplorer=mountExplorer(app,{conditions:state.applied,picksOnly,assistant:assistant||undefined,initialSource:location.hash==='#favorites'?'favorites':location.hash==='#auction'?'auction':undefined,initialId:openId||new URLSearchParams(location.hash.slice(1)).get('listing'),onAnalyze:listing=>{if(state.siteDraft?.listingId!==listing.id)state.siteDraft=createSiteDraft(listing);state.screen='analyze';history.pushState({screen:'analyze'},'','#analyze');render();},onConditionsChange:next=>{state.applied=next;if(!new URLSearchParams(location.hash.slice(1)).has('listing'))history.replaceState(null,'',location.pathname+'#search');return rememberSearch(next);},onEdit:()=>{
         state.draft=appliedDraft();
         state.editing=Boolean(state.applied);state.screen='purpose';render();
       }});
@@ -225,7 +225,7 @@ function render(focus = true) {
     app.innerHTML='<section class="screen-loading" aria-live="polite"><span></span><p>필지 검토 화면을 준비하고 있어요.</p></section>';
     loadSiteReview().then(({mountSiteReview})=>{
       if(version!==renderVersion||state.screen!=='analyze')return;
-      disposeExplorer=mountSiteReview(app,{draft:state.siteDraft,onBack:()=>{const id=state.siteDraft.listingId;state.screen=id?'results':'home';history.replaceState(null,'',location.pathname+(id?'#listing='+encodeURIComponent(id):''));render();}});
+      disposeExplorer=mountSiteReview(app,{draft:state.siteDraft,onBack:()=>{const id=state.siteDraft.listingId,isListing=id&&!String(id).startsWith('parcel:');state.screen=id?'results':'home';history.replaceState(null,'',location.pathname+(isListing?'#listing='+encodeURIComponent(id):''));render();}});
     }).catch(()=>{if(version===renderVersion)app.innerHTML='<section class="screen-loading"><p>검토 화면을 불러오지 못했습니다.</p></section>';});
   } else {
   app.innerHTML = ({ home, purpose, 'build-use':buildUse, budget, region })[state.screen]();
@@ -269,7 +269,7 @@ document.addEventListener('click', event => {
     if(state.applied){state.screen='results';history.replaceState(null,'',location.pathname+'#search');}
     else state.screen='purpose';
   }
-  if (action === 'analyze') { state.screen = 'analyze'; state.editing = false; }
+  if (action === 'analyze') { state.screen = 'analyze'; state.editing = false; history.pushState({screen:'analyze'},'','#analyze'); }
   if (action === 'budget') {
     state.draft.budgetEok = button.dataset.value;
     render(false);
@@ -361,10 +361,16 @@ app.addEventListener('keydown', event => {
 render(false);
 // 지역 단계에서 바로 쓸 수 있도록 구·동 목록을 미리 받아둔다.
 ensureNeighborhoods();
-if(new URLSearchParams(location.hash.slice(1)).has('listing')||location.hash==='#search'||location.hash==='#favorites'||location.hash==='#assistant'||location.hash==='#auction') {state.screen='results';render(false);}
-else if(location.hash==='#analyze'){state.screen='analyze';render(false);}
+function routeFromHash(){
+  const h=location.hash;
+  if(new URLSearchParams(h.slice(1)).has('listing')||h==='#search'||h==='#favorites'||h==='#assistant'||h==='#auction'){state.screen='results';render(false);return true;}
+  if(h==='#analyze'){state.siteDraft??=createSiteDraft();state.screen='analyze';render(false);return true;}
+  return false;
+}
+window.addEventListener('popstate',()=>{if(!routeFromHash()){state.screen='home';render(false);}});
+routeFromHash();
 // 상단 '경매' 링크는 같은 페이지에서 해시만 바뀌므로 hashchange로도 결과 화면을 연다.
-window.addEventListener('hashchange',()=>{if(location.hash==='#auction'&&state.screen!=='results'){state.screen='results';render(false);}});
+window.addEventListener('hashchange',()=>{routeFromHash();});
 
 async function loadActivity() {
   try {
