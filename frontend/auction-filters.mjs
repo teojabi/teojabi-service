@@ -28,7 +28,7 @@ export const AUCTION_SORT_OPTIONS = Object.freeze([
 const CHIPS = [['listingSource', '구분'], ['districts', '지역'], ['usage', '용도'], ['saleKind', '매각 구분'], ['maxPrice', '최저매각가'], ['maxBidRate', '최저가율'], ['failMax', '유찰'], ['sort', '정렬']];
 const DEAL_LABEL = { whole: '건물 통', floor: '층', unit: '호실', land: '토지' };
 const SALE_LABEL = { whole: '전체 소유', share: '지분', bundle: '일괄' };
-const LISTING_LABEL = { court: '경매', onbid: '공매' };
+const LISTING_LABEL = { court: '경매', onbid: '공매', both: '경매·공매' };
 // 법원 공시 비고(mulBigo)에서 파생한 위험·특이사항 필터. 선택한 항목 중 하나라도 있으면 표시한다.
 export const AUCTION_RISK_OPTIONS = Object.freeze([['lien', '유치권'], ['legalSuperficies', '법정지상권'], ['landSeparate', '토지별도등기'], ['unregistered', '대지권미등기'], ['illegalBuilding', '위반건축물'], ['saleExcluded', '매각제외'], ['specialSale', '특별매각'], ['farmland', '농지취득'], ['coOwned', '공유'], ['extraBuilding', '제시외']]);
 const RISK_LABEL = Object.fromEntries(AUCTION_RISK_OPTIONS);
@@ -78,7 +78,7 @@ export function mountAuctionFilters(root, { getValue, onChange } = {}) {
   }
   function renderEditor() {
     const key = active; let html = '';
-    if (key === 'listingSource') html = `<p class="quick-help">법원경매와 온비드 공매를 구분해 볼 수 있어요.</p><div class="quick-choice-grid">${choice('listingSource', 'court', '경매(법원)')}${choice('listingSource', 'onbid', '공매(온비드)')}</div>`;
+    if (key === 'listingSource') html = `<p class="quick-help">법원경매와 온비드 공매를 함께 보거나 구분해서 볼 수 있어요.</p><div class="quick-choice-grid">${choice('listingSource', 'both', '둘다')}${choice('listingSource', 'court', '경매(법원)')}${choice('listingSource', 'onbid', '공매(온비드)')}</div>`;
     if (key === 'districts') html = `<p class="quick-help">여러 지역을 함께 선택할 수 있어요.</p><div class="quick-choice-grid quick-districts">${choice('districts', '', '서울 전체')}${DISTRICTS.map(d => choice('districts', d, d)).join('')}</div>`;
     if (key === 'usage') html = `<div class="quick-choice-grid quick-purposes">${AUCTION_USAGE_OPTIONS.map(([value, label]) => choice('usage', value, label)).join('')}</div>`;
     if (key === 'saleKind') html = `<p class="quick-help">지분·일괄 매각을 구분해 볼 수 있어요. 지분은 표시 면적·가격이 매각 대상 전체 기준이에요.</p><div class="quick-choice-grid">${choice('saleKind', '', '전체')}${choice('saleKind', 'bundle', '일괄')}</div>`;
@@ -104,7 +104,7 @@ export function mountAuctionFilters(root, { getValue, onChange } = {}) {
     if (event.target.closest('[data-auction-reset]')) { draft = emptyDraft(); renderEditor(); update(); return; }
     const button = event.target.closest('[data-auction-choice]'); if (!button) return;
     const group = button.dataset.auctionChoice, value = button.dataset.value;
-    if (group === 'listingSource') draft.listingSource = value === 'onbid' ? 'onbid' : 'court';
+    if (group === 'listingSource') draft.listingSource = ['court','onbid','both'].includes(value) ? value : 'court';
     else if (group === 'districts') draft.gu = value === '' ? [] : draft.gu.includes(value) ? draft.gu.filter(x => x !== value) : [...draft.gu, value];
     else if (group === 'usage') draft.usage = value;
     else if (group === 'dealType') draft.dealType = value;

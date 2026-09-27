@@ -315,7 +315,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     auctionFilters={...auctionFilters,gu:[...(conditions?.districts||[])],usage:(a.usages||[])[0]||'',dealType:a.dealType||'',saleKind:a.saleKind||'',maxPrice:a.maxPriceWon?String(a.maxPriceWon/1e8):'',maxBidRate:a.maxBidRate!=null?String(a.maxBidRate):'',failMax:a.failMax!=null?String(a.failMax):'',listingSource:a.source==='onbid'?'onbid':'court'};
   };
   const applyAuctionFiltersToCondition=()=>{
-    criteria={...criteria,auction:{...(criteria.auction||{}),enabled:true,source:auctionFilters.listingSource==='onbid'?'onbid':'court',usages:auctionFilters.usage?[auctionFilters.usage]:[],dealType:auctionFilters.dealType||null,saleKind:auctionFilters.saleKind||null,maxPriceWon:auctionFilters.maxPrice?Number(auctionFilters.maxPrice)*1e8:null,maxBidRate:auctionFilters.maxBidRate?Number(auctionFilters.maxBidRate):null,failMax:auctionFilters.failMax?Number(auctionFilters.failMax):null}};
+    criteria={...criteria,auction:{...(criteria.auction||{}),enabled:true,source:['court','onbid','both'].includes(auctionFilters.listingSource)?auctionFilters.listingSource:'court',usages:auctionFilters.usage?[auctionFilters.usage]:[],dealType:auctionFilters.dealType||null,saleKind:auctionFilters.saleKind||null,maxPriceWon:auctionFilters.maxPrice?Number(auctionFilters.maxPrice)*1e8:null,maxBidRate:auctionFilters.maxBidRate?Number(auctionFilters.maxBidRate):null,failMax:auctionFilters.failMax?Number(auctionFilters.failMax):null}};
     conditions={...conditions,districts:[...(auctionFilters.gu||[])]};
     quickFilters?.update();updateCriteria();
     onConditionsChange?.(currentConditions());
@@ -405,12 +405,13 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     const renderCard=group=>['auction','onbid'].includes(group.representative.cohort)?auctionCard(group):card(group);
     $('#listing-list').innerHTML=renderGroups.map(renderCard).join('')||(favoritesMode?'<div class="empty"><h2>찜한 매물이 없어요.</h2><p>마음에 드는 매물을 ♡ 찜하면 여기에서 한 번에 볼 수 있어요.</p></div>':auctionMode?'<div class="empty"><h2>조건에 맞는 경매 물건이 없어요.</h2><p>지역·용도·최저가·유찰 조건을 바꿔 다시 찾아보세요.</p></div>':'<div class="empty"><h2>조건에 맞는 매물이 없어요.</h2><p>주소·면적·지도 범위를 바꾸거나 예산과 지역을 다시 선택해 주세요.</p></div>');
     if(auctionMode){
-      const onbidMode=auctionFilters.listingSource==='onbid',label=onbidMode?'공매':'경매';
+      const src=auctionFilters.listingSource,isBoth=src==='both',onbidMode=src==='onbid';
+      const label=isBoth?'경매·공매':onbidMode?'공매':'경매';
       const groupedNote=result.totalParcels>result.groups.length?' (일괄 목적물 묶음)':'';
       $('#result-count').textContent=`${label} 물건 ${result.totalParcels.toLocaleString('ko-KR')}건 · ${result.groups.length}개 표시${groupedNote}`;
       $('[data-explore="more"]').hidden=!result.hasMore;
       $('[data-explore="more"]').textContent=`${label} 물건 더 보기`;
-      $('#explore-foot').textContent=onbidMode?'한국자산관리공사 온비드 공매 물건 · 권리분석·적정 입찰가는 제공하지 않아요. 입찰 전 온비드 원문을 확인하세요.':'대법원 법원경매정보 공시 물건 · 아파트 제외 · 권리분석·적정 입찰가는 제공하지 않아요. 입찰 전 법원 원문을 확인하세요.';
+      $('#explore-foot').textContent=isBoth?'법원경매정보·온비드 공시 물건 · 권리분석·적정 입찰가는 제공하지 않아요. 입찰 전 각 원문을 확인하세요.':onbidMode?'한국자산관리공사 온비드 공매 물건 · 권리분석·적정 입찰가는 제공하지 않아요. 입찰 전 온비드 원문을 확인하세요.':'대법원 법원경매정보 공시 물건 · 아파트 제외 · 권리분석·적정 입찰가는 제공하지 않아요. 입찰 전 법원 원문을 확인하세요.';
       $('#bounds-chip').innerHTML='';
       $('.search-suggestions').replaceChildren();
       return;
@@ -608,25 +609,30 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
   }
   async function loadAuctions({fit=true,append=false}={}) {
     const current=++version;
-    const isOnbid=auctionFilters.listingSource==='onbid';
-    const label=isOnbid?'공매':'경매';
+    const src=auctionFilters.listingSource;
+    const wantCourt=src!=='onbid',wantOnbid=src!=='court';
+    const label=wantCourt&&wantOnbid?'경매·공매':wantOnbid?'공매':'경매';
     const size=Math.min(200,Math.max(limit,20));
     const page=append?auctionPage+1:1;
     $('.explore-list').setAttribute('aria-busy','true');
     $('.search-suggestions').replaceChildren();
     $('#result-count').textContent=`${label} 물건을 불러오고 있어요.`;
-    try {
+    const baseParams=()=>{
       const params=new URLSearchParams({size:String(size),page:String(page)});
       (auctionFilters.gu||[]).forEach(g=>params.append('gu',g));
       if(auctionFilters.query)params.set('q',auctionFilters.query);
       if(auctionFilters.usage)params.set('usage',auctionFilters.usage);
-      if(auctionFilters.sort)params.set('sort',auctionFilters.sort);
-      else params.set('sort',isOnbid?'bid':'sale');
       if(auctionFilters.maxPrice)params.set('maxPrice',String(Number(auctionFilters.maxPrice)*1e8));
       if(auctionFilters.saleKind)params.set('saleKind',auctionFilters.saleKind);
       // 서비스 타겟: 건물 통(건물 매수) + 토지(신축 검토). 층·호실 매각은 제외한다. (경매·공매 공통)
       params.set('dealTypes','whole,land');
-      if(!isOnbid){
+      return params;
+    };
+    try {
+      const tasks=[];
+      if(wantCourt){
+        const params=baseParams();
+        params.set('sort',auctionFilters.sort||'sale');
         if(auctionFilters.kind)params.set('kind',auctionFilters.kind);
         if(auctionFilters.maxBidRate)params.set('maxBidRate',String(Number(auctionFilters.maxBidRate)));
         if(auctionFilters.failMax)params.set('maxFail',auctionFilters.failMax);
@@ -636,13 +642,22 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
         if(criteria.excludeEducation)params.set('excludeEducation','1');
         if(criteria.excludeHeritage)params.set('excludeHeritage','1');
         if(criteria.preferTourism)params.set('preferTourism','1');
-      }
-      const mapper=isOnbid?onbidToListing:auctionToListing;
-      const endpoint=isOnbid?'/api/onbid':'/api/auctions';
-      const response=await apiFetch(`${endpoint}?${params}`,{signal:abort.signal});
-      const data=await response.json();if(!response.ok||data.status!=='ready')throw new Error(data.reason||'unavailable');
+        tasks.push(apiFetch(`/api/auctions?${params}`,{signal:abort.signal}).then(r=>r.ok?r.json():null).catch(()=>null));
+      } else tasks.push(Promise.resolve(null));
+      if(wantOnbid){
+        const params=baseParams();
+        params.set('sort',auctionFilters.sort||'bid');
+        tasks.push(apiFetch(`/api/onbid?${params}`,{signal:abort.signal}).then(r=>r.ok?r.json():null).catch(()=>null));
+      } else tasks.push(Promise.resolve(null));
+      const [courtData,onbidData]=await Promise.all(tasks);
       if(disposed||current!==version)return;
-      const fresh=auctionGroups((data.rows||[]).map(mapper));
+      const wanted=[wantCourt?courtData:null,wantOnbid?onbidData:null].filter(Boolean);
+      if(!wanted.length||wanted.some(d=>d.status!=='ready'))throw new Error('unavailable');
+      const allRows=[];
+      if(wantCourt&&courtData)allRows.push(...(courtData.rows||[]).map(auctionToListing));
+      if(wantOnbid&&onbidData)allRows.push(...(onbidData.rows||[]).map(onbidToListing));
+      const total=Number(courtData?.total||0)+Number(onbidData?.total||0);
+      const fresh=auctionGroups(allRows);
       let groups=fresh;
       if(append&&result&&Array.isArray(result.groups)&&auctionPage===page-1){
         const seen=new Set(result.groups.map(g=>g.key));
@@ -650,7 +665,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
       }
       auctionPage=page;
       auctionLoaded=groups.reduce((sum,g)=>sum+(g.listings?.length||1),0);
-      result={status:'ready',mode:isOnbid?'onbid':'auction',groups,totalParcels:Number(data.total||groups.length),totalListings:Number(data.total||groups.length),hasMore:auctionLoaded<Number(data.total||0),observedAt:null,suggestions:[]};
+      result={status:'ready',mode:wantCourt&&wantOnbid?'auction-both':wantOnbid?'onbid':'auction',groups,totalParcels:total,totalListings:total,hasMore:auctionLoaded<total,observedAt:null,suggestions:[]};
       $('.explore-list').removeAttribute('aria-busy');drawCards();map.setGroups(mapGroups(),selected,fit);
       if(initialId){const id=initialId;initialId=null;openDetail(id);}
     } catch(error) {
