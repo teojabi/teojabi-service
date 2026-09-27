@@ -571,9 +571,10 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
       if(auctionFilters.sort)params.set('sort',auctionFilters.sort);
       else params.set('sort',isOnbid?'bid':'sale');
       if(auctionFilters.maxPrice)params.set('maxPrice',String(Number(auctionFilters.maxPrice)*1e8));
-      if(auctionFilters.dealType)params.set('dealType',auctionFilters.dealType);
       if(auctionFilters.saleKind)params.set('saleKind',auctionFilters.saleKind);
       if(!isOnbid){
+        // 서비스 타겟: 건물 통(건물 매수) + 토지(신축 검토). 층·호실 매각은 제외한다.
+        params.set('dealTypes','whole,land');
         if(auctionFilters.kind)params.set('kind',auctionFilters.kind);
         if(auctionFilters.maxBidRate)params.set('maxBidRate',String(Number(auctionFilters.maxBidRate)));
         if(auctionFilters.failMax)params.set('maxFail',auctionFilters.failMax);

@@ -115,6 +115,9 @@ def _where(payload):
         where.append(f"NOT (%({key})s = ANY(string_to_array(coalesce(usage_name, ''), ',')))")
         params[key] = token
     deal_type = (payload.get('dealType') or '').strip().lower() or None
+    # 서비스 타겟(건물 통·토지)처럼 여러 거래단위를 OR로 지정할 때 사용한다.
+    deal_types = [value for value in _usage_list(payload.get('dealTypes'))
+                  if value in ('whole', 'floor', 'unit', 'land')][:4]
     sale_kind = (payload.get('saleKind') or '').strip().lower() or None
     gus = _usage_list(payload.get('gu'))
     q = _text(payload.get('q'), 60)
@@ -146,7 +149,10 @@ def _where(payload):
     elif kind == 'building':
         where.append(f"coalesce(usage_name, '') !~ %(landpat)s")
         params['landpat'] = LAND_PATTERN
-    if deal_type in ('whole', 'floor', 'unit', 'land'):
+    if deal_types:
+        where.append('deal_type = ANY(%(dealtypes)s)')
+        params['dealtypes'] = deal_types
+    elif deal_type in ('whole', 'floor', 'unit', 'land'):
         where.append('deal_type = %(dealtype)s')
         params['dealtype'] = deal_type
     if sale_kind in ('whole', 'share', 'bundle'):

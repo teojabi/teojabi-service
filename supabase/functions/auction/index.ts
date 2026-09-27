@@ -67,6 +67,8 @@ function applyFilters(query: any, params: URLSearchParams) {
   const zones = params.getAll("zone").flatMap((v) => v.split(",")).map((v) => v.trim()).filter(Boolean).slice(0, 4);
   const kind = (params.get("kind") || "").trim().toLowerCase();
   const dealType = (params.get("dealType") || "").trim().toLowerCase();
+  // 서비스 타겟(건물 통·토지)처럼 여러 거래단위를 OR로 지정할 때 사용한다.
+  const dealTypes = params.getAll("dealTypes").flatMap((v) => v.split(",")).map((v) => v.trim().toLowerCase()).filter((v) => ["whole", "floor", "unit", "land"].includes(v)).slice(0, 4);
   const saleKind = (params.get("saleKind") || "").trim().toLowerCase();
   const risks = params.getAll("risk").flatMap((v) => v.split(",")).map((v) => v.trim()).filter((v) => RISK_COLUMNS.has(v)).slice(0, 10);
   const keyword = (params.get("q") || "").trim().slice(0, 60);
@@ -94,7 +96,8 @@ function applyFilters(query: any, params: URLSearchParams) {
   if (maxArea != null) q = q.lte("area_max", maxArea);
   if (kind === "land") q = q.eq("deal_type", "land");
   else if (kind === "building") q = q.in("deal_type", ["unit", "whole"]);
-  if (["whole", "floor", "unit", "land"].includes(dealType)) q = q.eq("deal_type", dealType);
+  if (dealTypes.length) q = q.in("deal_type", dealTypes);
+  else if (["whole", "floor", "unit", "land"].includes(dealType)) q = q.eq("deal_type", dealType);
   if (["whole", "share", "bundle"].includes(saleKind)) q = q.eq("sale_kind", saleKind);
   if (risks.length) q = q.or(risks.map((key) => `flags->>${key}.eq.true`).join(","));
   if (keyword) q = q.or(`full_address.ilike.%${keyword}%,case_no.ilike.%${keyword}%,usage_name.ilike.%${keyword}%,dong.ilike.%${keyword}%`);
