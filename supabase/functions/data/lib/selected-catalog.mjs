@@ -19,7 +19,11 @@ const buildingFacts=value=>value&&typeof value==='object'?{
 const ANALYSIS_DROP=/(수익|ROIC|ROE|GDV|개발\s*이익|자기자본|매각가|가동률|분양가|투자|매입가|취득세|중개보수|철거|감리|예비비|금융비용|공사비|사업비)/i;
 const ANALYSIS_HEADER=/^\s*(?:[\[【]|[▣◆■●□▪▶▷])/;
 const sanitizeAnalysis=text=>{
-  const lines=String(text||'').split(/\r?\n/),out=[];let skipping=false;
+  const normalized=String(text||'')
+    .replace(/프리미엄 상담 신청 버튼을 이용해 ?주세요/g,'신축 검토 페이지에서 건축사에게 검토받기 서비스를 이용해 주세요')
+    .replace(/프리미엄 상담 신청 버튼을 이용하세요/g,'신축 검토 페이지에서 건축사에게 검토받기 서비스를 이용하세요')
+    .replace(/프리미엄 상담 신청/g,'신축 검토 페이지에서 건축사에게 검토받기 서비스');
+  const lines=normalized.split(/\r?\n/),out=[];let skipping=false;
   for(const line of lines){
     if(ANALYSIS_HEADER.test(line)){if(ANALYSIS_DROP.test(line)){skipping=true;continue;}skipping=false;out.push(line);continue;}
     if(skipping)continue;
