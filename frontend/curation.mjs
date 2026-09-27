@@ -241,7 +241,7 @@ function open(id){
   });
   const analysisKey=analysisId(row),analysisText=$('#analysis-text');
   let analysisImages=Array.isArray(s.pickAnalysis?.images)?s.pickAnalysis.images.slice():[];
-  const renderAnalysisImages=()=>{$('#analysis-images').innerHTML=analysisImages.length?analysisImages.map((u,i)=>`<figure><img src="${esc(u)}" alt="신축분석 이미지 ${i+1}"><button type="button" data-remove-image="${i}" aria-label="이미지 삭제">×</button></figure>`).join(''):'<p class="case-note">등록된 이미지가 없습니다.</p>';};
+  const renderAnalysisImages=()=>{$('#analysis-images').innerHTML=analysisImages.length?analysisImages.map((u,i)=>`<figure><img src="${esc(u)}" alt="신축분석 이미지 ${i+1}">${i===0?'<span class="analysis-tag">현재</span>':i===1?'<span class="analysis-tag">미래</span>':''}<button type="button" data-remove-image="${i}" aria-label="이미지 삭제">×</button></figure>`).join(''):'<p class="case-note">등록된 이미지가 없습니다.</p>';};
   renderAnalysisImages();
   $('#analysis-images').addEventListener('click',event=>{const b=event.target.closest('[data-remove-image]');if(!b)return;analysisImages.splice(Number(b.dataset.removeImage),1);renderAnalysisImages();$('#analysis-message').textContent='이미지를 뺐어요. 저장을 눌러 반영하세요.';});
   $('#analysis-upload').addEventListener('change',async event=>{
