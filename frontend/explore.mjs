@@ -193,6 +193,25 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
       <div class="map-frame"><div id="map-host" role="region" aria-label="매물 위치 지도"></div><div class="map-controls"><button class="outline" data-explore="favorites" aria-pressed="false">♥ 찜한 매물</button><button class="outline" data-explore="auction" aria-pressed="false">경매 물건</button><button class="outline" data-explore="all-picks" aria-pressed="false">★ 터잡이 추천</button><button class="outline" data-explore="cadastral" aria-pressed="false">지적도</button><button class="outline" data-explore="reset-map" aria-label="현재 매물 전체 위치 보기">전체 위치</button></div><div id="map-status" class="map-status" role="status">네이버 지도를 불러오고 있어요.</div><div id="commercial-popup" class="commercial-popup" hidden></div><p class="map-disclaimer">*지도서비스에 정보는 법적 효력이 없으며 참고 자료로만 활용이 가능합니다.</p></div>
       <aside id="listing-detail" class="detail-panel" aria-label="매물 상세" hidden></aside></div><p class="explore-foot" id="explore-foot"></p></section>`;
   const $=selector=>root.querySelector(selector);
+  let analysisLightbox=null;
+  const closeAnalysisImage=()=>{if(analysisLightbox)analysisLightbox.classList.remove('open');};
+  const showAnalysisImage=(src,label)=>{
+    if(!src)return;
+    if(!analysisLightbox){
+      analysisLightbox=document.createElement('div');
+      analysisLightbox.className='image-lightbox';
+      analysisLightbox.innerHTML='<figure class="image-lightbox-card" role="dialog" aria-modal="true"><img alt="터잡이 신축분석 이미지"><figcaption></figcaption><button type="button" class="image-lightbox-close" aria-label="닫기">×</button></figure>';
+      analysisLightbox.addEventListener('click',event=>{if(event.target===analysisLightbox||event.target.closest('.image-lightbox-close'))closeAnalysisImage();});
+      document.addEventListener('keydown',event=>{if(event.key==='Escape')closeAnalysisImage();},{signal:abort.signal});
+      document.body.appendChild(analysisLightbox);
+    }
+    const img=analysisLightbox.querySelector('img');
+    img.src=src;img.alt=label?`터잡이 신축분석 ${label}`:'터잡이 신축분석 이미지';
+    analysisLightbox.querySelector('figcaption').textContent=label||'';
+    analysisLightbox.classList.add('open');
+    analysisLightbox.querySelector('.image-lightbox-close').focus({preventScroll:true});
+  };
+  abort.signal.addEventListener('abort',()=>{analysisLightbox?.remove();analysisLightbox=null;});
   const favoriteItems=()=>member.items.filter(item=>item.kind==='favorite');
   $('#listing-list').before($('#explore-filters'));
   let listScrollTop=0;
@@ -605,7 +624,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     const paImages=pa&&Array.isArray(pa.images)?pa.images.filter(u=>typeof u==='string'&&/^https:\/\//.test(u)):[];
     const paText=pa&&typeof pa.analysis==='string'?pa.analysis.trim():'';
     const hasAnalysis=Boolean(paText||paImages.length);
-    const pickAnalysisSection=hasAnalysis?`<section class="detail-section pick-analysis" id="property-analysis"><h3>터잡이 신축분석</h3>${paImages.length?`<div class="analysis-gallery">${paImages.map((u,i)=>`<a href="${esc(u)}" target="_blank" rel="noopener noreferrer"><img loading="lazy" src="${esc(u)}" alt="터잡이 신축분석 이미지 ${i+1}">${i===0?'<span class="analysis-tag">현재</span>':i===1?'<span class="analysis-tag">미래</span>':''}</a>`).join('')}</div>`:''}${paText?`<p class="listing-description analysis-text">${esc(paText).replace(/\n/g,'<br>')}</p>`:''}<p class="case-note">터잡이가 정리한 참고 분석입니다. 인허가·용적률 등 최종 판단은 관계기관 확인이 필요합니다.</p></section>`:'';
+    const pickAnalysisSection=hasAnalysis?`<section class="detail-section pick-analysis" id="property-analysis"><h3>터잡이 신축분석</h3>${paImages.length?`<div class="analysis-gallery">${paImages.map((u,i)=>`<button type="button" class="analysis-thumb" data-explore="analysis-image" data-src="${esc(u)}" data-label="${i===0?'현재':i===1?'미래':''}"><img loading="lazy" src="${esc(u)}" alt="터잡이 신축분석 이미지 ${i+1}">${i===0?'<span class="analysis-tag">현재</span>':i===1?'<span class="analysis-tag">미래</span>':''}</button>`).join('')}</div>`:''}${paText?`<p class="listing-description analysis-text">${esc(paText).replace(/\n/g,'<br>')}</p>`:''}<p class="case-note">터잡이가 정리한 참고 분석입니다. 인허가·용적률 등 최종 판단은 관계기관 확인이 필요합니다.</p></section>`:'';
     $('#listing-detail').innerHTML=`<div class="detail-top"><button type="button" class="detail-back" data-explore="back-list">← 매물 목록</button><button class="detail-close" data-explore="close" aria-label="매물 상세 닫기">×</button></div>
       <div class="detail-content"><p class="detail-location">${esc(rowTitle(row))}${originBadge}</p><h2 tabindex="-1" id="detail-title">${money(row.priceWon)}</h2>
       ${row.teojabiNo?`<p class="detail-listing-number">매물번호 ${esc(row.teojabiNo)}</p>`:''}
@@ -851,6 +870,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     if(commercialAskButton){commercialAsk(commercialAskButton.dataset.commercialAsk);return;}
     const button=event.target.closest('[data-explore]');if(!button||button.disabled)return;
     switch(button.dataset.explore) {
+      case 'analysis-image':showAnalysisImage(button.dataset.src||'',button.dataset.label||'');break;
       case 'favorite':{
         const row=result?.groups.find(g=>g.representative.id===button.dataset.id)?.representative||(detail?.listing?.id===button.dataset.id?detail.listing:null);if(!row)break;
         button.disabled=true;try{
