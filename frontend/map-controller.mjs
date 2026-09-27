@@ -180,7 +180,7 @@ export class ListingMap {
     const label=item.cohort==='existing'?'터잡이 추천':item.cohort==='disco'?'디스코 매물':item.cohort==='auction'?'경매 물건':'선별매물';
     element.title=label;
     price.textContent=formatPrice(item.priceWon);area.textContent=markerArea(item.areaM2,this.areaUnit);
-    if(item.cohort==='auction'){badge.textContent='경';element.append(badge);}
+    if(item.cohort==='auction'){badge.textContent='경매';element.append(badge);}
     else if(item.cohort==='existing')element.append(badge);
     element.append(price,area);
     element.setAttribute('aria-label',`${label} ${item.district} ${item.neighborhood||''} 매물 ${formatPrice(item.priceWon)}, ${area.textContent}, 상세 보기`);
