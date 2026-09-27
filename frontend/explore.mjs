@@ -350,7 +350,8 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
   const mapGroups=()=>source==='assistant'&&result?result.groups.slice(0,assistantShown):(result?.groups||[]);
   function drawCards() {
     const favoritesMode=source==='favorites',assistantMode=source==='assistant',auctionMode=source==='auction';
-    const renderGroups=mapGroups();
+    const picksView=showAllPicks&&pickGroups&&!favoritesMode&&!assistantMode&&!auctionMode;
+    const renderGroups=picksView?pickGroups:mapGroups();
     const renderCard=group=>['auction','onbid'].includes(group.representative.cohort)?auctionCard(group):card(group);
     $('#listing-list').innerHTML=renderGroups.map(renderCard).join('')||(favoritesMode?'<div class="empty"><h2>찜한 매물이 없어요.</h2><p>마음에 드는 매물을 ♡ 찜하면 여기에서 한 번에 볼 수 있어요.</p></div>':auctionMode?'<div class="empty"><h2>조건에 맞는 경매 물건이 없어요.</h2><p>지역·용도·최저가·유찰 조건을 바꿔 다시 찾아보세요.</p></div>':'<div class="empty"><h2>조건에 맞는 매물이 없어요.</h2><p>주소·면적·지도 범위를 바꾸거나 예산과 지역을 다시 선택해 주세요.</p></div>');
     if(auctionMode){
@@ -378,6 +379,11 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
       moreButton.textContent=remaining>0?`더보기 (남은 ${remaining}건)`:'';
       $('#explore-foot').textContent=result.station?`${result.station.name}역 직선거리 기준입니다. 실제 보행 경로·시간과 다를 수 있어요.`:'AI 비서가 조건을 해석해 찾은 결과입니다. 실제와 다를 수 있어요.';
       $('#bounds-chip').innerHTML='';
+    } else if(picksView){
+      $('#result-count').textContent=`터잡이 추천 매물 ${pickGroups.length.toLocaleString('ko-KR')}개`;
+      $('[data-explore="more"]').hidden=true;
+      $('#explore-foot').textContent='터잡이가 선별한 추천 매물입니다. ★ 터잡이 추천을 다시 누르면 원래 목록으로 돌아갑니다.';
+      $('#bounds-chip').innerHTML='';
     } else {
       let countText=`${result.totalParcels.toLocaleString('ko-KR')}개 매물`;
       if(result.auctionTotal)countText+=` · 경매 ${result.auctionTotal.toLocaleString('ko-KR')}건 포함`;
@@ -390,7 +396,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     }
     for(const cardEl of root.querySelectorAll('[data-card-id]')){
       const id=cardEl.dataset.cardId;
-      const rep=result?.groups.find(group=>group.representative.id===id)?.representative;
+      const rep=renderGroups.find(group=>group.representative.id===id)?.representative;
       if(rep?.cohort==='auction'||rep?.cohort==='onbid'){
         const saved=Boolean(member.get('favorite',id));
         cardEl.insertAdjacentHTML('beforeend',`<div class="property-actions"><button class="outline" data-explore="compare-toggle" data-id="${esc(id)}" aria-pressed="${compared.has(id)}">${compared.has(id)?'✓ 비교 선택됨':'＋ 비교'}</button><button class="outline" data-explore="favorite" data-id="${esc(id)}" aria-pressed="${saved}">${saved?'♥ 찜함':'♡ 찜'}</button></div>`);
@@ -406,7 +412,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
       }
     }
     drawCompare();
-    if(favoritesMode||assistantMode){$('.search-suggestions').replaceChildren();return;}
+    if(favoritesMode||assistantMode||picksView){$('.search-suggestions').replaceChildren();return;}
     $('.search-suggestions').innerHTML=result.suggestions?.length?`<b>${result.totalParcels>20?`${result.totalParcels.toLocaleString('ko-KR')}개 · 좁혀보기`:result.totalParcels===0?'0개 · 넓혀보기':`${result.totalParcels}개 · 넓혀보기`}</b><div class="suggestion-chip-row">${result.suggestions.map((s,i)=>`<button class="outline suggestion-chip" data-explore="suggestion" data-index="${i}" title="${esc(s.label)}" ${$('.explore-list').getAttribute('aria-busy')==='true'?'disabled':''}><span>${esc(compactSuggestionLabel(s.label))}</span><strong>${s.count.toLocaleString('ko-KR')}개</strong></button>`).join('')}</div>`:'';
     if(!result.suggestions?.length&&(result.totalParcels>20||result.totalParcels<5))$('.search-suggestions').innerHTML=`<b>${result.totalParcels>20?'매물이 많아요':'조건이 좁아요'}</b><div class="suggestion-chip-row"><button class="outline suggestion-chip" data-explore="edit"><span>조건 직접 조정</span></button></div>`;
     const suggestions=$('.search-suggestions');
@@ -893,8 +899,11 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
       case 'all-picks':{
         showAllPicks=!showAllPicks;button.disabled=true;
         try{if(showAllPicks&&!pickGroups){const response=await apiFetch('/api/catalog?limit=500&cohort=existing',{signal:abort.signal}),data=await response.json();if(!response.ok||data.status!=='ready')throw new Error();pickGroups=data.groups;}
-          button.setAttribute('aria-pressed',String(showAllPicks));button.textContent=showAllPicks?'★ 터잡이 추천':'★ 터잡이 추천';map.setGroups(showAllPicks?(pickGroups||[]):(result?.groups||[]),selected,true);
-        }catch{showAllPicks=false;$('.discovery-notice').textContent='터잡이 추천을 불러오지 못했어요.';}button.disabled=false;break;
+          button.setAttribute('aria-pressed',String(showAllPicks));
+          if(selected)closeDetail(false,false);else selected=null;
+          map.setGroups(showAllPicks?(pickGroups||[]):(result?.groups||[]),null,true);
+          drawCards();
+        }catch{showAllPicks=false;button.setAttribute('aria-pressed','false');$('.discovery-notice').textContent='터잡이 추천을 불러오지 못했어요.';}button.disabled=false;break;
       }
       case 'transactions':showTransactions=!showTransactions;map.setTransactionsVisible(showTransactions);syncTransactionToggle();break;
       case 'commercial':{
