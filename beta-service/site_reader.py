@@ -13,7 +13,7 @@ def read_site_parcels(connection, query):
         address = re.sub(r'\s+', ' ', query['address']).strip()
         address = re.sub(r'^서울(?:시)? ', '서울특별시 ', address)
         address = re.sub(r'번지$', '', address).strip()
-        address = re.sub(r'([가-힣])(?=산?\d)', r'\1 ', address)
+        address = re.sub(r'(?<=[가-힣])\s*(?=산?\d+(?:-\d+)?$)', ' ', address)
         variants = [address, address+'번지', address.replace('서울특별시 ', '서울시 ', 1)]
         # Match a complete trailing address component, never an arbitrary lot-number substring.
         suffix = address.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')

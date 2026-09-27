@@ -213,7 +213,18 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
   };
   abort.signal.addEventListener('abort',()=>{analysisLightbox?.remove();analysisLightbox=null;});
   let searchedParcel=null;
-  // 주소·필지번호로 필지를 찾아 지도에 경계를 그리고, '이 땅 신축검토'로 검토 화면에 넘긴다.
+  function applyParcelFeatures(features,q){
+    const result=$('#map-parcel-result');if(!result||!features.length)return;
+    const f=features[0];map.parcel(f.geometry);
+    if(features.length===1){
+      searchedParcel={pnu:f.id,address:(f.properties&&f.properties.address)||q,geometry:f.geometry};
+      result.hidden=false;result.innerHTML=`<span>${esc(searchedParcel.address)}</span><button type="button" class="primary" data-explore="analyze-parcel">이 땅 신축검토</button>`;
+    }else{
+      searchedParcel=null;
+      result.hidden=false;result.innerHTML=`<span>${features.length}개 필지를 찾았어요. 지도를 눌러 원하는 필지를 선택하세요.</span>`;
+    }
+  }
+  // 주소·동·필지번호로 필지를 찾아 경계를 그리고, '이 땅 신축검토'로 검토 화면에 넘긴다.
   async function searchParcel(value){
     const result=$('#map-parcel-result');const q=String(value||'').trim();
     if(q.length<2){if(result){result.hidden=false;result.textContent='동·지번 주소를 입력해 주세요. 예: 성산동 123-4';}return;}
@@ -223,11 +234,22 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
       const response=await apiFetch(`/api/site-parcels?${params}`,{signal:abort.signal});
       const data=await response.json();
       if(!response.ok||data.status!=='ready'||!Array.isArray(data.features)||!data.features.length)throw new Error('not-found');
-      const feature=data.features[0];
-      searchedParcel={pnu:feature.id,address:(feature.properties&&feature.properties.address)||q,geometry:feature.geometry};
-      map.parcel(feature.geometry);
-      if(result)result.innerHTML=`<span>${esc(searchedParcel.address)}</span><button type="button" class="primary" data-explore="analyze-parcel">이 땅 신축검토</button>`;
-    }catch{if(disposed)return;searchedParcel=null;if(result){result.hidden=false;result.textContent='이 주소의 필지를 찾지 못했어요. 동·지번을 확인해 주세요.';}}
+      applyParcelFeatures(data.features,q);
+    }catch{if(disposed)return;searchedParcel=null;if(result){result.hidden=false;result.textContent='이 주소의 필지를 찾지 못했어요. 동 이름만 넣고 지도를 눌러 선택해 보세요.';}}
+  }
+  // 지도에서 누른 지점의 필지를 찾는다.
+  async function selectParcelAt(lat,lng){
+    const result=$('#map-parcel-result');if(!result)return;
+    result.hidden=false;result.textContent='이 위치의 필지를 찾고 있어요.';
+    try{
+      const response=await apiFetch(`/api/site-parcels?lat=${lat}&lng=${lng}`,{signal:abort.signal});
+      const data=await response.json();
+      if(!response.ok||data.status!=='ready'||!Array.isArray(data.features)||!data.features.length)throw new Error('not-found');
+      const f=data.features[0];
+      searchedParcel={pnu:f.id,address:(f.properties&&f.properties.address)||'',geometry:f.geometry};
+      map.parcel(f.geometry);
+      result.innerHTML=`<span>${esc(searchedParcel.address||'선택한 필지')}</span><button type="button" class="primary" data-explore="analyze-parcel">이 땅 신축검토</button>`;
+    }catch{if(disposed)return;searchedParcel=null;result.textContent='이 위치의 필지를 찾지 못했어요. 필지 경계를 눌러 주세요.';}
   }
   const favoriteItems=()=>member.items.filter(item=>item.kind==='favorite');
   $('#listing-list').before($('#explore-filters'));
@@ -311,7 +333,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     loadTimer=setTimeout(()=>load(),300);
   }});updateCriteria();
   syncAuctionFiltersFromCondition();mountAuctionUi();
-  const map=new ListingMap($('#map-host'),{areaUnit:getAreaDisplayUnit(),onSelect:id=>openDetail(id),onMapClick:()=>{if(matchMedia('(max-width:700px)').matches)setSheet(false);window.dispatchEvent(new CustomEvent('teojabi-map-click'));},onTransaction:id=>{
+  const map=new ListingMap($('#map-host'),{areaUnit:getAreaDisplayUnit(),onSelect:id=>openDetail(id),onMapClick:coord=>{if(matchMedia('(max-width:700px)').matches)setSheet(false);window.dispatchEvent(new CustomEvent('teojabi-map-click'));if(coord&&matchMedia('(min-width:701px)').matches)selectParcelAt(coord.lat,coord.lng);},onTransaction:id=>{
     setSheet(true);
     $('.explore-board').classList.remove('transaction-map-open');
     const card=root.querySelector(`[data-transaction-id="${CSS.escape(id)}"]`);
