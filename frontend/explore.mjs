@@ -170,7 +170,7 @@ const onbidToListing=row=>{
       lotNo:row.lot_no||'',sourceUrl:'https://www.onbid.co.kr/'}};
 };
 
-export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnalyze,initialId,initialSource,assistant,picksOnly}={}) {
+export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnalyze,initialId,initialSource,assistant,picksOnly,initialParcel,onParcelChange}={}) {
   document.body.classList.add('map-results-open');
   const picksOnlyMode=Boolean(picksOnly);
   const abort=new AbortController();let disposed=false,version=0,detailVersion=0,closeStreet,closeStreetPreview,closeContext,closeRecords,closeLand,closeCommercial,closeSurrounding;
@@ -212,15 +212,26 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     analysisLightbox.querySelector('.image-lightbox-close').focus({preventScroll:true});
   };
   abort.signal.addEventListener('abort',()=>{analysisLightbox?.remove();analysisLightbox=null;});
-  let searchedParcel=null;
+  let searchedParcel=initialParcel||null;
+  function renderParcelResult(){
+    const result=$('#map-parcel-result');if(!result)return;
+    if(searchedParcel){result.hidden=false;result.innerHTML=`<span>${esc(searchedParcel.address||'선택한 필지')}</span><button type="button" class="primary" data-explore="analyze-parcel">이 땅 신축검토</button>`;}
+    else result.hidden=true;
+  }
+  function setSearchedParcel(p){
+    searchedParcel=p||null;
+    try{onParcelChange?.(searchedParcel);}catch{}
+    renderParcelResult();
+    if(searchedParcel&&searchedParcel.geometry&&map)map.parcel(searchedParcel.geometry);
+  }
   function applyParcelFeatures(features,q){
     const result=$('#map-parcel-result');if(!result||!features.length)return;
-    const f=features[0];map.parcel(f.geometry);
+    const f=features[0];
     if(features.length===1){
-      searchedParcel={pnu:f.id,address:(f.properties&&f.properties.address)||q,areaM2:(f.properties&&f.properties.officialAreaM2)||null,geometry:f.geometry};
-      result.hidden=false;result.innerHTML=`<span>${esc(searchedParcel.address)}</span><button type="button" class="primary" data-explore="analyze-parcel">이 땅 신축검토</button>`;
+      setSearchedParcel({pnu:f.id,address:(f.properties&&f.properties.address)||q,areaM2:(f.properties&&f.properties.officialAreaM2)||null,geometry:f.geometry});
     }else{
-      searchedParcel=null;
+      setSearchedParcel(null);
+      map.parcel(f.geometry);
       result.hidden=false;result.innerHTML=`<span>${features.length}개 필지를 찾았어요. 지도를 눌러 원하는 필지를 선택하세요.</span>`;
     }
   }
@@ -235,7 +246,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
       const data=await response.json();
       if(!response.ok||data.status!=='ready'||!Array.isArray(data.features)||!data.features.length)throw new Error('not-found');
       applyParcelFeatures(data.features,q);
-    }catch{if(disposed)return;searchedParcel=null;if(result){result.hidden=false;result.textContent='이 주소의 필지를 찾지 못했어요. 동 이름만 넣고 지도를 눌러 선택해 보세요.';}}
+    }catch{if(disposed)return;setSearchedParcel(null);if(result){result.hidden=false;result.textContent='이 주소의 필지를 찾지 못했어요. 동 이름만 넣고 지도를 눌러 선택해 보세요.';}}
   }
   // 지도에서 누른 지점의 필지를 찾는다.
   async function selectParcelAt(lat,lng){
@@ -246,10 +257,8 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
       const data=await response.json();
       if(!response.ok||data.status!=='ready'||!Array.isArray(data.features)||!data.features.length)throw new Error('not-found');
       const f=data.features[0];
-      searchedParcel={pnu:f.id,address:(f.properties&&f.properties.address)||'',areaM2:(f.properties&&f.properties.officialAreaM2)||null,geometry:f.geometry};
-      map.parcel(f.geometry);
-      result.innerHTML=`<span>${esc(searchedParcel.address||'선택한 필지')}</span><button type="button" class="primary" data-explore="analyze-parcel">이 땅 신축검토</button>`;
-    }catch{if(disposed)return;searchedParcel=null;result.textContent='이 위치의 필지를 찾지 못했어요. 필지 경계를 눌러 주세요.';}
+      setSearchedParcel({pnu:f.id,address:(f.properties&&f.properties.address)||'',areaM2:(f.properties&&f.properties.officialAreaM2)||null,geometry:f.geometry});
+    }catch{if(disposed)return;setSearchedParcel(null);result.textContent='이 위치의 필지를 찾지 못했어요. 필지 경계를 눌러 주세요.';}
   }
   const favoriteItems=()=>member.items.filter(item=>item.kind==='favorite');
   $('#listing-list').before($('#explore-filters'));
@@ -356,12 +365,14 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     if(status==='ready' && result)map.setGroups(showAllPicks?(pickGroups||[]):mapGroups(),selected,true);
     if(status==='ready' && detail)map.select(detail.listing);
     if(status==='ready' && parcel?.status==='ready')map.parcel(parcel.geometry);
+    if(status==='ready' && searchedParcel?.geometry)map.parcel(searchedParcel.geometry);
     if(status==='ready' && nearby?.status==='ready'){map.setTransactions(nearby.cases);map.setTransactionsVisible(showTransactions);}
     if($('#parcel-status') && parcel?.status==='ready')$('#parcel-status').textContent=parcelMessage();
     if(status==='error'){const searchMap=$('[data-explore="search-map"]');if(searchMap)searchMap.disabled=true;}
   }});
   areaDisplayEvents.addEventListener('change',()=>{refreshAreaDisplay(root);map.setAreaUnit(getAreaDisplayUnit());},{signal:abort.signal});
   map.mount([],null,false);
+  renderParcelResult();
   const parcelMessage=()=>map.ready?'연결된 필지 경계를 지도에 표시했습니다.':'필지 경계를 불러왔습니다. 지도 연결 후 표시됩니다.';
   function card(group) {
     const row=group.representative;
