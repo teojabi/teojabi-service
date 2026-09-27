@@ -46,15 +46,15 @@ def refresh(selected=False):
                 geometry = 'geom' if srid == 5174 else 'ST_Transform(geom,4326)'
                 cursor.execute(f'''
                     WITH parcels AS MATERIALIZED (
-                        SELECT pnu,{geometry} AS geom FROM public.seoul_parcel_map WHERE pnu=ANY(%s)
+                        SELECT pnu,ST_MakeValid({geometry}) AS geom FROM public.seoul_parcel_map WHERE pnu=ANY(%s)
                     )
                     SELECT p.pnu, CASE
                         WHEN s.{column} IS NULL OR ST_SRID(s.{column})<>{srid}
                             OR GeometryType(s.{column}) NOT IN ('POLYGON','MULTIPOLYGON')
-                            OR NOT ST_IsValid(s.{column}) OR ST_IsEmpty(s.{column}) THEN 'unknown'
-                        WHEN ST_Covers(s.{column},p.geom) THEN 'contained'
-                        WHEN ST_Relate(s.{column},p.geom,'T********') THEN 'overlap'
-                        WHEN ST_Touches(s.{column},p.geom) THEN 'touch'
+                            OR ST_IsEmpty(s.{column}) THEN 'unknown'
+                        WHEN ST_Covers(ST_MakeValid(s.{column}),p.geom) THEN 'contained'
+                        WHEN ST_Relate(ST_MakeValid(s.{column}),p.geom,'T********') THEN 'overlap'
+                        WHEN ST_Touches(ST_MakeValid(s.{column}),p.geom) THEN 'touch'
                         ELSE 'clear' END AS relation
                     FROM parcels p JOIN public.{table} s ON s.{column} && p.geom
                     WHERE {restriction}

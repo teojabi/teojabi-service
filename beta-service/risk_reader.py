@@ -21,11 +21,12 @@ def read_risk(connection, source_id, include_registers=True, include_context=Tru
 
     def remote_zone(table,pnu):
         if table not in ('education_safezones','tour_zones'): raise ValueError('Invalid zone')
-        return fetch('''WITH p AS (SELECT ST_Transform(geom,4326) AS geom FROM public.seoul_parcel_map WHERE pnu=%s),
+        # 구역 도형이 invalid인 경우 ST_Relate가 NULL이 되어 '경계 확인 필요'로 새므로 ST_MakeValid로 보정한다.
+        return fetch('''WITH p AS (SELECT ST_MakeValid(ST_Transform(geom,4326)) AS geom FROM public.seoul_parcel_map WHERE pnu=%s),
             candidates AS (SELECT md5(coalesce(z.name,'')||ST_AsEWKT(z.geom)) AS id,z.name,
-                CASE WHEN ST_IsValid(z.geom) AND NOT ST_IsEmpty(z.geom) THEN ST_Relate(z.geom,p.geom,'T********') END AS "overlaps",
-                CASE WHEN ST_IsValid(z.geom) AND NOT ST_IsEmpty(z.geom) THEN ST_Covers(z.geom,p.geom) END AS covers,
-                CASE WHEN ST_IsValid(z.geom) AND NOT ST_IsEmpty(z.geom) THEN ST_Touches(z.geom,p.geom) END AS touches
+                CASE WHEN NOT ST_IsEmpty(z.geom) THEN ST_Relate(ST_MakeValid(z.geom),p.geom,'T********') END AS "overlaps",
+                CASE WHEN NOT ST_IsEmpty(z.geom) THEN ST_Covers(ST_MakeValid(z.geom),p.geom) END AS covers,
+                CASE WHEN NOT ST_IsEmpty(z.geom) THEN ST_Touches(ST_MakeValid(z.geom),p.geom) END AS touches
                 FROM public.'''+table+''' z JOIN p ON z.geom && p.geom)
             SELECT *,count(*) OVER() AS total FROM candidates
             WHERE "overlaps" IS TRUE OR touches IS TRUE OR "overlaps" IS NULL ORDER BY id LIMIT 31''',(pnu,))
@@ -124,18 +125,18 @@ def read_risk(connection, source_id, include_registers=True, include_context=Tru
         ''', (pnu,))
         if parcel['status'] == 'ready' and len(parcel['rows']) == 1 and parcel['rows'][0]['mapArea']:
             heritage = fetch('''
-                WITH p AS (SELECT ST_Transform(geom,4326) AS geom FROM public.seoul_parcel_map WHERE pnu=%s), candidates AS (
+                WITH p AS (SELECT ST_MakeValid(ST_Transform(geom,4326)) AS geom FROM public.seoul_parcel_map WHERE pnu=%s), candidates AS (
                     SELECT h.id::text AS id,concat_ws(' ',NULLIF(h.heritage_name,''),h.display_name) AS name,h.category AS code,
                         h.flat_height_m AS "flatHeightM",h.slope_height_m AS "slopeHeightM",h.regulation_label AS "heightNote",
-                        CASE WHEN ST_SRID(h.the_geom)=4326 AND ST_IsValid(h.the_geom) AND NOT ST_IsEmpty(h.the_geom)
+                        CASE WHEN ST_SRID(h.the_geom)=4326 AND NOT ST_IsEmpty(h.the_geom)
                             AND GeometryType(h.the_geom) IN ('POLYGON','MULTIPOLYGON')
-                            THEN ST_Relate(h.the_geom,p.geom,'T********') END AS "overlaps",
-                        CASE WHEN ST_SRID(h.the_geom)=4326 AND ST_IsValid(h.the_geom) AND NOT ST_IsEmpty(h.the_geom)
+                            THEN ST_Relate(ST_MakeValid(h.the_geom),p.geom,'T********') END AS "overlaps",
+                        CASE WHEN ST_SRID(h.the_geom)=4326 AND NOT ST_IsEmpty(h.the_geom)
                             AND GeometryType(h.the_geom) IN ('POLYGON','MULTIPOLYGON')
-                            THEN ST_Covers(h.the_geom,p.geom) END AS "covers",
-                        CASE WHEN ST_SRID(h.the_geom)=4326 AND ST_IsValid(h.the_geom) AND NOT ST_IsEmpty(h.the_geom)
+                            THEN ST_Covers(ST_MakeValid(h.the_geom),p.geom) END AS "covers",
+                        CASE WHEN ST_SRID(h.the_geom)=4326 AND NOT ST_IsEmpty(h.the_geom)
                             AND GeometryType(h.the_geom) IN ('POLYGON','MULTIPOLYGON')
-                            THEN ST_Touches(h.the_geom,p.geom) END AS "touches"
+                            THEN ST_Touches(ST_MakeValid(h.the_geom),p.geom) END AS "touches"
                     FROM public.heritage_layers h JOIN p ON h.the_geom && p.geom
                     WHERE h.layer_name IN ('CHL_PMPG_AS_1','CHL_PMPG_AS_23')
                 ) SELECT *,COUNT(*) OVER() AS total FROM candidates
@@ -143,19 +144,19 @@ def read_risk(connection, source_id, include_registers=True, include_context=Tru
             ''', (pnu,))
             plans = fetch('''
                 WITH p AS (
-                    SELECT ST_Transform(geom,4326) AS geom FROM public.seoul_parcel_map
+                    SELECT ST_MakeValid(ST_Transform(geom,4326)) AS geom FROM public.seoul_parcel_map
                     WHERE pnu=%s AND ST_IsValid(geom) AND ST_SRID(geom)=5174
                 ), candidates AS (
                     SELECT d.id, d.dgm_nm AS "dgmName", d.zone_name AS name, d.notice_title AS title,
                            d.notice_date AS "noticeDate", d.notice_no AS "noticeNumber",
                            d.notice_pdf_name AS "pdfName", d.notice_pdf_url AS "pdfUrl",
                            d.drawings, d.updated_at AS "storedAt",
-                           CASE WHEN ST_SRID(d.geom)=4326 AND ST_IsValid(d.geom) AND NOT ST_IsEmpty(d.geom)
-                                THEN ST_Relate(d.geom,p.geom,'T********') END AS "overlaps",
-                           CASE WHEN ST_SRID(d.geom)=4326 AND ST_IsValid(d.geom) AND NOT ST_IsEmpty(d.geom)
-                                THEN ST_Covers(d.geom,p.geom) END AS "covers",
-                           CASE WHEN ST_SRID(d.geom)=4326 AND ST_IsValid(d.geom) AND NOT ST_IsEmpty(d.geom)
-                                THEN ST_Touches(d.geom,p.geom) END AS "touches"
+                           CASE WHEN ST_SRID(d.geom)=4326 AND NOT ST_IsEmpty(d.geom)
+                                THEN ST_Relate(ST_MakeValid(d.geom),p.geom,'T********') END AS "overlaps",
+                           CASE WHEN ST_SRID(d.geom)=4326 AND NOT ST_IsEmpty(d.geom)
+                                THEN ST_Covers(ST_MakeValid(d.geom),p.geom) END AS "covers",
+                           CASE WHEN ST_SRID(d.geom)=4326 AND NOT ST_IsEmpty(d.geom)
+                                THEN ST_Touches(ST_MakeValid(d.geom),p.geom) END AS "touches"
                     FROM public.district_unit_plan d
                     JOIN p ON d.geom && p.geom
                 )
@@ -227,34 +228,34 @@ def read_risk(connection, source_id, include_registers=True, include_context=Tru
             ''', (far_names,)) if far_names else {'status': 'mismatch', 'rows': []}
             # Transform the single parcel, keeping source geometries indexed and unchanged.
             education = remote_zone('education_safezones',pnu) if remote_mode() else fetch('''
-                WITH p AS (SELECT geom FROM public.seoul_parcel_map WHERE pnu=%s), candidates AS (
+                WITH p AS (SELECT ST_MakeValid(geom) AS geom FROM public.seoul_parcel_map WHERE pnu=%s), candidates AS (
                     SELECT e.objt_id::text AS id, e."보호구역명" AS name, e.pros_cd AS code,
                         e.ntfc_year AS "noticeYear", e.ntfc_no AS "noticeNumber",
-                        CASE WHEN ST_SRID(e.geom_5174)=5174 AND ST_IsValid(e.geom_5174)
+                        CASE WHEN ST_SRID(e.geom_5174)=5174
                                   AND NOT ST_IsEmpty(e.geom_5174) AND GeometryType(e.geom_5174) IN ('POLYGON','MULTIPOLYGON')
-                             THEN ST_Relate(e.geom_5174,p.geom,'T********') END AS "overlaps",
-                        CASE WHEN ST_SRID(e.geom_5174)=5174 AND ST_IsValid(e.geom_5174)
+                             THEN ST_Relate(ST_MakeValid(e.geom_5174),p.geom,'T********') END AS "overlaps",
+                        CASE WHEN ST_SRID(e.geom_5174)=5174
                                   AND NOT ST_IsEmpty(e.geom_5174) AND GeometryType(e.geom_5174) IN ('POLYGON','MULTIPOLYGON')
-                             THEN ST_Covers(e.geom_5174,p.geom) END AS "covers",
-                        CASE WHEN ST_SRID(e.geom_5174)=5174 AND ST_IsValid(e.geom_5174)
+                             THEN ST_Covers(ST_MakeValid(e.geom_5174),p.geom) END AS "covers",
+                        CASE WHEN ST_SRID(e.geom_5174)=5174
                                   AND NOT ST_IsEmpty(e.geom_5174) AND GeometryType(e.geom_5174) IN ('POLYGON','MULTIPOLYGON')
-                             THEN ST_Touches(e.geom_5174,p.geom) END AS "touches"
+                             THEN ST_Touches(ST_MakeValid(e.geom_5174),p.geom) END AS "touches"
                     FROM public.education_protection e JOIN p ON e.geom_5174 && p.geom
                 ) SELECT *, COUNT(*) OVER() AS total FROM candidates
                   WHERE "overlaps" IS TRUE OR "touches" IS TRUE OR "overlaps" IS NULL
                   ORDER BY id LIMIT 31
             ''', (pnu,))
             tourism = remote_zone('tour_zones',pnu) if remote_mode() else fetch('''
-                WITH p AS (SELECT ST_Transform(geom,4326) AS geom FROM public.seoul_parcel_map WHERE pnu=%s), candidates AS (
+                WITH p AS (SELECT ST_MakeValid(ST_Transform(geom,4326)) AS geom FROM public.seoul_parcel_map WHERE pnu=%s), candidates AS (
                     SELECT t.id::text AS id, t.zone_name AS name, t.zone_type AS type,
                         t.notice_date AS "noticeDate", t.notice_no AS "noticeNumber",
                         d.notice_pdf_url AS "pdfUrl", d.notice_pdf_name AS "pdfName",
-                        CASE WHEN ST_SRID(t.geom)=4326 AND ST_IsValid(t.geom) AND NOT ST_IsEmpty(t.geom)
-                             THEN ST_Relate(t.geom,p.geom,'T********') END AS "overlaps",
-                        CASE WHEN ST_SRID(t.geom)=4326 AND ST_IsValid(t.geom) AND NOT ST_IsEmpty(t.geom)
-                             THEN ST_Covers(t.geom,p.geom) END AS "covers",
-                        CASE WHEN ST_SRID(t.geom)=4326 AND ST_IsValid(t.geom) AND NOT ST_IsEmpty(t.geom)
-                             THEN ST_Touches(t.geom,p.geom) END AS "touches"
+                        CASE WHEN ST_SRID(t.geom)=4326 AND NOT ST_IsEmpty(t.geom)
+                             THEN ST_Relate(ST_MakeValid(t.geom),p.geom,'T********') END AS "overlaps",
+                        CASE WHEN ST_SRID(t.geom)=4326 AND NOT ST_IsEmpty(t.geom)
+                             THEN ST_Covers(ST_MakeValid(t.geom),p.geom) END AS "covers",
+                        CASE WHEN ST_SRID(t.geom)=4326 AND NOT ST_IsEmpty(t.geom)
+                             THEN ST_Touches(ST_MakeValid(t.geom),p.geom) END AS "touches"
                     FROM public.tourist_accommodation_zone t JOIN p ON t.geom && p.geom
                     LEFT JOIN public.district_unit_plan d ON d.id=t.district_plan_id
                 ) SELECT *, COUNT(*) OVER() AS total FROM candidates
