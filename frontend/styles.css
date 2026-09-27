@@ -902,6 +902,7 @@ body.architect-lightbox-open{overflow:hidden}
 .auction-price-row input{width:100%;min-height:46px;border:1px solid var(--line);border-radius:9px;background:var(--card);color:var(--text);padding:10px 12px;font-size:14px;min-width:0}
 @media(max-width:700px){.auction-price-row{grid-template-columns:1fr}.auction-pill-choices,.auction-usage-choices{grid-template-columns:repeat(2,1fr)}}
 .pick-analysis .analysis-gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin:0 0 10px}
-.pick-analysis .analysis-gallery a{display:block;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--card)}
+.pick-analysis .analysis-gallery a{position:relative;display:block;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--card)}
 .pick-analysis .analysis-gallery img{display:block;width:100%;aspect-ratio:1/1;height:auto;object-fit:cover}
+.pick-analysis .analysis-tag{position:absolute;top:6px;left:6px;background:rgba(0,0,0,.62);color:#fff;font-size:11px;font-weight:700;line-height:1.6;padding:1px 8px;border-radius:999px}
 .pick-analysis .analysis-text{white-space:normal;line-height:1.7}
