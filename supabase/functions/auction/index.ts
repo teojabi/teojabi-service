@@ -85,7 +85,8 @@ function applyFilters(query: any, params: URLSearchParams) {
     .not("usage_name", "ilike", "%아파트%")
     .not("usage_name", "ilike", "%자동차%")
     .not("cancelled", "is", true)
-    .not("sale_kind", "eq", "share");
+    .not("sale_kind", "eq", "share")
+    .not("is_share", "is", true);
   if (xgus.length) q = q.in("sigu", xgus);
   if (usages.length) q = q.or(usages.map((u) => `usage_name.ilike.%${u}%`).join(","));
   if (zones.length) q = q.or(zones.map((z) => `use_zone.ilike.%${z}%`).join(","));
