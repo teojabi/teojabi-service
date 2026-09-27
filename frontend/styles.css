@@ -945,3 +945,12 @@ body.architect-lightbox-open{overflow:hidden}
 /* 지도·목록 토글 버튼 활성 상태 (찜한 매물과 동일) */
 .map-controls [data-explore][aria-pressed=true],
 .discovery-actions [data-explore][aria-pressed=true]{background:var(--selected);border-color:var(--primary);color:var(--primary);box-shadow:inset 0 0 0 1px var(--primary)}
+/* 지도 필지 검색 → 신축검토 */
+.map-parcel-search{position:absolute;left:50%;bottom:44px;transform:translateX(-50%);z-index:4;display:flex;gap:6px;align-items:center;width:min(92%,420px);background:var(--card);border:1px solid var(--line);border-radius:10px;padding:6px;box-shadow:0 4px 14px var(--shadow)}
+.map-parcel-search input{flex:1;min-width:0;border:0;background:transparent;color:var(--text);font-size:14px;padding:6px 8px}
+.map-parcel-search input:focus{outline:none}
+.map-parcel-search button{flex-shrink:0;min-height:38px;padding:8px 14px}
+.map-parcel-result{position:absolute;left:50%;bottom:96px;transform:translateX(-50%);z-index:4;display:flex;align-items:center;gap:8px;max-width:min(92%,420px);background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px 10px;box-shadow:0 4px 14px var(--shadow);font-size:13px}
+.map-parcel-result[hidden]{display:none}
+.map-parcel-result>span{color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.site-map-wrap [data-site][aria-pressed=true]{background:var(--primary);border-color:var(--primary);color:#fff}

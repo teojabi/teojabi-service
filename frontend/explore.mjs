@@ -190,7 +190,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     <div class="auction-filters" id="auction-filters" hidden></div>
     <div class="explore-toolbar"><div class="quick-filters"></div><span id="bounds-chip"></span><div class="explore-toggle" role="group" aria-label="결과 보기 방식"><button data-explore="pane" data-value="list" aria-pressed="true">리스트</button><button data-explore="pane" data-value="map" aria-pressed="false">지도</button></div></div>
     <div class="explore-board" data-pane="list"><div class="explore-list"><p id="result-count" aria-live="polite">저장된 매물을 불러오고 있어요.</p><div id="listing-list"></div><button class="outline more-listings" data-explore="more" hidden>매물 더 보기</button></div>
-      <div class="map-frame"><div id="map-host" role="region" aria-label="매물 위치 지도"></div><div class="map-controls"><button class="outline" data-explore="favorites" aria-pressed="false">♥ 찜한 매물</button><button class="outline" data-explore="auction" aria-pressed="false">경매 물건</button><button class="outline" data-explore="all-picks" aria-pressed="false">★ 터잡이 추천</button><button class="outline" data-explore="cadastral" aria-pressed="false">지적도</button><button class="outline" data-explore="reset-map" aria-label="현재 매물 전체 위치 보기">전체 위치</button></div><div id="map-status" class="map-status" role="status">네이버 지도를 불러오고 있어요.</div><div id="commercial-popup" class="commercial-popup" hidden></div><p class="map-disclaimer">*지도서비스에 정보는 법적 효력이 없으며 참고 자료로만 활용이 가능합니다.</p></div>
+      <div class="map-frame"><div id="map-host" role="region" aria-label="매물 위치 지도"></div><div class="map-controls"><button class="outline" data-explore="favorites" aria-pressed="false">♥ 찜한 매물</button><button class="outline" data-explore="auction" aria-pressed="false">경매 물건</button><button class="outline" data-explore="all-picks" aria-pressed="false">★ 터잡이 추천</button><button class="outline" data-explore="cadastral" aria-pressed="false">지적도</button><button class="outline" data-explore="reset-map" aria-label="현재 매물 전체 위치 보기">전체 위치</button></div><form class="map-parcel-search" id="map-parcel-search" role="search"><input type="search" name="query" placeholder="주소로 이 땅 신축검토 (예: 성산동 123-4)" maxlength="120" autocomplete="off" aria-label="주소로 필지 찾기"><button type="submit" class="primary">찾기</button></form><div class="map-parcel-result" id="map-parcel-result" role="status" hidden></div><div id="map-status" class="map-status" role="status">네이버 지도를 불러오고 있어요.</div><div id="commercial-popup" class="commercial-popup" hidden></div><p class="map-disclaimer">*지도서비스에 정보는 법적 효력이 없으며 참고 자료로만 활용이 가능합니다.</p></div>
       <aside id="listing-detail" class="detail-panel" aria-label="매물 상세" hidden></aside></div><p class="explore-foot" id="explore-foot"></p></section>`;
   const $=selector=>root.querySelector(selector);
   let analysisLightbox=null;
@@ -212,6 +212,23 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     analysisLightbox.querySelector('.image-lightbox-close').focus({preventScroll:true});
   };
   abort.signal.addEventListener('abort',()=>{analysisLightbox?.remove();analysisLightbox=null;});
+  let searchedParcel=null;
+  // 주소·필지번호로 필지를 찾아 지도에 경계를 그리고, '이 땅 신축검토'로 검토 화면에 넘긴다.
+  async function searchParcel(value){
+    const result=$('#map-parcel-result');const q=String(value||'').trim();
+    if(q.length<2){if(result){result.hidden=false;result.textContent='동·지번 주소를 입력해 주세요. 예: 성산동 123-4';}return;}
+    if(result){result.hidden=false;result.textContent='이 위치의 필지를 찾고 있어요.';}
+    try{
+      const params=/^\d{19}$/.test(q)?`pnu=${q}`:`address=${encodeURIComponent(q)}`;
+      const response=await apiFetch(`/api/site-parcels?${params}`,{signal:abort.signal});
+      const data=await response.json();
+      if(!response.ok||data.status!=='ready'||!Array.isArray(data.features)||!data.features.length)throw new Error('not-found');
+      const feature=data.features[0];
+      searchedParcel={pnu:feature.id,address:(feature.properties&&feature.properties.address)||q,geometry:feature.geometry};
+      map.parcel(feature.geometry);
+      if(result)result.innerHTML=`<span>${esc(searchedParcel.address)}</span><button type="button" class="primary" data-explore="analyze-parcel">이 땅 신축검토</button>`;
+    }catch{if(disposed)return;searchedParcel=null;if(result){result.hidden=false;result.textContent='이 주소의 필지를 찾지 못했어요. 동·지번을 확인해 주세요.';}}
+  }
   const favoriteItems=()=>member.items.filter(item=>item.kind==='favorite');
   $('#listing-list').before($('#explore-filters'));
   let listScrollTop=0;
@@ -869,6 +886,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     renderNearby();syncTransactionToggle();
   }
   root.addEventListener('submit',event=>{
+    if(event.target.id==='map-parcel-search'){event.preventDefault();searchParcel(new FormData(event.target).get('query'));return;}
     if(event.target.id!=='explore-filters')return;event.preventDefault();
     const values=new FormData(event.target);query='';sort=values.get('sort');
     limit=5;closeDetail();load();
@@ -882,6 +900,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     const button=event.target.closest('[data-explore]');if(!button||button.disabled)return;
     switch(button.dataset.explore) {
       case 'analysis-image':showAnalysisImage(button.dataset.src||'',button.dataset.label||'');break;
+      case 'analyze-parcel':if(searchedParcel)onAnalyze?.({id:'parcel:'+searchedParcel.pnu,address:searchedParcel.address,pnu:searchedParcel.pnu});break;
       case 'favorite':{
         const row=result?.groups.find(g=>g.representative.id===button.dataset.id)?.representative||(detail?.listing?.id===button.dataset.id?detail.listing:null);if(!row)break;
         button.disabled=true;try{
