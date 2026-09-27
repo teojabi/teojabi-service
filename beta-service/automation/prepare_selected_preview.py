@@ -15,6 +15,13 @@ def number(text, pattern):
     match = re.search(pattern, text)
     return float(match[1].replace(',', '')) if match else None
 
+def premium_analysis(prop, description):
+    """기존 property 매물의 before/after 이미지와 설명을 '터잡이 신축분석'으로 그대로 연결한다.
+    관리자가 따로 저장한 pick_analysis가 있으면 그 값이 우선한다."""
+    images=[u for u in (prop.get('before_image'), prop.get('after_image')) if isinstance(u,str) and u.startswith('http')]
+    text=str(description or prop.get('title') or '').strip()
+    return {'analysis':text,'images':images} if (text or images) else None
+
 def premium_register_record(cur, address):
     variants = [address, address+'번지', address.replace('서울특별시', '서울시', 1)]
     cur.execute('''SELECT "건축물대장일련번호", "연면적", "지상층수", "지하층수"
@@ -124,7 +131,7 @@ def prepare():
     with psycopg2.connect(**local_config(), options='-c default_transaction_read_only=on -c statement_timeout=20000') as conn:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             if remote:
-                cur.execute('SELECT id,title,description,address,price,pnu,ST_Y(location::geometry) AS lat,ST_X(location::geometry) AS lng FROM public.property ORDER BY id')
+                cur.execute('SELECT id,title,description,address,price,pnu,before_image,after_image,ST_Y(location::geometry) AS lat,ST_X(location::geometry) AS lng FROM public.property ORDER BY id')
                 premiums=cur.fetchall()
                 cur.execute('SELECT listing_id,teojabi_no FROM public.teojabi_listing_number')
                 numbers={r['listing_id']:r['teojabi_no'] for r in cur.fetchall()}
@@ -187,6 +194,7 @@ def prepare():
                     floorInfoSource='building-register' if register and str(register['건축물대장일련번호'])==str(floor_source) else 'naver' if floor_info else None, floorInfoSourceId=floor_source,
                     buildingFacts=naver_building_facts(cur, pnu=p.get('pnu'), address=address, price=p.get('price')),
                     description=p.get('title') or spec or '기존 등록 매물입니다. 상세 현황은 상담 시 확인해 주세요.',
+                    pickAnalysis=premium_analysis(p, description),
                     category='commercial',kind='building'))
             try:
                 cur.execute('SELECT listing_id, analysis, images FROM public.pick_analysis')

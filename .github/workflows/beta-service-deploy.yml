@@ -147,6 +147,11 @@ jobs:
             pm2 start "$HOME/teojabi-runtime/beta-service/serve.mjs" --name teojabi-data --cwd "$HOME/teojabi-runtime/beta-service"
             pm2 save
 
+            # 기존 property 매물의 before/after 이미지·설명을 '터잡이 신축분석'으로 연결해 카탈로그를 재생성하고 Supabase로 동기화한다. (실패해도 배포는 계속)
+            echo '--- REFRESH SELECTED CATALOG (existing property -> new-build analysis) ---'
+            "$TEOJABI_PYTHON" -X utf8 automation/prepare_selected_preview.py || echo 'WARN prepare_selected_preview failed'
+            "$TEOJABI_PYTHON" -X utf8 upload-snapshots.py || echo 'WARN snapshot sync failed'
+
             sudo mkdir -p /etc/nginx/snippets
             sudo tee /etc/nginx/snippets/teojabi-beta.conf >/dev/null <<'NGINXEOF'
             location ^~ /beta/ {
