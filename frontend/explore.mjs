@@ -217,7 +217,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     const result=$('#map-parcel-result');if(!result||!features.length)return;
     const f=features[0];map.parcel(f.geometry);
     if(features.length===1){
-      searchedParcel={pnu:f.id,address:(f.properties&&f.properties.address)||q,geometry:f.geometry};
+      searchedParcel={pnu:f.id,address:(f.properties&&f.properties.address)||q,areaM2:(f.properties&&f.properties.officialAreaM2)||null,geometry:f.geometry};
       result.hidden=false;result.innerHTML=`<span>${esc(searchedParcel.address)}</span><button type="button" class="primary" data-explore="analyze-parcel">이 땅 신축검토</button>`;
     }else{
       searchedParcel=null;
@@ -246,7 +246,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
       const data=await response.json();
       if(!response.ok||data.status!=='ready'||!Array.isArray(data.features)||!data.features.length)throw new Error('not-found');
       const f=data.features[0];
-      searchedParcel={pnu:f.id,address:(f.properties&&f.properties.address)||'',geometry:f.geometry};
+      searchedParcel={pnu:f.id,address:(f.properties&&f.properties.address)||'',areaM2:(f.properties&&f.properties.officialAreaM2)||null,geometry:f.geometry};
       map.parcel(f.geometry);
       result.innerHTML=`<span>${esc(searchedParcel.address||'선택한 필지')}</span><button type="button" class="primary" data-explore="analyze-parcel">이 땅 신축검토</button>`;
     }catch{if(disposed)return;searchedParcel=null;result.textContent='이 위치의 필지를 찾지 못했어요. 필지 경계를 눌러 주세요.';}
@@ -922,7 +922,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     const button=event.target.closest('[data-explore]');if(!button||button.disabled)return;
     switch(button.dataset.explore) {
       case 'analysis-image':showAnalysisImage(button.dataset.src||'',button.dataset.label||'');break;
-      case 'analyze-parcel':if(searchedParcel)onAnalyze?.({id:'parcel:'+searchedParcel.pnu,address:searchedParcel.address,pnu:searchedParcel.pnu});break;
+      case 'analyze-parcel':if(searchedParcel)onAnalyze?.({id:'parcel:'+searchedParcel.pnu,address:searchedParcel.address,pnu:searchedParcel.pnu,areaM2:searchedParcel.areaM2});break;
       case 'favorite':{
         const row=result?.groups.find(g=>g.representative.id===button.dataset.id)?.representative||(detail?.listing?.id===button.dataset.id?detail.listing:null);if(!row)break;
         button.disabled=true;try{
