@@ -358,7 +358,7 @@ export class NotificationsService {
       const failMax = Number(auction.failMax) || 0;
 
       if (wantCourt) {
-        const conditions: Prisma.Sql[] = [Prisma.sql`a.sale_date >= ${start}::date AND a.sale_date <= ${end}::date`, Prisma.sql`coalesce(a.sale_kind, 'whole') <> 'share'`];
+        const conditions: Prisma.Sql[] = [Prisma.sql`a.sale_date >= ${start}::date AND a.sale_date <= ${end}::date`, Prisma.sql`coalesce(a.sale_kind, 'whole') <> 'share'`, Prisma.sql`a.is_share IS NOT TRUE`];
         if (districts.length) conditions.push(Prisma.sql`a.sigu IN (${Prisma.join(districts)})`);
         if (usages.length) conditions.push(Prisma.sql`(${Prisma.join(usages.map((u: string) => Prisma.sql`a.usage_name ILIKE ${'%' + u + '%'}`), ' OR ')})`);
         if (dealType) conditions.push(Prisma.sql`a.deal_type = ${dealType}`);
