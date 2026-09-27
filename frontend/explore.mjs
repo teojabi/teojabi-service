@@ -155,11 +155,13 @@ const onbidToListing=row=>{
   const usage=String(row.usg_mcls_nm||row.usg_lcls_nm||'');
   const land=/토지|대지|임야|전답|잡종지|과수원|답/.test(usage);
   const id=`onbid:${row.cltr_mng_no}::${row.pbct_cdtn_no}`;
+  const landM2=row.land_area_m2==null?null:Number(row.land_area_m2),bldgM2=row.building_area_m2==null?null:Number(row.building_area_m2);
+  const areaM2=land?(landM2!=null?landM2:bldgM2):(bldgM2!=null?bldgM2:landM2);
   return {id,source:'onbid',sourceId:String(row.cltr_mng_no),cohort:'onbid',dealType:row.deal_type||(land?'land':null),
     district:row.sigu||'',neighborhood:row.dong||'',address:row.full_address||'',detailAddress:'',
     pnu:/^11\d{17}$/.test(String(row.pnu||''))?row.pnu:null,
     position:Number.isFinite(row.lat)&&Number.isFinite(row.lng)?{lat:Number(row.lat),lng:Number(row.lng)}:null,
-    priceWon:row.lowst_bid_prc==null?null:Number(row.lowst_bid_prc),areaM2:null,floorAreaM2:null,
+    priceWon:row.lowst_bid_prc==null?null:Number(row.lowst_bid_prc),areaM2,buildingAreaM2:bldgM2,landAreaM2:landM2,floorAreaM2:null,
     kind:land?'land':'building',kindConfirmed:true,description:'',floorInfo:'',areaSource:'listing',floorAreaSource:'listing',
     locationStatus:'pin-estimated',zoning:{status:'missing',groups:[],entries:[]},development:null,
     nearbyTransactions:{status:'unavailable',cases:[]},groupKey:id,
@@ -835,6 +837,8 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
       if(disposed||current!==detailVersion)return;
       detail={listing:onbidToListing(data.item),auctionDetail:data.detail||null,onbidDetail:data.detail||null};
       renderAuctionDetail();
+      closeRecords=mountBuildingRecords($('#building-records'),$('#building-records-toggle'),detail.listing);
+      closeLand=mountLandRecords($('#land-area-comparison'),$('#land-records'),$('#land-records-toggle'),detail.listing);
       closeCommercial=mountCommercial($('#commercial-facts'),detail.listing);
       closeSurrounding=mountSurrounding($('#surrounding-facts'),detail.listing);
       closeStreetPreview=mountStreetPreview($('#street-inline'),detail.listing.position);

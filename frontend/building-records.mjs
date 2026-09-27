@@ -25,8 +25,13 @@ export function mountBuildingRecords(host,button,listing) {
     if(loaded||loading||disposed)return;
     loading=true;host.setAttribute('aria-busy','true');host.innerHTML='<p role="status">보유한 건축물대장을 불러오고 있어요.</p>';
     try {
-      const response=await apiFetch(`/api/building-records/${encodeURIComponent(listing.id)}`,{signal:abort.signal});
-      const data=await response.json();if(!response.ok||!['ready','partial'].includes(data.status))throw new Error('unavailable');
+      // 공매(온비드)는 목록 PNU로 필지 문서 API에서 대장을 가져온다(경매·일반은 매물 id 기반).
+      const onbid=String(listing.id||'').startsWith('onbid:')&&listing.pnu;
+      const url=onbid?`/api/parcel-documents/${encodeURIComponent(listing.pnu)}`:`/api/building-records/${encodeURIComponent(listing.id)}`;
+      const response=await apiFetch(url,{signal:abort.signal});
+      const payload=await response.json();
+      const data=onbid?(payload&&payload.building):payload;
+      if(!response.ok||!data||!['ready','partial'].includes(data.status))throw new Error('unavailable');
       if(disposed)return;host.innerHTML=renderBuildingRecords(data);loaded=data.status==='ready';
     } catch {if(!disposed)host.innerHTML=renderBuildingRecords(null);}
     finally {loading=false;if(!disposed)host.removeAttribute('aria-busy');}

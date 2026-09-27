@@ -88,7 +88,8 @@ def _tokens(value):
 LIST_COLUMNS = ('onbid_cltrno, cltr_mng_no, pbct_cdtn_no, cltr_nm, prpt_div_cd, prpt_div_nm, '
                 'dsps_mthod_nm, bid_mthod_nm, cptn_mthod_nm, usg_lcls_nm, usg_mcls_nm, usg_scls_nm, '
                 'appraised_amt, lowst_bid_prc, lowst_bid_disp, apsl_ctrs_lowst_ratio, bid_begin_dt, '
-                'bid_end_dt, sido, sigu, dong, lot_no, full_address, pnu, lat, lng, deal_type')
+                'bid_end_dt, sido, sigu, dong, lot_no, full_address, pnu, '
+                'land_area_m2, building_area_m2, lat, lng, deal_type')
 
 
 def _where(payload):

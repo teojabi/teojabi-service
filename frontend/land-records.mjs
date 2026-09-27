@@ -14,8 +14,13 @@ export function mountLandRecords(compactHost,host,button,listing) {
     compactHost.hidden=true;compactHost.replaceChildren();
     host.innerHTML='<p role="status">보유한 토지대장을 불러오고 있어요.</p>';
     try {
-      const response=await apiFetch(`/api/land-record/${encodeURIComponent(listing.id)}`,{signal:abort.signal});
-      const data=await response.json();if(!response.ok)throw new Error('unavailable');
+      // 공매(온비드)는 목록 PNU로 필지 문서 API에서 토지대장을 가져온다(경매·일반은 매물 id 기반).
+      const onbid=String(listing.id||'').startsWith('onbid:')&&listing.pnu;
+      const url=onbid?`/api/parcel-documents/${encodeURIComponent(listing.pnu)}`:`/api/land-record/${encodeURIComponent(listing.id)}`;
+      const response=await apiFetch(url,{signal:abort.signal});
+      const payload=await response.json();
+      const data=onbid?(payload&&payload.land):payload;
+      if(!response.ok||!data)throw new Error('unavailable');
       if(disposed)return;host.innerHTML=renderLandRecord(data,listing);
     } catch {if(!disposed){host.innerHTML=renderLandRecord({status:'error'},listing);}}
     finally {loading=false;}
