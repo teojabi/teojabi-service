@@ -162,7 +162,7 @@ export class ListingMap {
       if(authError)throw new Error(authError);
       this.ready=true;
       this.listeners.push(n.Event.addListener(this.map,'idle',()=>{this.layoutTransactions();if(this.commercialVisible)this.renderCommercialMarkers();this.onMove?.(this.view());}));
-      this.listeners.push(n.Event.addListener(this.map,'click',()=>this.onMapClick?.()));
+      this.listeners.push(n.Event.addListener(this.map,'click',e=>this.onMapClick?.(e&&e.coord?{lat:e.coord.lat(),lng:e.coord.lng()}:null)));
       this.map.data.setStyle({fillColor:'#93c5fd',fillOpacity:.35,strokeColor:'#2563eb',strokeWeight:3});
       this.resizeObserver=new ResizeObserver(()=>{if(this.ready && !this.dead && this.container.clientWidth)n.Event.trigger(this.map,'resize');});
       this.resizeObserver.observe(this.container);

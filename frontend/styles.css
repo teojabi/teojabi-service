@@ -954,3 +954,4 @@ body.architect-lightbox-open{overflow:hidden}
 .map-parcel-result[hidden]{display:none}
 .map-parcel-result>span{color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .site-map-wrap [data-site][aria-pressed=true]{background:var(--primary);border-color:var(--primary);color:#fff}
+@media(max-width:700px){.map-parcel-search,.map-parcel-result{display:none!important}}
