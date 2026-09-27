@@ -178,7 +178,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
   let assistantResult=assistant&&Array.isArray(assistant.groups)?assistant:null;
   let source=assistantResult?'assistant':initialSource==='favorites'?'favorites':initialSource==='auction'?'auction':'conditions';
   const conditionAuction=conditions?.auction||null;
-  let auctionFilters={listingSource:'court',gu:[...(conditions?.districts||[])],usage:(conditionAuction?.usages||[])[0]||'',dealType:'',saleKind:conditionAuction?.saleKind||'',risk:[],kind:'',sort:'sale',maxPrice:conditionAuction?.maxPriceWon?String(conditionAuction.maxPriceWon/1e8):'',maxBidRate:conditionAuction?.maxBidRate!=null?String(conditionAuction.maxBidRate):'',failMax:''};
+  let auctionFilters={listingSource:'court',query:'',gu:[...(conditions?.districts||[])],usage:(conditionAuction?.usages||[])[0]||'',dealType:'',saleKind:conditionAuction?.saleKind||'',risk:[],kind:'',sort:'sale',maxPrice:conditionAuction?.maxPriceWon?String(conditionAuction.maxPriceWon/1e8):'',maxBidRate:conditionAuction?.maxBidRate!=null?String(conditionAuction.maxBidRate):'',failMax:''};
   if(source==='auction')limit=100;
   let auctionPage=1,auctionLoaded=0;
   let criteria={purpose:conditions?.purpose||null,minArea:conditions?.minArea||'',maxArea:conditions?.maxArea||'',areaUnit:conditions?.areaUnit||'pyeong',zones:conditions?.zones||[],minAreaM2:conditions?.minAreaM2??null,maxAreaM2:conditions?.maxAreaM2??null,auction:conditions?.auction||null,...BUILD_DEFAULTS,...(validateBuildCriteria(conditions||{}).value||{})};
@@ -541,6 +541,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     try {
       const params=new URLSearchParams({size:String(size),page:String(page)});
       (auctionFilters.gu||[]).forEach(g=>params.append('gu',g));
+      if(auctionFilters.query)params.set('q',auctionFilters.query);
       if(auctionFilters.usage)params.set('usage',auctionFilters.usage);
       if(auctionFilters.sort)params.set('sort',auctionFilters.sort);
       else params.set('sort',isOnbid?'bid':'sale');
