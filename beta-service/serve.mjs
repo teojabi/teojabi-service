@@ -118,6 +118,17 @@ async function onbidRead(operation,value) {
     [join(root,'onbid_reader.py'),operation,...(value?[value]:[])],{windowsHide:true,timeout:25000,maxBuffer:32*1024*1024,encoding:'utf8'});
   return JSON.parse(stdout);
 }
+// 같은 조건의 비서 검색은 60초간 결과를 재사용한다(반복 질의 응답 단축).
+const assistantSearchCache=new Map();
+async function runAssistantCached(filters){
+  const key=JSON.stringify(filters||{});
+  const hit=assistantSearchCache.get(key);
+  if(hit&&Date.now()-hit.at<60000)return hit.value;
+  const value=await runAssistant(root,filters);
+  if(assistantSearchCache.size>=200)assistantSearchCache.delete(assistantSearchCache.keys().next().value);
+  assistantSearchCache.set(key,{at:Date.now(),value});
+  return value;
+}
 // 비서가 찾은 일반 네이버 매물은 선별 카탈로그에 없다. DB에서 같은 id로 다시 구성해 상세·대장 조회에 쓴다.
 async function naverListing(sourceId) {
   if(!/^\d{1,30}$/.test(String(sourceId||'')))return null;
@@ -398,10 +409,8 @@ createServer(async (request, response) => {
           const a=parsed.filters.auction,source=a.source||'court';
           const wantCourt=source==='court'||source==='both',wantOnbid=source==='onbid'||source==='both';
           const listingFilters={...parsed.filters};delete listingFilters.auction;
-          let listingSearch=null;
-          if(hasMeaningfulFilters(listingFilters)){
-            try{listingSearch=await runAssistant(root,listingFilters);}catch{listingSearch=null;}
-          }
+          // 매물 목록과 법원·온비드 조회를 병렬로 돌려 대기 시간을 줄인다.
+          const listingPromise=hasMeaningfulFilters(listingFilters)?runAssistantCached(listingFilters).catch(()=>null):Promise.resolve(null);
           const courtPromise=wantCourt
             ?auctionRead('list',JSON.stringify({gu:parsed.filters.districts||[],kind:parsed.filters.kind||'',usage:a.usages||[],
               zone:parsed.filters.zones||[],minArea:parsed.filters.minAreaM2||'',maxArea:parsed.filters.maxAreaM2||'',
@@ -411,7 +420,7 @@ createServer(async (request, response) => {
             ?onbidRead('list',JSON.stringify({gu:parsed.filters.districts||[],usage:a.usages||[],
               q:parsed.filters.q||'',maxPrice:a.maxPriceWon||'',dealType:a.dealType||'',sort:'bid',size:60})).catch(()=>null)
             :Promise.resolve(null);
-          const [auctionData,onbidData]=await Promise.all([courtPromise,onbidPromise]);
+          const [listingSearch,auctionData,onbidData]=await Promise.all([listingPromise,courtPromise,onbidPromise]);
           send(response,request,buildCombinedResult(parsed.filters,listingSearch,auctionData,onbidData));
         } catch {
           send(response,request,{status:'ready',reply:'경매·공매 자료를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.',
@@ -422,7 +431,7 @@ createServer(async (request, response) => {
       // 저장·말한 구역 조건(관광숙박특화구역 우선, 교육보호구역·문화재보존구역 제외)은
       // assistant.py가 그대로 판정하므로 걷어내지 않고 함께 넘긴다.
       let search;
-      try { search=await runAssistant(root,parsed.filters); }
+      try { search=await runAssistantCached(parsed.filters); }
       catch {
         send(response,request,{status:'ready',
           reply:'조건이 복잡해 지금은 결과를 가져오지 못했어요. 잠시 후 다시 시도하거나 조건을 조금 바꿔 주세요.',

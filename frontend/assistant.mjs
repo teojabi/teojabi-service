@@ -24,6 +24,14 @@ const STEPS = [
   '도로폭 등 주변 조건을 확인하는 중이에요…',
   '조건에 맞는 매물을 정리하고 있어요…',
 ];
+// 경매·공매 질문은 네이버·디스코가 아니라 법원경매·온비드에서 찾으므로 단계 문구를 따로 쓴다.
+const AUCTION_STEPS = [
+  '법원경매 물건을 찾는 중이에요…',
+  '온비드 공매 물건을 확인하는 중이에요…',
+  '감정가·최저가·유찰 횟수를 정리하는 중이에요…',
+  '매각기일과 사건 정보를 맞춰보는 중이에요…',
+  '조건에 맞는 경매·공매 물건을 정리하고 있어요…',
+];
 const BUDGET_PRESETS = [10, 20, 30, 50, 100, 200];
 const AREA_PRESETS = [50, 100, 200, 300, 500];
 const ROAD_PRESETS = [4, 6, 8, 12];
@@ -148,7 +156,8 @@ function needsSearch(message) {
     /도보\s*\d+\s*분/.test(t) ||
     /(?:[가-힣]{1,5}[0-9]가|[가-힣]{1,6}동)(?=[\s,.]|이|에|은|는|쪽|근처|$)/.test(t) ||
     /(?:골목상권|전통시장|발달상권|관광특구)/.test(t) ||
-    /(?:토지|땅|필지|건물|빌딩|상가|주택|근린|신축)/.test(t);
+    /(?:토지|땅|필지|건물|빌딩|상가|주택|근린|신축)/.test(t) ||
+    /(?:경매|공매|법원|온비드|상권|번화가|유동인구|매출)/.test(t);
 }
 
 function cardMarkup(listing, hidden = false) {
@@ -533,24 +542,27 @@ export function mountAssistant({ onResults, onAnalyze } = {}) {
     selectedListing = null;
     // 실제 매물 조건을 말했을 때만 검색 로딩을 보여준다. 인사·사이트 질문은 바로 답한다.
     const showScan = message ? needsSearch(message) : true;
+    const isAuctionQuery = /경매|공매|법원|온비드/.test(String(message||'')) || editedFilters?.auction?.enabled === true;
+    const steps = isAuctionQuery ? AUCTION_STEPS : STEPS;
+    const scanTitle = isAuctionQuery ? 'AI가 경매·공매 물건을 살펴보는 중…' : 'AI 공간 분석 중…';
     const started = Date.now();
     let scan = null;
     let bar = null;
     let timers = [];
     if (showScan) {
-      scan = addBot(`<div class="assistant-scan"><span class="assistant-spinner"></span><b>AI 공간 분석 중…</b><ul class="assistant-steps"></ul><div class="assistant-bar"><i></i></div></div>`);
+      scan = addBot(`<div class="assistant-scan"><span class="assistant-spinner"></span><b>${scanTitle}</b><ul class="assistant-steps"></ul><div class="assistant-bar"><i></i></div></div>`);
       const stepsEl = scan.querySelector('.assistant-steps');
       bar = scan.querySelector('.assistant-bar i');
-      const interval = Math.floor(SCAN_MS * 0.9 / STEPS.length);
-      timers = STEPS.map((text, i) => setTimeout(() => {
+      const interval = Math.floor(SCAN_MS * 0.9 / steps.length);
+      timers = steps.map((text, i) => setTimeout(() => {
         stepsEl.insertAdjacentHTML('beforeend', `<li>${esc(text)}</li>`); scroll();
-        if (bar) bar.style.width = `${Math.round(((i + 1) / STEPS.length) * 92)}%`;
+        if (bar) bar.style.width = `${Math.round(((i + 1) / steps.length) * 92)}%`;
       }, 250 + i * interval));
     }
     const condition = savedCondition();
     const payload = { message: message || '', condition, filters: editedFilters || undefined };
     try {
-      const response = await apiFetch('/api/assistant', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+      const response = await apiFetch('/api/assistant', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload), signal: AbortSignal.timeout(75000) });
       const data = await response.json();
       if (showScan) {
         const wait = Math.max(0, SCAN_MS - (Date.now() - started));
@@ -562,9 +574,11 @@ export function mountAssistant({ onResults, onAnalyze } = {}) {
       lastFilters = { ...(data.filters || {}) };
       logSearchIntent(message, data.filters || editedFilters || {});
       renderResult(null, data, !message && Boolean(editedFilters));
-    } catch {
+    } catch (error) {
       timers.forEach(clearTimeout); if (scan) scan.remove();
-      addBot('매물 자료를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.');
+      addBot(error && (error.name === 'TimeoutError' || error.name === 'AbortError')
+        ? '응답이 오래 걸리고 있어요. 잠시 후 다시 시도해 주세요.'
+        : '매물 자료를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.');
     } finally { busy = false; }
   }
 
