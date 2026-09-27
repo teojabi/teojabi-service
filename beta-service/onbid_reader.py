@@ -99,9 +99,15 @@ def _where(payload):
     q = _text(payload.get('q'), 60)
     prpt = _text(payload.get('prptDivCd'), 10)
     deal_type = (payload.get('dealType') or '').strip().lower() or None
+    # 서비스 타겟(건물 통·토지)처럼 여러 거래단위를 OR로 지정할 때 사용한다.
+    deal_types = [value for value in _tokens(payload.get('dealTypes'))
+                  if value in ('whole', 'floor', 'unit', 'land')][:4]
     min_price = _num(payload.get('minPrice'))
     max_price = _num(payload.get('maxPrice'))
-    if deal_type in ('whole', 'floor', 'unit', 'land'):
+    if deal_types:
+        where.append('deal_type = ANY(%(dealtypes)s)')
+        params['dealtypes'] = deal_types
+    elif deal_type in ('whole', 'floor', 'unit', 'land'):
         where.append('deal_type = %(dealtype)s')
         params['dealtype'] = deal_type
     if gus:

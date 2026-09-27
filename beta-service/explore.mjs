@@ -331,14 +331,16 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
       (a.usages||[]).slice(0,6).forEach(u=>p.append('usage',u));
       if(a.maxPriceWon)p.set('maxPrice',String(a.maxPriceWon));
       if(onbid){
-        if(a.dealType)p.set('dealType',a.dealType);
+        // 서비스 타겟: 건물 통 + 토지 (층·호실 제외)
+        p.set('dealTypes','whole,land');
         p.set('sort','bid');
         return p;
       }
       (criteria.zones||[]).forEach(z=>p.append('zone',z));
       if(criteria.minAreaM2!=null)p.set('minArea',String(criteria.minAreaM2));
       if(criteria.maxAreaM2!=null)p.set('maxArea',String(criteria.maxAreaM2));
-      if(a.dealType)p.set('dealType',a.dealType);
+      // 서비스 타겟: 건물 통 + 토지 (층·호실 제외)
+      p.set('dealTypes','whole,land');
       if(a.saleKind)p.set('saleKind',a.saleKind);
       if(a.maxBidRate)p.set('maxBidRate',String(a.maxBidRate));
       if(a.failMax)p.set('maxFail',String(a.failMax));
@@ -465,9 +467,9 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
       else params.set('sort',isOnbid?'bid':'sale');
       if(auctionFilters.maxPrice)params.set('maxPrice',String(Number(auctionFilters.maxPrice)*1e8));
       if(auctionFilters.saleKind)params.set('saleKind',auctionFilters.saleKind);
+      // 서비스 타겟: 건물 통(건물 매수) + 토지(신축 검토). 층·호실 매각은 제외한다. (경매·공매 공통)
+      params.set('dealTypes','whole,land');
       if(!isOnbid){
-        // 서비스 타겟: 건물 통(건물 매수) + 토지(신축 검토). 층·호실 매각은 제외한다.
-        params.set('dealTypes','whole,land');
         if(auctionFilters.kind)params.set('kind',auctionFilters.kind);
         if(auctionFilters.maxBidRate)params.set('maxBidRate',String(Number(auctionFilters.maxBidRate)));
         if(auctionFilters.failMax)params.set('maxFail',auctionFilters.failMax);
