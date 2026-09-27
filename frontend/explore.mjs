@@ -111,9 +111,9 @@ const auctionToListing=row=>{
   const isLand=row.obj_kind==='land'||AUCTION_LAND_RE.test(usage);
   // 상세 확정값(deal_type_final)이 없을 때: 목적물이 토지(obj_kind)면 목록의 용도기반 deal_type(whole 등)보다 토지를 우선한다.
   const dealType=row.deal_type_final||(isLand?'land':(row.deal_type||(/\d+\s*호/.test(String(row.full_address||'')+String(row.building_list||''))?'unit':'whole')));
-  // 호실 매각은 목록의 전유면적(area_max)을 우선하고, 없으면 상세 목적물 면적으로 대체한다.
+  // 호실 매각은 목록의 area_max가 건물·층 전체 면적인 경우가 많아, 상세 호실면적(obj_area_m2)을 우선한다.
   const listedArea=row.area_max==null?null:Number(row.area_max),detailArea=row.obj_area_m2==null?null:Number(row.obj_area_m2);
-  const areaValue=dealType==='unit'?(listedArea!=null?listedArea:detailArea):(detailArea!=null?detailArea:listedArea);
+  const areaValue=dealType==='unit'?(detailArea!=null?detailArea:listedArea):(detailArea!=null?detailArea:listedArea);
   // 개발여력: 허용 용적률(master_land·지구단위계획)과 현재/여유 용적률.
   const farLimit=row.far_limit==null?null:Number(row.far_limit),bcrLimit=row.bcr_limit==null?null:Number(row.bcr_limit);
   const landM2=row.land_area_m2==null?null:Number(row.land_area_m2),bldM2=row.building_area_m2==null?null:Number(row.building_area_m2);
