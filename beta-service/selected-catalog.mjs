@@ -16,7 +16,7 @@ const buildingFacts=value=>value&&typeof value==='object'?{
   approvalDate:optionalText(value.approvalDate)
 }:null;
 // 관리자가 터잡이픽에 붙인 '신축분석'. 본문은 수익성 문구를 걸러내고, 공개 이미지 URL(https)만 노출한다.
-const ANALYSIS_DROP=/(수익|ROIC|ROE|GDV|개발\s*이익|자기자본|매각가|가동률|분양가)/i;
+const ANALYSIS_DROP=/(수익|ROIC|ROE|GDV|개발\s*이익|자기자본|매각가|가동률|분양가|투자|매입가|취득세|중개보수|철거|감리|예비비|금융비용|공사비|사업비)/i;
 const ANALYSIS_HEADER=/^\s*(?:[\[【]|[▣◆■●□▪▶▷])/;
 const sanitizeAnalysis=text=>{
   const lines=String(text||'').split(/\r?\n/),out=[];let skipping=false;
