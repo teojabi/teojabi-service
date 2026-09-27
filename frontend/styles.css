@@ -877,6 +877,8 @@ body.architect-lightbox-open{overflow:hidden}
 .auction-gu-choices span{min-height:38px;font-size:12px}
 .auction-gu-toggle{min-height:40px}
 .auction-filter-apply{min-height:40px;align-self:flex-end}
+.auction-search{margin:0 0 10px}
+.auction-search input{width:100%;min-height:46px;border:1px solid var(--line);border-radius:9px;background:var(--card);padding:10px 12px;font-size:14px}
 .auction-filter-actions{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 2px}
 .auction-filter-actions .primary,.auction-filter-actions .outline{min-height:44px}
 .map-first .auction-filters .quick-chip-label{display:inline}

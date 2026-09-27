@@ -32,7 +32,7 @@ const LISTING_LABEL = { court: '경매', onbid: '공매' };
 // 법원 공시 비고(mulBigo)에서 파생한 위험·특이사항 필터. 선택한 항목 중 하나라도 있으면 표시한다.
 export const AUCTION_RISK_OPTIONS = Object.freeze([['lien', '유치권'], ['legalSuperficies', '법정지상권'], ['landSeparate', '토지별도등기'], ['unregistered', '대지권미등기'], ['illegalBuilding', '위반건축물'], ['saleExcluded', '매각제외'], ['specialSale', '특별매각'], ['farmland', '농지취득'], ['coOwned', '공유'], ['extraBuilding', '제시외']]);
 const RISK_LABEL = Object.fromEntries(AUCTION_RISK_OPTIONS);
-const emptyDraft = () => ({ listingSource: 'court', gu: [], usage: '', dealType: '', saleKind: '', risk: [], sort: 'sale', maxPrice: '', maxBidRate: '', failMax: '' });
+const emptyDraft = () => ({ listingSource: 'court', query: '', gu: [], usage: '', dealType: '', saleKind: '', risk: [], sort: 'sale', maxPrice: '', maxBidRate: '', failMax: '' });
 
 // 경매 조건 UI. 건물찾기(매물) 퀵필터와 같은 칩 + 편집 패널 구조.
 // 칩에는 조건 이름이 함께 보이고, 아래 '이 조건으로 검색하기'로 조회한다.
@@ -40,7 +40,7 @@ export function mountAuctionFilters(root, { getValue, onChange } = {}) {
   const abort = new AbortController();
   const initial = getValue() || {};
   let active = null, draft = { ...emptyDraft(), ...initial, gu: [...(initial.gu || [])] };
-  root.innerHTML = `<div class="quick-chip-row" role="group" aria-label="경매 조건 바로 설정">${CHIPS.map(([key, label]) => `<button type="button" class="pill quick-chip" data-auction-chip="${key}" aria-expanded="false" aria-controls="auction-filter-editor"><span class="quick-chip-label">${label}</span><span data-auction-value></span><span class="quick-chevron" aria-hidden="true">⌄</span></button>`).join('')}</div><div class="auction-filter-actions"><button type="button" class="primary" data-auction-apply>이 조건으로 검색하기</button><button type="button" class="outline" data-auction-reset>조건 초기화</button></div><section class="quick-filter-editor" id="auction-filter-editor" hidden aria-labelledby="auction-filter-title"><div class="quick-filter-head"><div><h2 id="auction-filter-title"></h2><p>조건을 고른 뒤 위 버튼을 눌러 찾아요.</p></div><button type="button" class="quick-close" data-auction-close aria-label="조건 편집 닫기">×</button></div><div class="quick-filter-content"></div></section><p class="auction-filter-note">법원경매정보 공시 물건 · 아파트 제외 · 권리분석·입찰가 판단은 제공하지 않아요.</p>`;
+  root.innerHTML = `<div class="auction-search"><input type="search" id="auction-query" inputmode="search" autocomplete="off" placeholder="사건번호·주소 검색 (예: 2026타경90)" value="${esc(draft.query || '')}" aria-label="경매 사건번호 또는 주소 검색"></div><div class="quick-chip-row" role="group" aria-label="경매 조건 바로 설정">${CHIPS.map(([key, label]) => `<button type="button" class="pill quick-chip" data-auction-chip="${key}" aria-expanded="false" aria-controls="auction-filter-editor"><span class="quick-chip-label">${label}</span><span data-auction-value></span><span class="quick-chevron" aria-hidden="true">⌄</span></button>`).join('')}</div><div class="auction-filter-actions"><button type="button" class="primary" data-auction-apply>이 조건으로 검색하기</button><button type="button" class="outline" data-auction-reset>조건 초기화</button></div><section class="quick-filter-editor" id="auction-filter-editor" hidden aria-labelledby="auction-filter-title"><div class="quick-filter-head"><div><h2 id="auction-filter-title"></h2><p>조건을 고른 뒤 위 버튼을 눌러 찾아요.</p></div><button type="button" class="quick-close" data-auction-close aria-label="조건 편집 닫기">×</button></div><div class="quick-filter-content"></div></section><p class="auction-filter-note">법원경매정보 공시 물건 · 아파트 제외 · 권리분석·입찰가 판단은 제공하지 않아요.</p>`;
   const $ = selector => root.querySelector(selector), panel = $('.quick-filter-editor');
   function update() {
     const texts = {
@@ -95,7 +95,7 @@ export function mountAuctionFilters(root, { getValue, onChange } = {}) {
   function open(key) { active = key; panel.hidden = false; renderEditor(); update(); }
   function close() { active = null; panel.hidden = true; update(); }
   function apply() {
-    onChange({ listingSource: draft.listingSource || 'court', gu: [...draft.gu], usage: draft.usage || '', dealType: draft.dealType || '', saleKind: draft.saleKind || '', risk: [...(draft.risk || [])], sort: draft.sort || 'sale', maxPrice: draft.maxPrice || '', maxBidRate: draft.maxBidRate || '', failMax: draft.failMax ?? '' });
+    onChange({ listingSource: draft.listingSource || 'court', query: (draft.query || '').trim(), gu: [...draft.gu], usage: draft.usage || '', dealType: draft.dealType || '', saleKind: draft.saleKind || '', risk: [...(draft.risk || [])], sort: draft.sort || 'sale', maxPrice: draft.maxPrice || '', maxBidRate: draft.maxBidRate || '', failMax: draft.failMax ?? '' });
     close();
   }
   root.addEventListener('click', event => {
@@ -117,10 +117,14 @@ export function mountAuctionFilters(root, { getValue, onChange } = {}) {
     syncChoices(); update();
   }, { signal: abort.signal });
   root.addEventListener('input', event => {
+    if (event.target.id === 'auction-query') { draft.query = event.target.value; return; }
     if (!event.target.matches('.quick-number')) return;
     if (event.target.id === 'auction-max-price') draft.maxPrice = event.target.value.trim();
     if (event.target.id === 'auction-max-rate') draft.maxBidRate = event.target.value.trim();
     update();
+  }, { signal: abort.signal });
+  root.addEventListener('keydown', event => {
+    if (event.target.id === 'auction-query' && event.key === 'Enter') { event.preventDefault(); apply(); }
   }, { signal: abort.signal });
   update();
   return { update, open, destroy() { abort.abort(); } };
