@@ -15,9 +15,25 @@ const buildingFacts=value=>value&&typeof value==='object'?{
   mainUse:optionalText(value.mainUse),
   approvalDate:optionalText(value.approvalDate)
 }:null;
-// 관리자가 터잡이픽에 붙인 '신축분석' 공개 자료. 본문 + 공개 이미지 URL(https)만 노출한다.
+// 관리자가 터잡이픽에 붙인 '신축분석'. 본문은 수익성 문구를 걸러내고, 공개 이미지 URL(https)만 노출한다.
+const ANALYSIS_DROP=/(수익|ROIC|ROE|GDV|TDC|개발\s*이익|사업비|자기자본|매각가|가동률|평당|분양가)/i;
+const ANALYSIS_HEADER=/^\s*(?:[\[【]|[▣◆■●▶▷])/;
+const sanitizeAnalysis=text=>{
+  const lines=String(text||'').split(/\r?\n/),out=[];let skipping=false;
+  for(const line of lines){
+    if(ANALYSIS_HEADER.test(line)){if(ANALYSIS_DROP.test(line)){skipping=true;continue;}skipping=false;out.push(line);continue;}
+    if(skipping)continue;
+    if(ANALYSIS_DROP.test(line)){
+      const kept=line.split(/(?<=[.!?])\s+/).filter(sentence=>!ANALYSIS_DROP.test(sentence));
+      const joined=kept.join(' ').trim();if(joined)out.push(joined);
+      continue;
+    }
+    out.push(line);
+  }
+  return out.join('\n').replace(/\n{3,}/g,'\n\n').trim();
+};
 const pickAnalysis=value=>{if(!value||typeof value!=='object')return null;
-  const analysis=String(value.analysis||'').trim().slice(0,4000);
+  const analysis=sanitizeAnalysis(value.analysis).slice(0,4000);
   const images=Array.isArray(value.images)
     ?value.images.filter(u=>typeof u==='string'&&/^https:\/\/[^\s"'<>]{1,480}$/.test(u)).slice(0,12)
     :[];
