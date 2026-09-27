@@ -188,11 +188,18 @@ def prepare():
                     buildingFacts=naver_building_facts(cur, pnu=p.get('pnu'), address=address, price=p.get('price')),
                     description=p.get('title') or spec or '기존 등록 매물입니다. 상세 현황은 상담 시 확인해 주세요.',
                     category='commercial',kind='building'))
+            try:
+                cur.execute('SELECT listing_id, analysis, images FROM public.pick_analysis')
+                analysis_index={r['listing_id']:{'analysis':r['analysis'] or '','images':r['images'] or []} for r in cur.fetchall()}
+            except Exception:
+                analysis_index={}
     output={'source':'selected-preview-v1','observedAt':datetime.now(timezone.utc).isoformat(),
             'curatedCount':len(automatic)+sum(1 for r in manual if (r['snapshot'].get('teojabiPick') or {}).get('status')!='published'),
             'existingCount':len(premiums)+sum(1 for r in manual if (r['snapshot'].get('teojabiPick') or {}).get('status')=='published'),'rows':rows}
     for row in rows:
         row['teojabiNo']=numbers.get(row['id']) or row.get('teojabiNo')
+        item=analysis_index.get(row['id'])
+        if item: row['pickAnalysis']=item
     target=ROOT/('.local/supabase' if remote else '.local')/'selected-catalog.json'
     target.parent.mkdir(parents=True,exist_ok=True)
     temp=target.with_suffix('.tmp')

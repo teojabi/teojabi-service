@@ -22,6 +22,7 @@ function aboveFloor(row){const s=row.snapshot||{};let n=toNumber(s.aboveFloors);
 function hasZoneState(row,key){const s=row.snapshot||{},values=[s[key],s[`${key}Status`],s[`${key}Relation`],s[`${key}Zone`],s[key]?.status,s[key]?.relation].filter(Boolean).join(' ');return /(overlap|contained|touch|해당|포함|저촉|접함|구역)/i.test(values);}
 function matchesBuildUse(row,use){const s=row.snapshot||{},text=[s.mainUse,s.description,s.zoning].join(' ');if(!use)return true;if(use==='hotel')return textIncludes(text,['숙박','호텔','관광']);if(use==='office')return textIncludes(text,['업무','사무','오피스']);if(use==='retail')return textIncludes(text,['근린생활','상가','판매','근생']);if(use==='residential')return textIncludes(text,['주택','다가구','단독','공동주택']);if(use==='mixed')return textIncludes(text,['상가주택','복합','근린생활','주택']);return true;}
 const rowId=r=>r.id||`${r.source_table}:${r.source_id}`;
+const analysisId=r=>`${r.source_table==='naver_land'?'naver-land':r.source_table}:${r.source_id}`;
 const pickOf=r=>r.snapshot?.teojabiPick||{};
 const isTeojabiPick=r=>r.snapshot?.pickType==='premium'||r.source_table==='premium'||r.snapshot?.sourceStatus==='터잡이픽'||pickOf(r).status==='published';
 function naverArticleUrl(row){
@@ -50,7 +51,7 @@ function normalizeCatalogRows(rows){return (rows||[]).map(item=>{
   const source_table=sourceTableOfCatalog(item),source_id=String(item.sourceId||item.id?.split(':').slice(1).join(':')||item.id||'');
   const headline=String(item.description||item.title||'').split('\\n')[0].trim();
   const floorInfo=item.floorInfo||item.buildingFacts?.floorScale||[item.buildingFacts?.basementFloors&&`지하 ${item.buildingFacts.basementFloors}층`,item.buildingFacts?.aboveFloors&&`지상 ${item.buildingFacts.aboveFloors}층`].filter(Boolean).join(' / ');
-  return {id:`${source_table}:${source_id}`,source_table,source_id,category:categoryOfCatalog(item),budget:budgetOfWon(item.priceWon),registered:true,origin:'catalog',snapshot:{source_table,source_id,address:item.address,district:item.district,neighborhood:item.neighborhood,pnu:item.pnu,position:item.position,price:Number(item.priceWon||0)/1e8,areaM2:item.areaM2,floorAreaM2:item.floorAreaM2,zoning:item.zoning,mainUse:item.buildingFacts?.mainUse||item.kind,floorInfo,approvalDate:item.buildingFacts?.approvalDate,description:item.description||'',sourceStatus:item.cohort==='existing'?'터잡이픽':item.source||item.cohort,pickType:item.cohort==='existing'?'premium':'curated',teojabiPick:{status:item.cohort==='existing'?'published':'curated',pickNo:item.teojabiNo||'',headline}}};
+  return {id:`${source_table}:${source_id}`,source_table,source_id,category:categoryOfCatalog(item),budget:budgetOfWon(item.priceWon),registered:true,origin:'catalog',snapshot:{source_table,source_id,address:item.address,district:item.district,neighborhood:item.neighborhood,pnu:item.pnu,position:item.position,price:Number(item.priceWon||0)/1e8,areaM2:item.areaM2,floorAreaM2:item.floorAreaM2,zoning:item.zoning,mainUse:item.buildingFacts?.mainUse||item.kind,floorInfo,approvalDate:item.buildingFacts?.approvalDate,description:item.description||'',sourceStatus:item.cohort==='existing'?'터잡이픽':item.source||item.cohort,pickType:item.cohort==='existing'?'premium':'curated',pickAnalysis:item.pickAnalysis||null,teojabiPick:{status:item.cohort==='existing'?'published':'curated',pickNo:item.teojabiNo||'',headline}}};
 }).filter(r=>r.source_id&&r.snapshot.address);}
 function mergeRegistered(adminRows,catalogRows){
   const merged=new Map();
@@ -209,6 +210,13 @@ function open(id){
       <label>매물 설명 한 줄<textarea name="description" maxlength="120" placeholder="예: 상업지역 코너 입지, 신축 검토하기 좋은 노후 건물">${esc(initialDescription)}</textarea></label>
       <button type="submit" class="review-save" ${editable?'':'disabled'}>${submitLabel}</button>${row.registered?'<button type="button" class="review-delete" id="candidate-delete">매물 삭제</button>':''}<p id="candidate-save-message" class="review-save-message" role="status">${editable?(row.registered?(rowIsPick?'터잡이픽으로 표시 중입니다.':'터잡이픽 등록을 누르면 홈페이지에서 터잡이픽으로 표시됩니다.'):'등록을 누르면 등록한 매물 목록에 추가됩니다.'):rowIsPick?'기존 사이트 프리미엄 매물입니다.':'기존 등록 자료입니다. 원자료 연결 후 수정할 수 있어요.'}</p>
     </form>
+    <section class="review-section pick-analysis-editor" id="pick-analysis-editor"><h3>터잡이 신축분석</h3>
+      <p class="case-note">상세페이지에 '터잡이 신축분석'으로 노출됩니다. 이미지와 본문을 등록·삭제할 수 있어요.</p>
+      <label>분석 내용<textarea id="analysis-text" maxlength="4000" placeholder="예: 도로폭 6m 접도, 상업지역. 신축 시 예상 연면적과 검토 포인트를 적어주세요.">${esc((s.pickAnalysis&&s.pickAnalysis.analysis)||'')}</textarea></label>
+      <div id="analysis-images" class="analysis-images" aria-live="polite"></div>
+      <div class="analysis-actions"><label class="outline analysis-upload">이미지 추가<input id="analysis-upload" type="file" accept="image/png,image/jpeg,image/webp" multiple hidden></label><button type="button" class="review-save" id="analysis-save">신축분석 저장</button><button type="button" class="review-delete" id="analysis-delete">신축분석 삭제</button></div>
+      <p id="analysis-message" class="review-save-message" role="status"></p>
+    </section>
     <section class="review-section"><details><summary>원자료 설명 보기</summary><p class="raw-description">${esc(s.description||'설명 미기재')}</p><small>${esc(row.source_table)} / ${esc(row.source_id)}</small></details></section></div>`;
   $('#auto-pick-no').onclick=()=>{$('#candidate-register [name=pickNo]').value=randomNo();};
   $('#candidate-street').onclick=()=>openStreetView(s.position);
@@ -230,6 +238,38 @@ function open(id){
       mode='registered';current=rowId(updated);setModeButtons();fillDistricts();draw();open(rowId(updated));message(row.registered?'터잡이픽으로 등록했습니다.':'등록한 매물 목록에 저장했습니다.');
     }catch(error){$('#candidate-save-message').textContent=error.message;}
     finally{button.disabled=false;}
+  });
+  const analysisKey=analysisId(row),analysisText=$('#analysis-text');
+  let analysisImages=Array.isArray(s.pickAnalysis?.images)?s.pickAnalysis.images.slice():[];
+  const renderAnalysisImages=()=>{$('#analysis-images').innerHTML=analysisImages.length?analysisImages.map((u,i)=>`<figure><img src="${esc(u)}" alt="신축분석 이미지 ${i+1}"><button type="button" data-remove-image="${i}" aria-label="이미지 삭제">×</button></figure>`).join(''):'<p class="case-note">등록된 이미지가 없습니다.</p>';};
+  renderAnalysisImages();
+  $('#analysis-images').addEventListener('click',event=>{const b=event.target.closest('[data-remove-image]');if(!b)return;analysisImages.splice(Number(b.dataset.removeImage),1);renderAnalysisImages();$('#analysis-message').textContent='이미지를 뺐어요. 저장을 눌러 반영하세요.';});
+  $('#analysis-upload').addEventListener('change',async event=>{
+    const files=[...event.target.files||[]];event.target.value='';if(!files.length)return;
+    const msg=$('#analysis-message');
+    for(const file of files){
+      if(analysisImages.length>=12){msg.textContent='이미지는 최대 12장까지 등록할 수 있어요.';break;}
+      msg.textContent=`'${file.name}' 올리는 중...`;
+      try{
+        const res=await apiFetch('/api/curation-image',{method:'POST',headers:{'Content-Type':file.type||'application/octet-stream'},body:file});
+        const data=await res.json();
+        if(!res.ok||data.status!=='ready'||!data.url)throw new Error(data.message||'이미지를 올리지 못했습니다.');
+        analysisImages.push(data.url);renderAnalysisImages();
+      }catch(error){msg.textContent=error.message;}
+    }
+    msg.textContent='이미지를 올렸어요. 저장을 눌러 반영하세요.';
+  });
+  $('#analysis-save').addEventListener('click',async()=>{
+    const button=$('#analysis-save'),msg=$('#analysis-message');button.disabled=true;msg.textContent='저장하고 있어요.';
+    try{await postCuration({action:'save_analysis',id:analysisKey,analysis:analysisText.value,images:analysisImages});
+      s.pickAnalysis={analysis:analysisText.value,images:analysisImages.slice()};msg.textContent='저장했습니다. 상세페이지에 반영됩니다.';
+    }catch(error){msg.textContent=error.message;}finally{button.disabled=false;}
+  });
+  $('#analysis-delete').addEventListener('click',async()=>{
+    const button=$('#analysis-delete'),msg=$('#analysis-message');button.disabled=true;msg.textContent='삭제하고 있어요.';
+    try{await postCuration({action:'delete_analysis',id:analysisKey});
+      analysisImages=[];analysisText.value='';renderAnalysisImages();delete s.pickAnalysis;msg.textContent='신축분석을 삭제했습니다.';
+    }catch(error){msg.textContent=error.message;}finally{button.disabled=false;}
   });
 }
 function setModeButtons(){document.querySelectorAll('[data-pick-mode]').forEach(button=>{const active=button.dataset.pickMode===mode;button.classList.toggle('active',active);button.setAttribute('aria-pressed',String(active));});}

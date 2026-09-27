@@ -1,4 +1,5 @@
 ﻿import { createServer } from 'node:http';
+import { randomUUID } from 'node:crypto';
 import { readFile, stat } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
@@ -277,6 +278,37 @@ createServer(async (request, response) => {
     if(apiGuardOn&&!origin&&!allowedReferer(request.headers.referer,service)){response.writeHead(403).end();return;}
     if(origin){response.setHeader('Access-Control-Allow-Origin',origin);response.setHeader('Access-Control-Allow-Credentials','true');response.setHeader('Vary','Origin');}
     if(request.method==='OPTIONS'){response.setHeader('Access-Control-Allow-Methods','GET,HEAD,POST,OPTIONS');response.setHeader('Access-Control-Allow-Headers','Content-Type');response.writeHead(204).end();return;}
+  }
+  if (request.url?.split('?')[0]==='/api/curation-image') {
+    const access=await authorizeCuration(request,service);
+    if(access!==200){send(response,request,{status:'forbidden',message:access===401?'관리자로 로그인해 주세요.':'관리자 권한을 확인할 수 없습니다.'},access);return;}
+    if(request.method!=='POST'){send(response,request,{status:'invalid'},405);return;}
+    const supabaseUrl=(process.env.SUPABASE_URL||'').replace(/\/$/,'');
+    const serviceKey=process.env.SUPABASE_SERVICE_ROLE_KEY||'';
+    const bucket=process.env.SUPABASE_BUCKET||'post-images';
+    if(!/^https:\/\/[a-z0-9-]+\.supabase\.co$/i.test(supabaseUrl)||!serviceKey){send(response,request,{status:'error',message:'이미지 저장소가 설정되지 않았습니다.'},503);return;}
+    const type=String(request.headers['content-type']||'').split(';')[0].trim().toLowerCase();
+    const ext={'image/jpeg':'jpg','image/png':'png','image/webp':'webp','image/gif':'gif'}[type];
+    if(!ext){send(response,request,{status:'invalid',message:'이미지 파일(jpg·png·webp)만 올릴 수 있어요.'},400);return;}
+    const chunks=[];let bytes=0,tooBig=false;
+    try{for await(const chunk of request){bytes+=chunk.length;if(bytes>8*1024*1024){tooBig=true;break;}chunks.push(chunk);}}
+    catch{send(response,request,{status:'error'},400);return;}
+    if(tooBig){send(response,request,{status:'invalid',message:'이미지는 8MB 이하만 올릴 수 있어요.'},413);return;}
+    if(!bytes){send(response,request,{status:'invalid',message:'이미지가 비어 있어요.'},400);return;}
+    const objectPath=`pick-analysis/${Date.now()}-${randomUUID().slice(0,8)}.${ext}`;
+    const body=Buffer.concat(chunks);
+    const putImage=()=>fetch(`${supabaseUrl}/storage/v1/object/${bucket}/${objectPath}`,{method:'POST',headers:{Authorization:`Bearer ${serviceKey}`,'Content-Type':type,'x-upsert':'true'},body});
+    try{
+      let upload=await putImage();
+      if(!upload.ok){
+        // 공개 버킷이 없으면 만들어 한 번 더 시도한다.
+        try{await fetch(`${supabaseUrl}/storage/v1/bucket`,{method:'POST',headers:{Authorization:`Bearer ${serviceKey}`,'Content-Type':'application/json'},body:JSON.stringify({id:bucket,name:bucket,public:true})});}catch{}
+        upload=await putImage();
+      }
+      if(!upload.ok){send(response,request,{status:'error',message:'이미지를 저장하지 못했습니다.'},502);return;}
+      send(response,request,{status:'ready',url:`${supabaseUrl}/storage/v1/object/public/${bucket}/${objectPath}`});
+    }catch{send(response,request,{status:'error',message:'이미지를 저장하지 못했습니다.'},502);}
+    return;
   }
   if (request.url?.split('?')[0]==='/api/curation') {
     const access=await authorizeCuration(request,service);
