@@ -14,7 +14,7 @@ import {logEvent} from './events.mjs';
 const app = document.querySelector('#app');
 const emptyAuction=()=>({enabled:false,source:'court',dealType:'',saleKind:'',failMax:'',usages:[],maxPriceEok:'',maxBidRate:''});
 const emptyDraft=()=>({budgetEok:'',districts:[],neighborhoods:[],purpose:null,minArea:'',maxArea:'',areaUnit:'pyeong',zones:[],auction:emptyAuction(),...BUILD_DEFAULTS});
-const state = { screen: 'home', siteDraft:null, draft: emptyDraft(), applied: readRecentSearch(), editing: false, pane: 'list', activity:null, activityError:false, search:null, neighborhoodsOpen:false };
+const state = { screen: 'home', siteDraft:null, parcelSearch:null, draft: emptyDraft(), applied: readRecentSearch(), editing: false, pane: 'list', activity:null, activityError:false, search:null, neighborhoodsOpen:false };
 const appliedAuctionDraft=auction=>auction?{enabled:auction.enabled===true,source:auction.source||'court',dealType:auction.dealType||'',saleKind:auction.saleKind||'',failMax:auction.failMax??'',usages:Array.isArray(auction.usages)?[...auction.usages]:[],maxPriceEok:auction.maxPriceWon?String(auction.maxPriceWon/1e8):'',maxBidRate:auction.maxBidRate??''}:emptyAuction();
 const appliedDraft=()=>state.applied?{...emptyDraft(),...state.applied,budgetEok:state.applied.budgetWon?String(state.applied.budgetWon/1e8):'',districts:[...state.applied.districts],zones:[...state.applied.zones],auction:appliedAuctionDraft(state.applied.auction)}:emptyDraft();
 let disposeExplorer;
@@ -215,7 +215,7 @@ function render(focus = true) {
     loadExplorer().then(({mountExplorer})=>{
       if(version!==renderVersion||state.screen!=='results')return;
       const assistant=assistantPayload,openId=assistantOpenId;assistantPayload=null;assistantOpenId=null;const picksOnly=Boolean(state.picksOnly);state.picksOnly=false;
-      disposeExplorer=mountExplorer(app,{conditions:state.applied,picksOnly,assistant:assistant||undefined,initialSource:location.hash==='#favorites'?'favorites':location.hash==='#auction'?'auction':undefined,initialId:openId||new URLSearchParams(location.hash.slice(1)).get('listing'),onAnalyze:listing=>{if(state.siteDraft?.listingId!==listing.id)state.siteDraft=createSiteDraft(listing);state.screen='analyze';history.pushState({screen:'analyze'},'','#analyze');render();},onConditionsChange:next=>{state.applied=next;if(!new URLSearchParams(location.hash.slice(1)).has('listing'))history.replaceState(null,'',location.pathname+'#search');return rememberSearch(next);},onEdit:()=>{
+      disposeExplorer=mountExplorer(app,{conditions:state.applied,picksOnly,assistant:assistant||undefined,initialSource:location.hash==='#favorites'?'favorites':location.hash==='#auction'?'auction':undefined,initialId:openId||new URLSearchParams(location.hash.slice(1)).get('listing'),initialParcel:state.parcelSearch,onParcelChange:p=>{state.parcelSearch=p;},onAnalyze:listing=>{if(state.siteDraft?.listingId!==listing.id)state.siteDraft=createSiteDraft(listing);state.screen='analyze';history.pushState({screen:'analyze'},'','#analyze');render();},onConditionsChange:next=>{state.applied=next;if(!new URLSearchParams(location.hash.slice(1)).has('listing'))history.replaceState(null,'',location.pathname+'#search');return rememberSearch(next);},onEdit:()=>{
         state.draft=appliedDraft();
         state.editing=Boolean(state.applied);state.screen='purpose';render();
       }});
@@ -316,7 +316,7 @@ document.addEventListener('click', event => {
     completedThisVisit=true;rememberSearch(state.applied);
     logEvent('condition_applied',{districts:state.applied.districts||[],budgetWon:state.applied.budgetWon||null,minAreaM2:state.applied.minAreaM2??null,maxAreaM2:state.applied.maxAreaM2??null,zones:state.applied.zones||[],purpose:state.applied.purpose||null,buildUse:state.applied.buildUse||null,preferTourism:state.applied.preferTourism===true,excludeEducation:state.applied.excludeEducation===true,excludeHeritage:state.applied.excludeHeritage===true,auctionEnabled:state.applied.auction?.enabled===true});
     state.screen = 'results'; state.editing = false;
-    history.replaceState(null,'',location.pathname);
+    history.replaceState(null,'',location.pathname+'#search');
   }
   if (action === 'edit') {
     state.draft = appliedDraft();
