@@ -911,4 +911,36 @@ body.architect-lightbox-open{overflow:hidden}
 .image-lightbox-card img{display:block;width:100%;max-height:calc(90vh - 24px);object-fit:contain;background:#000}
 .image-lightbox-card figcaption{position:absolute;top:10px;left:10px;background:rgba(0,0,0,.62);color:#fff;font-size:13px;font-weight:700;line-height:1.6;padding:2px 12px;border-radius:999px}
 .image-lightbox-close{position:absolute;top:8px;right:8px;width:34px;height:34px;border:0;border-radius:50%;background:rgba(0,0,0,.6);color:#fff;font-size:20px;line-height:1;cursor:pointer}
+/* === 글자 크기 확대 (상세 + 목록, Naver 기준) === */
+#listing-detail .detail-content{font-size:15px}
+#listing-detail .detail-section{padding:25px 0}
+#listing-detail .detail-section h3{font-size:19px;margin-bottom:13px}
+#listing-detail .detail-section h3 small{font-size:13px}
+#listing-detail .detail-section>p{font-size:16px;line-height:1.9}
+#listing-detail .detail-section>p.case-note,#listing-detail .detail-section .case-note{font-size:13px;line-height:1.75}
+#listing-detail .detail-section dl{font-size:14px;line-height:1.8}
+#listing-detail .auction-facts{font-size:14px}
+#listing-detail .listing-description{font-size:16px;line-height:1.9}
+#listing-detail .pick-analysis .analysis-text{font-size:16px;line-height:1.95}
+#listing-detail .detail-areas span{font-size:13px}
+#listing-detail .detail-areas strong{font-size:20px}
+#listing-detail .detail-location{font-size:14px}
+#listing-detail .detail-shortcuts button{font-size:13px}
+#listing-detail .parcel-label{font-size:13px;min-width:64px}
+#listing-detail .detail-bottom-note{font-size:13px;line-height:1.9}
+#listing-detail .document-list b{font-size:14px}
+#listing-detail .document-list p{font-size:12.5px}
+#listing-detail .building-records{font-size:14px}
+#listing-detail .context-facts{font-size:15px}
+#listing-detail .brokerage-info{font-size:14px}
+#listing-list .property-location{font-size:14px}
+#listing-list .property-card h2{font-size:28px}
+#listing-list .area-pair{font-size:14px}
+#listing-list .property-zoning{font-size:13.5px}
+#listing-list .property-description{font-size:14px;line-height:1.8}
+#listing-list .property-link{font-size:14px}
+#listing-list .pick-badge{font-size:12.5px}
+#listing-list .empty p{font-size:14px}
+#result-count{font-size:15px}
+.more-listings{font-size:14px}
 .pick-analysis .analysis-text{white-space:normal;line-height:1.7}
