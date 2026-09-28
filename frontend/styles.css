@@ -783,7 +783,7 @@ body.architect-lightbox-open{overflow:hidden}
 .map-radar-core{position:absolute;left:50%;top:50%;width:6px;height:6px;transform:translate(-50%,-50%);border-radius:50%;background:#ea580c;pointer-events:none}
 .map-radar:hover .map-radar-ring{background:#fb923c}
 .commercial-popup{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:200;width:min(88vw,340px);max-height:min(72vh,540px);overflow:auto;background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:0 8px 24px #0003}
-@media(min-width:701px){.commercial-popup{left:auto;right:12px;transform:translateY(-50%)}}
+@media(min-width:701px){.commercial-popup{left:12px;right:auto;transform:translateY(-50%)}}
 .commercial-popup-inner{position:relative;padding:12px}
 .commercial-popup-close{position:absolute;top:6px;right:6px;border:0;background:transparent;font-size:18px;line-height:1;cursor:pointer;color:var(--muted);z-index:1}
 .commercial-popup .commercial-card{border:0;padding:0;background:transparent}
