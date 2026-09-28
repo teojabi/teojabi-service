@@ -14,7 +14,7 @@ const clampLead = (value: unknown) => {
 
 type SavedRow = { kind: string; key: string; payload: any };
 type Alert = {
-  type: 'auction' | 'onbid' | 'notice';
+  type: 'auction' | 'onbid' | 'listing' | 'notice';
   key: string;
   origin: 'favorite' | 'condition' | 'notice';
   conditionName: string | null;
@@ -95,6 +95,7 @@ export class NotificationsService {
 
   private kindLabelFor(kind: string, date: string | null) {
     if (kind === 'notice') return '공지';
+    if (kind === 'listing') return '맞춤 매물';
     const prefix = kind === 'auction' ? '경매' : '공매';
     return date ? `${prefix} ${this.labelFor(date)}` : prefix;
   }
@@ -211,7 +212,8 @@ export class NotificationsService {
 
   async getInbox(userId: string, leadDays: number, options: { favorites?: boolean; conditions?: boolean } = {}) {
     const zoneMap = await this.zoneLimits();
-    const candidates = await this.collectAlerts(userId, leadDays, options, zoneMap);
+    const cursor = await this.alertCursor();
+    const candidates = await this.collectAlerts(userId, leadDays, options, zoneMap, cursor);
     const profile = await this.userProfile(userId);
     for (const candidate of candidates) {
       const score = this.scoreCandidate(profile, candidate);
@@ -298,6 +300,7 @@ export class NotificationsService {
     leadDays: number,
     options: { favorites?: boolean; conditions?: boolean } = {},
     zoneMap: Record<string, { bcr: number; far: number }> = {},
+    cursor: Date = new Date(0),
   ): Promise<Alert[]> {
     const includeFavorites = options.favorites !== false;
     const includeConditions = options.conditions !== false;
@@ -344,21 +347,26 @@ export class NotificationsService {
     }
 
     for (const savedRow of includeConditions ? saved.filter((r) => r.kind === 'condition') : []) {
-      const auction = savedRow.payload?.auction;
+      const payload = savedRow.payload || {};
+      const conditionName = payload.name || '저장 조건';
+      const districts = Array.isArray(payload.districts) ? payload.districts.filter((d: any) => typeof d === 'string') : [];
+      // 새로 올라온 매물(네이버·디스코) 매칭 — 최대 3건.
+      try { items.push(...(await this.listingAlerts(payload, conditionName, cursor))); } catch { /* 매물 매칭 실패는 무시 */ }
+
+      const auction = payload.auction;
       if (!auction?.enabled) continue;
-      const conditionName = savedRow.payload?.name || '저장 조건';
       const source = auction.source || 'court';
       const wantCourt = source === 'court' || source === 'both';
       const wantOnbid = source === 'onbid' || source === 'both';
-      const districts = Array.isArray(savedRow.payload?.districts) ? savedRow.payload.districts.filter((d: any) => typeof d === 'string') : [];
       const usages = Array.isArray(auction.usages) ? auction.usages.filter((u: any) => typeof u === 'string') : [];
       const dealType = auction.dealType || '';
       const maxPrice = Number(auction.maxPriceWon) || 0;
       const maxRate = Number(auction.maxBidRate) || 0;
       const failMax = Number(auction.failMax) || 0;
 
+      // 새로 올라온 경매 물건 — 최대 3건.
       if (wantCourt) {
-        const conditions: Prisma.Sql[] = [Prisma.sql`a.sale_date >= ${start}::date AND a.sale_date <= ${end}::date`, Prisma.sql`coalesce(a.sale_kind, 'whole') <> 'share'`, Prisma.sql`a.is_share IS NOT TRUE`];
+        const conditions: Prisma.Sql[] = [Prisma.sql`a.first_seen_at > ${cursor}`, Prisma.sql`coalesce(a.sale_kind, 'whole') <> 'share'`, Prisma.sql`a.is_share IS NOT TRUE`];
         if (districts.length) conditions.push(Prisma.sql`a.sigu IN (${Prisma.join(districts)})`);
         if (usages.length) conditions.push(Prisma.sql`(${Prisma.join(usages.map((u: string) => Prisma.sql`a.usage_name ILIKE ${'%' + u + '%'}`), ' OR ')})`);
         if (dealType) conditions.push(Prisma.sql`a.deal_type = ${dealType}`);
@@ -370,12 +378,13 @@ export class NotificationsService {
                  a.use_zone, a.land_area_m2, a.building_area_m2, a.far_limit, a.bcr_limit, a.district_plan,
                  a.sigu, a.special_zone, a.height_district
           FROM public.auction_item a WHERE ${Prisma.join(conditions, ' AND ')}
-          ORDER BY a.sale_date ASC LIMIT 20`);
+          ORDER BY a.first_seen_at DESC LIMIT 3`);
         for (const r of rows) items.push(this.auctionAlert(r, 'condition', conditionName, zoneMap));
       }
 
+      // 새로 올라온 공매 물건 — 최대 3건.
       if (wantOnbid) {
-        const conditions: Prisma.Sql[] = [Prisma.sql`o.bid_end_dt >= ${startStamp} AND o.bid_end_dt <= ${endStamp}`];
+        const conditions: Prisma.Sql[] = [Prisma.sql`o.first_seen_at > ${cursor}`];
         if (districts.length) conditions.push(Prisma.sql`o.sigu IN (${Prisma.join(districts)})`);
         if (usages.length) conditions.push(Prisma.sql`(${Prisma.join(usages.map((u: string) => Prisma.sql`(o.usg_mcls_nm ILIKE ${'%' + u + '%'} OR o.usg_scls_nm ILIKE ${'%' + u + '%'})`), ' OR ')})`);
         if (dealType) conditions.push(Prisma.sql`o.deal_type = ${dealType}`);
@@ -383,7 +392,7 @@ export class NotificationsService {
         const rows = await this.prisma.$queryRaw<any[]>(Prisma.sql`
           SELECT o.cltr_mng_no, o.pbct_cdtn_no, o.cltr_nm, o.lowst_bid_prc, o.usg_mcls_nm, o.bid_end_dt
           FROM public.onbid_item o WHERE ${Prisma.join(conditions, ' AND ')}
-          ORDER BY o.bid_end_dt ASC LIMIT 20`);
+          ORDER BY o.first_seen_at DESC LIMIT 3`);
         for (const r of rows) items.push(this.onbidAlert(r, 'condition', conditionName));
       }
     }
@@ -395,49 +404,47 @@ export class NotificationsService {
 
   @Cron('0 30 8 * * *', { timeZone: 'Asia/Seoul' })
   async dispatchDailyEmail() {
-    if (!this.mail.isConfigured()) {
-      this.logger.warn('Email digest skipped: Cloud Outbound Mailer is not configured.');
-      return;
-    }
-    const recipients = await this.prisma.$queryRaw<Array<{ userId: string; email: string }>>`
-      SELECT p.user_id AS "userId", u.email AS email
-      FROM public.notification_preference p
-      JOIN public."user" u ON u.id = p.user_id
-      WHERE p.email = true AND u.email IS NOT NULL AND u.email <> ''`;
+    const mailReady = this.mail.isConfigured();
+    if (!mailReady) this.logger.warn('Email digest: mail not configured; syncing inboxes only.');
+    // 메일 수신 여부와 무관하게 모든 회원의 알림함을 갱신한다(인박스 최신 유지).
+    const users = await this.prisma.$queryRaw<Array<{ userId: string; email: string | null }>>`
+      SELECT id AS "userId", email FROM public."user"`;
     const today = this.date();
     let sent = 0;
-    for (const recipient of recipients) {
+    for (const user of users) {
       try {
-        const preferences = await this.getPreferences(recipient.userId);
-        if (!preferences.email) continue;
-        const inbox = await this.getInbox(recipient.userId, preferences.leadDays, {
+        const preferences = await this.getPreferences(user.userId);
+        const inbox = await this.getInbox(user.userId, preferences.leadDays, {
           favorites: preferences.favorites,
           conditions: preferences.conditions,
         });
+        if (!mailReady || !preferences.email || !user.email) continue;
         // 읽지 않은 새 알림만 메일로 보낸다(이미 본 항목 반복 발송 방지).
         const unread = inbox.items.filter((item) => !item.read);
         if (!unread.length) continue;
-        const dedupeKey = `email:${recipient.userId}:${today}`;
+        const dedupeKey = `email:${user.userId}:${today}`;
         const inserted = await this.prisma.$executeRaw`
           INSERT INTO public.notification_delivery(user_id,dedupe_key,channel,item_count,status)
-          VALUES (${recipient.userId},${dedupeKey},'email',${unread.length},'SENT')
+          VALUES (${user.userId},${dedupeKey},'email',${unread.length},'SENT')
           ON CONFLICT (dedupe_key) DO NOTHING`;
         if (inserted === 0) continue;
         await this.mail.send({
-          to: recipient.email,
-          title: `[터잡이] 새 경매·공매 알림 ${unread.length}건`,
+          to: user.email,
+          title: `[터잡이] 새 매물·경매·공매 알림 ${unread.length}건`,
           body: this.buildDigestBody(unread as Alert[]),
         });
-        await this.markRead(recipient.userId);
+        await this.markRead(user.userId);
         sent += 1;
       } catch (error) {
-        this.logger.error(`Email digest failed for ${recipient.userId}`, error as Error);
+        this.logger.error(`Email digest failed for ${user.userId}`, error as Error);
         await this.prisma
-          .$executeRaw`UPDATE public.notification_delivery SET status='FAILED', error=${String((error as Error)?.message ?? error).slice(0, 200)} WHERE dedupe_key=${`email:${recipient.userId}:${today}`}`
+          .$executeRaw`UPDATE public.notification_delivery SET status='FAILED', error=${String((error as Error)?.message ?? error).slice(0, 200)} WHERE dedupe_key=${`email:${user.userId}:${today}`}`
           .catch(() => undefined);
       }
     }
-    this.logger.log(`Email digest dispatched: ${sent}/${recipients.length}`);
+    // 하루치 매칭이 끝나면 커서를 현재로 올린다(다음 날은 이 시각 이후 신규분만 대상).
+    await this.advanceCursor().catch((error) => this.logger.error('Cursor advance failed', error as Error));
+    this.logger.log(`Daily notification sync: ${sent}/${users.length} emailed`);
   }
 
   private buildDigestBody(items: Alert[]) {
@@ -449,8 +456,8 @@ export class NotificationsService {
       .join('');
     return `
 <div style="font-family:'Apple SD Gothic Neo','Malgun Gothic',Arial,sans-serif;max-width:600px;margin:0 auto;color:#111827;line-height:1.6;">
-  <h2 style="margin:0 0 8px;font-size:20px;">[터잡이] 새 경매·공매 알림 ${items.length}건</h2>
-  <p style="margin:0 0 16px;font-size:14px;color:#374151;">찜·저장 조건에 <b>새로 올라온</b> 물건이에요. 사실 안내이며, 입찰 전 원문을 확인하세요.</p>
+  <h2 style="margin:0 0 8px;font-size:20px;">[터잡이] 새 매물·경매·공매 알림 ${items.length}건</h2>
+  <p style="margin:0 0 16px;font-size:14px;color:#374151;">저장 조건·찜에 <b>새로 올라온</b> 물건이에요. 사실 안내이며, 계약·입찰 전 원문을 확인하세요.</p>
   <ul style="padding-left:18px;margin:0 0 20px;">${rows}</ul>
   <p style="margin:0 0 20px;"><a href="${SITE_URL}" style="display:inline-block;padding:12px 20px;background:#2563eb;color:#fff;text-decoration:none;border-radius:8px;font-weight:700;">터잡이에서 확인하기</a></p>
   <p style="margin:0;font-size:12px;color:#6b7280;">권리분석·적정 입찰가는 제공하지 않아요. 알림 수신은 내 보관함 &gt; 알림 설정에서 끌 수 있어요.</p>
@@ -505,6 +512,95 @@ export class NotificationsService {
       kindLabel: `공매 ${this.labelFor(date)}`,
       title: String(r.cltr_nm || r.cltr_mng_no || ''),
       detail: `${String(r.usg_mcls_nm || '용도 미기재')} · 최저입찰 ${this.money(r.lowst_bid_prc)} · 입찰마감 ${date}`,
+    };
+  }
+
+  // 신규 매칭 기준 시각(커서). 없으면 최근 24시간을 기준으로 본다.
+  private async alertCursor(): Promise<Date> {
+    try {
+      const rows = await this.prisma.$queryRaw<Array<{ last_seen_at: Date }>>`
+        SELECT last_seen_at FROM public.notification_source_cursor WHERE source='all' LIMIT 1`;
+      return rows[0]?.last_seen_at ?? new Date(Date.now() - DAY_MS);
+    } catch {
+      return new Date(Date.now() - DAY_MS);
+    }
+  }
+
+  // 하루치 매칭이 끝난 뒤 커서를 현재로 올린다. 중복은 notification_item이 막는다.
+  private async advanceCursor(): Promise<void> {
+    await this.prisma.$executeRaw`
+      INSERT INTO public.notification_source_cursor(source,last_seen_at,updated_at)
+      VALUES ('all', now(), now())
+      ON CONFLICT (source) DO UPDATE SET last_seen_at=now(), updated_at=now()`;
+  }
+
+  private area(value: unknown) {
+    const n = Number(value);
+    return Number.isFinite(n) && n > 0 ? `${Math.round(n).toLocaleString('ko-KR')}㎡` : '면적 미기재';
+  }
+
+  // 새로 올라온 매물(네이버·디스코) 중 저장 조건에 맞는 것, 최대 3건.
+  private async listingAlerts(payload: any, conditionName: string, cursor: Date): Promise<Alert[]> {
+    const districts = Array.isArray(payload?.districts) ? payload.districts.filter((d: any) => typeof d === 'string') : [];
+    const zones = Array.isArray(payload?.zones) ? payload.zones.filter((z: any) => typeof z === 'string') : [];
+    const budgetWon = Number(payload?.budgetWon) || 0;
+    const minArea = Number(payload?.minAreaM2) || 0;
+    const maxArea = Number(payload?.maxAreaM2) || 0;
+    const minRoad = Number(payload?.minRoadWidthM) || 0;
+    const kind = payload?.kind;
+    const out: Alert[] = [];
+
+    const naverCond: Prisma.Sql[] = [Prisma.sql`n.first_seen_at > ${cursor}`];
+    if (districts.length) naverCond.push(Prisma.sql`n."구" IN (${Prisma.join(districts)})`);
+    if (budgetWon) naverCond.push(Prisma.sql`n."거래가격" <= ${budgetWon / 1e8}`);
+    if (minArea) naverCond.push(Prisma.sql`n."대지면적" >= ${minArea}`);
+    if (maxArea) naverCond.push(Prisma.sql`n."대지면적" <= ${maxArea}`);
+    if (minRoad) naverCond.push(Prisma.sql`n."도로폭_m" >= ${minRoad}`);
+    if (kind === 'land') naverCond.push(Prisma.sql`n."주용도코드명" = '토지'`);
+    else if (kind === 'building') naverCond.push(Prisma.sql`coalesce(n."주용도코드명",'') <> '토지'`);
+    if (zones.length) naverCond.push(Prisma.sql`(${Prisma.join(zones.map((z: string) => Prisma.sql`n."용도지역" ILIKE ${'%' + z.replace('지역', '') + '%'}`), ' OR ')})`);
+    const naverRows = await this.prisma.$queryRaw<any[]>(Prisma.sql`
+      SELECT n."매물번호" AS id, n."거래가격" AS price, n."대지면적" AS land, n."대지위치" AS address,
+             n."구" AS district, n."동" AS dong, n."주용도코드명" AS use, n."용도지역" AS zone, n."도로폭_m" AS road
+      FROM public.naver n WHERE ${Prisma.join(naverCond, ' AND ')}
+      ORDER BY n.first_seen_at DESC LIMIT 3`);
+    for (const r of naverRows) out.push(this.listingAlert(r, 'naver', conditionName));
+
+    if (out.length < 3) {
+      const discoCond: Prisma.Sql[] = [Prisma.sql`d.first_seen_at > ${cursor}`, Prisma.sql`d.active IS TRUE`];
+      if (districts.length) discoCond.push(Prisma.sql`d.gu IN (${Prisma.join(districts)})`);
+      if (budgetWon) discoCond.push(Prisma.sql`d.price_manwon <= ${budgetWon / 1e4}`);
+      if (minArea) discoCond.push(Prisma.sql`d.land_area_m2 >= ${minArea}`);
+      if (maxArea) discoCond.push(Prisma.sql`d.land_area_m2 <= ${maxArea}`);
+      const discoRows = await this.prisma.$queryRaw<any[]>(Prisma.sql`
+        SELECT d.did AS id, d.price_manwon AS price_manwon, d.land_area_m2 AS land, d.address AS address,
+               d.gu AS district, d.dong AS dong, d.main_use AS use, d.use_zone AS zone
+        FROM public.disco_listing d WHERE ${Prisma.join(discoCond, ' AND ')}
+        ORDER BY d.first_seen_at DESC LIMIT ${3 - out.length}`);
+      for (const r of discoRows) out.push(this.listingAlert(r, 'disco', conditionName));
+    }
+    return out;
+  }
+
+  private listingAlert(r: any, source: 'naver' | 'disco', conditionName: string): Alert {
+    const priceWon = source === 'naver' ? (Number(r.price) || 0) * 1e8 : (Number(r.price_manwon) || 0) * 1e4;
+    return {
+      type: 'listing',
+      key: `${source}:${r.id}`,
+      origin: 'condition',
+      conditionName,
+      date: this.date(),
+      kindLabel: '맞춤 매물',
+      title: String(r.address || ''),
+      detail: `${String(r.use || '용도 미기재')} · ${this.money(priceWon)} · 대지 ${this.area(r.land)}${r.zone ? ` · ${r.zone}` : ''}`,
+      meta: {
+        features: {
+          district: String(r.district || ''),
+          zone: String(r.zone || ''),
+          usage: String(r.use || ''),
+          price: priceWon,
+        },
+      },
     };
   }
 }
