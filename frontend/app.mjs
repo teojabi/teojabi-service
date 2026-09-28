@@ -16,7 +16,7 @@ const emptyAuction=()=>({enabled:false,source:'court',dealType:'',saleKind:'',fa
 const emptyDraft=()=>({budgetEok:'',districts:[],neighborhoods:[],purpose:null,minArea:'',maxArea:'',areaUnit:'pyeong',zones:[],auction:emptyAuction(),...BUILD_DEFAULTS});
 const state = { screen: 'home', siteDraft:null, parcelSearch:null, draft: emptyDraft(), applied: null, editing: false, pane: 'list', activity:null, activityError:false, search:null, neighborhoodsOpen:false };
 let pendingInitialSource=null;
-// 서비스별 고유 URL(/properties, /auction, /onbid, /new-build)을 SPA 화면으로 연결한다.
+// 서비스별 고유 URL(/auction, /onbid, /new-build)을 SPA 화면으로 연결한다.
 const pathKey=()=>((location.pathname.replace(/\/+$/,'').split('/').pop())||'').replace(/\.html$/,'');
 function screenTitle(screen){
   const key=pathKey();
@@ -24,7 +24,7 @@ function screenTitle(screen){
   if(screen==='results'){
     if(key==='auction')return '서울 건물·토지 경매와 신축분석 | 터잡이';
     if(key==='onbid')return '서울 건물·토지 공매와 신축분석 | 터잡이';
-    if(key==='properties'||key==='search'||key==='gallery')return '서울 상업용 건물·토지 매물 찾기 | 터잡이';
+    if(key==='search'||key==='gallery')return '서울 상업용 건물·토지 매물 찾기 | 터잡이';
     return '조건에 맞는 매물 찾기 | 터잡이';
   }
   if(screen==='analyze')return '건물·토지 신축 가능성 분석 | 터잡이';
@@ -140,9 +140,11 @@ function rememberSearch(next){
   return true;
 }
 function updateMemberButton(){
+  const ready=member.status==='ready';
+  // 비회원에게는 알림·내 보관함 버튼을 숨긴다(로그인 후 표시).
+  for(const el of document.querySelectorAll('#notif-button, .header-actions [data-action="saved"]')) el.hidden=!ready;
   const button=document.querySelector('#member-login');
   if(!button)return;
-  const ready=member.status==='ready';
   button.hidden=ready;
   button.textContent='로그인·회원가입';
   button.setAttribute('aria-label','로그인 및 회원가입');
@@ -240,7 +242,7 @@ function render(focus = true) {
     app.innerHTML='<section class="screen-loading" aria-live="polite"><span></span><p>매물과 지도를 불러오고 있어요.</p></section>';
     loadExplorer().then(({mountExplorer})=>{
       if(version!==renderVersion||state.screen!=='results')return;
-      const assistant=assistantPayload,openId=assistantOpenId;assistantPayload=null;assistantOpenId=null;const picksOnly=Boolean(state.picksOnly);state.picksOnly=false;const initialSource=location.hash==='#favorites'?'favorites':location.hash==='#auction'?'auction':(pendingInitialSource||undefined);pendingInitialSource=null;const initialHeading=(()=>{const k=pathKey();return k==='properties'||k==='search'?'서울 상업용 건물·토지 매물을 찾아보세요':k==='auction'?'신축을 검토할 만한 서울 경매 물건을 찾아보세요':k==='onbid'?'신축 가능성까지 검토한 서울 공매 물건을 찾아보세요':undefined;})();
+      const assistant=assistantPayload,openId=assistantOpenId;assistantPayload=null;assistantOpenId=null;const picksOnly=Boolean(state.picksOnly);state.picksOnly=false;const initialSource=location.hash==='#favorites'?'favorites':location.hash==='#auction'?'auction':(pendingInitialSource||undefined);pendingInitialSource=null;const initialHeading=(()=>{const k=pathKey();return k==='search'?'서울 상업용 건물·토지 매물을 찾아보세요':k==='auction'?'신축을 검토할 만한 서울 경매 물건을 찾아보세요':k==='onbid'?'신축 가능성까지 검토한 서울 공매 물건을 찾아보세요':undefined;})();
       disposeExplorer=mountExplorer(app,{conditions:state.applied,picksOnly,assistant:assistant||undefined,initialSource,initialHeading,initialId:openId||new URLSearchParams(location.hash.slice(1)).get('listing'),initialParcel:state.parcelSearch,onParcelChange:p=>{state.parcelSearch=p;},onAnalyze:listing=>{if(state.siteDraft?.listingId!==listing.id)state.siteDraft=createSiteDraft(listing);state.screen='analyze';history.pushState({screen:'analyze'},'','#analyze');render();},onConditionsChange:next=>{state.applied=next;if(!new URLSearchParams(location.hash.slice(1)).has('listing'))history.replaceState(null,'',location.pathname+'#search');return rememberSearch(next);},onEdit:()=>{
         state.draft=appliedDraft();
         state.editing=Boolean(state.applied);state.screen='purpose';render();
@@ -390,7 +392,7 @@ render(false);
 ensureNeighborhoods();
 function routeFromPath(){
   const key=pathKey();
-  if(key==='properties'||key==='search'){state.applied=null;state.screen='results';return true;}
+  if(key==='search'){state.applied=null;state.screen='results';return true;}
   if(key==='gallery'){state.applied=null;state.screen='results';state.picksOnly=true;return true;}
   if(key==='auction'){state.applied=null;state.screen='results';pendingInitialSource='auction';return true;}
   if(key==='onbid'){state.applied=null;state.screen='results';pendingInitialSource='onbid';return true;}
