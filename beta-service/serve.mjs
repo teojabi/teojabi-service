@@ -408,12 +408,14 @@ createServer(async (request, response) => {
         delete parsed.filters.districts; delete parsed.filters.neighborhood; delete parsed.filters.stationName;
         if(!parsed.filters.commercialRadiusM) parsed.filters.commercialRadiusM=500;
       }
-      // 경매·공매 조건이 있으면 법원경매·온비드 물건만 찾는다(매물은 섞지 않는다).
+      // 경매·공매 조건 처리: 사용자가 '경매'를 직접 물으면 경매만, 저장 조건처럼 자동 포함이면 매물과 함께 보여준다.
       if(parsed.filters.auction?.enabled){
         try {
           const a=parsed.filters.auction,source=a.source||'court';
           const wantCourt=source==='court'||source==='both',wantOnbid=source==='onbid'||source==='both';
-          // 경매 의도일 때는 매물(네이버·디스코)을 섞지 않고 법원·온비드만 보여준다.
+          const auctionOnly=/경매|공매|법원|온비드/.test(message);
+          const listingFilters={...parsed.filters};delete listingFilters.auction;
+          const listingPromise=(!auctionOnly&&hasMeaningfulFilters(listingFilters))?runAssistantCached(listingFilters).catch(()=>null):Promise.resolve(null);
           const courtPromise=wantCourt
             ?auctionRead('list',JSON.stringify({gu:parsed.filters.districts||[],kind:parsed.filters.kind||'',usage:a.usages||[],
               zone:parsed.filters.zones||[],minArea:parsed.filters.minAreaM2||'',maxArea:parsed.filters.maxAreaM2||'',
@@ -423,8 +425,8 @@ createServer(async (request, response) => {
             ?onbidRead('list',JSON.stringify({gu:parsed.filters.districts||[],usage:a.usages||[],
               q:parsed.filters.q||'',maxPrice:a.maxPriceWon||'',dealType:a.dealType||'',sort:'bid',size:60})).catch(()=>null)
             :Promise.resolve(null);
-          const [auctionData,onbidData]=await Promise.all([courtPromise,onbidPromise]);
-          send(response,request,buildCombinedResult(parsed.filters,null,auctionData,onbidData));
+          const [listingSearch,auctionData,onbidData]=await Promise.all([listingPromise,courtPromise,onbidPromise]);
+          send(response,request,buildCombinedResult(parsed.filters,listingSearch,auctionData,onbidData));
         } catch {
           send(response,request,{status:'ready',reply:'경매·공매 자료를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.',
             filters:parsed.filters,chips:[],total:0,groups:[],originTotals:{premium:0,registered:0,disco:0,naver:0,auction:0,onbid:0},station:null,districts:[],suggestions:[],relaxations:[],unsupported:null,searchedAt:null});
