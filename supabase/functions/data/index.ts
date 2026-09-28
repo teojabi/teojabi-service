@@ -208,6 +208,29 @@ Deno.serve(async (request: Request) => {
       const inventory = snaps["inventory-summary"];
       const discoActivity = snaps["disco-activity"];
       const tradeUpdatedAt = discoActivity?.runs?.[0]?.completedAt || inventory?.transactionsUpdatedAt || null;
+      // 건축물대장 표시 대신 경매·공매 보유 물건 수와 최근 수집일을 집계한다.
+      const [auctionRes, onbidRes] = await Promise.all([
+        db.from("auction_item").select("crawled_at", { count: "exact" })
+          .not("court_code", "is", null)
+          .not("usage_name", "ilike", "%아파트%")
+          .not("usage_name", "ilike", "%자동차%")
+          .not("cancelled", "is", true)
+          .not("sale_kind", "eq", "share")
+          .not("is_share", "is", true)
+          .in("deal_type_final", ["whole", "land"])
+          .order("crawled_at", { ascending: false })
+          .limit(1),
+        db.from("onbid_item").select("crawled_at", { count: "exact" })
+          .not("cltr_mng_no", "is", null)
+          .in("deal_type", ["whole", "land"])
+          .order("crawled_at", { ascending: false })
+          .limit(1),
+      ]);
+      const auctionCount = auctionRes.count ?? 0;
+      const onbidCount = onbidRes.count ?? 0;
+      const auctionAt = auctionRes.data?.[0]?.crawled_at || null;
+      const onbidAt = onbidRes.data?.[0]?.crawled_at || null;
+      const auctionUpdatedAt = [auctionAt, onbidAt].filter(Boolean).sort().pop() || null;
       return json({
         mode: "inventory",
         listingTotal: total,
@@ -215,7 +238,7 @@ Deno.serve(async (request: Request) => {
         items: [
           { label: "매물", value: total, unit: "개", updatedAt: data.observedAt || null, note: "현재 검색 가능한 매물 · 선별 구성 갱신일" },
           { label: "실거래", value: inventory?.transactions ?? null, unit: "건", updatedAt: tradeUpdatedAt, note: "보유한 실거래 자료" },
-          { label: "건축물대장", value: inventory?.buildings ?? null, unit: "건", updatedAt: inventory?.buildingsUpdatedAt || null, note: "표제부·총괄표제부 보유 기록 합계" },
+          { label: "경매·공매", value: auctionCount + onbidCount, unit: "건", updatedAt: auctionUpdatedAt, note: "서울 경매·공매 보유 물건(건물 통·토지)" },
         ],
       }, 200, origin);
     }
