@@ -327,7 +327,7 @@ $('#bulk-delete').onclick=async()=>{
   const ids=[...selectedIds];
   if(!ids.length){message('삭제할 매물을 선택해 주세요.');return;}
   if(!confirm(`선택한 ${ids.length}개를 삭제합니다. 되돌릴 수 없어요. 계속할까요?`))return;
-  const items=ids.map(id=>{const row=registered.find(r=>rowId(r)===id)||sources.find(r=>rowId(r)===id);return row?{source_table:row.source_table,source_id:row.source_id}:null;}).filter(Boolean);
+  const items=ids.map(id=>{const row=registered.find(r=>rowId(r)===id)||sources.find(r=>rowId(r)===id);return row?{source_table:row.source_table||row.snapshot?.source_table,source_id:row.source_id||row.snapshot?.source_id}:null;}).filter(i=>i&&i.source_table&&i.source_id);
   if(!items.length){message('삭제할 매물을 찾지 못했어요.',true);return;}
   loading=true;const button=$('#bulk-delete');button.disabled=true;message('선택한 매물을 삭제하고 있어요.');
   try{
