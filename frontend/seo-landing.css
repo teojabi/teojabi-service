@@ -1,3 +1,7 @@
+/* JS가 실행되는 브라우저에서는 프리렌더링 본문을 숨겨 새로고침 시 번뜩임을 막는다.
+   (JS 미실행 크롤러/AI에는 그대로 노출되어 프리렌더링 효과를 유지한다) */
+html.js .seo-page{display:none}
+
 /* 정적 프리렌더링(SEO) 콘텐츠 스타일. JS 실행 전 크롤러·사용자에게 실제로 보이는 본문에 사용한다. */
 .seo-page{max-width:960px;margin:0 auto;padding:44px 24px 56px}
 .seo-page .seo-breadcrumb{display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:13px;color:var(--muted);margin-bottom:22px}
