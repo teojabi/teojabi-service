@@ -3,8 +3,11 @@ import {
   NotFoundException,
   Body,
   Controller,
+  ExecutionContext,
   Get,
+  Injectable,
   Logger,
+  Query,
   Req,
   Res,
   UseGuards,
@@ -13,6 +16,30 @@ import {
 import { AuthGuard } from '@nestjs/passport';
 import { Request, Response } from 'express';
 import { AuthService, SocialAuthPayload } from './auth.service';
+
+@Injectable()
+class KakaoAppAwareGuard extends AuthGuard('kakao') {
+  getAuthenticateOptions(context: ExecutionContext) {
+    const req = context.switchToHttp().getRequest<Request>();
+    return req?.query?.client === 'app' ? { state: 'app' } : undefined;
+  }
+}
+
+@Injectable()
+class NaverAppAwareGuard extends AuthGuard('naver') {
+  getAuthenticateOptions(context: ExecutionContext) {
+    const req = context.switchToHttp().getRequest<Request>();
+    return req?.query?.client === 'app' ? { state: 'app' } : undefined;
+  }
+}
+
+@Injectable()
+class GoogleAppAwareGuard extends AuthGuard('google') {
+  getAuthenticateOptions(context: ExecutionContext) {
+    const req = context.switchToHttp().getRequest<Request>();
+    return req?.query?.client === 'app' ? { state: 'app' } : undefined;
+  }
+}
 
 interface CompleteSocialSignupDto {
   provider?: string;
@@ -54,6 +81,16 @@ export class AuthController {
     return `${frontendUrl}/mypage.html`;
   }
 
+  private isAppRequest(req: Request): boolean {
+    return req?.query?.client === 'app' || req?.query?.state === 'app';
+  }
+
+  private getAppRedirectUrl(params: Record<string, string>): string {
+    const base = process.env.APP_AUTH_REDIRECT_URL || 'teojabi://auth';
+    const search = new URLSearchParams(params).toString();
+    return search ? `${base}?${search}` : base;
+  }
+
   @Get('mock-login')
   async mockLogin(@Res() res: Response) {
     if (process.env.NODE_ENV !== 'test' || process.env.ENABLE_MOCK_LOGIN !== 'true') {
@@ -86,7 +123,7 @@ export class AuthController {
   }
 
   @Get('kakao')
-  @UseGuards(AuthGuard('kakao'))
+  @UseGuards(KakaoAppAwareGuard)
   async kakaoAuth() {
     // Redirects to Kakao
   }
@@ -96,11 +133,11 @@ export class AuthController {
   async kakaoAuthCallback(@Req() req: Request, @Res() res: Response) {
     const socialPayload = req.user as SocialAuthPayload;
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
-    return this.handleSocialCallback(socialPayload, 'kakao', frontendUrl, res);
+    return this.handleSocialCallback(socialPayload, 'kakao', frontendUrl, res, this.isAppRequest(req));
   }
 
   @Get('naver')
-  @UseGuards(AuthGuard('naver'))
+  @UseGuards(NaverAppAwareGuard)
   async naverAuth() {
     // Redirects to Naver
   }
@@ -110,11 +147,11 @@ export class AuthController {
   async naverAuthCallback(@Req() req: Request, @Res() res: Response) {
     const socialPayload = req.user as SocialAuthPayload;
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
-    return this.handleSocialCallback(socialPayload, 'naver', frontendUrl, res);
+    return this.handleSocialCallback(socialPayload, 'naver', frontendUrl, res, this.isAppRequest(req));
   }
 
   @Get('google')
-  @UseGuards(AuthGuard('google'))
+  @UseGuards(GoogleAppAwareGuard)
   async googleAuth() {
     // Redirects to Google
   }
@@ -124,7 +161,7 @@ export class AuthController {
   async googleAuthCallback(@Req() req: Request, @Res() res: Response) {
     const socialPayload = req.user as SocialAuthPayload;
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
-    return this.handleSocialCallback(socialPayload, 'google', frontendUrl, res);
+    return this.handleSocialCallback(socialPayload, 'google', frontendUrl, res, this.isAppRequest(req));
   }
 
   @Get('social/pending-signup-status')
@@ -168,6 +205,7 @@ export class AuthController {
     @Body() body: CompleteSocialSignupDto,
     @Req() req: Request,
     @Res() res: Response,
+    @Query('client') client?: string,
   ) {
     const requestProvider = body.provider ?? req.cookies?.pending_signup_provider;
     const signupToken = body.signupToken ?? req.cookies?.pending_signup_token;
@@ -230,9 +268,12 @@ export class AuthController {
       `[social-signup] complete-signup 완료 userId=${user.id}, isNewUser=${Boolean(user.isNewUser)}, redirectUrl=/mypage.html?is_new=true`,
     );
 
+    const isApp = client === 'app' || req?.headers?.['x-teojabi-client'] === 'app';
+
     return res.json({
       success: true,
       redirectUrl: process.env.TEOJABI_FRONTEND_MODE === 'beta' ? '/index.html' : '/mypage.html?is_new=true',
+      ...(isApp ? { token } : {}),
     });
   }
 
@@ -250,6 +291,7 @@ export class AuthController {
     provider: string,
     frontendUrl: string,
     res: Response,
+    isApp = false,
   ) {
     this.logger.log(
       `[social-signup] 소셜 콜백 수신 provider=${provider}, payloadProvider=${socialPayload.provider}, providerId=${socialPayload.providerId}`,
@@ -259,6 +301,9 @@ export class AuthController {
       this.logger.warn(
         `[social-signup] 소셜 콜백 중단 - 유효하지 않은 식별값 payloadProvider=${socialPayload.provider ?? 'null'}, providerId=${socialPayload.providerId ?? 'null'}`,
       );
+      if (isApp) {
+        return res.redirect(this.getAppRedirectUrl({ error: 'invalid_social_payload' }));
+      }
       return res.redirect(`${frontendUrl}/?authError=invalid_social_payload`);
     }
 
@@ -272,6 +317,10 @@ export class AuthController {
         `[social-signup] 기존 사용자 로그인 처리 userId=${existingUser.id}, provider=${socialPayload.provider}, providerId=${socialPayload.providerId}`,
       );
       const token = await this.authService.generateJwtCookiePayload(existingUser);
+      if (isApp) {
+        this.logger.log(`[social-signup] 앱 로그인 완료 userId=${existingUser.id} (토큰 전달)`);
+        return res.redirect(this.getAppRedirectUrl({ token }));
+      }
       res.cookie('access_token', token, this.getAuthCookieOptions());
       const redirectUrl = this.buildRedirectUrl(existingUser, frontendUrl);
       this.logger.log(
@@ -281,6 +330,10 @@ export class AuthController {
     }
 
     const signupToken = this.authService.generatePendingSocialSignupToken(socialPayload);
+    if (isApp) {
+      this.logger.log(`[social-signup] 앱 신규 사용자 약관동의 이동 provider=${provider}`);
+      return res.redirect(this.getAppRedirectUrl({ signupToken, provider }));
+    }
     res.cookie('pending_signup_token', signupToken, this.getAuthCookieOptions());
     res.cookie('pending_signup_provider', provider, this.getAuthCookieOptions());
     this.logger.log(
