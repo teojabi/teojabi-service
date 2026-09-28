@@ -7,14 +7,14 @@ import { DISTRICTS, toWon } from './policy.mjs';
 import { PURPOSES, purposeLabel, parseAreaRange, normalizeAuction } from './search-options.mjs';
 import { criteriaFields, readCriteriaFields, areaHelp } from './criteria-ui.mjs';
 
-import {readRecentSearch,writeRecentSearch,readMemberSearch,writeMemberSearch} from './recent-search.mjs';
+import {readMemberSearch,writeMemberSearch} from './recent-search.mjs';
 import {BUILD_DEFAULTS,buildCriteriaFields,buildConditionLabels,validateBuildCriteria} from './build-criteria.mjs';
 import {openNotifications,scheduleNotificationBadge,refreshNotificationBadge} from './notifications.mjs';
 import {logEvent} from './events.mjs';
 const app = document.querySelector('#app');
 const emptyAuction=()=>({enabled:false,source:'court',dealType:'',saleKind:'',failMax:'',usages:[],maxPriceEok:'',maxBidRate:''});
 const emptyDraft=()=>({budgetEok:'',districts:[],neighborhoods:[],purpose:null,minArea:'',maxArea:'',areaUnit:'pyeong',zones:[],auction:emptyAuction(),...BUILD_DEFAULTS});
-const state = { screen: 'home', siteDraft:null, parcelSearch:null, draft: emptyDraft(), applied: readRecentSearch(), editing: false, pane: 'list', activity:null, activityError:false, search:null, neighborhoodsOpen:false };
+const state = { screen: 'home', siteDraft:null, parcelSearch:null, draft: emptyDraft(), applied: null, editing: false, pane: 'list', activity:null, activityError:false, search:null, neighborhoodsOpen:false };
 let pendingInitialSource=null;
 // 서비스별 고유 URL(/properties, /auction, /onbid, /new-build)을 SPA 화면으로 연결한다.
 const pathKey=()=>((location.pathname.replace(/\/+$/,'').split('/').pop())||'').replace(/\.html$/,'');
@@ -99,7 +99,7 @@ function activity() {
 function faq() {
   const entries=[
     ['어떤 매물을 찾을 수 있나요?','터잡이가 선별한 매물과 기존 등록 매물을 함께 살펴볼 수 있어요. 찾는 목적과 예산, 지역, 대지면적, 용도지역을 선택해 내 조건에 맞는 매물을 찾아보세요. 가격과 현재 판매 여부는 상담할 때 다시 확인해 주세요.'],
-    ['검색 조건을 바꾸려면 처음부터 다시 해야 하나요?','목록 위에 있는 예산·지역·목적 등의 조건을 누르면 바로 바꿀 수 있어요. 가격 낮은 순·높은 순으로 정렬하고, 목록을 접어 지도를 넓게 볼 수도 있어요. 같은 브라우저에서는 마지막 검색 조건을 기억해요.'],
+    ['검색 조건을 바꾸려면 처음부터 다시 해야 하나요?','목록 위에 있는 예산·지역·목적 등의 조건을 누르면 바로 바꿀 수 있어요. 가격 낮은 순·높은 순으로 정렬하고, 목록을 접어 지도를 넓게 볼 수도 있어요. 로그인하면 저장한 조건을 계정에서 다시 불러와 이어서 볼 수 있어요.'],
     ['매물 가격이 적절한지 어떻게 비교하나요?','매물 상세에서 가까운 필지의 실거래를 최대 5곳까지 확인할 수 있어요. 최근 36개월 거래를 반경 500m부터 찾고, 부족하면 1km까지 넓혀요. 거리순으로 보여주므로 면적이나 건물 상태가 비슷한 사례만 모은 것은 아니에요. 거래일·대지면적·연면적을 함께 비교하고, 각 카드의 지도 보기로 위치를 확인해 보세요.'],
     ['직접 방문하기 전에 무엇을 확인할 수 있나요?','지도와 네이버 거리뷰로 주변 환경을 살펴보고, 보유한 토지대장·건축물대장 자료를 펼쳐볼 수 있어요. 매물에 표시된 면적과 대장에 기록된 면적은 각각의 자료 그대로 보여드려요. 대장 보기는 발급 원본 서류가 아니며, 거리뷰도 촬영 시점의 모습이에요.'],
     ['신축할 땅을 찾을 때 어떤 조건을 볼 수 있나요?','신축 목적을 선택하면 계획한 용도와 도로폭, 교육보호구역·문화재보존구역 제외 조건 등을 고를 수 있어요. 호텔·숙박시설은 관광숙박특화구역 우선 조건도 선택할 수 있어요. 상세에서는 해당 구역과 지구단위계획, 보유한 높이제한 자료 등을 확인할 수 있으며, 실제 건축 가능 여부는 별도 검토가 필요해요.'],
@@ -133,12 +133,11 @@ window.addEventListener('teojabi-open-favorites',()=>{
 let enteredMember=null;
 let completedThisVisit=false;
 function rememberSearch(next){
-  const stored=writeRecentSearch(next);
-  if(member.status==='ready'){
-    writeMemberSearch(member.user,next);
-    member.save('condition','primary',next).catch(()=>{});
-  }
-  return stored;
+  // 비회원(미리보기 포함)은 검색 조건을 저장하지 않는다. 로그인한 회원만 계정에 보관한다.
+  if(member.status!=='ready'||member.base==='preview')return false;
+  writeMemberSearch(member.user,next);
+  member.save('condition','primary',next).catch(()=>{});
+  return true;
 }
 function updateMemberButton(){
   const button=document.querySelector('#member-login');
