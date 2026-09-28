@@ -205,6 +205,7 @@ function editorMarkup(filters) {
   return `<form class="assistant-editor">
     <div class="assistant-editor-row"><span>지역</span><div class="assistant-opts" data-group="districts">${DISTRICTS.map(d => `<button type="button" data-pick="districts" data-value="${esc(d)}" aria-pressed="${(value.districts || []).includes(d)}">${esc(d)}</button>`).join('')}</div></div>
     <div class="assistant-editor-row"><span>유형</span><div class="assistant-opts" data-group="kind">${Object.entries(kindLabel).map(([k, l]) => `<button type="button" data-pick="kind" data-value="${k}" aria-pressed="${value.kind === k}">${l}</button>`).join('')}</div></div>
+    <div class="assistant-editor-row"><span>경매·공매</span><div class="assistant-opts" data-group="auction">${[['off', '포함 안 함'], ['court', '경매(법원)'], ['onbid', '공매(온비드)'], ['both', '둘다']].map(([v, l]) => `<button type="button" data-auction-src="${v}" aria-pressed="${v === 'off' ? !value.auction?.enabled : (value.auction?.enabled && (value.auction?.source || 'court') === v)}">${l}</button>`).join('')}</div></div>
     <div class="assistant-editor-row"><span>용도지역</span><div class="assistant-opts" data-group="zones">${['주거지역', '상업지역', '공업지역', '녹지지역'].map(z => `<button type="button" data-pick="zones" data-value="${z}" aria-pressed="${(value.zones || []).includes(z)}">${z}</button>`).join('')}</div></div>
     <div class="assistant-editor-row"><span>예산</span><div class="assistant-opts">${BUDGET_PRESETS.map(v => `<button type="button" data-num="budgetWon" data-value="${v}" aria-pressed="${budget === v}">${v}억 이하</button>`).join('')}<input type="number" data-num-input="budgetWon" min="1" placeholder="직접(억)" value="${esc(budget)}"></div></div>
     <div class="assistant-editor-row"><span>대지</span><div class="assistant-opts">${AREA_PRESETS.map(v => `<button type="button" data-num="minAreaM2" data-value="${v}" aria-pressed="${minArea === v}">${v}평 이상</button>`).join('')}<input type="number" data-num-input="minAreaM2" min="1" placeholder="직접(평)" value="${esc(minArea)}"></div></div>
@@ -482,6 +483,14 @@ export function mountAssistant({ onResults, onAnalyze } = {}) {
     // 슬롯 내용이 매번 교체되므로 이벤트는 슬롯 한 곳에서 위임해 처리한다.
     slot.addEventListener('click', event => {
       if (event.target.closest('[data-editor-cancel]')) { slot.hidden = true; slot.innerHTML = ''; return; }
+      const asrc = event.target.closest('[data-auction-src]');
+      if (asrc) {
+        const v = asrc.dataset.auctionSrc;
+        if (v === 'off') delete lastFilters.auction;
+        else lastFilters.auction = { ...(lastFilters.auction || {}), enabled: true, source: v };
+        openEditorUi();
+        return;
+      }
       const pick = event.target.closest('[data-pick]');
       if (pick) {
         const key = pick.dataset.pick, value = pick.dataset.value;
@@ -542,7 +551,7 @@ export function mountAssistant({ onResults, onAnalyze } = {}) {
     selectedListing = null;
     // 실제 매물 조건을 말했을 때만 검색 로딩을 보여준다. 인사·사이트 질문은 바로 답한다.
     const showScan = message ? needsSearch(message) : true;
-    const isAuctionQuery = /경매|공매|법원|온비드/.test(String(message||'')) || editedFilters?.auction?.enabled === true;
+    const isAuctionQuery = /경매|공매|법원|온비드/.test(String(message||''));
     const steps = isAuctionQuery ? AUCTION_STEPS : STEPS;
     const scanTitle = isAuctionQuery ? 'AI가 경매·공매 물건을 살펴보는 중…' : 'AI 공간 분석 중…';
     const started = Date.now();
