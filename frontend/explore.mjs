@@ -746,7 +746,10 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     if(onbidMode&&od){
       const appr=Array.isArray(od.appraisal)?od.appraisal:[],leases=Array.isArray(od.leases)?od.leases:[],registry=Array.isArray(od.registry)?od.registry:[],occupancy=Array.isArray(od.occupancy)?od.occupancy:[];
       const apprHtml=appr.length?`<details class="auction-rounds"><summary>감정평가정보 ${appr.length}건</summary><ul>${appr.map(p=>`<li>${esc([p.apslEvlYmd,p.apslEvlOrgNm,p.apslApprNm].filter(Boolean).join(' · '))}${p.apslEvlAmt!=null?` · ${money(p.apslEvlAmt)}`:''}</li>`).join('')}</ul></details>`:'';
-      onbidDetailSection=`<section class="detail-section" id="property-onbid"><h3>온비드 상세 <small>한국자산관리공사 공시</small></h3><dl class="auction-facts"><dt>도로명주소</dt><dd>${esc(od.road_address||'미기재')}</dd><dt>지번주소</dt><dd>${esc(od.obj_address||'미기재')}</dd><dt>임대차</dt><dd>${leases.length}건</dd><dt>등기</dt><dd>${registry.length}건</dd><dt>점유</dt><dd>${occupancy.length}건</dd></dl>${apprHtml}${od.share_text?`<p class="case-note chk">지분 관련: ${esc(od.share_text)}</p>`:''}${od.remark?`<p class="case-note"><b>기타 유의</b> ${esc(od.remark)}</p>`:''}<p class="case-note">임대차·등기·점유 항목은 요약 건수예요. 세부 내용은 온비드 공고 원문에서 확인하세요.</p></section>`;
+      const results=Array.isArray(detail.onbidResults)?detail.onbidResults:[];
+      const fmtOpbd=v=>String(v||'').replace(/(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})/,'$1-$2-$3 $4:$5');
+      const resultHtml=results.length?`<details class="auction-rounds" open><summary>입찰결과 ${results.length}회차</summary><ul>${results.map(r=>{const st=esc(r.pbct_stat_nm||'미상');const won=r.scfb_amt?` · 낙찰 ${money(r.scfb_amt)}${r.scfb_rate!=null?` (감정가의 ${r.scfb_rate}%)`:''} ${r.scfb_rate_low!=null?`(최저가의 ${r.scfb_rate_low}%)`:''}`:'';return `<li><b>${esc(r.pbct_nsq)}회</b> · ${st}${won} · 최저 ${money(r.lowst_bid_prc)} · 응찰 ${r.bidder_cnt??0}명 · ${esc(fmtOpbd(r.opbd_dt))}</li>`;}).join('')}</ul><small>온비드 입찰결과 공시 기준이에요. 낙찰가율은 감정가·최저가 대비 계산값이에요.</small></details>`:'';
+      onbidDetailSection=`<section class="detail-section" id="property-onbid"><h3>온비드 상세 <small>한국자산관리공사 공시</small></h3><dl class="auction-facts"><dt>도로명주소</dt><dd>${esc(od.road_address||'미기재')}</dd><dt>지번주소</dt><dd>${esc(od.obj_address||'미기재')}</dd><dt>임대차</dt><dd>${leases.length}건</dd><dt>등기</dt><dd>${registry.length}건</dd><dt>점유</dt><dd>${occupancy.length}건</dd></dl>${apprHtml}${resultHtml}${od.share_text?`<p class="case-note chk">지분 관련: ${esc(od.share_text)}</p>`:''}${od.remark?`<p class="case-note"><b>기타 유의</b> ${esc(od.remark)}</p>`:''}<p class="case-note">임대차·등기·점유 항목은 요약 건수예요. 세부 내용은 온비드 공고 원문에서 확인하세요.</p></section>`;
     }
     const v=row.verify||null,wb=(row.dealType==='whole'&&v)?v.building:null,wl=v&&v.land||null;
     const fa=n=>n==null?'—':`${Number(n).toLocaleString('ko-KR',{maximumFractionDigits:2})}㎡`;
@@ -850,7 +853,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
       const data=await response.json();
       if(response.status===404||!data||data.status!=='ready')throw new Error('Missing onbid');
       if(disposed||current!==detailVersion)return;
-      detail={listing:onbidToListing(data.item),auctionDetail:data.detail||null,onbidDetail:data.detail||null};
+      detail={listing:onbidToListing(data.item),auctionDetail:data.detail||null,onbidDetail:data.detail||null,onbidResults:Array.isArray(data.results)?data.results:[]};
       renderAuctionDetail();
       closeRecords=mountBuildingRecords($('#building-records'),$('#building-records-toggle'),detail.listing);
       closeLand=mountLandRecords($('#land-area-comparison'),$('#land-records'),$('#land-records-toggle'),detail.listing);
