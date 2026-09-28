@@ -190,11 +190,10 @@ function syncAssistant(){
 }
 function home() {
   return `<section class="home"><div class="intro"><div><span class="eyebrow">YOUR NEXT PLACE, TEOJABI</span><h1>서울 건물·토지,<br>찾는 것부터 신축 검토까지</h1></div><div class="intro-brand"><span class="home-symbol" role="img" aria-label="터잡이 로고마크"></span><p class="lead">원하는 공간을 찾는 일도,<br> 내 공간을 다시 바라보는 일도.<br> 터잡이에서 차근차근 시작하세요.</p></div></div>
-    <p class="home-definition">터잡이는 서울 상업용 건물·토지의 일반매물, 경매·공매를 탐색하고 신축 가능성을 사전 검토하는 부동산 플랫폼입니다. 용적률·건폐율·높이 등 토지별 건축 조건을 분석하고, 사용자의 관심 조건에 맞는 물건을 찾을 수 있도록 돕습니다.</p>
     <button type="button" class="assistant-banner" data-action="assistant" aria-label="AI 부동산 비서 열기"><span class="assistant-banner-icon" aria-hidden="true">${ASSISTANT_ROBOT}</span><span class="assistant-banner-main"><span class="assistant-banner-text"><b>AI와 함께 맞춤 설정하고<br>매물을 찾아보세요.</b></span><span class="assistant-banner-cta">시작하기 <span class="circle">${arrow}</span></span></span><small class="assistant-banner-desc">"종로구 상업지역 100억 이하 도로 6m" 처럼 편하게 물어보세요.</small></button>
     <section class="activity-section" id="market-activity" aria-label="보유 자료 현황" aria-live="polite">${activity()}</section>
-    <div class="entry-grid"><button class="entry entry-primary" data-action="find"><span class="entry-tag">FIND YOUR BUILDING</span><h2>마음에 드는<br>건물을 찾고 싶어요.</h2><p>목적과 예산, 원하는 지역부터 알려주세요.</p><span class="entry-cta">건물 찾기 시작 <span class="circle">${arrow}</span></span>${buildingArt}</button>
-    <button class="entry entry-secondary" data-action="analyze"><span class="entry-tag">UNDERSTAND YOUR PLACE</span><h2>건물과 토지를<br>살펴보고 싶어요.</h2><p>신축할 필지의 현황과 확인할 자료를 함께 봐요.</p><span class="entry-cta">신축 검토 시작 <span class="circle">${arrow}</span></span>${parcelArt}</button></div>
+    <div class="entry-grid"><button class="entry entry-primary" data-action="find"><span class="entry-tag">FIND YOUR BUILDING</span><h2>마음에 드는<br>건물을 찾고 싶어요.</h2><p>목적과 예산, 원하는 지역부터 알려주세요.<br>경매·공매 물건을 함께 찾아드립니다.</p><span class="entry-cta">건물 찾기 시작 <span class="circle">${arrow}</span></span>${buildingArt}</button>
+    <button class="entry entry-secondary" data-action="analyze"><span class="entry-tag">UNDERSTAND YOUR PLACE</span><h2>건물과 토지를<br>살펴보고 싶어요.</h2><p>신축할 필지의 현황과 확인할 자료를 함께 봐요.<br>지구단위계획구역이면 기준 용적률·건폐율·높이 제한까지 함께 확인해요.</p><span class="entry-cta">신축 검토 시작 <span class="circle">${arrow}</span></span>${parcelArt}</button></div>
     <div class="home-browse"><p class="home-note"><span>i</span>확인된 정보로 살펴보고, 확인이 필요한 부분은 구분해 알려드려요.</p><button class="outline" data-action="browse">터잡이 선별 매물 둘러보기 ↗</button><button class="outline" data-action="preview-member">내 보관함 미리보기</button></div>
     ${homeAbout()}
     ${faq()}</section>`;
@@ -202,7 +201,7 @@ function home() {
 
 function homeAbout() {
   return `<section class="home-about" aria-labelledby="home-about-title"><h2 id="home-about-title">터잡이는 어떤 서비스인가요?</h2>
-    <p>터잡이는 서울의 상업용 건물과 토지를 찾고 신축 가능성을 검토할 수 있는 부동산 플랫폼입니다. 중개사 등이 제공한 일반매물과 경매·공매 물건을 탐색하고, 터잡이가 구축한 토지·건축 데이터를 이용해 신축 조건을 사전 분석합니다.</p>
+    <p>터잡이는 서울 상업용 건물·토지의 일반매물, 경매·공매를 탐색하고 신축 가능성을 사전 검토하는 부동산 플랫폼입니다. 중개사 등이 제공한 일반매물과 경매·공매 물건을 한곳에서 살펴보고, 터잡이가 구축한 토지·건축 데이터를 이용해 용적률·건폐율·높이 등 토지별 건축 조건을 분석합니다. 사용자의 관심 조건에 맞는 물건을 찾고, 검토할 만한 후보를 좁힐 수 있도록 돕습니다.</p>
     <h3>신축분석에서는 무엇을 확인하나요?</h3>
     <p>주소와 필지를 기준으로 용도지역, 지구단위계획, 용적률, 건폐율, 높이 등 확인 가능한 건축 조건을 검토합니다. 실제 건축 가능 규모는 도로, 주차, 건축선, 개별 법령 및 인허가 조건에 따라 달라질 수 있습니다.</p>
     <h3>어떤 물건을 볼 수 있나요?</h3>
