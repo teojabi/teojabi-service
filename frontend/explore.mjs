@@ -380,7 +380,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     loadTimer=setTimeout(()=>load(),300);
   }});updateCriteria();
   syncAuctionFiltersFromCondition();mountAuctionUi();
-  const map=new ListingMap($('#map-host'),{areaUnit:getAreaDisplayUnit(),onSelect:id=>openDetail(id),onMapClick:coord=>{if(matchMedia('(max-width:700px)').matches)setSheet(false);window.dispatchEvent(new CustomEvent('teojabi-map-click'));if(coord&&matchMedia('(min-width:701px)').matches)selectParcelAt(coord.lat,coord.lng);},onTransaction:id=>{
+  const map=new ListingMap($('#map-host'),{areaUnit:getAreaDisplayUnit(),onSelect:id=>openDetail(id),onMapClick:coord=>{if(matchMedia('(max-width:700px)').matches){setSheet(false);const popup=$('#commercial-popup');if(popup&&!popup.hidden)popup.hidden=true;}window.dispatchEvent(new CustomEvent('teojabi-map-click'));if(coord&&matchMedia('(min-width:701px)').matches)selectParcelAt(coord.lat,coord.lng);},onTransaction:id=>{
     setSheet(true);
     $('.explore-board').classList.remove('transaction-map-open');
     const card=root.querySelector(`[data-transaction-id="${CSS.escape(id)}"]`);
