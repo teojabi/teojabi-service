@@ -1,3 +1,7 @@
 User-agent: *
 Allow: /
+Disallow: /mypage/
+Disallow: /admin/
+Disallow: /favorites/
+Disallow: /api/
 Sitemap: https://teojabi.com/sitemap.xml

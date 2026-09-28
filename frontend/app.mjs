@@ -15,6 +15,21 @@ const app = document.querySelector('#app');
 const emptyAuction=()=>({enabled:false,source:'court',dealType:'',saleKind:'',failMax:'',usages:[],maxPriceEok:'',maxBidRate:''});
 const emptyDraft=()=>({budgetEok:'',districts:[],neighborhoods:[],purpose:null,minArea:'',maxArea:'',areaUnit:'pyeong',zones:[],auction:emptyAuction(),...BUILD_DEFAULTS});
 const state = { screen: 'home', siteDraft:null, parcelSearch:null, draft: emptyDraft(), applied: readRecentSearch(), editing: false, pane: 'list', activity:null, activityError:false, search:null, neighborhoodsOpen:false };
+let pendingInitialSource=null;
+// 서비스별 고유 URL(/properties, /auction, /onbid, /new-build)을 SPA 화면으로 연결한다.
+const pathKey=()=>((location.pathname.replace(/\/+$/,'').split('/').pop())||'').replace(/\.html$/,'');
+function screenTitle(screen){
+  const key=pathKey();
+  if(screen==='home')return '터잡이 | 서울 건물·토지 매물, 경매·공매 신축분석';
+  if(screen==='results'){
+    if(key==='auction')return '서울 건물·토지 경매와 신축분석 | 터잡이';
+    if(key==='onbid')return '서울 건물·토지 공매와 신축분석 | 터잡이';
+    if(key==='properties'||key==='search'||key==='gallery')return '서울 상업용 건물·토지 매물 찾기 | 터잡이';
+    return '조건에 맞는 매물 찾기 | 터잡이';
+  }
+  if(screen==='analyze')return '건물·토지 신축 가능성 분석 | 터잡이';
+  return ({purpose:'건물 찾는 목적 | 터잡이','build-use':'개발 용도·부지 조건 | 터잡이',budget:'매입 예산 선택 | 터잡이',region:'관심 지역 선택 | 터잡이'})[screen] || '터잡이';
+}
 const appliedAuctionDraft=auction=>auction?{enabled:auction.enabled===true,source:auction.source||'court',dealType:auction.dealType||'',saleKind:auction.saleKind||'',failMax:auction.failMax??'',usages:Array.isArray(auction.usages)?[...auction.usages]:[],maxPriceEok:auction.maxPriceWon?String(auction.maxPriceWon/1e8):'',maxBidRate:auction.maxBidRate??''}:emptyAuction();
 const appliedDraft=()=>state.applied?{...emptyDraft(),...state.applied,budgetEok:state.applied.budgetWon?String(state.applied.budgetWon/1e8):'',districts:[...state.applied.districts],zones:[...state.applied.zones],auction:appliedAuctionDraft(state.applied.auction)}:emptyDraft();
 let disposeExplorer;
@@ -173,13 +188,25 @@ function syncAssistant(){
   else assistantControls?.close?.();
 }
 function home() {
-  return `<section class="home"><div class="intro"><div><span class="eyebrow">YOUR NEXT PLACE, TEOJABI</span><h1>미래의 건물,<br>찾는 기준부터.</h1></div><div class="intro-brand"><span class="home-symbol" role="img" aria-label="터잡이 로고마크"></span><p class="lead">원하는 공간을 찾는 일도,<br> 내 공간을 다시 바라보는 일도.<br> 터잡이에서 차근차근 시작하세요.</p></div></div>
+  return `<section class="home"><div class="intro"><div><span class="eyebrow">YOUR NEXT PLACE, TEOJABI</span><h1>서울 건물·토지,<br>찾는 것부터 신축 검토까지</h1></div><div class="intro-brand"><span class="home-symbol" role="img" aria-label="터잡이 로고마크"></span><p class="lead">원하는 공간을 찾는 일도,<br> 내 공간을 다시 바라보는 일도.<br> 터잡이에서 차근차근 시작하세요.</p></div></div>
+    <p class="home-definition">터잡이는 서울 상업용 건물·토지의 일반매물, 경매·공매를 탐색하고 신축 가능성을 사전 검토하는 부동산 플랫폼입니다. 용적률·건폐율·높이 등 토지별 건축 조건을 분석하고, 사용자의 관심 조건에 맞는 물건을 찾을 수 있도록 돕습니다.</p>
     <button type="button" class="assistant-banner" data-action="assistant" aria-label="AI 부동산 비서 열기"><span class="assistant-banner-icon" aria-hidden="true">${ASSISTANT_ROBOT}</span><span class="assistant-banner-main"><span class="assistant-banner-text"><b>AI와 함께 맞춤 설정하고<br>매물을 찾아보세요.</b></span><span class="assistant-banner-cta">시작하기 <span class="circle">${arrow}</span></span></span><small class="assistant-banner-desc">"종로구 상업지역 100억 이하 도로 6m" 처럼 편하게 물어보세요.</small></button>
     <section class="activity-section" id="market-activity" aria-label="보유 자료 현황" aria-live="polite">${activity()}</section>
     <div class="entry-grid"><button class="entry entry-primary" data-action="find"><span class="entry-tag">FIND YOUR BUILDING</span><h2>마음에 드는<br>건물을 찾고 싶어요.</h2><p>목적과 예산, 원하는 지역부터 알려주세요.</p><span class="entry-cta">건물 찾기 시작 <span class="circle">${arrow}</span></span>${buildingArt}</button>
     <button class="entry entry-secondary" data-action="analyze"><span class="entry-tag">UNDERSTAND YOUR PLACE</span><h2>건물과 토지를<br>살펴보고 싶어요.</h2><p>신축할 필지의 현황과 확인할 자료를 함께 봐요.</p><span class="entry-cta">신축 검토 시작 <span class="circle">${arrow}</span></span>${parcelArt}</button></div>
     <div class="home-browse"><p class="home-note"><span>i</span>확인된 정보로 살펴보고, 확인이 필요한 부분은 구분해 알려드려요.</p><button class="outline" data-action="browse">터잡이 선별 매물 둘러보기 ↗</button><button class="outline" data-action="preview-member">내 보관함 미리보기</button></div>
+    ${homeAbout()}
     ${faq()}</section>`;
+}
+
+function homeAbout() {
+  return `<section class="home-about" aria-labelledby="home-about-title"><h2 id="home-about-title">터잡이는 어떤 서비스인가요?</h2>
+    <p>터잡이는 서울의 상업용 건물과 토지를 찾고 신축 가능성을 검토할 수 있는 부동산 플랫폼입니다. 중개사 등이 제공한 일반매물과 경매·공매 물건을 탐색하고, 터잡이가 구축한 토지·건축 데이터를 이용해 신축 조건을 사전 분석합니다.</p>
+    <h3>신축분석에서는 무엇을 확인하나요?</h3>
+    <p>주소와 필지를 기준으로 용도지역, 지구단위계획, 용적률, 건폐율, 높이 등 확인 가능한 건축 조건을 검토합니다. 실제 건축 가능 규모는 도로, 주차, 건축선, 개별 법령 및 인허가 조건에 따라 달라질 수 있습니다.</p>
+    <h3>어떤 물건을 볼 수 있나요?</h3>
+    <p>서울의 상업용 건물·토지 일반매물과 경매·공매 물건을 제공합니다. 일반매물은 등록 또는 이용권한이 확인된 제공 경로를 통해 확보하고, 공매 등은 이용 가능한 공식·공공 데이터를 활용합니다.</p>
+    <p>서비스 정의와 데이터·분석 기준은 <a href="./about">터잡이 소개</a>에서 확인할 수 있어요.</p></section>`;
 }
 
 function purpose() {
@@ -214,8 +241,8 @@ function render(focus = true) {
     app.innerHTML='<section class="screen-loading" aria-live="polite"><span></span><p>매물과 지도를 불러오고 있어요.</p></section>';
     loadExplorer().then(({mountExplorer})=>{
       if(version!==renderVersion||state.screen!=='results')return;
-      const assistant=assistantPayload,openId=assistantOpenId;assistantPayload=null;assistantOpenId=null;const picksOnly=Boolean(state.picksOnly);state.picksOnly=false;
-      disposeExplorer=mountExplorer(app,{conditions:state.applied,picksOnly,assistant:assistant||undefined,initialSource:location.hash==='#favorites'?'favorites':location.hash==='#auction'?'auction':undefined,initialId:openId||new URLSearchParams(location.hash.slice(1)).get('listing'),initialParcel:state.parcelSearch,onParcelChange:p=>{state.parcelSearch=p;},onAnalyze:listing=>{if(state.siteDraft?.listingId!==listing.id)state.siteDraft=createSiteDraft(listing);state.screen='analyze';history.pushState({screen:'analyze'},'','#analyze');render();},onConditionsChange:next=>{state.applied=next;if(!new URLSearchParams(location.hash.slice(1)).has('listing'))history.replaceState(null,'',location.pathname+'#search');return rememberSearch(next);},onEdit:()=>{
+      const assistant=assistantPayload,openId=assistantOpenId;assistantPayload=null;assistantOpenId=null;const picksOnly=Boolean(state.picksOnly);state.picksOnly=false;const initialSource=location.hash==='#favorites'?'favorites':location.hash==='#auction'?'auction':(pendingInitialSource||undefined);pendingInitialSource=null;const initialHeading=(()=>{const k=pathKey();return k==='properties'||k==='search'?'서울 상업용 건물·토지 매물을 찾아보세요':k==='auction'?'신축을 검토할 만한 서울 경매 물건을 찾아보세요':k==='onbid'?'신축 가능성까지 검토한 서울 공매 물건을 찾아보세요':undefined;})();
+      disposeExplorer=mountExplorer(app,{conditions:state.applied,picksOnly,assistant:assistant||undefined,initialSource,initialHeading,initialId:openId||new URLSearchParams(location.hash.slice(1)).get('listing'),initialParcel:state.parcelSearch,onParcelChange:p=>{state.parcelSearch=p;},onAnalyze:listing=>{if(state.siteDraft?.listingId!==listing.id)state.siteDraft=createSiteDraft(listing);state.screen='analyze';history.pushState({screen:'analyze'},'','#analyze');render();},onConditionsChange:next=>{state.applied=next;if(!new URLSearchParams(location.hash.slice(1)).has('listing'))history.replaceState(null,'',location.pathname+'#search');return rememberSearch(next);},onEdit:()=>{
         state.draft=appliedDraft();
         state.editing=Boolean(state.applied);state.screen='purpose';render();
       }});
@@ -232,7 +259,7 @@ function render(focus = true) {
   if(state.screen==='region')ensureNeighborhoods();
   if(state.screen==='region'&&state.draft.purpose==='new-build')app.querySelector('.selected-summary').insertAdjacentHTML('afterend',`<p class="build-applied-summary">${escape(buildConditionLabels(state.draft).join(' · ')||'신축 추가 조건 없음')}</p>`);
   }
-  document.title = ({home:'터잡이 | 건물·토지 매물 찾기와 개발 검토',purpose:'건물 찾는 목적 | 터잡이','build-use':'개발 용도·부지 조건 | 터잡이',budget:'매입 예산 선택 | 터잡이',region:'관심 지역 선택 | 터잡이',results:'조건에 맞는 매물 찾기 | 터잡이',analyze:'필지 개발 검토 | 터잡이'})[state.screen] || '터잡이';
+  document.title = screenTitle(state.screen);
   for(const selector of ['meta[property="og:title"]','meta[name="twitter:title"]'])document.querySelector(selector)?.setAttribute('content',document.title);
   if(state.screen==='home'&&!state.activity&&!state.activityError)loadActivity();
   if (focus) {
@@ -358,9 +385,19 @@ app.addEventListener('keydown', event => {
   render(false);
   app.querySelector('#neighborhood-input')?.focus();
 });
+routeFromPath();
 render(false);
 // 지역 단계에서 바로 쓸 수 있도록 구·동 목록을 미리 받아둔다.
 ensureNeighborhoods();
+function routeFromPath(){
+  const key=pathKey();
+  if(key==='properties'||key==='search'){state.applied=null;state.screen='results';return true;}
+  if(key==='gallery'){state.applied=null;state.screen='results';state.picksOnly=true;return true;}
+  if(key==='auction'){state.applied=null;state.screen='results';pendingInitialSource='auction';return true;}
+  if(key==='onbid'){state.applied=null;state.screen='results';pendingInitialSource='onbid';return true;}
+  if(key==='new-build'||key==='analyze'){state.siteDraft??=createSiteDraft();state.screen='analyze';return true;}
+  return false;
+}
 function routeFromHash(){
   const h=location.hash;
   if(new URLSearchParams(h.slice(1)).has('listing')||h==='#search'||h==='#favorites'||h==='#assistant'||h==='#auction'){state.screen='results';render(false);return true;}

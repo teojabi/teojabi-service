@@ -7,31 +7,66 @@
   <script>(()=>{const key='teojabi.theme.v1';let mode='light';try{if(localStorage.getItem(key)==='dark')mode='dark';}catch{}const apply=()=>{document.documentElement.dataset.theme=mode;document.querySelector('meta[name="theme-color"]')?.setAttribute('content',mode==='dark'?'#080F21':'#F7F8FA');const button=document.querySelector('#theme-toggle');if(button){button.textContent=mode==='dark'?'☀':'☾';button.setAttribute('aria-pressed',String(mode==='dark'));button.setAttribute('aria-label',mode==='dark'?'라이트 모드로 전환':'다크 모드로 전환');button.title=button.getAttribute('aria-label');}window.dispatchEvent(new CustomEvent('teojabi-theme',{detail:mode}));};apply();document.addEventListener('DOMContentLoaded',()=>{apply();document.querySelector('#theme-toggle')?.addEventListener('click',()=>{mode=mode==='dark'?'light':'dark';try{localStorage.setItem(key,mode);}catch{}apply();});});window.addEventListener('storage',event=>{if(event.key===key){mode=event.newValue==='dark'?'dark':'light';apply();}});})();</script>
   <link rel="preconnect" href="https://oapi.map.naver.com" crossorigin>
   <link rel="preconnect" href="https://openapi.map.naver.com" crossorigin>
-  <title>터잡이 | 건물·토지 매물 찾기와 개발 검토</title>
+  <title>터잡이 | 서울 건물·토지 매물, 경매·공매 신축분석</title>
   <link rel="stylesheet" href="./styles.css?v=20260915-site-map">
   <link rel="stylesheet" href="./theme.css?v=20260915-site-map">
+  <link rel="stylesheet" href="./seo-landing.css">
   <link rel="icon" href="./assets/favicon.ico">
 
-<meta name="description" content="목적과 예산에 맞는 건물·토지 매물을 지도에서 찾고 주변 실거래와 공공자료로 비교하세요. 선택한 필지의 대장·구역 정보와 예상 공사비도 살펴볼 수 있습니다.">
+<meta name="description" content="서울 상업용 건물·토지의 일반매물, 경매·공매를 한곳에서 탐색하세요. 터잡이가 용적률·건폐율·높이 등 신축 조건을 사전 분석하고 검토할 만한 물건을 찾아드립니다.">
 <link rel="canonical" href="https://teojabi.com/">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="터잡이">
 <meta property="og:locale" content="ko_KR">
-<meta property="og:title" content="터잡이 | 건물·토지 매물 찾기와 개발 검토">
-<meta property="og:description" content="목적과 예산에 맞는 건물·토지 매물을 지도에서 찾고 주변 실거래와 공공자료로 비교하세요. 선택한 필지의 대장·구역 정보와 예상 공사비도 살펴볼 수 있습니다.">
+<meta property="og:title" content="터잡이 | 서울 건물·토지 매물, 경매·공매 신축분석">
+<meta property="og:description" content="서울 상업용 건물·토지의 일반매물, 경매·공매를 탐색하고 신축 가능성을 사전 검토하세요.">
 <meta property="og:url" content="https://teojabi.com/">
 <meta name="twitter:card" content="summary">
-<meta name="twitter:title" content="터잡이 | 건물·토지 매물 찾기와 개발 검토">
-<meta name="twitter:description" content="목적과 예산에 맞는 건물·토지 매물을 지도에서 찾고 주변 실거래와 공공자료로 비교하세요. 선택한 필지의 대장·구역 정보와 예상 공사비도 살펴볼 수 있습니다.">
+<meta name="twitter:title" content="터잡이 | 서울 건물·토지 매물, 경매·공매 신축분석">
+<meta name="twitter:description" content="서울 상업용 건물·토지의 일반매물, 경매·공매를 탐색하고 신축 가능성을 사전 검토하세요.">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"Organization","name":"터잡이","alternateName":"TEOJABI","url":"https://teojabi.com","logo":"https://teojabi.com/assets/logo.png","description":"서울 상업용 건물·토지의 일반매물, 경매·공매 탐색과 신축 사전분석을 제공하는 부동산 플랫폼","email":"teojabi@gmail.com","telephone":"070-8919-4609","address":{"@type":"PostalAddress","addressCountry":"KR","addressRegion":"경기도","addressLocality":"광주시","streetAddress":"머루숯길 22, C-101"}}
+</script>
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"WebSite","name":"터잡이","url":"https://teojabi.com","inLanguage":"ko-KR","description":"서울 상업용 건물·토지의 일반매물, 경매·공매를 탐색하고 신축 가능성을 사전 검토하는 부동산 플랫폼"}
+</script>
 </head>
 <body>
   <header class="header">
     <button class="brand" data-action="home" aria-label="터잡이 시작 화면"><img src="./assets/logo.png" alt="터잡이" width="244" height="119"><span>BETA</span></button>
-    <nav aria-label="주요 메뉴"><button data-action="find">건물 찾기</button><button data-action="analyze">신축 검토</button><a href="./index.html#auction">경매</a></nav>
+    <nav aria-label="주요 메뉴"><button data-action="find">건물 찾기</button><button data-action="analyze">신축 검토</button><a href="./auction">경매</a></nav>
     <div class="header-actions"><button type="button" data-action="notifications" id="notif-button" class="notif-button" aria-label="알림" title="알림"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg><span class="notif-badge" id="notif-badge" hidden></span></button><button type="button" data-action="login" id="member-login">로그인·회원가입</button><button type="button" data-action="saved">내 보관함</button><button id="theme-toggle" class="theme-icon-button" type="button" aria-label="다크 모드로 전환" aria-pressed="false" title="다크 모드로 전환">☾</button></div>
   </header>
-  <main id="app"></main>
+  <main id="app">
+    <section class="seo-page home-seo">
+      <span class="eyebrow">YOUR NEXT PLACE, TEOJABI</span>
+      <h1>서울 건물·토지, 찾는 것부터 신축 검토까지</h1>
+      <p class="seo-lede">터잡이는 서울 상업용 건물·토지의 일반매물, 경매·공매를 탐색하고 신축 가능성을 사전 검토하는 부동산 플랫폼입니다. 용적률·건폐율·높이 등 토지별 건축 조건을 분석하고, 사용자의 관심 조건에 맞는 물건을 찾을 수 있도록 돕습니다.</p>
+      <nav class="seo-actions" aria-label="주요 서비스 바로가기">
+        <a class="seo-button" href="./properties">일반매물 찾기</a>
+        <a class="seo-button" href="./auction">경매 물건 보기</a>
+        <a class="seo-button" href="./onbid">공매 물건 보기</a>
+        <a class="seo-button" href="./new-build">신축 가능성 분석</a>
+      </nav>
+      <section class="seo-block" aria-labelledby="home-what">
+        <h2 id="home-what">터잡이는 어떤 서비스인가요?</h2>
+        <p>터잡이는 서울의 상업용 건물과 토지를 찾고 신축 가능성을 검토할 수 있는 부동산 플랫폼입니다. 중개사 등이 제공한 일반매물과 경매·공매 물건을 탐색하고, 터잡이가 구축한 토지·건축 데이터를 이용해 신축 조건을 사전 분석합니다.</p>
+        <h3>신축분석에서는 무엇을 확인하나요?</h3>
+        <p>주소와 필지를 기준으로 용도지역, 지구단위계획, 용적률, 건폐율, 높이 등 확인 가능한 건축 조건을 검토합니다. 실제 건축 가능 규모는 도로, 주차, 건축선, 개별 법령 및 인허가 조건에 따라 달라질 수 있습니다.</p>
+        <h3>어떤 물건을 볼 수 있나요?</h3>
+        <p>서울의 상업용 건물·토지 일반매물과 경매·공매 물건을 제공합니다. 일반매물은 등록 또는 이용권한이 확인된 제공 경로를 통해 확보하고, 공매 등은 이용 가능한 공식·공공 데이터를 활용합니다.</p>
+      </section>
+      <p class="seo-note">서비스 정의와 데이터·분석 기준은 <a href="./about">터잡이 소개</a>에서 확인할 수 있습니다.</p>
+    </section>
+  </main>
   <footer class="service-footer">
+    <nav class="footer-services" aria-label="주요 서비스">
+      <a href="./properties">일반매물</a>
+      <a href="./auction">경매</a>
+      <a href="./onbid">공매</a>
+      <a href="./new-build">신축분석</a>
+      <a href="./about">터잡이 소개</a>
+    </nav>
     <nav class="footer-policy" aria-label="이용 정책 및 사업자 정보">
       <a href="./terms.html">이용약관</a>
       <a class="privacy-link" href="./privacy.html">개인정보처리방침</a>
@@ -44,5 +79,3 @@
   <script type="module" src="./app.mjs?v=20260916-auto-ratios-3"></script>
 </body>
 </html>
-
-
