@@ -206,20 +206,22 @@ const onbidGroups=rows=>{
   return [...map.values()];
 };
 
-export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnalyze,initialId,initialSource,assistant,picksOnly,initialParcel,onParcelChange}={}) {
+export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnalyze,initialId,initialSource,initialHeading,assistant,picksOnly,initialParcel,onParcelChange}={}) {
   document.body.classList.add('map-results-open');
   const picksOnlyMode=Boolean(picksOnly);
   const abort=new AbortController();let disposed=false,version=0,detailVersion=0,closeStreet,closeStreetPreview,closeContext,closeRecords,closeLand,closeCommercial,closeSurrounding;
   let result=null,selected=null,detail=null,parcel=null,limit=5,bounds=conditions?.bounds||null,query='',sort=conditions?.sort==='price-desc'?'price-desc':'price',mapView=null;
   let assistantResult=assistant&&Array.isArray(assistant.groups)?assistant:null;
-  let source=assistantResult?'assistant':initialSource==='favorites'?'favorites':initialSource==='auction'?'auction':'conditions';
+  let source=assistantResult?'assistant':initialSource==='favorites'?'favorites':(initialSource==='auction'||initialSource==='onbid')?'auction':'conditions';
   const conditionAuction=conditions?.auction||null;
   let auctionFilters={listingSource:'court',query:'',gu:[...(conditions?.districts||[])],usage:(conditionAuction?.usages||[])[0]||'',dealType:'',saleKind:conditionAuction?.saleKind||'',risk:[],kind:'',sort:'sale',maxPrice:conditionAuction?.maxPriceWon?String(conditionAuction.maxPriceWon/1e8):'',maxBidRate:conditionAuction?.maxBidRate!=null?String(conditionAuction.maxBidRate):'',failMax:''};
   if(source==='auction')limit=100;
+  if(initialSource==='onbid')auctionFilters.listingSource='onbid';
   let auctionPage=1,auctionLoaded=0;
   let criteria={purpose:conditions?.purpose||null,minArea:conditions?.minArea||'',maxArea:conditions?.maxArea||'',areaUnit:conditions?.areaUnit||'pyeong',zones:conditions?.zones||[],minAreaM2:conditions?.minAreaM2??null,maxAreaM2:conditions?.maxAreaM2??null,auction:conditions?.auction||null,...BUILD_DEFAULTS,...(validateBuildCriteria(conditions||{}).value||{})};
-  const defaultTitle=()=>source==='assistant'?'AI 비서 결과':source==='favorites'?'찜한 매물':source==='auction'?'경매 물건':picksOnlyMode?'터잡이 선별 매물':conditions?'내 조건으로 살펴보기':'지도에서 매물 살펴보기';
-  const title=defaultTitle();
+  const defaultTitle=()=>source==='assistant'?'AI 비서 결과':source==='favorites'?'찜한 매물':source==='auction'?(auctionFilters.listingSource==='onbid'?'공매 물건':auctionFilters.listingSource==='both'?'경매·공매 물건':'경매 물건'):picksOnlyMode?'터잡이 선별 매물':conditions?'내 조건으로 살펴보기':'지도에서 매물 살펴보기';
+  const title=initialHeading||defaultTitle();
+  let pageHeading=initialHeading||null;
   root.innerHTML=`<section class="explore-page"><div class="result-head"><div><span class="eyebrow">EXPLORE TEOJABI</span><h1>${title}</h1></div><button class="outline" data-explore="back-conditions" hidden>내 조건으로 보기</button><button class="outline" data-explore="edit">검색 조건 바꾸기</button></div>
     <form class="explore-search" id="explore-filters"><div class="explore-filters"><label><span>정렬</span><select name="sort"><option value="price" ${sort==='price'?'selected':''}>가격 낮은 순</option><option value="price-desc" ${sort==='price-desc'?'selected':''}>가격 높은 순</option></select></label><button class="primary" type="submit">이 조건 검색</button></div></form>
     <p class="purpose-guide" id="purpose-guide" hidden></p>
@@ -314,14 +316,14 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     if(back)back.hidden=!simpleMode;
     if(edit){edit.hidden=simpleMode;edit.textContent=auctionMode?'조건 바꾸기':'검색 조건 바꾸기';}
     if(fav)fav.setAttribute('aria-pressed',String(source==='favorites'));if(auc)auc.setAttribute('aria-pressed',String(auctionMode));
-    const heading=$('.result-head h1');if(heading)heading.textContent=defaultTitle();
+    const heading=$('.result-head h1');if(heading)heading.textContent=pageHeading||defaultTitle();
     const auctionHost=$('#auction-filters');if(auctionHost)auctionHost.hidden=!auctionMode;
     const quick=$('.quick-filters');if(quick)quick.hidden=auctionMode;
     const searchForm=$('#explore-filters');if(searchForm)searchForm.hidden=auctionMode;
   }
   function setSource(next){
     if(next===source)return;
-    source=next;showAllPicks=false;selected=null;compared.clear();assistantShown=5;
+    source=next;showAllPicks=false;selected=null;compared.clear();assistantShown=5;pageHeading=null;
     if(next==='auction'){limit=100;syncAuctionFiltersFromCondition();mountAuctionUi();}else if(next==='conditions')limit=5;
     closeDetail();applySourceUi();
     history.replaceState(null,'',source==='favorites'?location.pathname+'#favorites':source==='auction'?location.pathname+'#auction':location.pathname+(conditions?'#search':''));
@@ -348,7 +350,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
   // 경매 전용 탭과 관심 조건(빠른 조건·편집기)을 같은 값으로 맞춘다.
   const syncAuctionFiltersFromCondition=()=>{
     const a=criteria.auction||{};
-    auctionFilters={...auctionFilters,gu:[...(conditions?.districts||[])],usage:(a.usages||[])[0]||'',dealType:a.dealType||'',saleKind:a.saleKind||'',maxPrice:a.maxPriceWon?String(a.maxPriceWon/1e8):'',maxBidRate:a.maxBidRate!=null?String(a.maxBidRate):'',failMax:a.failMax!=null?String(a.failMax):'',listingSource:a.source==='onbid'?'onbid':'court'};
+    auctionFilters={...auctionFilters,gu:[...(conditions?.districts||[])],usage:(a.usages||[])[0]||'',dealType:a.dealType||'',saleKind:a.saleKind||'',maxPrice:a.maxPriceWon?String(a.maxPriceWon/1e8):'',maxBidRate:a.maxBidRate!=null?String(a.maxBidRate):'',failMax:a.failMax!=null?String(a.failMax):'',listingSource:['court','onbid','both'].includes(a.source)?a.source:(auctionFilters.listingSource||'court')};
   };
   const applyAuctionFiltersToCondition=()=>{
     criteria={...criteria,auction:{...(criteria.auction||{}),enabled:true,source:['court','onbid','both'].includes(auctionFilters.listingSource)?auctionFilters.listingSource:'court',usages:auctionFilters.usage?[auctionFilters.usage]:[],dealType:auctionFilters.dealType||null,saleKind:auctionFilters.saleKind||null,maxPriceWon:auctionFilters.maxPrice?Number(auctionFilters.maxPrice)*1e8:null,maxBidRate:auctionFilters.maxBidRate?Number(auctionFilters.maxBidRate):null,failMax:auctionFilters.failMax?Number(auctionFilters.failMax):null}};
