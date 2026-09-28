@@ -166,7 +166,7 @@ const onbidToListing=row=>{
   const bid=String(row.bid_end_dt||'');
   const saleDate=/^\d{8}/.test(bid)?`${bid.slice(0,4)}-${bid.slice(4,6)}-${bid.slice(6,8)}`:'';
   const saleHour=/^\d{12}/.test(bid)?`${bid.slice(8,10)}:${bid.slice(10,12)}`:'';
-  return {id,source:'onbid',sourceId:String(row.cltr_mng_no),cohort:'onbid',dealType:row.deal_type||(land?'land':null),
+  return {id,source:'onbid',sourceId:String(row.cltr_mng_no),bidEndDt:bid,cohort:'onbid',bundle:row.bundle===true,dealType:row.deal_type||(land?'land':null),
     district:row.sigu||'',neighborhood:row.dong||'',address:row.full_address||'',detailAddress:'',
     pnu:/^11\d{17}$/.test(String(row.pnu||''))?row.pnu:null,
     position:Number.isFinite(row.lat)&&Number.isFinite(row.lng)?{lat:Number(row.lat),lng:Number(row.lng)}:null,
@@ -183,6 +183,24 @@ const onbidToListing=row=>{
       courtName:'한국자산관리공사',deptName:row.prpt_div_nm||'',caseNo:row.cltr_mng_no||'',
       notiMinRate:row.apsl_ctrs_lowst_ratio==null?null:Number(row.apsl_ctrs_lowst_ratio),roadWidthM:row.road_width_m==null?null:Number(row.road_width_m),jimok:'',
       lotNo:row.lot_no||'',sourceUrl:'https://www.onbid.co.kr/'}};
+};
+
+// 공매는 같은 물건관리번호가 공매조건(회차)별로 여러 행이라, 물건 단위로 묶어 카드 중복을 막는다.
+const onbidGroups=rows=>{
+  const nowStr=(()=>{const d=new Date();const p=n=>String(n).padStart(2,'0');return `${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}${p(d.getHours())}${p(d.getMinutes())}`;})();
+  const map=new Map();
+  for(const row of rows){
+    const key=`onbid:${row.sourceId}`;
+    const g=map.get(key);
+    if(!g){map.set(key,{key,pnu:row.pnu,representative:row,listings:[row]});continue;}
+    g.listings.push(row);
+    // 대표는 '입찰마감이 아직 지나지 않은 것 중 가장 임박', 없으면 가장 최근 것.
+    const cur=g.representative.bidEndDt||'',nxt=row.bidEndDt||'';
+    const curFuture=cur>=nowStr,nxtFuture=nxt>=nowStr;
+    if(nxtFuture&&(!curFuture||nxt<cur))g.representative=row;
+    else if(!curFuture&&!nxtFuture&&nxt>cur)g.representative=row;
+  }
+  return [...map.values()];
 };
 
 export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnalyze,initialId,initialSource,assistant,picksOnly,initialParcel,onParcelChange}={}) {
@@ -396,7 +414,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
   // 경매 물건 카드: 건물찾기 카드와 같은 골격에 경매 사실정보(감정가·최저가·기일·유찰)를 담는다.
   function auctionCard(group) {
     const row=group.representative,a=row.auction||{},isOnbid=row.cohort==='onbid';
-    const badge=`${isOnbid?'공매':'경매'}${AUCTION_DEAL_LABEL[row.dealType]?` · ${AUCTION_DEAL_LABEL[row.dealType]}`:''}`;
+    const badge=`${isOnbid?'공매':'경매'}${row.bundle?' · 일괄':''}${AUCTION_DEAL_LABEL[row.dealType]?` · ${AUCTION_DEAL_LABEL[row.dealType]}`:''}`;
     const bundleN=group.listings.length;
     const kindBadge=row.saleKind==='share'?'<em class="pick-badge warn-badge">지분</em>':row.saleKind==='bundle'?`<em class="pick-badge warn-badge">일괄${bundleN>1?` · 목적물 ${bundleN}개`:''}</em>`:'';
     const verifyBadge=row.verifyStatus==='matched'?'<em class="pick-badge ok-badge">대장 일치</em>':row.verifyStatus==='mismatch'?'<em class="pick-badge warn-badge">대장 차이</em>':'';
@@ -521,7 +539,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     const results=await Promise.all(calls);
     const groups=[];let total=0,index=0;
     if(wantCourt){const d=results[index++];if(d&&d.status==='ready'){groups.push(...auctionGroups((d.rows||[]).map(auctionToListing)));total+=Number(d.total||0);}}
-    if(wantOnbid){const d=results[index++];if(d&&d.status==='ready'){groups.push(...auctionGroups((d.rows||[]).map(onbidToListing)));total+=Number(d.total||0);}}
+    if(wantOnbid){const d=results[index++];if(d&&d.status==='ready'){const g=onbidGroups((d.rows||[]).map(onbidToListing));groups.push(...g);total+=g.length;}}
     return groups.length?{groups,total}:null;
   }
   async function load({fit=true}={}) {
@@ -668,19 +686,19 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
       if(disposed||current!==version)return;
       const wanted=[wantCourt?courtData:null,wantOnbid?onbidData:null].filter(Boolean);
       if(!wanted.length||wanted.some(d=>d.status!=='ready'))throw new Error('unavailable');
-      const allRows=[];
-      if(wantCourt&&courtData)allRows.push(...(courtData.rows||[]).map(auctionToListing));
-      if(wantOnbid&&onbidData)allRows.push(...(onbidData.rows||[]).map(onbidToListing));
-      const total=Number(courtData?.total||0)+Number(onbidData?.total||0);
-      const fresh=auctionGroups(allRows);
+      const courtRows=wantCourt&&courtData?(courtData.rows||[]).map(auctionToListing):[];
+      const onbidRows=wantOnbid&&onbidData?(onbidData.rows||[]).map(onbidToListing):[];
+      // 경매는 일괄(사건) 단위, 공매는 물건관리번호 단위로 묶어 카드 중복을 없앤다.
+      const fresh=[...auctionGroups(courtRows),...onbidGroups(onbidRows)];
       let groups=fresh;
       if(append&&result&&Array.isArray(result.groups)&&auctionPage===page-1){
         const seen=new Set(result.groups.map(g=>g.key));
         groups=[...result.groups,...fresh.filter(g=>!seen.has(g.key))];
       }
       auctionPage=page;
-      auctionLoaded=groups.reduce((sum,g)=>sum+(g.listings?.length||1),0);
-      result={status:'ready',mode:wantCourt&&wantOnbid?'auction-both':wantOnbid?'onbid':'auction',groups,totalParcels:total,totalListings:total,hasMore:auctionLoaded<total,observedAt:null,suggestions:[]};
+      const rawTotal=Number(courtData?.total||0)+Number(onbidData?.total||0);
+      auctionLoaded=groups.length;
+      result={status:'ready',mode:wantCourt&&wantOnbid?'auction-both':wantOnbid?'onbid':'auction',groups,totalParcels:groups.length,totalListings:groups.length,hasMore:page*size<rawTotal,observedAt:null,suggestions:[]};
       $('.explore-list').removeAttribute('aria-busy');drawCards();map.setGroups(mapGroups(),selected,fit);
       if(initialId){const id=initialId;initialId=null;openDetail(id);}
     } catch(error) {
@@ -751,9 +769,11 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
       const appr=Array.isArray(od.appraisal)?od.appraisal:[],leases=Array.isArray(od.leases)?od.leases:[],registry=Array.isArray(od.registry)?od.registry:[],occupancy=Array.isArray(od.occupancy)?od.occupancy:[];
       const apprHtml=appr.length?`<details class="auction-rounds"><summary>감정평가정보 ${appr.length}건</summary><ul>${appr.map(p=>`<li>${esc([p.apslEvlYmd,p.apslEvlOrgNm,p.apslApprNm].filter(Boolean).join(' · '))}${p.apslEvlAmt!=null?` · ${money(p.apslEvlAmt)}`:''}</li>`).join('')}</ul></details>`:'';
       const results=Array.isArray(detail.onbidResults)?detail.onbidResults:[];
+      const lots=Array.isArray(od.lots)?od.lots:[];
+      const lotsHtml=lots.length>1?`<details class="auction-rounds auction-batch" open><summary>일괄매각 목적물 ${lots.length}개</summary><ul>${lots.map(l=>`<li>${esc(l.onbidCltrNm||'')} · ${area(l.landSqms||l.bldSqms)}</li>`).join('')}</ul><small>감정가·최저매각가는 일괄 전체 기준이에요.</small></details>`:'';
       const fmtOpbd=v=>String(v||'').replace(/(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})/,'$1-$2-$3 $4:$5');
       const resultHtml=results.length?`<details class="auction-rounds" open><summary>입찰결과 ${results.length}회차</summary><ul>${results.map(r=>{const st=esc(r.pbct_stat_nm||'미상');const won=r.scfb_amt?` · 낙찰 ${money(r.scfb_amt)}${r.scfb_rate!=null?` (감정가의 ${r.scfb_rate}%)`:''} ${r.scfb_rate_low!=null?`(최저가의 ${r.scfb_rate_low}%)`:''}`:'';return `<li><b>${esc(r.pbct_nsq)}회</b> · ${st}${won} · 최저 ${money(r.lowst_bid_prc)} · 응찰 ${r.bidder_cnt??0}명 · ${esc(fmtOpbd(r.opbd_dt))}</li>`;}).join('')}</ul><small>온비드 입찰결과 공시 기준이에요. 낙찰가율은 감정가·최저가 대비 계산값이에요.</small></details>`:'';
-      onbidDetailSection=`<section class="detail-section" id="property-onbid"><h3>온비드 상세 <small>한국자산관리공사 공시</small></h3><dl class="auction-facts"><dt>도로명주소</dt><dd>${esc(od.road_address||'미기재')}</dd><dt>지번주소</dt><dd>${esc(od.obj_address||'미기재')}</dd><dt>임대차</dt><dd>${leases.length}건</dd><dt>등기</dt><dd>${registry.length}건</dd><dt>점유</dt><dd>${occupancy.length}건</dd></dl>${apprHtml}${resultHtml}${od.share_text?`<p class="case-note chk">지분 관련: ${esc(od.share_text)}</p>`:''}${od.remark?`<p class="case-note"><b>기타 유의</b> ${esc(od.remark)}</p>`:''}<p class="case-note">임대차·등기·점유 항목은 요약 건수예요. 세부 내용은 온비드 공고 원문에서 확인하세요.</p></section>`;
+      onbidDetailSection=`<section class="detail-section" id="property-onbid"><h3>온비드 상세 <small>한국자산관리공사 공시</small></h3><dl class="auction-facts"><dt>도로명주소</dt><dd>${esc(od.road_address||'미기재')}</dd><dt>지번주소</dt><dd>${esc(od.obj_address||'미기재')}</dd><dt>임대차</dt><dd>${leases.length}건</dd><dt>등기</dt><dd>${registry.length}건</dd><dt>점유</dt><dd>${occupancy.length}건</dd></dl>${lotsHtml}${apprHtml}${resultHtml}${od.share_text?`<p class="case-note chk">지분 관련: ${esc(od.share_text)}</p>`:''}${od.remark?`<p class="case-note"><b>기타 유의</b> ${esc(od.remark)}</p>`:''}<p class="case-note">임대차·등기·점유 항목은 요약 건수예요. 세부 내용은 온비드 공고 원문에서 확인하세요.</p></section>`;
     }
     const v=row.verify||null,wb=(row.dealType==='whole'&&v)?v.building:null,wl=v&&v.land||null;
     const fa=n=>n==null?'—':`${Number(n).toLocaleString('ko-KR',{maximumFractionDigits:2})}㎡`;

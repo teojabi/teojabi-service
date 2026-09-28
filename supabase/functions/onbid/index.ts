@@ -19,7 +19,7 @@ const LIST_COLUMNS =
   "onbid_cltrno, cltr_mng_no, pbct_cdtn_no, cltr_nm, prpt_div_cd, prpt_div_nm, " +
   "dsps_mthod_nm, bid_mthod_nm, cptn_mthod_nm, usg_lcls_nm, usg_mcls_nm, usg_scls_nm, " +
   "appraised_amt, lowst_bid_prc, lowst_bid_disp, apsl_ctrs_lowst_ratio, bid_begin_dt, bid_end_dt, " +
-  "sido, sigu, dong, lot_no, full_address, pnu, land_area_m2, building_area_m2, share_text, " +
+  "sido, sigu, dong, lot_no, full_address, pnu, land_area_m2, building_area_m2, share_text, bundle, " +
   "use_zone, road_width_m, far_limit, bcr_limit, district_plan, " +
   "height_limit, height_district, landscape_district, special_zone, other_zone, lat, lng, deal_type";
 
