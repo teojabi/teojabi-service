@@ -166,6 +166,9 @@ const onbidToListing=row=>{
   const bid=String(row.bid_end_dt||'');
   const saleDate=/^\d{8}/.test(bid)?`${bid.slice(0,4)}-${bid.slice(4,6)}-${bid.slice(6,8)}`:'';
   const saleHour=/^\d{12}/.test(bid)?`${bid.slice(8,10)}:${bid.slice(10,12)}`:'';
+  // 온비드 개별 물건 상세 딥링크(공식 식별자로 구성, cltrScrnGrpCd 불필요).
+  const onbidParams=new URLSearchParams({cltrPrptDivCd:row.prpt_div_cd||'',onbidCltrno:String(row.onbid_cltrno??''),onbidPbancNo:String(row.onbid_pbanc_no??''),pbctCdtnNo:String(row.pbct_cdtn_no||''),pbctNo:String(row.pbct_no??'')});
+  const onbidUrl=`https://www.onbid.co.kr/op/cltrpbancinf/cltrdtl/CltrDtlController/mvmnCltrDtl.do?${onbidParams.toString()}`;
   return {id,source:'onbid',sourceId:String(row.cltr_mng_no),bidEndDt:bid,cohort:'onbid',bundle:row.bundle===true,dealType:row.deal_type||(land?'land':null),
     district:row.sigu||'',neighborhood:row.dong||'',address:row.full_address||'',detailAddress:'',
     pnu:/^11\d{17}$/.test(String(row.pnu||''))?row.pnu:null,
@@ -182,7 +185,7 @@ const onbidToListing=row=>{
       appraisedWon:row.appraised_amt==null?null:Number(row.appraised_amt),failCount:null,saleDate,saleHour,
       courtName:'한국자산관리공사',deptName:row.prpt_div_nm||'',caseNo:row.cltr_mng_no||'',
       notiMinRate:row.apsl_ctrs_lowst_ratio==null?null:Number(row.apsl_ctrs_lowst_ratio),roadWidthM:row.road_width_m==null?null:Number(row.road_width_m),jimok:'',
-      lotNo:row.lot_no||'',sourceUrl:'https://www.onbid.co.kr/'}};
+      lotNo:row.lot_no||'',sourceUrl:onbidUrl}};
 };
 
 // 공매는 같은 물건관리번호가 공매조건(회차)별로 여러 행이라, 물건 단위로 묶어 카드 중복을 막는다.
