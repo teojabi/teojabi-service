@@ -891,6 +891,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
       closeSurrounding=mountSurrounding($('#surrounding-facts'),detail.listing);
       closeStreetPreview=mountStreetPreview($('#street-inline'),detail.listing.position);
       map.select(detail.listing);
+      loadNearby(id,current);
       $('#detail-title')?.focus({preventScroll:true});
       if(updateUrl)history.pushState(null,'',`#listing=${encodeURIComponent(id)}`);
       if(detail.listing.pnu){

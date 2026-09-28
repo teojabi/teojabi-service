@@ -364,10 +364,11 @@ Deno.serve(async (request: Request) => {
     }
     if (path.startsWith("/api/nearby-transactions/")) {
       const id = decodeURIComponent(path.slice("/api/nearby-transactions/".length));
-      const validId = /^(?:(?:naver|naver-land):\d{1,30}|premium:[a-f0-9-]{36})$/.test(id) || /^disco:[A-Za-z0-9]{4,24}$/.test(id) || /^auction:[A-Za-z0-9]{4,40}$/.test(id);
+      const validId = /^(?:(?:naver|naver-land):\d{1,30}|premium:[a-f0-9-]{36})$/.test(id) || /^disco:[A-Za-z0-9]{4,24}$/.test(id) || /^auction:[A-Za-z0-9]{4,40}$/.test(id) || /^onbid:[A-Za-z0-9:._-]{4,80}$/.test(id);
       if (!validId) return json({ status: "missing", cases: [] }, 404, origin);
       const data = catalog(snaps);
-      let listing = await findListingEdge(db, data, id);
+      let listing = await findListingEdge(db, data, id)
+        .catch((error: unknown) => { if (id.startsWith("onbid:")) return null; throw error; });
       if (!listing) {
         const lat = Number(params.get("lat")), lng = Number(params.get("lng"));
         if (Number.isFinite(lat) && Number.isFinite(lng)) {
