@@ -162,6 +162,10 @@ const onbidToListing=row=>{
   const currentFar=(landM2n&&bldgM2n&&landM2n>0)?Math.round(bldgM2n/landM2n*100):null;
   const farLimit=row.far_limit==null?null:Number(row.far_limit),bcrLimit=row.bcr_limit==null?null:Number(row.bcr_limit);
   const remainingFar=(farLimit!=null&&currentFar!=null)?Math.round((farLimit-currentFar)*10)/10:null;
+  // 온비드 입찰마감(YYYYMMDDHHMI)을 날짜/시각으로 분리해 경매와 동일하게 표기한다.
+  const bid=String(row.bid_end_dt||'');
+  const saleDate=/^\d{8}/.test(bid)?`${bid.slice(0,4)}-${bid.slice(4,6)}-${bid.slice(6,8)}`:'';
+  const saleHour=/^\d{12}/.test(bid)?`${bid.slice(8,10)}:${bid.slice(10,12)}`:'';
   return {id,source:'onbid',sourceId:String(row.cltr_mng_no),cohort:'onbid',dealType:row.deal_type||(land?'land':null),
     district:row.sigu||'',neighborhood:row.dong||'',address:row.full_address||'',detailAddress:'',
     pnu:/^11\d{17}$/.test(String(row.pnu||''))?row.pnu:null,
@@ -175,7 +179,7 @@ const onbidToListing=row=>{
     locationStatus:'pin-estimated',zoning:zone?{status:'matched',groups:[],entries:[{name:zone}]}:{status:'missing',groups:[],entries:[]},development:null,
     nearbyTransactions:{status:'unavailable',cases:[]},groupKey:id,
     auction:{docid:id,usageName:usage,minPrice:row.lowst_bid_prc==null?null:Number(row.lowst_bid_prc),
-      appraisedWon:row.appraised_amt==null?null:Number(row.appraised_amt),failCount:null,saleDate:row.bid_end_dt||'',saleHour:'',
+      appraisedWon:row.appraised_amt==null?null:Number(row.appraised_amt),failCount:null,saleDate,saleHour,
       courtName:'한국자산관리공사',deptName:row.prpt_div_nm||'',caseNo:row.cltr_mng_no||'',
       notiMinRate:row.apsl_ctrs_lowst_ratio==null?null:Number(row.apsl_ctrs_lowst_ratio),roadWidthM:row.road_width_m==null?null:Number(row.road_width_m),jimok:'',
       lotNo:row.lot_no||'',sourceUrl:'https://www.onbid.co.kr/'}};
@@ -855,6 +859,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
       if(disposed||current!==detailVersion)return;
       detail={listing:onbidToListing(data.item),auctionDetail:data.detail||null,onbidDetail:data.detail||null,onbidResults:Array.isArray(data.results)?data.results:[]};
       renderAuctionDetail();
+      closeContext=mountInlineContext($('#context-facts'),detail.listing);
       closeRecords=mountBuildingRecords($('#building-records'),$('#building-records-toggle'),detail.listing);
       closeLand=mountLandRecords($('#land-area-comparison'),$('#land-records'),$('#land-records-toggle'),detail.listing);
       closeCommercial=mountCommercial($('#commercial-facts'),detail.listing);
