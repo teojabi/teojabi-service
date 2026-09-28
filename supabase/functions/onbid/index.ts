@@ -124,7 +124,11 @@ async function doDetail(cltrMngNo: string, pbctCdtnNo: string | null, origin: st
   const detailResult = await db.from("onbid_detail").select("*")
     .eq("cltr_mng_no", cltrMngNo).limit(1).maybeSingle();
   if (detailResult.error) throw detailResult.error;
-  return json({ status: "ready", item: itemResult.data, detail: detailResult.data ?? null }, 200, origin);
+  // 회차별 입찰결과(낙찰/유찰/취소, 낙찰가·낙찰가율·입찰자수).
+  const resultResult = await db.from("onbid_result").select("*")
+    .eq("cltr_mng_no", cltrMngNo).order("pbct_nsq", { ascending: false }).limit(30);
+  if (resultResult.error) throw resultResult.error;
+  return json({ status: "ready", item: itemResult.data, detail: detailResult.data ?? null, results: resultResult.data ?? [] }, 200, origin);
 }
 
 Deno.serve(async (request: Request) => {
