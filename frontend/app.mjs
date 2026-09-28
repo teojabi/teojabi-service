@@ -90,7 +90,7 @@ const progress = step => {const building=state.draft.purpose==='new-build',total
 const mapPlaceholder = text => `<div class="map-placeholder"><div class="map-label"><i></i> MAP VIEW · 지도 연결 전</div><div class="map-message">${mapIcon}<h2>${text}</h2><p>실제 지도와 필지 데이터가 연결되면<br>이곳에서 위치를 살펴볼 수 있어요.</p></div></div>`;
 
 function activity() {
-  const data=state.activity,items=data?.items||['매물','실거래','건축물대장'].map(label=>({label,value:null}));
+  const data=state.activity,items=data?.items||['매물','실거래','경매·공매'].map(label=>({label,value:null}));
   const compact=n=>n>=10000?`${(n/10000).toLocaleString('ko-KR',{maximumFractionDigits:1})}만`:n.toLocaleString('ko-KR');
   const dateLabel=value=>{const d=new Date(value);return value&&Number.isFinite(d.getTime())?new Intl.DateTimeFormat('ko-KR',{timeZone:'Asia/Seoul',year:'numeric',month:'2-digit',day:'2-digit'}).format(d).replace(/\. /g,'.').replace(/\.$/,'')+' 업데이트':'업데이트일 미확인';};
   return `<div class="inventory-strip" aria-label="보유 자료 현황">${items.map(item=>`<span title="${escape(item.note||'')} · ${item.value==null?'미확인':Number(item.value).toLocaleString('ko-KR')+(item.unit||'건')}${data?.observedAt?' · '+new Date(data.observedAt).toLocaleDateString('ko-KR')+' 조회 기준':''}"><span>${escape(item.label)}</span><strong>${item.value==null?'확인 중':compact(item.value)+(item.unit||'건')}</strong><small class="inventory-date">${dateLabel(item.updatedAt)}</small></span>`).join('')}</div>`;
