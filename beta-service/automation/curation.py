@@ -36,12 +36,23 @@ def ensure_analysis_table(cur):
         updated_at timestamptz NOT NULL DEFAULT now())''')
 
 def analysis_map(cur):
-    """listing_id(catalog id) -> {analysis, images}. 테이블이 없으면 빈 값(읽기 전용이라 생성하지 않음)."""
+    """listing_id(catalog id) -> {analysis, images}. 테이블이 없으면 빈 값(읽기 전용이라 생성하지 않음).
+
+    조회 실패가 세이브포인트 없이 트랜잭션을 중단시키면 이후 쿼리까지 실패하므로
+    SAVEPOINT로 감싸 실패해도 바깥 트랜잭션을 유지한다.
+    """
     try:
+        cur.execute('SAVEPOINT pick_analysis')
         cur.execute('SELECT listing_id, analysis, images FROM public.pick_analysis')
+        rows = cur.fetchall()
+        cur.execute('RELEASE SAVEPOINT pick_analysis')
     except Exception:
+        try:
+            cur.execute('ROLLBACK TO SAVEPOINT pick_analysis')
+        except Exception:
+            pass
         return {}
-    return {r['listing_id']:{'analysis':r['analysis'] or '','images':clean(r['images']) if isinstance(r['images'],list) else []} for r in cur.fetchall()}
+    return {r['listing_id']:{'analysis':r['analysis'] or '','images':clean(r['images']) if isinstance(r['images'],list) else []} for r in rows}
 
 def save_analysis(conn,data):
     if not isinstance(data,dict): raise ValueError('Invalid fields')
@@ -344,7 +355,7 @@ def write_source_snapshot(result):
     return result
 def listing(conn):
     with conn.cursor(cursor_factory=RealDictCursor) as cur:
-        cur.execute(f'''SELECT id,rank,category,budget,snapshot,review_status,cooperation_status,
+        cur.execute(f'''SELECT id,source_table,source_id,rank,category,budget,snapshot,review_status,cooperation_status,
             advertising_status,notes,version,created_at,updated_at FROM {TABLE} ORDER BY rank,id''')
         rows=cur.fetchall()
         analysis=analysis_map(cur)
