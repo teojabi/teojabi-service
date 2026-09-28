@@ -955,6 +955,11 @@ body.architect-lightbox-open{overflow:hidden}
 .map-parcel-result>span{color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .site-map-wrap [data-site][aria-pressed=true]{background:var(--primary);border-color:var(--primary);color:#fff}
 @media(max-width:700px){.map-parcel-search,.map-parcel-result{display:none!important}}
+/* 내 보관함 계정 정보 편집 */
+.member-account{display:grid;gap:10px}
+.member-account label{display:grid;gap:5px;font-size:12px;color:var(--muted)}
+.member-account input{width:100%;min-height:44px;border:1px solid var(--line);border-radius:9px;background:var(--card);color:var(--text);padding:9px 12px;font-size:14px}
+.member-account .primary{justify-self:start}
 /* 지도 오른쪽 상단 세로 버튼(실거래·지적도·상권) */
 .map-controls-right{position:absolute;top:16px;right:16px;display:flex;flex-direction:column;align-items:flex-end;gap:7px;z-index:3}
 .map-controls-right .outline{box-shadow:0 3px 10px var(--shadow);font-size:12px}
