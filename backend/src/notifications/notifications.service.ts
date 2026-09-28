@@ -409,9 +409,14 @@ export class NotificationsService {
     // 메일 수신 여부와 무관하게 모든 회원의 알림함을 갱신한다(인박스 최신 유지).
     const users = await this.prisma.$queryRaw<Array<{ userId: string; email: string | null }>>`
       SELECT id AS "userId", email FROM public."user"`;
+    // 저장 조건이 있는 회원에게만 알린다(조건이 없으면 매칭 대상이 없음).
+    const conditionRows = await this.prisma.$queryRaw<Array<{ userId: string; count: bigint }>>`
+      SELECT user_id AS "userId", count(*) AS count FROM public.discovery_item WHERE kind='condition' GROUP BY user_id`;
+    const withCondition = new Set(conditionRows.filter((r) => Number(r.count) > 0).map((r) => r.userId));
     const today = this.date();
     let sent = 0;
     for (const user of users) {
+      if (!withCondition.has(user.userId)) continue;
       try {
         const preferences = await this.getPreferences(user.userId);
         const inbox = await this.getInbox(user.userId, preferences.leadDays, {
