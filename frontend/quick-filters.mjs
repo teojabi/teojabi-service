@@ -100,5 +100,5 @@ export function mountQuickFilters(root,{getValue,onChange}){
   },{signal:abort.signal});
   root.addEventListener('keydown',e=>{if(e.key==='Escape'&&active){e.preventDefault();close({discard:true});}if(e.key==='Enter'&&e.target.matches('.quick-number')){e.preventDefault();flush();}},{signal:abort.signal});
   root.addEventListener('focusout',e=>{if(e.target.matches('.quick-number'))flush();},{signal:abort.signal});
-  update();return {update,setRemembered(ok){$('.quick-remember').textContent=ok?'최근 검색 조건을 자동으로 기억해요.':'현재 화면에 반영했어요. 브라우저 설정으로 조건을 기억할 수 없어요.';},destroy(){clearTimeout(timer);abort.abort();}};
+  update();return {update,setRemembered(ok){$('.quick-remember').textContent=ok?'최근 검색 조건을 계정에 저장해요.':'현재 화면에 반영했어요. 로그인하면 조건을 저장할 수 있어요.';},destroy(){clearTimeout(timer);abort.abort();}};
 }
