@@ -527,12 +527,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
       gu.forEach(g=>p.append('gu',g));
       (a.usages||[]).slice(0,6).forEach(u=>p.append('usage',u));
       if(a.maxPriceWon)p.set('maxPrice',String(a.maxPriceWon));
-      if(onbid){
-        // 서비스 타겟: 건물 통 + 토지 (층·호실 제외)
-        p.set('dealTypes','whole,land');
-        p.set('sort','bid');
-        return p;
-      }
+      // 일반매물 조건(용도지역·교육보호구역/문화재 제외·관광특구 우선)을 경매·공매에 공통 적용.
       (criteria.zones||[]).forEach(z=>p.append('zone',z));
       if(criteria.excludeEducation)p.set('excludeEducation','1');
       if(criteria.excludeHeritage)p.set('excludeHeritage','1');
@@ -541,6 +536,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
       if(criteria.maxAreaM2!=null)p.set('maxArea',String(criteria.maxAreaM2));
       // 서비스 타겟: 건물 통 + 토지 (층·호실 제외)
       p.set('dealTypes','whole,land');
+      if(onbid){p.set('sort','bid');return p;}
       if(a.saleKind)p.set('saleKind',a.saleKind);
       if(a.maxBidRate)p.set('maxBidRate',String(a.maxBidRate));
       if(a.failMax)p.set('maxFail',String(a.failMax));
