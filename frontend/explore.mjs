@@ -910,7 +910,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
         ${onbidMode?(od&&od.failed_bid!=null?`<dt>유찰횟수</dt><dd>${esc(od.failed_bid)}회</dd>`:''):`<dt>유찰횟수</dt><dd>${a.failCount??0}회</dd>`}
         <dt>법원·계</dt><dd>${esc(a.courtName||'')} ${esc(a.deptName||'')}</dd>
         <dt>사건번호</dt><dd>${esc(a.caseNo||'')}</dd>
-        ${d.area_m2!=null?`<dt>목적물 면적</dt><dd>${area(d.area_m2)}</dd>`:''}
+        ${inBatch?`<dt>일괄 합계 면적</dt><dd>${area(bundleAreaM2)} <small style="opacity:.6">목적물 ${bundleLots.length}개 합계</small></dd>`:(d.area_m2!=null?`<dt>목적물 면적</dt><dd>${area(d.area_m2)}</dd>`:'')}
         ${onbidMode&&od&&od.land_area_m2!=null?`<dt>토지면적</dt><dd>${area(od.land_area_m2)}</dd>`:''}
         ${onbidMode&&od&&od.building_area_m2!=null?`<dt>건물면적</dt><dd>${area(od.building_area_m2)}</dd>`:''}
         ${d.claim_amt!=null?`<dt>청구금액</dt><dd>${money(d.claim_amt)}</dd>`:''}
