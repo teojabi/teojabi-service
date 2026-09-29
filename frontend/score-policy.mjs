@@ -70,7 +70,7 @@ function zoneFactsOf(listing) {
 }
 
 // ---------- A. 가격 경쟁력 ----------
-function priceCategory(listing, nearby) {
+function priceCategory(listing, nearby, official) {
   const base = { key: 'price', label: '가격 경쟁력', weight: 0.35 };
   const price = num(listing?.priceWon);
   const land = num(listing?.areaM2);
@@ -85,11 +85,25 @@ function priceCategory(listing, nearby) {
     const a = num(c.areaM2), p = num(c.priceWon);
     return p > 0 && a > 0 ? p / a : null;
   };
-  const all = (nearby?.cases || []).filter(c => toPerM2(c) != null);
+  // 공시지가 연도별 변동률로 과거 거래가를 최신 연도 기준으로 환산(시점 보정).
+  const trend = official && Number.isFinite(official.trend) ? Math.max(-0.1, Math.min(0.2, official.trend)) : null;
+  const latestYear = official && Number.isFinite(official.year) ? official.year : null;
+  let timeAdjusted = false;
+  const adjPerM2 = c => {
+    const per = toPerM2(c);
+    if (per == null) return null;
+    const y = c?.dealDate ? Number(String(c.dealDate).slice(0, 4)) : null;
+    if (trend != null && latestYear != null && Number.isFinite(y)) {
+      const years = Math.max(0, latestYear - y);
+      if (years > 0) { timeAdjusted = true; return per * Math.pow(1 + trend, years); }
+    }
+    return per;
+  };
+  const all = (nearby?.cases || []).filter(c => adjPerM2(c) != null);
   const sameKind = listing?.kind ? all.filter(c => !c.kind || c.kind === listing.kind) : all;
   const used = sameKind.length ? sameKind : all;
   const mixed = sameKind.length === 0 && all.length > 0;
-  const casePerM2 = used.map(toPerM2).sort((a, b) => a - b);
+  const casePerM2 = used.map(adjPerM2).sort((a, b) => a - b);
   if (!casePerM2.length) {
     return { ...base, available: false, score: null, metrics: [{ key: 'ppp', label: '대지면적 평당가 비교', available: false, score: null, evidence: '주변 실거래가 없어 비교하지 못했어요.' }] };
   }
@@ -101,10 +115,14 @@ function priceCategory(listing, nearby) {
   const stars = tableScore(ratio, [[0.70, 5.0], [0.85, 4.5], [0.95, 4.0], [1.05, 3.0], [1.15, 2.5], [1.30, 2.0], [1.50, 1.5], [Infinity, 1.0]]);
   const diff = Math.round((ratio - 1) * 100);
   const cmp = diff <= 0 ? `약 ${Math.abs(diff)}% 낮음` : `약 ${diff}% 높음`;
+  let evidence = `주변 ${casePerM2.length}건 중위 ${wonPerPyeong(median)} · 이 매물 ${wonPerPyeong(subjPerM2)} (${cmp} · 대지면적 기준${casePerM2.length === 1 ? ' · 비교 1건' : ''}${mixed ? ' · 종류 다른 실거래 포함' : ''}${timeAdjusted ? ' · 공시지가 변동률로 시점 보정' : ''})`;
+  if (official && Number.isFinite(official.perM2) && official.perM2 > 0) {
+    const multiple = subjPerM2 / official.perM2;
+    evidence += ` · 공시지가 ${official.year ? `${official.year}년 ` : ''}${official.perM2.toLocaleString('ko-KR', { maximumFractionDigits: 0 })}원/㎡ 대비 약 ${multiple.toLocaleString('ko-KR', { maximumFractionDigits: 1 })}배`;
+  }
   return {
     ...base, available: true, score: stars,
-    metrics: [{ key: 'ppp', label: '대지면적 평당가 비교', score: stars, available: true,
-      evidence: `주변 ${casePerM2.length}건 중위 ${wonPerPyeong(median)} · 이 매물 ${wonPerPyeong(subjPerM2)} (${cmp} · 대지면적 기준${casePerM2.length === 1 ? ' · 비교 1건' : ''}${mixed ? ' · 종류 다른 실거래 포함' : ''})` }],
+    metrics: [{ key: 'ppp', label: '대지면적 평당가 비교', score: stars, available: true, evidence }],
   };
 }
 
@@ -254,10 +272,10 @@ function gradeOf(stars) {
   return '낮음';
 }
 
-export function computeTeojabiScore({ listing, context, nearby, commercial, surrounding } = {}) {
+export function computeTeojabiScore({ listing, context, nearby, commercial, surrounding, official } = {}) {
   if (!listing) return { status: 'unavailable', score: null, grade: '', categories: [], note: NOTE };
   const categories = [
-    priceCategory(listing, nearby),
+    priceCategory(listing, nearby, official),
     buildCategory(listing, context),
     locationCategory(listing, commercial, surrounding),
   ];
