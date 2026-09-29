@@ -246,7 +246,7 @@ Deno.serve(async (request: Request) => {
           .not("usage_name", "ilike", "%자동차%")
           .not("cancelled", "is", true)
           .not("sale_kind", "eq", "share")
-          .not("is_share", "is", true)
+          .or("is_share.is.null,is_share.is.false,sale_kind.eq.bundle")
           .in("deal_type_final", ["whole", "land"])
           .order("crawled_at", { ascending: false })
           .limit(1),
