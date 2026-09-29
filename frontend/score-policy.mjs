@@ -118,7 +118,7 @@ function priceCategory(listing, nearby, official) {
   let evidence = `주변 ${casePerM2.length}건 중위 ${wonPerPyeong(median)} · 이 매물 ${wonPerPyeong(subjPerM2)} (${cmp} · 대지면적 기준${casePerM2.length === 1 ? ' · 비교 1건' : ''}${mixed ? ' · 종류 다른 실거래 포함' : ''}${timeAdjusted ? ' · 공시지가 변동률로 시점 보정' : ''})`;
   if (official && Number.isFinite(official.perM2) && official.perM2 > 0) {
     const multiple = subjPerM2 / official.perM2;
-    evidence += ` · 공시지가 ${official.year ? `${official.year}년 ` : ''}${official.perM2.toLocaleString('ko-KR', { maximumFractionDigits: 0 })}원/㎡ 대비 약 ${multiple.toLocaleString('ko-KR', { maximumFractionDigits: 1 })}배`;
+    evidence += ` · 참고) 공시지가 ${official.year ? `${official.year}년 ` : ''}${official.perM2.toLocaleString('ko-KR', { maximumFractionDigits: 0 })}원/㎡ · 이 매물 공시지가의 약 ${multiple.toLocaleString('ko-KR', { maximumFractionDigits: 1 })}배(공시지가는 시세보다 낮게 고시 · 통상 2~3배, 점수 미반영)`;
   }
   return {
     ...base, available: true, score: stars,
