@@ -1174,7 +1174,12 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
         try{await navigator.clipboard.writeText(`터잡이 경매 물건\n${detail.listing.address}\n사건번호 ${detail.listing.auction?.caseNo||''}\n감정가 ${money(detail.listing.auction?.appraisedWon)} · 최저매각가 ${money(detail.listing.auction?.minPrice)}\n매각기일 ${detail.listing.auction?.saleDate||''}`);button.textContent='물건 정보 복사됨';}catch{button.textContent='주소와 가격을 선택해 복사해 주세요.';}break;
       case 'back-conditions':setSource('conditions');break;
       case 'edit':onEdit?.();break;
-      case 'detail':openDetail(button.dataset.id);break;
+      case 'detail':{
+        // 지도에서 이미 그룹으로 선택된 물건이면(일괄 등) 대표와 객체가 달라도 같은 그룹으로 인식되도록 id를 맞춘다.
+        let detailId=button.dataset.id;
+        if(detailId&&selected&&detailId!==selected){const grp=(result?.groups||[]).find(g=>(g.listings||[]).some(r=>r.id===detailId)&&(g.listings||[]).some(r=>r.id===selected));if(grp)detailId=selected;}
+        openDetail(detailId);break;
+      }
       case 'retry-detail':openDetail(selected);break;
       case 'back-list':setSheet(true);closeDetail();break;
       case 'close':closeDetail();break;
