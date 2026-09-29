@@ -85,17 +85,31 @@ function priceCategory(listing, nearby, official) {
     const a = num(c.areaM2), p = num(c.priceWon);
     return p > 0 && a > 0 ? p / a : null;
   };
-  // 공시지가 연도별 변동률로 과거 거래가를 최신 연도 기준으로 환산(시점 보정).
-  const trend = official && Number.isFinite(official.trend) ? Math.max(-0.1, Math.min(0.2, official.trend)) : null;
+  // 공시지가 시계열의 실제 변동폭(거래연도→현재)으로 과거 거래가를 현재 시점으로 환산(시점 보정).
   const latestYear = official && Number.isFinite(official.year) ? official.year : null;
+  const latestPerM2 = official && Number.isFinite(official.perM2) ? official.perM2 : null;
+  const series = Array.isArray(official?.series) ? official.series.filter(s => Number.isFinite(s.year) && s.perM2 > 0).sort((a, b) => a.year - b.year) : [];
+  const officialAt = y => {
+    const exact = series.find(s => s.year === y);
+    if (exact) return exact.perM2;
+    const below = series.filter(s => s.year <= y);
+    if (below.length) return below[below.length - 1].perM2;
+    return series.length ? series[0].perM2 : null;
+  };
+  const factorFor = y => {
+    if (latestPerM2 == null || !Number.isFinite(y) || !series.length) return 1;
+    const ref = officialAt(y);
+    if (!(ref > 0)) return 1;
+    return Math.max(0.6, Math.min(1.8, latestPerM2 / ref));
+  };
   let timeAdjusted = false;
   const adjPerM2 = c => {
     const per = toPerM2(c);
     if (per == null) return null;
     const y = c?.dealDate ? Number(String(c.dealDate).slice(0, 4)) : null;
-    if (trend != null && latestYear != null && Number.isFinite(y)) {
-      const years = Math.max(0, latestYear - y);
-      if (years > 0) { timeAdjusted = true; return per * Math.pow(1 + trend, years); }
+    if (latestYear != null && Number.isFinite(y) && y < latestYear) {
+      const f = factorFor(y);
+      if (f !== 1) { timeAdjusted = true; return per * f; }
     }
     return per;
   };
@@ -115,7 +129,7 @@ function priceCategory(listing, nearby, official) {
   const stars = tableScore(ratio, [[0.70, 5.0], [0.85, 4.5], [0.95, 4.0], [1.05, 3.0], [1.15, 2.5], [1.30, 2.0], [1.50, 1.5], [Infinity, 1.0]]);
   const diff = Math.round((ratio - 1) * 100);
   const cmp = diff <= 0 ? `약 ${Math.abs(diff)}% 낮음` : `약 ${diff}% 높음`;
-  let evidence = `주변 ${casePerM2.length}건 중위 ${wonPerPyeong(median)} · 이 매물 ${wonPerPyeong(subjPerM2)} (${cmp} · 대지면적 기준${casePerM2.length === 1 ? ' · 비교 1건' : ''}${mixed ? ' · 종류 다른 실거래 포함' : ''}${timeAdjusted ? ' · 공시지가 변동률로 시점 보정' : ''})`;
+  let evidence = `${timeAdjusted ? '과거 거래를 공시지가 변동폭으로 현재 시점 환산 · ' : ''}주변 ${casePerM2.length}건 중위 ${wonPerPyeong(median)} · 이 매물 ${wonPerPyeong(subjPerM2)} (${cmp} · 대지면적 기준${casePerM2.length === 1 ? ' · 비교 1건' : ''}${mixed ? ' · 종류 다른 실거래 포함' : ''})`;
   if (official && Number.isFinite(official.perM2) && official.perM2 > 0) {
     const multiple = subjPerM2 / official.perM2;
     evidence += ` · 참고) 공시지가 ${official.year ? `${official.year}년 ` : ''}${official.perM2.toLocaleString('ko-KR', { maximumFractionDigits: 0 })}원/㎡ · 이 매물 공시지가의 약 ${multiple.toLocaleString('ko-KR', { maximumFractionDigits: 1 })}배(공시지가는 시세보다 낮게 고시 · 통상 2~3배, 점수 미반영)`;

@@ -725,9 +725,8 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
       if(!Array.isArray(prices)||!prices.length)return;
       const rows=prices.map(p=>({year:Number(p.year),perM2:Number(p.pricePerSqm)})).filter(r=>Number.isFinite(r.year)&&r.perM2>0).sort((a,b)=>a.year-b.year);
       if(!rows.length)return;
-      const latest=rows[rows.length-1],oldest=rows[0],span=latest.year-oldest.year;
-      const trend=span>0&&oldest.perM2>0?Math.pow(latest.perM2/oldest.perM2,1/span)-1:0;
-      scoreCard?.setOfficial({perM2:latest.perM2,year:latest.year,trend});
+      const latest=rows[rows.length-1];
+      scoreCard?.setOfficial({perM2:latest.perM2,year:latest.year,series:rows});
     }catch{/* 공시지가가 없으면 시점 보정 없이 계산 */}
   }
   function closeDetail(updateUrl=true,restoreFocus=true) {
