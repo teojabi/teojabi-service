@@ -52,7 +52,7 @@ function clampInt(value: string | null, fallback: number, lo: number, hi: number
   return Math.max(lo, Math.min(hi, parsed));
 }
 
-function applyFilters(query: any, params: URLSearchParams) {
+function applyFilters(query: any, params: URLSearchParams, opts: { zoneCols?: boolean } = {}) {
   const gus = params.getAll("gu").flatMap((v) => v.split(",")).map((v) => v.trim()).filter(Boolean);
   const usages = params.getAll("usage").flatMap((v) => v.split(",")).map((v) => v.trim()).filter(Boolean).slice(0, 6);
   const zones = params.getAll("zone").flatMap((v) => v.split(",")).map((v) => v.trim()).filter(Boolean).slice(0, 4);
@@ -73,7 +73,24 @@ function applyFilters(query: any, params: URLSearchParams) {
   if (keyword) q = q.or(`cltr_nm.ilike.%${keyword}%,full_address.ilike.%${keyword}%`);
   if (minPrice != null) q = q.gte("lowst_bid_prc", minPrice);
   if (maxPrice != null) q = q.lte("lowst_bid_prc", maxPrice);
+  // 일반매물 조건(교육보호구역·문화재보존구역 제외)을 공매에도 적용한다.
+  // 해당 컬럼이 없으면(구 자료) 건너뛴다. 자료 미확인(null)도 제외하는 보수적 기준은 경매와 동일.
+  if (opts.zoneCols) {
+    const exEdu = ["1", "true"].includes((params.get("excludeEducation") || "").toLowerCase());
+    const exHer = ["1", "true"].includes((params.get("excludeHeritage") || "").toLowerCase());
+    if (exEdu) q = q.eq("education", false);
+    if (exHer) q = q.eq("heritage", false);
+  }
   return q;
+}
+
+// onbid_item에 교육/문화재/관광특구 컬럼이 있는지 1회 확인 후 캐시한다.
+let zoneColsChecked: boolean | null = null;
+async function zoneColsAvailable(): Promise<boolean> {
+  if (zoneColsChecked != null) return zoneColsChecked;
+  const { error } = await db.from("onbid_item").select("education,heritage,tourism").limit(1);
+  zoneColsChecked = !error;
+  return zoneColsChecked;
 }
 
 function orderFor(sort: string): { column: string; ascending: boolean } {
@@ -91,8 +108,14 @@ async function doList(params: URLSearchParams, origin: string | null): Promise<R
   const size = clampInt(params.get("size"), 20, 1, 200);
   const sort = (params.get("sort") || "bid").trim();
   const { column, ascending } = orderFor(sort);
+  const wantsZoneCols = ["excludeEducation", "excludeHeritage", "preferTourism"].some((k) => ["1", "true"].includes((params.get(k) || "").toLowerCase()));
+  const zoneCols = wantsZoneCols ? await zoneColsAvailable() : false;
   let query = db.from("onbid_item").select(LIST_COLUMNS, { count: "exact" });
-  query = applyFilters(query, params);
+  query = applyFilters(query, params, { zoneCols });
+  // 관광숙박특화구역 우선 보기: 필터가 아니라 우선순위(정렬).
+  if (zoneCols && ["1", "true"].includes((params.get("preferTourism") || "").toLowerCase())) {
+    query = query.order("tourism", { ascending: false, nullsFirst: false });
+  }
   query = query.order(column, { ascending, nullsFirst: false }).range((page - 1) * size, (page - 1) * size + size - 1);
   const { data, count, error } = await query;
   if (error) throw error;

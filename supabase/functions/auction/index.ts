@@ -61,7 +61,7 @@ function clampInt(value: string | null, fallback: number, lo: number, hi: number
 }
 
 // auction_reader._where 와 동일한 필터. (아파트·자동차 제외, 다중 지역·용도 지원)
-function applyFilters(query: any, params: URLSearchParams) {
+function applyFilters(query: any, params: URLSearchParams, opts: { zoneCols?: boolean } = {}) {
   const xgus = params.getAll("gu").flatMap((v) => v.split(",")).map((v) => v.trim()).filter(Boolean);
   const usages = params.getAll("usage").flatMap((v) => v.split(",")).map((v) => v.trim()).filter(Boolean).slice(0, 6);
   const zones = params.getAll("zone").flatMap((v) => v.split(",")).map((v) => v.trim()).filter(Boolean).slice(0, 4);
@@ -111,11 +111,22 @@ function applyFilters(query: any, params: URLSearchParams) {
   if (saleTo) q = q.lte("sale_date", saleTo);
   // 일반매물의 부지 조건(교육보호구역·문화재보존구역 제외)을 경매에도 적용한다.
   //   자료 미확인(null)도 제외한다(매물 검색과 동일한 보수적 기준).
-  const excludeEducation = ["1", "true"].includes((params.get("excludeEducation") || "").toLowerCase());
-  const excludeHeritage = ["1", "true"].includes((params.get("excludeHeritage") || "").toLowerCase());
-  if (excludeEducation) q = q.eq("education", false);
-  if (excludeHeritage) q = q.eq("heritage", false);
+  if (opts.zoneCols) {
+    const excludeEducation = ["1", "true"].includes((params.get("excludeEducation") || "").toLowerCase());
+    const excludeHeritage = ["1", "true"].includes((params.get("excludeHeritage") || "").toLowerCase());
+    if (excludeEducation) q = q.eq("education", false);
+    if (excludeHeritage) q = q.eq("heritage", false);
+  }
   return q;
+}
+
+// auction_item에 교육/문화재/관광특구 컬럼이 있는지 1회 확인 후 캐시한다.
+let zoneColsChecked: boolean | null = null;
+async function zoneColsAvailable(): Promise<boolean> {
+  if (zoneColsChecked != null) return zoneColsChecked;
+  const { error } = await db.from("auction_item").select("education,heritage,tourism").limit(1);
+  zoneColsChecked = !error;
+  return zoneColsChecked;
 }
 
 // auction_reader.do_list 의 정렬 매핑. (NULLS LAST)
@@ -136,9 +147,11 @@ async function doList(params: URLSearchParams, origin: string | null): Promise<R
   const { column, ascending } = orderFor(sort);
 
   let query = db.from("auction_item").select(LIST_COLUMNS, { count: "exact" });
-  query = applyFilters(query, params);
+  const wantsZoneCols = ["excludeEducation", "excludeHeritage", "preferTourism"].some((k) => ["1", "true"].includes((params.get(k) || "").toLowerCase()));
+  const zoneCols = wantsZoneCols ? await zoneColsAvailable() : false;
+  query = applyFilters(query, params, { zoneCols });
   // 관광숙박특화구역 우선 보기: 해당 구역 물건을 먼저 정렬한다(필터가 아니라 우선순위).
-  if (["1", "true"].includes((params.get("preferTourism") || "").toLowerCase())) {
+  if (zoneCols && ["1", "true"].includes((params.get("preferTourism") || "").toLowerCase())) {
     query = query.order("tourism", { ascending: false, nullsFirst: false });
   }
   query = query.order(column, { ascending, nullsFirst: false }).range((page - 1) * size, (page - 1) * size + size - 1);
