@@ -323,9 +323,43 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     parcel=receivedParcel;
     if(parcel.status==='ready')map.parcel(parcel.geometry);
   }
+  // pnu가 없을 때: 핀(매물) 위치 또는 선택 좌표로 필지 경계를 찾아 지도에 표시한다.
+  async function loadParcelAt(lat,lng,{fit=true}={}){
+    if(!Number.isFinite(lat)||!Number.isFinite(lng))return;
+    const current=detailVersion;
+    try{
+      const response=await apiFetch(`/api/site-parcels?lat=${lat}&lng=${lng}`,{signal:abort.signal});
+      const data=await response.json();
+      if(disposed||current!==detailVersion||data.status!=='ready'||!Array.isArray(data.features)||!data.features.length)return;
+      const f=data.features[0];
+      setSearchedParcel({pnu:f.id,address:(f.properties&&f.properties.address)||'',areaM2:(f.properties&&f.properties.officialAreaM2)||null,geometry:f.geometry});
+      void fit;
+    }catch{}
+  }
+  // 매물을 지도에서 열 때: pnu가 있으면 그 필지, 없으면 핀 위치로 필지를 표시한다.
+  // 일괄매각처럼 필지가 여러 개면 포함된 필지를 모두 표시하고, 같은 매물을 다시 누르면 해제한다.
+  async function showListingParcel(row){
+    if(!row)return;
+    if(selectedParcelKey===row.id){selectedParcelKey=null;parcel=null;map.parcel(null);if(searchedParcel)setSearchedParcel(null);return;}
+    selectedParcelKey=row.id;
+    const group=(result?.groups||[]).find(g=>g.representative?.id===row.id||(g.listings||[]).some(r=>r.id===row.id));
+    const pnus=[...new Set((group?group.listings:[row]).map(r=>r.pnu).filter(Boolean))];
+    if(pnus.length){
+      const current=detailVersion;
+      const geometries=[];
+      for(const pnu of pnus){
+        try{const response=await apiFetch(`/api/parcels/${pnu}`,{signal:abort.signal});const d=await response.json();if(d&&d.status==='ready'&&d.geometry)geometries.push(d.geometry);}
+        catch{}
+        if(disposed||current!==detailVersion)return;
+      }
+      if(geometries.length){parcel={status:'ready',geometry:geometries.length===1?geometries[0]:geometries};map.parcel(geometries.length===1?geometries[0]:geometries);return;}
+    }
+    const p=row.position;if(p)return loadParcelAt(p.lat,p.lng);
+  }
   const favoriteItems=()=>member.items.filter(item=>item.kind==='favorite');
   $('#listing-list').before($('#explore-filters'));
   let listScrollTop=0;
+  let selectedParcelKey=null;
   let closeComparison,showPins=true,showTransactions=true,showAllPicks=false,pickGroups=null,nearby=null,loadTimer=null,quickFilters,assistantShown=5,commercialPopupVersion=0,scoreCard=null;
   $('.map-controls').insertAdjacentHTML('beforeend','<button class="outline return-detail" data-explore="return-detail">매물 상세로 돌아가기</button>');
   $('.explore-toolbar').insertAdjacentHTML('afterend','<div class="discovery-actions"><button class="outline" data-explore="compare-open" disabled>비교할 매물을 골라주세요 (최대 3개)</button><button class="outline" data-explore="compare-clear" hidden>비교 선택 지우기</button><button class="outline" data-explore="pins" aria-pressed="true">지도 매물 표시</button><span class="discovery-notice" role="status"></span></div><div class="search-suggestions" aria-live="polite"></div>');
@@ -769,7 +803,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     const previousId=selected;
     ++detailVersion;selected=null;detail=null;parcel=null;nearby=null;map.setTransactions([]);syncTransactionToggle();
     $('.explore-board').classList.remove('transaction-map-open');
-    $('#listing-detail').hidden=true;$('.explore-board').classList.remove('has-detail');map.select(null,{pan:false});map.parcel(null);
+    $('#listing-detail').hidden=true;$('.explore-board').classList.remove('has-detail');map.select(null,{pan:false});map.parcel(null);selectedParcelKey=null;
     if(result)drawCards();body.scrollTop=listScrollTop;if(updateUrl)history.replaceState(null,'',location.pathname+location.search);
     if(previousId&&restoreFocus)root.querySelector(`[data-card-id="${CSS.escape(previousId)}"] .property-select`)?.focus({preventScroll:true});
   }
@@ -910,7 +944,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     // 목록에서 고른 물건이면 이미 위치·필지(pnu)를 알고 있으므로 지도에 바로 반영한다(일반매물과 동일).
     const earlyRow=findGroupRow(id)||(compared.has(id)?compared.get(id):null);
     if(earlyRow?.position)map.select(earlyRow);
-    if(earlyRow?.pnu)loadParcelBoundary(earlyRow.pnu);
+    if(earlyRow)showListingParcel(earlyRow);
     try {
       const response=await apiFetch(`/api/auctions/${encodeURIComponent(docid)}`,{signal:abort.signal});
       const data=await response.json();
@@ -930,7 +964,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
       $('#detail-title')?.focus({preventScroll:true});
       if(updateUrl)history.pushState(null,'',`#listing=${encodeURIComponent(id)}`);
       loadNearby(id,current);
-      await loadParcelBoundary(detail.listing.pnu);
+      await showListingParcel(detail.listing);
     } catch(error) {
       if(disposed||current!==detailVersion)return;
       console.warn('auction detail failed', error);
@@ -965,7 +999,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
       loadNearby(id,current);
       $('#detail-title')?.focus({preventScroll:true});
       if(updateUrl)history.pushState(null,'',`#listing=${encodeURIComponent(id)}`);
-      await loadParcelBoundary(detail.listing.pnu);
+      await showListingParcel(detail.listing);
     } catch(error) {
       if(disposed||current!==detailVersion)return;
       console.warn('onbid detail failed', error);
