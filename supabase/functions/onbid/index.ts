@@ -21,7 +21,8 @@ const LIST_COLUMNS =
   "appraised_amt, lowst_bid_prc, lowst_bid_disp, apsl_ctrs_lowst_ratio, bid_begin_dt, bid_end_dt, " +
   "sido, sigu, dong, lot_no, full_address, pnu, land_area_m2, building_area_m2, share_text, bundle, " +
   "use_zone, road_width_m, far_limit, bcr_limit, district_plan, " +
-  "height_limit, height_district, landscape_district, special_zone, other_zone, lat, lng, deal_type";
+  "height_limit, height_district, landscape_district, special_zone, other_zone, lat, lng, deal_type, " +
+  "reg_plat_area, reg_floor_area, reg_foot_area, reg_far, reg_main_use";
 
 function corsHeaders(origin: string | null): Record<string, string> {
   return {

@@ -114,15 +114,17 @@ const auctionToListing=row=>{
   const areaValue=dealType==='unit'?(detailArea!=null?detailArea:listedArea):(detailArea!=null?detailArea:listedArea);
   // 개발여력: 허용 용적률(master_land·지구단위계획).
   const farLimit=row.far_limit==null?null:Number(row.far_limit),bcrLimit=row.bcr_limit==null?null:Number(row.bcr_limit);
-  // 현재 용적률은 건축물대장 기준으로만 표기한다(법원 연면적 근사 ÷ 경매 필지 토지대장 면적은 출처가 달라 왜곡됨).
-  const currentFar=null;
-  const remainingFar=null;
-  // 면적 모순 점검: 건축 연면적 근사가 허용 용적률을 넘으면 필지 매칭(여러 필지) 확인이 필요하다.
+  // 현재 용적률: 건축물대장 총괄표제부 용적률 사용(없으면 미확인).
+  const regFar=row.reg_far==null?null:Number(row.reg_far);
+  const currentFar=(regFar!=null&&Number.isFinite(regFar)&&regFar>0)?regFar:null;
+  const remainingFar=(currentFar!=null&&farLimit>0)?Math.round((farLimit-currentFar)*10)/10:null;
+  // 면적 모순 점검: 총괄표제부 대지면적 < 건축면적이면 불가, 또는 총괄 용적률이 없고 추정 용적률이 허용을 크게 넘으면 필지 확인 필요.
+  const regPlat=row.reg_plat_area==null?null:Number(row.reg_plat_area),regFoot=row.reg_foot_area==null?null:Number(row.reg_foot_area);
   const bldM2c=row.building_area_m2==null?null:Number(row.building_area_m2),landM2c=row.land_area_m2==null?null:Number(row.land_area_m2);
   const impliedFar=(landM2c>0&&bldM2c>0)?(bldM2c/landM2c*100):null;
-  const areaSuspect=impliedFar!=null&&((farLimit>0&&impliedFar>farLimit)||impliedFar>1000);
+  const areaSuspect=(regPlat>0&&regFoot>0&&regPlat<regFoot)||(currentFar==null&&impliedFar!=null&&((farLimit>0&&impliedFar>farLimit)||impliedFar>1000));
   return {id,source:'auction',sourceId:String(row.docid),cohort:'auction',dealType,saleKind:row.sale_kind||'whole',flags:row.flags||null,acquiredRights:row.acquired_rights||null,verifyStatus:row.verify_status||null,verify:row.verify_data||null,
-    farLimit,bcrLimit,districtPlan:row.district_plan||'',currentFar,remainingFar,areaSuspect,
+    farLimit,bcrLimit,districtPlan:row.district_plan||'',currentFar,remainingFar,areaSuspect,farFromRegister:currentFar!=null,
     heightLimit:row.height_limit==null?null:Number(row.height_limit),heightDistrict:row.height_district||'',landscapeDistrict:row.landscape_district||'',specialZone:row.special_zone||'',otherZone:row.other_zone||'',
     district:row.sigu||'',neighborhood:row.dong||'',address:addr.land,detailAddress:row.detail_address||addr.detail,
     pnu:/^\d{19}$/.test(String(row.pnu||''))?row.pnu:null,position,
@@ -160,13 +162,15 @@ const onbidToListing=row=>{
   const landM2=row.land_area_m2==null?null:Number(row.land_area_m2),bldgM2=row.building_area_m2==null?null:Number(row.building_area_m2);
   const areaM2=land?(landM2!=null?landM2:bldgM2):(bldgM2!=null?bldgM2:landM2);
   const zone=String(row.use_zone||'');
-  // 현재 용적률은 건축물대장 기준으로만 표기한다(연면적 ÷ 필지 토지대장 면적 조합은 출처가 달라 왜곡됨).
+  // 현재 용적률: 건축물대장 총괄표제부 용적률 사용(없으면 미확인).
   const farLimit=row.far_limit==null?null:Number(row.far_limit),bcrLimit=row.bcr_limit==null?null:Number(row.bcr_limit);
-  const currentFar=null;
-  const remainingFar=null;
-  // 면적 모순 점검: 연면적이 허용 용적률을 넘으면 필지 매칭(여러 필지) 확인이 필요하다.
+  const regFar=row.reg_far==null?null:Number(row.reg_far);
+  const currentFar=(regFar!=null&&Number.isFinite(regFar)&&regFar>0)?regFar:null;
+  const remainingFar=(currentFar!=null&&farLimit>0)?Math.round((farLimit-currentFar)*10)/10:null;
+  // 면적 모순 점검: 총괄표제부 대지면적 < 건축면적이면 불가, 또는 추정 용적률이 허용을 크게 넘으면 필지 확인 필요.
+  const regPlat=row.reg_plat_area==null?null:Number(row.reg_plat_area),regFoot=row.reg_foot_area==null?null:Number(row.reg_foot_area);
   const impliedFar=(landM2>0&&bldgM2>0)?(bldgM2/landM2*100):null;
-  const areaSuspect=impliedFar!=null&&((farLimit>0&&impliedFar>farLimit)||impliedFar>1000);
+  const areaSuspect=(regPlat>0&&regFoot>0&&regPlat<regFoot)||(currentFar==null&&impliedFar!=null&&((farLimit>0&&impliedFar>farLimit)||impliedFar>1000));
   // 온비드 입찰마감(YYYYMMDDHHMI)을 날짜/시각으로 분리해 경매와 동일하게 표기한다.
   const bid=String(row.bid_end_dt||'');
   const saleDate=/^\d{8}/.test(bid)?`${bid.slice(0,4)}-${bid.slice(4,6)}-${bid.slice(6,8)}`:'';
@@ -179,7 +183,7 @@ const onbidToListing=row=>{
     pnu:/^11\d{17}$/.test(String(row.pnu||''))?row.pnu:null,
     position:Number.isFinite(row.lat)&&Number.isFinite(row.lng)?{lat:Number(row.lat),lng:Number(row.lng)}:null,
     priceWon:row.lowst_bid_prc==null?null:Number(row.lowst_bid_prc),areaM2,buildingAreaM2:bldgM2,landAreaM2:landM2,floorAreaM2:null,
-    farLimit,bcrLimit,districtPlan:row.district_plan||'',currentFar,remainingFar,areaSuspect,
+    farLimit,bcrLimit,districtPlan:row.district_plan||'',currentFar,remainingFar,areaSuspect,farFromRegister:currentFar!=null,
     heightLimit:row.height_limit==null?null:Number(row.height_limit),heightDistrict:row.height_district||'',
     landscapeDistrict:row.landscape_district||'',specialZone:row.special_zone||'',otherZone:row.other_zone||'',
     shareText:row.share_text||null,
@@ -847,7 +851,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
       </dl>${(()=>{let extra='';if(!onbidMode&&Array.isArray(d.round_history)&&d.round_history.length)extra+=`<details class="auction-rounds"><summary>회차 이력 ${d.round_history.length}회</summary><ul>${d.round_history.map(r=>`<li>${esc(String(r.dxdyYmd||'').replace(/(\d{4})(\d{2})(\d{2})/,'$1-$2-$3'))} · 최저 ${money(r.tsLwsDspslPrc)} · ${esc(r.dxdyPlcNm||'')}</li>`).join('')}</ul><small>법원경매정보 공시 기준이에요. 결과·상태는 원문에서 확인하세요.</small></details>`;if(onbidMode&&od){const photos=Array.isArray(od.photos)?od.photos:[],leases=Array.isArray(od.leases)?od.leases:[],registry=Array.isArray(od.registry)?od.registry:[],occupancy=Array.isArray(od.occupancy)?od.occupancy:[];if(photos.length)extra+=`<div class="onbid-photos"><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:8px 0">${photos.slice(0,6).map(p=>p&&p.urlAdr?`<a href="${esc(p.urlAdr)}" target="_blank" rel="noopener noreferrer"><img loading="lazy" src="${esc(p.urlAdr)}" alt="공매 물건 사진" style="width:100%;height:90px;object-fit:cover;border-radius:6px"></a>`:'').join('')}</div><small>온비드 공고 사진(썸네일)이에요. 원문에서 확인하세요.</small></div>`;extra+=leases.length||registry.length||occupancy.length?`<p class="case-note">임대차 ${leases.length}건 · 등기 ${registry.length}건 · 점유 ${occupancy.length}건 — 요약은 온비드 공고 원문에서 확인하세요.</p>`:`<p class="case-note">임대차·등기·점유 상세는 수집된 자료가 없어 온비드 공고 원문에서 확인하세요.</p>`;}if(row.saleKind==='share')extra+=`<p class="case-note chk">지분 매각 물건이에요. 표시 면적·가격은 매각 대상 전체 기준이며, 지분 비율·조건은 법원 원문을 확인하세요.</p>`;else if(row.saleKind==='bundle')extra+=`<p class="case-note chk">일괄매각 물건이에요. 표시 면적·가격은 일괄 대상 기준일 수 있으니 법원 원문을 확인하세요.</p>`;if(flagLabels.length)extra+=`<p class="case-note chk">법원 공시 비고에 ${flagLabels.map(l=>esc(l)).join(' · ')} 사항이 있어요. 자세한 내용은 법원 원문에서 확인하세요.</p>`;if(!onbidMode){if(d.item_remark)extra+=`<p class="case-note"><b>물건 비고</b> ${esc(d.item_remark)}</p>`;if(d.sale_remark)extra+=`<p class="case-note"><b>매각물건 비고</b> ${esc(d.sale_remark)}</p>`;const nrb=Array.isArray(d.not_registered_buildings)?d.not_registered_buildings:[];if(nrb.length)extra+=`<details class="auction-rounds"><summary>제시외·미신고 건물 ${nrb.length}건</summary><ul>${nrb.map(b=>`<li>${esc(b.bldStrcDts||'구조 미기재')} · ${esc(b.bldArDts||'면적 미기재')}${b.evlAmt?` · ${money(b.evlAmt)}`:''}${b.etcUsgCtt?` · ${esc(b.etcUsgCtt)}`:''}${b.sugtBsdsBldRmk?` · ${esc(b.sugtBsdsBldRmk)}`:''}</li>`).join('')}</ul><small>법원 공시상 제시외·미신고 건물이에요. 권리·철거 여부는 원문에서 확인하세요.</small></details>`;const pics=Array.isArray(d.photos)?d.photos:[];const thumbs=pics.filter(p=>p&&p.thumb);const imgMark=p=>`<img loading="lazy" src="data:image/jpeg;base64,${p.thumb}" alt="법원경매 물건 사진">`;if(thumbs.length){const head=thumbs.slice(0,3),rest=thumbs.slice(3);extra+=`<p class="case-note">법원 제공 사진 ${pics.length}장${thumbs.length<pics.length?` · ${thumbs.length}장 표시`:''}</p><div class="auction-photos">${head.map(imgMark).join('')}</div>`;if(rest.length)extra+=`<details class="auction-photos-more"><summary>사진 더보기 (${rest.length}장)</summary><div class="auction-photos">${rest.map(imgMark).join('')}</div></details>`;}else if(pics.length)extra+=`<p class="case-note">법원 제공 사진 ${pics.length}장 — 원문(법원경매정보)에서 확인하세요.</p>`;if(d.ecdoc_id)extra+=`<p class="case-note">매각물건명세서·현황조사서·감정평가서는 법원경매정보에서 사건번호로 원문을 확인하세요.</p>`;}return extra;})()}<p class="case-note chk">※ 권리분석·적정 입찰가는 제공하지 않아요. ${onbidMode?'임대차·등기·점유 등은 온비드 공고 원문을 확인하세요.':'인수권리·점유 등은 법원 원문을 확인하세요.'}</p><p class="case-note">${onbidMode?'공매 공시 사실정보예요. 자세한 조건은 온비드 공고 원문에서 확인해 주세요.':'경매 공시 사실정보예요. 자세한 조건은 법원경매정보 원문에서 확인해 주세요.'}</p><div class="detail-links"><a class="outline" href="${sourceUrl}" target="_blank" rel="noopener noreferrer">${onbidMode?'온비드에서 보기 ↗':'법원경매정보에서 보기 ↗'}</a></div></section>
       ${verifySection}${onbidDetailSection}
       <section class="detail-section" id="property-parcel"><h3>필지 위치</h3><p><span class="parcel-label">대지위치</span> ${esc(row.address||rowTitle(row))}</p>${row.detailAddress?`<p><span class="parcel-label">상세주소</span> ${esc(row.detailAddress)}</p>`:''}</section>
-      <section class="detail-section" id="property-holdings"><h3>보유 공공자료 <small>터잡이 DB · 법원 공시와 다름</small></h3><p class="case-note">법원 공시가 아니라 터잡이가 보유한 공공데이터예요. 기준일이 달라 경매 공시와 다를 수 있어요.</p><dl class="auction-facts"><dt>용도지역</dt><dd>${row.zoning?.status==='matched'&&Array.isArray(row.zoning.entries)&&row.zoning.entries.length?row.zoning.entries.map(e=>esc(e.name)).join('<br>'):'확인 필요'}</dd><dt>도로폭</dt><dd>${a.roadWidthM!=null?esc(a.roadWidthM)+'m':'확인 필요'}</dd><dt>허용 용적률</dt><dd>${row.farLimit!=null?esc(row.farLimit)+'%':'확인 필요'}</dd><dt>허용 건폐율</dt><dd>${row.bcrLimit!=null?esc(row.bcrLimit)+'%':'확인 필요'}</dd><dt>현재 용적률</dt><dd>${row.currentFar!=null?esc(row.currentFar)+'%':'확인 필요'}</dd>${row.remainingFar!=null?`<dt>여유 용적률</dt><dd>${esc(row.remainingFar)}%</dd>`:''}${row.districtPlan?`<dt>지구단위계획</dt><dd>${esc(row.districtPlan)}</dd>`:''}${row.heightLimit!=null?`<dt>제한높이</dt><dd>${esc(row.heightLimit)}m</dd>`:''}${row.heightDistrict?`<dt>고도지구</dt><dd>${esc(row.heightDistrict)}</dd>`:''}${row.landscapeDistrict?`<dt>경관지구</dt><dd>${esc(row.landscapeDistrict)}</dd>`:''}${row.specialZone?`<dt>특구</dt><dd>${esc(row.specialZone)}</dd>`:''}${row.otherZone?`<dt>기타구역</dt><dd>${esc(row.otherZone)}</dd>`:''}</dl>${row.areaSuspect?'<p class="case-note chk">대지면적 대비 건축 연면적이 커요(건물이 여러 필지에 걸쳤을 수 있어요). 대지면적·현재 용적률은 원문에서 확인이 필요해요.</p>':''}</section>
+      <section class="detail-section" id="property-holdings"><h3>보유 공공자료 <small>터잡이 DB · 법원 공시와 다름</small></h3><p class="case-note">법원 공시가 아니라 터잡이가 보유한 공공데이터예요. 기준일이 달라 경매 공시와 다를 수 있어요.</p><dl class="auction-facts"><dt>용도지역</dt><dd>${row.zoning?.status==='matched'&&Array.isArray(row.zoning.entries)&&row.zoning.entries.length?row.zoning.entries.map(e=>esc(e.name)).join('<br>'):'확인 필요'}</dd><dt>도로폭</dt><dd>${a.roadWidthM!=null?esc(a.roadWidthM)+'m':'확인 필요'}</dd><dt>허용 용적률</dt><dd>${row.farLimit!=null?esc(row.farLimit)+'%':'확인 필요'}</dd><dt>허용 건폐율</dt><dd>${row.bcrLimit!=null?esc(row.bcrLimit)+'%':'확인 필요'}</dd><dt>현재 용적률</dt><dd>${row.currentFar!=null?esc(row.currentFar)+'%'+(row.farFromRegister?' <small style="opacity:.6">건축물대장</small>':''):'확인 필요'}</dd>${row.remainingFar!=null?`<dt>여유 용적률</dt><dd>${esc(row.remainingFar)}%</dd>`:''}${row.districtPlan?`<dt>지구단위계획</dt><dd>${esc(row.districtPlan)}</dd>`:''}${row.heightLimit!=null?`<dt>제한높이</dt><dd>${esc(row.heightLimit)}m</dd>`:''}${row.heightDistrict?`<dt>고도지구</dt><dd>${esc(row.heightDistrict)}</dd>`:''}${row.landscapeDistrict?`<dt>경관지구</dt><dd>${esc(row.landscapeDistrict)}</dd>`:''}${row.specialZone?`<dt>특구</dt><dd>${esc(row.specialZone)}</dd>`:''}${row.otherZone?`<dt>기타구역</dt><dd>${esc(row.otherZone)}</dd>`:''}</dl>${row.areaSuspect?'<p class="case-note chk">대지면적 대비 건축 연면적이 커요(건물이 여러 필지에 걸쳤을 수 있어요). 대지면적·현재 용적률은 원문에서 확인이 필요해요.</p>':''}</section>
       <section class="detail-section nearby-section" id="property-transactions"><details id="nearby-details" class="nearby-details"><summary class="nearby-summary"><span class="nearby-summary-title">주변 실거래</span><span class="nearby-summary-count" id="nearby-count"></span></summary><div class="nearby-body"><div class="nearby-heading"><button class="outline" data-explore="transactions" aria-pressed="true" disabled>지도 표시</button></div>${areaUnitControls()}<div id="nearby-cases" aria-live="polite"><p class="case-note">가까운 토지·건물 거래를 찾고 있어요.</p></div></div></details></section>
       <section class="detail-section commercial-section" id="property-commercial"><h3>상권</h3><div id="commercial-facts" aria-live="polite"></div></section>
       <section class="detail-section" id="property-surrounding"><h3>주변 사업</h3><div id="surrounding-facts" aria-live="polite"></div></section>
