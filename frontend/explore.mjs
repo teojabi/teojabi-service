@@ -23,7 +23,6 @@ const areaText=value=>formatArea(value,getAreaDisplayUnit());
 const rowTitle=row=>`${row.district} ${row.neighborhood||''}`.trim();
 const date=value=>value?new Date(value).toLocaleString('ko-KR',{timeZone:'Asia/Seoul'}):'미확인';
 const compactSuggestionLabel=label=>String(label).replace(/볼까요\??/g,'').replace(/으로 넓혀/g,'').replace(/까지 높여/g,'까지').replace(/이하로 줄여/g,'이하').replace(/만 /g,'').replace(/부터 살펴/g,'부터').replace(/조건을 /g,'').replace(/제한 /g,'').replace(/을 풀어/g,' 해제').trim();
-const percent=value=>Number.isFinite(Number(value))&&Number(value)>0?`${Number(value).toLocaleString('ko-KR',{maximumFractionDigits:2})}%`:'';
 const DOCUMENT_LINKS=Object.freeze({registry:'https://www.iros.go.kr/'});
 const normalizeFloorScale=value=>{
   const text=String(value||'').trim();
@@ -51,8 +50,6 @@ const detailFactItems=row=>{
   if(facts.floorAreaM2&&(!floorArea||Number(facts.floorAreaM2)!==Number(floorArea)))items.push(['기존 연면적',area(facts.floorAreaM2)]);
   const floorScale=facts.floorScale||normalizeFloorScale(row.floorInfo);
   if(floorScale)items.push(['기존 규모',esc(floorScale)]);
-  const farPercent=facts.farPercent||row.farPercent;
-  if(farPercent)items.push(['기존 용적률',esc(percent(farPercent))]);
   const mainUse=facts.mainUse||(row.kind==='land'?'':row.mainUse);
   if(mainUse)items.push(['용도',esc(mainUse)]);
   const approvalDate=facts.approvalDate||row.approvalDate;
