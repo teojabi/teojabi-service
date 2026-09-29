@@ -312,6 +312,17 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
       setSearchedParcel({pnu:f.id,address:(f.properties&&f.properties.address)||'',areaM2:(f.properties&&f.properties.officialAreaM2)||null,geometry:f.geometry});
     }catch{if(disposed)return;setSearchedParcel(null);result.textContent='이 위치의 필지를 찾지 못했어요. 필지 경계를 눌러 주세요.';}
   }
+  // 매물 상세를 열 때 필지 경계를 지도에 표시한다. 위치(pnu)를 알고 있으면 핀을 눌러도 같은 결과가 되도록.
+  async function loadParcelBoundary(pnu){
+    if(!pnu)return;
+    const current=detailVersion;
+    let receivedParcel;
+    try{const response=await apiFetch(`/api/parcels/${pnu}`,{signal:abort.signal});receivedParcel=await response.json();}
+    catch{receivedParcel={status:'error'};}
+    if(disposed||current!==detailVersion)return;
+    parcel=receivedParcel;
+    if(parcel.status==='ready')map.parcel(parcel.geometry);
+  }
   const favoriteItems=()=>member.items.filter(item=>item.kind==='favorite');
   $('#listing-list').before($('#explore-filters'));
   let listScrollTop=0;
@@ -894,6 +905,10 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     $('#listing-detail').hidden=false;$('.explore-board').classList.add('has-detail');
     $('#listing-detail').innerHTML='<div class="detail-top"><button type="button" class="detail-back" data-explore="back-list">← 매물 목록</button><span>불러오는 중</span><button class="detail-close" data-explore="close" aria-label="경매 상세 닫기">×</button></div>';
     map.parcel(null);if(result)drawCards();
+    // 목록에서 고른 물건이면 이미 위치·필지(pnu)를 알고 있으므로 지도에 바로 반영한다(일반매물과 동일).
+    const earlyRow=result?.groups?.find(group=>group.representative.id===id)?.representative||(compared.has(id)?compared.get(id):null);
+    if(earlyRow?.position)map.select(earlyRow);
+    if(earlyRow?.pnu)loadParcelBoundary(earlyRow.pnu);
     try {
       const response=await apiFetch(`/api/auctions/${encodeURIComponent(docid)}`,{signal:abort.signal});
       const data=await response.json();
@@ -913,14 +928,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
       $('#detail-title')?.focus({preventScroll:true});
       if(updateUrl)history.pushState(null,'',`#listing=${encodeURIComponent(id)}`);
       loadNearby(id,current);
-      if(detail.listing.pnu){
-        let receivedParcel;
-        try {const response=await apiFetch(`/api/parcels/${detail.listing.pnu}`,{signal:abort.signal});receivedParcel=await response.json();}
-        catch {receivedParcel={status:'error'};}
-        if(disposed||current!==detailVersion)return;
-        parcel=receivedParcel;
-        if(parcel.status==='ready')map.parcel(parcel.geometry);
-      }
+      await loadParcelBoundary(detail.listing.pnu);
     } catch(error) {
       if(disposed||current!==detailVersion)return;
       console.warn('auction detail failed', error);
@@ -955,14 +963,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
       loadNearby(id,current);
       $('#detail-title')?.focus({preventScroll:true});
       if(updateUrl)history.pushState(null,'',`#listing=${encodeURIComponent(id)}`);
-      if(detail.listing.pnu){
-        let receivedParcel;
-        try {const response=await apiFetch(`/api/parcels/${detail.listing.pnu}`,{signal:abort.signal});receivedParcel=await response.json();}
-        catch {receivedParcel={status:'error'};}
-        if(disposed||current!==detailVersion)return;
-        parcel=receivedParcel;
-        if(parcel.status==='ready')map.parcel(parcel.geometry);
-      }
+      await loadParcelBoundary(detail.listing.pnu);
     } catch(error) {
       if(disposed||current!==detailVersion)return;
       console.warn('onbid detail failed', error);
@@ -1011,6 +1012,8 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
         if(parcel.status==='ready')map.parcel(parcel.geometry);
         if($('#parcel-status'))$('#parcel-status').textContent=parcel.status==='ready'?parcelMessage():'필지 경계를 확인하지 못했습니다. 핀 위치만 표시합니다.';
       }
+      // 매물에 pnu가 없으면 핀 위치로 필지를 찾아 지도에 표시한다(핀 클릭과 같은 결과).
+      else if(data.listing.position){try{const response=await apiFetch(`/api/site-parcels?lat=${data.listing.position.lat}&lng=${data.listing.position.lng}`,{signal:abort.signal});const d2=await response.json();if(!disposed&&current===detailVersion&&d2.status==='ready'&&Array.isArray(d2.features)&&d2.features.length)map.parcel(d2.features[0].geometry);}catch{}}
     } catch (error) {
       if(disposed||current!==detailVersion)return;
       console.warn('listing detail failed', error);
