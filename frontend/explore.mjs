@@ -19,6 +19,8 @@ import { createScoreCard } from './score-ui.mjs';
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const dday=value=>{if(!value)return '';const t=new Date(String(value)+'T00:00:00');if(!Number.isFinite(t.getTime()))return '';const n=Math.ceil((t-Date.now())/86400000);return n>=0?`D-${n}`:'기일 지남';};
 const money=value=>value>0?`${(value/1e8).toLocaleString('ko-KR',{maximumFractionDigits:3})}억원`:'가격 확인 중';
+// 경매·공매 표기는 소수점 1자리까지.
+const money1=value=>value>0?`${(value/1e8).toLocaleString('ko-KR',{maximumFractionDigits:1})}억원`:'가격 확인 중';
 const area=areaMarkup;
 const areaText=value=>formatArea(value,getAreaDisplayUnit());
 const rowTitle=row=>`${row.district} ${row.neighborhood||''}`.trim();
@@ -427,6 +429,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
   }
   // 경매 물건 카드: 건물찾기 카드와 같은 골격에 경매 사실정보(감정가·최저가·기일·유찰)를 담는다.
   function auctionCard(group) {
+    const money=money1;
     const row=group.representative,a=row.auction||{},isOnbid=row.cohort==='onbid';
     const badge=`${isOnbid?'공매':'경매'}${row.bundle?' · 일괄':''}${AUCTION_DEAL_LABEL[row.dealType]?` · ${AUCTION_DEAL_LABEL[row.dealType]}`:''}`;
     const bundleN=group.listings.length;
@@ -787,6 +790,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
   }
   function renderAuctionDetail() {
     if(!detail)return;
+    const money=money1;
     const row=detail.listing,a=row.auction||{},d=detail.auctionDetail||{};
     const rights=d.acquired_rights||row.acquiredRights||'';
     const flagLabels=auctionFlagLabels(row);
@@ -800,6 +804,24 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     const stats=Array.isArray(d.around_stats)?d.around_stats[0]:null;
     const sourceUrl=esc(a.sourceUrl||'https://www.courtauction.go.kr/');
     const onbidMode=row.cohort==='onbid',od=detail.onbidDetail||null;
+    // 공매 공시 정보 섹션에 표기할 가격 항목(최저입찰가율·감정평가액·최근 낙찰가 등).
+    let onbidPriceRows='';
+    if(onbidMode){
+      const rows=[];
+      if(totals.appraised>0&&totals.min>0)rows.push(`<dt>최저입찰가율</dt><dd>${Math.round(totals.min/totals.appraised*100)}%</dd>`);
+      const appr=Array.isArray(od?.appraisal)?od.appraisal:[];
+      if(appr.length){
+        const total=appr.reduce((s,x)=>s+(Number(x.apslEvlAmt)||0),0);
+        if(total>0)rows.push(`<dt>감정평가액</dt><dd>${money(total)}${appr.length>1?` <small style="opacity:.6">${appr.length}건 합계</small>`:''}</dd>`);
+      }
+      const results=Array.isArray(detail.onbidResults)?detail.onbidResults:[];
+      const latest=results[0];
+      if(latest){
+        if(latest.scfb_amt)rows.push(`<dt>최근 낙찰가</dt><dd>${money(latest.scfb_amt)}${latest.scfb_rate!=null?` <small style="opacity:.6">감정가의 ${esc(latest.scfb_rate)}%</small>`:''}</dd>`);
+        if(latest.bidder_cnt!=null)rows.push(`<dt>응찰자수</dt><dd>${esc(latest.bidder_cnt)}명</dd>`);
+      }
+      onbidPriceRows=rows.join('');
+    }
     // 공매(온비드) 상세 API가 준 정보(소재지·감정평가·임대차/등기/점유·지분·기타 유의)를 표시한다. (사진 제외)
     let onbidDetailSection='';
     if(onbidMode&&od){
@@ -832,7 +854,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
       <section class="detail-section" id="property-auction"><h3>${row.cohort==='onbid'?'공매':'경매'} 공시 정보 <small>${row.cohort==='onbid'?'온비드(캠코)':'법원경매정보'} · 사실정보</small></h3><p class="case-note">아래는 ${row.cohort==='onbid'?'한국자산관리공사 온비드':'법원경매정보'} 공시 기준이에요. 터잡이 <b>보유 공공자료</b>와 출처·기준일이 달라 다를 수 있어요.</p><dl class="auction-facts">
         <dt>용도</dt><dd>${esc(a.usageName||'미기재')}</dd>
         <dt>${inBatch?'감정가 (일괄 전체)':'감정가'}</dt><dd>${money(totals.appraised)}</dd>
-        <dt>${inBatch?'최저매각가 (일괄 전체)':'최저매각가'}</dt><dd>${money(totals.min)} <small style="opacity:.6">(감정가의 ${(totals.appraised>0&&totals.min>0)?Math.round(totals.min/totals.appraised*100)+'%':'—'})</small></dd>
+        <dt>${inBatch?(onbidMode?'최저입찰가 (일괄 전체)':'최저매각가 (일괄 전체)'):(onbidMode?'최저입찰가':'최저매각가')}</dt><dd>${money(totals.min)} <small style="opacity:.6">(감정가의 ${(totals.appraised>0&&totals.min>0)?Math.round(totals.min/totals.appraised*100)+'%':'—'})</small></dd>${onbidPriceRows}
         <dt>${onbidMode?'입찰마감':'매각기일'}</dt><dd>${esc(a.saleDate||'')} ${esc(a.saleHour||'')} ${dday(a.saleDate)}</dd>
         ${onbidMode?(od&&od.failed_bid!=null?`<dt>유찰횟수</dt><dd>${esc(od.failed_bid)}회</dd>`:''):`<dt>유찰횟수</dt><dd>${a.failCount??0}회</dd>`}
         <dt>법원·계</dt><dd>${esc(a.courtName||'')} ${esc(a.deptName||'')}</dd>
