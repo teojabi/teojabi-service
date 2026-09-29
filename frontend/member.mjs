@@ -227,6 +227,13 @@ export function openMember(mode='member'){
     if(b.dataset.member==='preview'){previewMember();return;}
     if(b.dataset.member==='open-favorites'){favoritesOpen=!favoritesOpen;render();if(favoritesOpen)dialog.querySelector('.member-items')?.scrollIntoView({behavior:'smooth',block:'start'});return;}
     if(b.dataset.member==='compare'){
+      // 비교하려면 찜 목록이 펼쳐져 있어야 체크박스가 보인다. 접혀 있으면 먼저 펼친다.
+      if(!favoritesOpen){
+        favoritesOpen=true;render();
+        const notice=dialog.querySelector('.member-message');if(notice)notice.textContent='비교할 찜 매물을 2~3개 선택한 뒤 다시 눌러주세요.';
+        dialog.querySelector('.member-items')?.scrollIntoView({behavior:'smooth',block:'start'});
+        return;
+      }
       const keys=[...dialog.querySelectorAll('[data-compare-key]:checked')].map(c=>c.dataset.compareKey).filter(Boolean).slice(0,3);
       const msg=dialog.querySelector('.member-message');
       if(keys.length<2){if(msg)msg.textContent='비교할 찜 매물을 2개 이상 선택해 주세요.';return;}
