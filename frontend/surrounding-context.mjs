@@ -45,7 +45,7 @@ export function renderSurrounding(data) {
     <p class="surrounding-source">반경 ${Math.round((data.basis?.radiusM || 1000) / 1000 * 10) / 10}km · 서울시·국토교통부 공공데이터 · 대표 위치 기준</p>`;
 }
 
-export function mountSurrounding(host, listing) {
+export function mountSurrounding(host, listing, onData) {
   const position = listing?.position;
   if (!position || position.lat == null || position.lng == null) {
     host.innerHTML = '<p class="case-note">매물 위치를 확인할 수 없어 주변 사업을 조회하지 못했어요.</p>';
@@ -55,7 +55,7 @@ export function mountSurrounding(host, listing) {
   host.innerHTML = '<p class="case-note">반경 1km 주변 사업을 확인하고 있어요.</p>';
   apiFetch(`/api/surrounding?lat=${position.lat}&lng=${position.lng}&radius=1000`)
     .then(response => response.json())
-    .then(data => { if (!cancelled) host.innerHTML = renderSurrounding(data); })
+    .then(data => { if (!cancelled) { onData?.(data); host.innerHTML = renderSurrounding(data); } })
     .catch(() => { if (!cancelled) host.innerHTML = '<p class="case-note">주변 사업 자료를 불러오지 못했어요.</p>'; });
   return () => { cancelled = true; };
 }

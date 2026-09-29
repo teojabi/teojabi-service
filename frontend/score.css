@@ -1,0 +1,50 @@
+/* 터잡이 점수 (절대 점수) 상세 카드 */
+.teojabi-score-host { margin: 10px 0 2px; }
+.teojabi-score { border: 1px solid var(--line); border-radius: 12px; background: var(--card); overflow: hidden; }
+.teojabi-score.is-pending { padding: 12px 14px; }
+.score-pending { font-size: 13px; color: var(--muted); }
+
+.score-toggle {
+  width: 100%; display: flex; align-items: center; gap: 8px;
+  padding: 12px 14px; background: transparent; border: 0; cursor: pointer; text-align: left;
+}
+.score-toggle:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
+.score-stars { position: relative; display: inline-block; font-size: 17px; letter-spacing: 1px; line-height: 1; color: #d8dde6; vertical-align: middle; }
+.score-stars-base { visibility: visible; }
+.score-stars-fill { position: absolute; left: 0; top: 0; overflow: hidden; white-space: nowrap; color: #f5a623; width: calc(var(--score) / 5 * 100%); }
+.score-value { font-size: 18px; font-weight: 800; color: var(--text); }
+.score-grade { font-size: 12px; font-weight: 700; color: var(--primary); background: var(--selected); border-radius: 999px; padding: 2px 9px; }
+.score-title { font-size: 12px; color: var(--muted); }
+.score-more { margin-left: auto; font-size: 12px; font-weight: 700; color: var(--primary); }
+.score-more::after { content: "⌄"; display: inline-block; margin-left: 4px; transition: transform .15s ease; }
+.score-toggle[aria-expanded="true"] .score-more::after { transform: rotate(180deg); }
+
+.score-body { border-top: 1px solid var(--line); padding: 8px 14px 12px; }
+.score-cat { padding: 10px 0; border-bottom: 1px solid var(--line); }
+.score-cat:last-of-type { border-bottom: 0; }
+.score-cat-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.score-cat-head b { font-size: 14px; color: var(--text); }
+.score-cat-right { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; }
+.score-cat-value { font-size: 13px; font-weight: 800; color: var(--text); }
+.score-cat-none { font-size: 12px; color: var(--muted); }
+.score-metrics { list-style: none; display: grid; gap: 6px; margin: 0; padding: 0; }
+.score-metric { display: grid; gap: 2px; }
+.score-metric-head { display: flex; justify-content: space-between; gap: 10px; }
+.score-metric-head span { font-size: 13px; color: var(--text); font-weight: 600; }
+.score-metric-head b { font-size: 13px; color: var(--primary); font-weight: 800; }
+.score-metric small { font-size: 12px; color: var(--muted); line-height: 1.5; }
+.score-metric.is-missing .score-metric-head b { color: var(--muted); }
+.score-note { font-size: 11px; color: var(--muted); line-height: 1.6; margin: 10px 0 0; }
+
+/* 비로그인: 근거 잠금 */
+.score-body-locked { position: relative; }
+.score-blur { filter: blur(6px); pointer-events: none; user-select: none; }
+.score-lock {
+  position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 10px; padding: 16px; text-align: center; background: var(--card);
+}
+@supports (background: color-mix(in srgb, red 50%, transparent)) {
+  .score-lock { background: color-mix(in srgb, var(--card) 82%, transparent); }
+}
+.score-lock p { margin: 0; font-size: 13px; color: var(--text); }
+.score-lock .primary { min-height: 40px; padding: 0 18px; }
