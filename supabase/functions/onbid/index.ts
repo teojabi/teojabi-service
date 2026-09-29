@@ -65,6 +65,12 @@ function applyFilters(query: any, params: URLSearchParams, opts: { zoneCols?: bo
   const dealTypes = params.getAll("dealTypes").flatMap((v) => v.split(",")).map((v) => v.trim().toLowerCase()).filter((v) => ["whole", "floor", "unit", "land"].includes(v)).slice(0, 4);
 
   let q = query.not("cltr_mng_no", "is", null);
+  // 건축 부적합 토지(뒷골목·맹지 등)는 목록·지도에서 숨긴다. hideNonBuildable=0 으로 끌 수 있다.
+  //   - 단독 토지는 너무 작은 필지(기본 60㎡ 미만) 제외 (건물 물건은 그대로 통과)
+  if (!["0", "false"].includes((params.get("hideNonBuildable") || "1").toLowerCase())) {
+    const minLandArea = num(params.get("landMinArea")) ?? 60;
+    q = q.or(`deal_type.neq.land,deal_type.is.null,and(deal_type.eq.land,land_area_m2.gte.${minLandArea})`);
+  }
   if (gus.length) q = q.in("sigu", gus);
   if (usages.length) q = q.or(usages.map((u) => `usg_mcls_nm.ilike.%${u}%`).join(","));
   if (zones.length) q = q.or(zones.map((z) => `use_zone.ilike.%${z}%`).join(","));
