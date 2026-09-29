@@ -83,13 +83,14 @@ function applyFilters(query: any, params: URLSearchParams, opts: { zoneCols?: bo
   const saleFrom = (params.get("saleFrom") || "").trim();
   const saleTo = (params.get("saleTo") || "").trim();
 
-  // 지분 매각은 서비스 대상이 아니므로 항상 제외한다(건물주 목적 사용자 대상).
+  // 지분 매각은 서비스 대상이 아니므로 제외한다. 다만 일괄매각(bundle) 목적물은 목적물 일부에 '지분' 표기가 있어도
+  // 사건 전체를 빼면 안 되므로 bundle은 유지한다.
   let q = query.not("court_code", "is", null)
     .not("usage_name", "ilike", "%아파트%")
     .not("usage_name", "ilike", "%자동차%")
     .not("cancelled", "is", true)
     .not("sale_kind", "eq", "share")
-    .not("is_share", "is", true);
+    .or("is_share.is.null,is_share.is.false,sale_kind.eq.bundle");
   // 건축 부적합 토지(뒷골목·맹지·도로 등)는 목록·지도에서 숨긴다. hideNonBuildable=0 으로 끌 수 있다.
   //   - 지목이 도로·하천·구거·제방·유지·묘지 등 비건축인 토지는 값이 있으면 제외
   //   - 단독 토지는 너무 작은 필지(기본 60㎡ 미만) 제외 (건물 물건은 그대로 통과)
