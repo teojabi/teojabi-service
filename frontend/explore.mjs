@@ -438,15 +438,16 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     const flagBadges=auctionFlagBadges(row),rightsBadge=auctionRightsBadge(row);
     const priceLabel=isOnbid?'최저입찰가':'최저매각가';
     const dateNote=isOnbid?`입찰마감 ${esc(a.saleDate||'')} ${dday(a.saleDate)}`:`매각기일 ${esc(a.saleDate||'')} ${dday(a.saleDate)} · 유찰 ${a.failCount??0}회`;
-    // 일괄매각은 목적물 면적을 합쳐 목록에 표기한다(대표 목적물 하나가 아니라 대상 전체 평수).
-    const bundleTotal=group.listings.length>1?group.listings.reduce((sum,r)=>sum+(Number(r.areaM2)||0),0):null;
+    // 일괄매각(경매)만 목적물을 합산한다. 공매는 같은 물건의 회차(공매조건)별 행이므로 합산하지 않는다.
+    const isBundle=!isOnbid&&row.saleKind==='bundle';
+    const bundleTotal=isBundle&&bundleN>1?group.listings.reduce((sum,r)=>sum+(Number(r.areaM2)||0),0):null;
     const areaValue=bundleTotal!=null?bundleTotal:(row.areaM2!=null?Number(row.areaM2):null);
     // 일괄매각 단가는 대표 물건이 아니라 대상 전체 대지면적 합계 기준으로 계산한다.
-    const bundleLand=group.listings.length>1?group.listings.reduce((sum,r)=>sum+(Number(r.landAreaM2)||Number(r.areaM2)||0),0):null;
+    const bundleLand=isBundle&&bundleN>1?group.listings.reduce((sum,r)=>sum+(Number(r.landAreaM2)||Number(r.areaM2)||0),0):null;
     const pppArea=bundleLand!=null&&bundleLand>0?bundleLand:(row.landAreaM2??row.areaM2);
     const areaLabel=bundleTotal!=null?'일괄 합계':(row.dealType==='unit'?'전유':(row.kind==='land'?'대지':'목적물'));
     const areaExtra=(bundleTotal==null&&row.dealType==='whole'&&row.buildingAreaM2!=null&&areaValue!=null&&Math.round(Number(row.buildingAreaM2))!==Math.round(areaValue))?`<span>연면적 <b>${area(row.buildingAreaM2)}</b></span>`:'';
-    const totals=bundleN>1?bundlePriceTotals(group):{appraised:Number(a.appraisedWon)||0,min:Number(a.minPrice)||0};
+    const totals=isBundle&&bundleN>1?bundlePriceTotals(group):{appraised:Number(a.appraisedWon)||0,min:Number(a.minPrice)||0};
     return `<article class="property-card${selected===row.id?' selected':''}" data-card-id="${esc(row.id)}"><button class="property-select" data-explore="detail" data-id="${esc(row.id)}" aria-label="${esc(rowTitle(row))} ${money(row.priceWon)} 상세 보기"><div class="property-location"><span>${esc(rowTitle(row))}</span><em class="pick-badge auction-badge">${badge}</em>${kindBadge}${verifyBadge}${flagBadges}${rightsBadge}${member.get('favorite',row.id)?'<em class="pick-badge favorite-badge">♥ 찜한 물건</em>':''}</div><h2>${money(totals.min)}${pricePerAreaMarkup(totals.min,pppArea)}</h2><div class="area-pair"><span>감정가 <b>${money(totals.appraised)}</b></span><span>${priceLabel} <b>${money(totals.min)}</b></span>${areaValue!=null?`<span>${areaLabel} <b>${area(areaValue)}</b></span>`:''}${areaExtra}</div><p class="property-zoning">${esc(a.usageName||'용도 미기재')} · ${esc(row.district||'')} ${esc(row.neighborhood||'')}</p><p class="property-description">${esc(a.caseNo||'')} · ${dateNote}</p><span class="property-link">상세 보기 <span aria-hidden="true">↗</span></span></button></article>`;
   }
   // AI 결과는 화면에 보이는 만큼(5개 → 더보기)만 지도에도 표시한다.
