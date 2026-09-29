@@ -187,11 +187,12 @@ export class ListingMap {
     const label=item.cohort==='existing'?'터잡이 추천':item.cohort==='disco'?'디스코 매물':item.cohort==='auction'?'경매 물건':item.cohort==='onbid'?'공매 물건':'선별매물';
     element.title=label;
     const dday=ddayText(saleDateOf(item));
-    // 일괄매각(경매)은 카드와 같이 사건 전체 최저가·면적 합계로 표시한다. (공매 회차는 합산하지 않음)
+    // 일괄매각(경매)은 카드와 같이 사건 전체 최저가·토지 면적 합계로 표시한다. (공매 회차는 합산하지 않음)
     const lots=group?.listings||[];
     const isBundle=item.cohort==='auction'&&item.saleKind==='bundle'&&lots.length>1;
+    const landLots=isBundle?lots.filter(r=>r.kind==='land'):[];
     const bundleMin=isBundle?(new Set(lots.map(r=>Number(r.auction?.minPrice)||0)).size>1?lots.reduce((s,r)=>s+(Number(r.auction?.minPrice)||0),0):(Number(lots[0]?.auction?.minPrice)||0)):null;
-    const bundleArea=isBundle?lots.reduce((s,r)=>s+(Number(r.areaM2)||0),0):null;
+    const bundleArea=landLots.length?landLots.reduce((s,r)=>s+(Number(r.areaM2)||0),0):null;
     const shownPrice=bundleMin!=null?bundleMin:item.priceWon;
     const shownArea=bundleArea!=null?bundleArea:item.areaM2;
     price.textContent=formatPrice(shownPrice);area.textContent=markerArea(shownArea,this.areaUnit);
