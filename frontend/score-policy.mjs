@@ -139,7 +139,7 @@ function priceCategory(listing, nearby, official) {
   const subjLandPerM2 = land > 0 ? price / land : null;
   if (official && Number.isFinite(official.perM2) && official.perM2 > 0 && subjLandPerM2 != null) {
     const multiple = subjLandPerM2 / official.perM2;
-    evidence += ` · 참고) 공시지가 ${official.year ? `${official.year}년 ` : ''}${official.perM2.toLocaleString('ko-KR', { maximumFractionDigits: 0 })}원/㎡ · 이 매물 공시지가의 약 ${multiple.toLocaleString('ko-KR', { maximumFractionDigits: 1 })}배(공시지가는 시세보다 낮게 고시 · 통상 2~3배, 점수 미반영)`;
+    evidence += ` · 참고) 공시지가 ${official.year ? `${official.year}년 ` : ''}${official.perM2.toLocaleString('ko-KR', { maximumFractionDigits: 0 })}원/㎡ · 이 매물 공시지가의 약 ${multiple.toLocaleString('ko-KR', { maximumFractionDigits: 1 })}배`;
   }
   return {
     ...base, available: true, score: stars,
