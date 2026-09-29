@@ -271,6 +271,9 @@ export class ListingMap {
     element.innerHTML='<i class="map-radar-ring r1"></i><i class="map-radar-ring r2"></i><i class="map-radar-ring r3"></i><i class="map-radar-core"></i>';
     element.append(label);
     element.title=`${area.name}${area.type?` (${area.type})`:''}`;
+    // 레이더 마커는 필지 클릭을 막지 않도록 투명(pointer-events:none)이라, 라벨에 직접 클릭을 연결한다.
+    const open=event=>{event.preventDefault();event.stopPropagation();this.onCommercial?.(area);};
+    label.addEventListener('click',open);
     return {content:element,anchor:new this.n.Point(size/2,size/2)};
   }
   setCommercialAreas(areas) {
