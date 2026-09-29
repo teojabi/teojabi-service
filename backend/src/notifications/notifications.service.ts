@@ -170,7 +170,15 @@ export class NotificationsService {
       read: row.readAt != null,
     }));
     const unreadCount = items.filter((item) => !item.read).length;
-    return { status: 'ready', generatedAt: new Date().toISOString(), count: items.length, unreadCount, items };
+    // 조건별 최근 30일 알림 건수. 알림이 많은 조건에 조정 안내를 보여주기 위한 참고값.
+    const stats = await this.prisma.$queryRaw<Array<{ name: string | null; count: bigint }>>`
+      SELECT condition_name AS name, count(*) AS count
+      FROM public.notification_item
+      WHERE user_id=${userId} AND origin='condition' AND created_at >= now() - interval '30 days'
+      GROUP BY condition_name`;
+    const conditionAlertCounts: Record<string, number> = {};
+    for (const row of stats) if (row.name) conditionAlertCounts[row.name] = Number(row.count);
+    return { status: 'ready', generatedAt: new Date().toISOString(), count: items.length, unreadCount, items, conditionAlertCounts };
   }
 
   // 새로 생긴 매칭·공지만 알림 항목으로 추가한다. 첫 조회는 기준선(기존 매칭은 읽음 처리)으로 삼아
@@ -348,6 +356,8 @@ export class NotificationsService {
 
     for (const savedRow of includeConditions ? saved.filter((r) => r.kind === 'condition') : []) {
       const payload = savedRow.payload || {};
+      // 조건별 알림을 끈 경우 그 조건은 매칭하지 않는다.
+      if (payload.alerts === false) continue;
       const conditionName = payload.name || '저장 조건';
       const districts = Array.isArray(payload.districts) ? payload.districts.filter((d: any) => typeof d === 'string') : [];
       // 새로 올라온 매물(네이버·디스코) 매칭 — 최대 3건.
@@ -411,7 +421,8 @@ export class NotificationsService {
       SELECT id AS "userId", email FROM public."user"`;
     // 저장 조건이 있는 회원에게만 알린다(조건이 없으면 매칭 대상이 없음).
     const conditionRows = await this.prisma.$queryRaw<Array<{ userId: string; count: bigint }>>`
-      SELECT user_id AS "userId", count(*) AS count FROM public.discovery_item WHERE kind='condition' GROUP BY user_id`;
+      SELECT user_id AS "userId", count(*) AS count FROM public.discovery_item
+      WHERE kind='condition' AND COALESCE(payload->>'alerts','true') <> 'false' GROUP BY user_id`;
     const withCondition = new Set(conditionRows.filter((r) => Number(r.count) > 0).map((r) => r.userId));
     const today = this.date();
     let sent = 0;
