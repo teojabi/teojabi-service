@@ -466,6 +466,8 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
   }
   // AI 결과는 화면에 보이는 만큼(5개 → 더보기)만 지도에도 표시한다.
   const mapGroups=()=>source==='assistant'&&result?result.groups.slice(0,assistantShown):(result?.groups||[]);
+  // 목록 그룹에서 id로 매물을 찾는다(대표가 아니어도 찾음). 상세의 필지 경계 표시 등에 쓴다.
+  const findGroupRow=id=>{for(const group of (result?.groups||[])){if(group.representative?.id===id)return group.representative;const hit=(group.listings||[]).find(row=>row.id===id);if(hit)return hit;}return null;};
   function drawCards() {
     const favoritesMode=source==='favorites',assistantMode=source==='assistant',auctionMode=source==='auction';
     const picksView=showAllPicks&&pickGroups&&!favoritesMode&&!assistantMode&&!auctionMode;
@@ -906,7 +908,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     $('#listing-detail').innerHTML='<div class="detail-top"><button type="button" class="detail-back" data-explore="back-list">← 매물 목록</button><span>불러오는 중</span><button class="detail-close" data-explore="close" aria-label="경매 상세 닫기">×</button></div>';
     map.parcel(null);if(result)drawCards();
     // 목록에서 고른 물건이면 이미 위치·필지(pnu)를 알고 있으므로 지도에 바로 반영한다(일반매물과 동일).
-    const earlyRow=result?.groups?.find(group=>group.representative.id===id)?.representative||(compared.has(id)?compared.get(id):null);
+    const earlyRow=findGroupRow(id)||(compared.has(id)?compared.get(id):null);
     if(earlyRow?.position)map.select(earlyRow);
     if(earlyRow?.pnu)loadParcelBoundary(earlyRow.pnu);
     try {
