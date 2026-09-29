@@ -11,6 +11,14 @@ const number=(v,zero=false)=>{
 };
 const count=v=>{const n=number(v,true);return Number.isSafeInteger(n)?n:null;};
 export const normalizeRiskAddress=v=>text(v,300).replace(/^서울시 /,'서울특별시 ').replace(/번지$/,'').replace(/\s+/g,' ').trim();
+// 용도지역별 법정 일반기준 [용적률%, 건폐율%]. 매물별 최대용적률·건폐율 자료가 없을 때 보완용.
+const STATUTORY_ZONE_RATIOS=Object.freeze({
+  '제1종전용주거지역':[100,50],'제2종전용주거지역':[120,40],'제1종일반주거지역':[150,60],
+  '제2종일반주거지역':[200,60],'제3종일반주거지역':[250,50],'준주거지역':[400,60],
+  '중심상업지역':[1000,60],'일반상업지역':[800,60],'근린상업지역':[600,60],'유통상업지역':[600,60],
+  '전용공업지역':[200,60],'일반공업지역':[200,60],'준공업지역':[400,60],
+  '보전녹지지역':[50,20],'생산녹지지역':[50,20],'자연녹지지역':[50,20],
+});
 function date(v) {
   const raw=text(v,10).replace(/^(\d{4})(\d{2})(\d{2})$/,'$1-$2-$3');
   const ms=Date.parse(raw+'T00:00:00Z');
@@ -195,7 +203,11 @@ export function buildParcelContext(pnu,raw) {
   if(result.status==='error')return result;
   const rows=raw.road?.rows,master=raw.road?.status==='ready'&&rows?.length===1&&rows[0].pnu===pnu?rows[0]:null;
   const state=text(master?.baselineStatus),zone=text(master?.zone),recognized=state.split(';').every(s=>['일반기준','원천용도지역적용','도심경계확인'].includes(s));
-  const far=recognized&&zone?number(master?.far):null,bcr=recognized&&zone?number(master?.bcr):null;
+  let far=recognized&&zone?number(master?.far):null,bcr=recognized&&zone?number(master?.bcr):null;
+  // 매물별 최대용적률·건폐율이 없으면 용도지역 법정 일반기준으로 보완한다. (불러온 용도지역을 기준으로 표시)
+  const legalName=String(zone||text(master?.originalZone)||'').replace(/\s+/g,'').replace(/\((?:7|12)층(?:이하)?\)$/,'');
+  const legal=STATUTORY_ZONE_RATIOS[legalName];
+  if(legal){if(!(far>0))far=legal[0];if(!(bcr>0))bcr=legal[1];}
   return {status:result.status,pnu,address:raw.address,zones:result.zones,road:result.road,
     baseline:{far,bcr:bcr<=100?bcr:null,zone,originalZone:text(master?.originalZone),state:state||'자료미확인',downtown:master?.downtown==='서울도심',source:'master_land'}};
 }
