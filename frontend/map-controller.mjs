@@ -178,7 +178,7 @@ export class ListingMap {
       this.ready=true;this.onStatus?.('ready');
     } catch(error) {if(!this.dead){this.ready=false;this.onStatus?.('error',error.message);}}
   }
-  icon(item,active,count,top=false) {
+  icon(item,active,count,top=false,group=null) {
     const element=document.createElement('button');
     element.type='button';element.className=`map-price${active?' active':''}`;
     const price=document.createElement('strong'),area=document.createElement('span'),badge=document.createElement('span');
@@ -187,12 +187,19 @@ export class ListingMap {
     const label=item.cohort==='existing'?'터잡이 추천':item.cohort==='disco'?'디스코 매물':item.cohort==='auction'?'경매 물건':item.cohort==='onbid'?'공매 물건':'선별매물';
     element.title=label;
     const dday=ddayText(saleDateOf(item));
-    price.textContent=formatPrice(item.priceWon);area.textContent=markerArea(item.areaM2,this.areaUnit);
-    if(item.cohort==='auction'){badge.textContent=`경매${dday?` ${dday}`:''}`;element.append(badge);}
+    // 일괄매각(경매)은 카드와 같이 사건 전체 최저가·면적 합계로 표시한다. (공매 회차는 합산하지 않음)
+    const lots=group?.listings||[];
+    const isBundle=item.cohort==='auction'&&item.saleKind==='bundle'&&lots.length>1;
+    const bundleMin=isBundle?(new Set(lots.map(r=>Number(r.auction?.minPrice)||0)).size>1?lots.reduce((s,r)=>s+(Number(r.auction?.minPrice)||0),0):(Number(lots[0]?.auction?.minPrice)||0)):null;
+    const bundleArea=isBundle?lots.reduce((s,r)=>s+(Number(r.areaM2)||0),0):null;
+    const shownPrice=bundleMin!=null?bundleMin:item.priceWon;
+    const shownArea=bundleArea!=null?bundleArea:item.areaM2;
+    price.textContent=formatPrice(shownPrice);area.textContent=markerArea(shownArea,this.areaUnit);
+    if(item.cohort==='auction'){badge.textContent=`경매${isBundle?' 일괄':''}${dday?` ${dday}`:''}`;element.append(badge);}
     else if(item.cohort==='onbid'){badge.textContent=`공매${dday?` ${dday}`:''}`;element.append(badge);}
     else if(item.cohort==='existing')element.append(badge);
     element.append(price,area);
-    element.setAttribute('aria-label',`${label} ${item.district} ${item.neighborhood||''} 매물 ${formatPrice(item.priceWon)}, ${area.textContent}${dday?`, ${dday}`:''}, 상세 보기`);
+    element.setAttribute('aria-label',`${label} ${item.district} ${item.neighborhood||''} 매물 ${formatPrice(shownPrice)}, ${area.textContent}${dday?`, ${dday}`:''}, 상세 보기`);
     return {content:element,anchor:new this.n.Point(0,5)};
   }
   transactionIcon(item,index,offset={x:0,y:-40}) {
@@ -214,7 +221,7 @@ export class ListingMap {
     if(!this.ready)return;
     this.markers.forEach(({marker,group,top})=>{
       const active=group.listings.some(row=>row.id===this.selected);
-      marker.setIcon(this.icon(active&&this.selectedItem?this.selectedItem:group.representative,active,group.listings.length,top));
+      marker.setIcon(this.icon(active&&this.selectedItem?this.selectedItem:group.representative,active,group.listings.length,top,group));
     });
     if(this.extraMarker&&this.selectedItem)this.extraMarker.setIcon(this.icon(this.selectedItem,true,1));
     this.layoutTransactions();
@@ -318,7 +325,7 @@ export class ListingMap {
       const point=new this.n.LatLng(item.position.lat,item.position.lng);
       bounds.extend(point);
       const active=group.listings.some(row=>row.id===selected);
-      const marker=new this.n.Marker({map:this.visible===false?null:this.map,position:point,icon:this.icon(item,active,group.listings.length,index<5),zIndex:active?100:1});
+      const marker=new this.n.Marker({map:this.visible===false?null:this.map,position:point,icon:this.icon(item,active,group.listings.length,index<5,group),zIndex:active?100:1});
       this.n.Event.addListener(marker,'click',()=>this.onSelect?.(item.id));
       this.markers.push({marker,group,top:index<5});
     }
@@ -338,7 +345,7 @@ export class ListingMap {
     for(const {marker,group,top} of this.markers) {
       const active=group.listings.some(row=>row.id===item?.id);
       found ||= active;
-      marker.setIcon(this.icon(active?item:group.representative,active,group.listings.length,top));marker.setZIndex(active?100:1);
+      marker.setIcon(this.icon(active?item:group.representative,active,group.listings.length,top,group));marker.setZIndex(active?100:1);
     }
     if(item?.position) {
       const point=new this.n.LatLng(item.position.lat,item.position.lng);
