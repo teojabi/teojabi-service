@@ -1,4 +1,4 @@
-import { apiFetch } from './api-client.mjs';
+import { apiFetch, getRuntime } from './api-client.mjs';
 import { ListingMap, openStreetView, mountStreetPreview } from './map-controller.mjs';
 import { mountInlineContext } from './inline-context.mjs';
 import { mountBuildingRecords } from './building-records.mjs';
@@ -711,6 +711,25 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
       $('#listing-list').innerHTML=`<div class="empty"><h2>${label} 자료를 불러오지 못했어요.</h2><p>연결 상태를 확인하고 다시 시도해 주세요.</p><button class="outline" data-explore="retry">다시 불러오기</button></div>`;
     } finally {if(!disposed&&current===version)$('.explore-list').removeAttribute('aria-busy');}
   }
+  // 공시지가(연도별)로 과거 실거래의 시점을 보정하고 참고 배수를 계산한다.
+  async function loadOfficialPrice(listing,current){
+    const pnu=String(listing?.pnu||'');
+    if(!/^11\d{17}$/.test(pnu))return;
+    try{
+      const runtime=await getRuntime();
+      const base=runtime?.accountApiBase||'https://api.teojabi.com';
+      const response=await apiFetch(`${base}/api/v1/public-data/location-info?pnu=${pnu}`,{signal:abort.signal});
+      const data=await response.json();
+      if(disposed||current!==detailVersion)return;
+      const prices=data?.data?.land?.officialPrices;
+      if(!Array.isArray(prices)||!prices.length)return;
+      const rows=prices.map(p=>({year:Number(p.year),perM2:Number(p.pricePerSqm)})).filter(r=>Number.isFinite(r.year)&&r.perM2>0).sort((a,b)=>a.year-b.year);
+      if(!rows.length)return;
+      const latest=rows[rows.length-1],oldest=rows[0],span=latest.year-oldest.year;
+      const trend=span>0&&oldest.perM2>0?Math.pow(latest.perM2/oldest.perM2,1/span)-1:0;
+      scoreCard?.setOfficial({perM2:latest.perM2,year:latest.year,trend});
+    }catch{/* 공시지가가 없으면 시점 보정 없이 계산 */}
+  }
   function closeDetail(updateUrl=true,restoreFocus=true) {
     closeContext?.();closeContext=null;closeRecords?.();closeRecords=null;closeLand?.();closeLand=null;closeCommercial?.();closeCommercial=null;closeSurrounding?.();closeSurrounding=null;closeStreetPreview?.();closeStreetPreview=null;scoreCard?.dispose();scoreCard=null;
     const previousId=selected;
@@ -843,7 +862,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
       detail={listing:auctionToListing(data.item),auctionDetail:data.detail||null};
       renderAuctionDetail();
       logEvent('view_detail',{source:'auction',usage:detail.listing.auction?.usageName||'',district:detail.listing.district||'',priceWon:detail.listing.priceWon||null,address:detail.listing.address||''},detail.listing.id);
-      scoreCard=createScoreCard({host:$('#teojabi-score'),listing:detail.listing,authed:member.status==='ready',onLogin:openLogin});
+      scoreCard=createScoreCard({host:$('#teojabi-score'),listing:detail.listing,authed:member.status==='ready',onLogin:openLogin});loadOfficialPrice(detail.listing,current);
       closeContext=mountInlineContext($('#context-facts'),detail.listing,d=>scoreCard?.setContext(d));
       closeRecords=mountBuildingRecords($('#building-records'),$('#building-records-toggle'),detail.listing);
       closeLand=mountLandRecords($('#land-area-comparison'),$('#land-records'),$('#land-records-toggle'),detail.listing);
@@ -885,7 +904,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
       if(disposed||current!==detailVersion)return;
       detail={listing:onbidToListing(data.item),auctionDetail:data.detail||null,onbidDetail:data.detail||null,onbidResults:Array.isArray(data.results)?data.results:[]};
       renderAuctionDetail();
-      scoreCard=createScoreCard({host:$('#teojabi-score'),listing:detail.listing,authed:member.status==='ready',onLogin:openLogin});
+      scoreCard=createScoreCard({host:$('#teojabi-score'),listing:detail.listing,authed:member.status==='ready',onLogin:openLogin});loadOfficialPrice(detail.listing,current);
       closeContext=mountInlineContext($('#context-facts'),detail.listing,d=>scoreCard?.setContext(d));
       closeRecords=mountBuildingRecords($('#building-records'),$('#building-records-toggle'),detail.listing);
       closeLand=mountLandRecords($('#land-area-comparison'),$('#land-records'),$('#land-records-toggle'),detail.listing);
@@ -938,7 +957,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
       logEvent('view_detail',{source:data.listing.cohort||data.listing.source||'',usage:data.listing.auction?.usageName||data.listing.mainUse||'',district:data.listing.district||'',priceWon:data.listing.priceWon||null,address:data.listing.address||''},data.listing.id);
       const favoriteActive=Boolean(member.get('favorite',data.listing.id));
       $('.detail-content').insertAdjacentHTML('afterbegin',`<div class="detail-conversion"><a class="primary" href="https://pf.kakao.com/_qSQxhX/chat" target="_blank" rel="noopener noreferrer">터잡이와 상담하기 ↗</a><button class="outline" data-explore="favorite" data-favorite-detail="true" data-id="${esc(data.listing.id)}" aria-pressed="${favoriteActive}">${favoriteActive?'♥ 찜함':'♡ 찜하기'}</button><button class="outline" data-explore="copy-consult">상담할 매물 정보 복사</button><small>주소와 가격을 복사해서 상담 채널에 보내주세요.</small></div>`);
-      scoreCard=createScoreCard({host:$('#teojabi-score'),listing:data.listing,authed:member.status==='ready',onLogin:openLogin});
+      scoreCard=createScoreCard({host:$('#teojabi-score'),listing:data.listing,authed:member.status==='ready',onLogin:openLogin});loadOfficialPrice(data.listing,current);
       closeContext=mountInlineContext($('#context-facts'),data.listing,d=>scoreCard?.setContext(d));closeRecords=mountBuildingRecords($('#building-records'),$('#building-records-toggle'),data.listing);closeLand=mountLandRecords($('#land-area-comparison'),$('#land-records'),$('#land-records-toggle'),data.listing);closeCommercial=mountCommercial($('#commercial-facts'),data.listing,d=>scoreCard?.setCommercial(d));closeSurrounding=mountSurrounding($('#surrounding-facts'),data.listing,d=>scoreCard?.setSurrounding(d));closeStreetPreview=mountStreetPreview($('#street-inline'),data.listing.position);map.select(data.listing);$('#detail-title').focus({preventScroll:true});
       $('.detail-shortcuts').insertAdjacentHTML('beforeend','<button data-explore="section" data-section="property-transactions">주변 실거래</button>');
       loadNearby(id,current);
