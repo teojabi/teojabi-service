@@ -254,9 +254,15 @@ export class ListingMap {
     const sales=Number(area.monthlySalesWon)||0;
     const size=Math.round(Math.max(48,Math.min(96,48+Math.log10(sales+1)*6)));
     element.style.width=`${size}px`;element.style.height=`${size}px`;
+    const label=document.createElement('span');
+    label.className='map-radar-label';
+    label.textContent=area.name||'상권';
+    label.title=`${area.name}${area.type?` (${area.type})`:''} 정보 보기`;
+    label.setAttribute('role','button');
+    label.setAttribute('aria-label',`상권 ${area.name} ${area.type||''}, 정보 보기`);
     element.innerHTML='<i class="map-radar-ring r1"></i><i class="map-radar-ring r2"></i><i class="map-radar-ring r3"></i><i class="map-radar-core"></i>';
+    element.append(label);
     element.title=`${area.name}${area.type?` (${area.type})`:''}`;
-    element.setAttribute('aria-label',`상권 ${area.name} ${area.type||''}, 정보 보기`);
     return {content:element,anchor:new this.n.Point(size/2,size/2)};
   }
   setCommercialAreas(areas) {
