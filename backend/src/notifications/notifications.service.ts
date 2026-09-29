@@ -388,7 +388,7 @@ export class NotificationsService {
 
       // 새로 올라온 경매 물건 — 최대 3건.
       if (wantCourt) {
-        const conditions: Prisma.Sql[] = [Prisma.sql`a.first_seen_at > ${cursor}`, Prisma.sql`coalesce(a.sale_kind, 'whole') <> 'share'`, Prisma.sql`a.is_share IS NOT TRUE`, Prisma.sql`coalesce(a.detail_address,'') !~ '[0-9]+[[:space:]]*(층|호)'`, Prisma.sql`coalesce(a.building_list,'') !~ '[0-9]+[[:space:]]*(층|호)'`];
+        const conditions: Prisma.Sql[] = [Prisma.sql`a.first_seen_at > ${cursor}`, Prisma.sql`coalesce(a.sale_kind, 'whole') <> 'share'`, Prisma.sql`a.is_share IS NOT TRUE`, Prisma.sql`coalesce(a.detail_address,'') !~ '[0-9]+[[:space:]]*[층호]'`];
         if (districts.length) conditions.push(Prisma.sql`a.sigu IN (${Prisma.join(districts)})`);
         if (usages.length) conditions.push(Prisma.sql`(${Prisma.join(usages.map((u: string) => Prisma.sql`a.usage_name ILIKE ${'%' + u + '%'}`), ' OR ')})`);
         if (dealType) conditions.push(Prisma.sql`a.deal_type = ${dealType}`);

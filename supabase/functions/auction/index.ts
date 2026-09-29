@@ -92,9 +92,8 @@ function applyFilters(query: any, params: URLSearchParams, opts: { zoneCols?: bo
     .not("sale_kind", "eq", "share")
     .not("is_share", "is", true);
   // 구분건물 호실·층 매각(예: '… 2층201호')은 서비스 대상이 아니므로 제외한다.
-  //   주소·건물목록에 호/층이 있으면 건물 통·토지가 아니므로 목록·지도에서 숨긴다.
-  q = q.not("detail_address", "imatch", "[0-9]+[[:space:]]*(층|호)")
-    .not("building_list", "imatch", "[0-9]+[[:space:]]*(층|호)");
+  //   detail_address가 없으면(null) 통과시키고, 값이 있을 때 호/층이면 제외한다.
+  q = q.or("detail_address.is.null,detail_address.not.imatch.[0-9]+[[:space:]]*[층호]");
   // 건축 부적합 토지(뒷골목·맹지·도로 등)는 목록·지도에서 숨긴다. hideNonBuildable=0 으로 끌 수 있다.
   //   - 지목이 도로·하천·구거·제방·유지·묘지 등 비건축인 토지는 값이 있으면 제외
   //   - 단독 토지는 너무 작은 필지(기본 60㎡ 미만) 제외 (건물 물건은 그대로 통과)
