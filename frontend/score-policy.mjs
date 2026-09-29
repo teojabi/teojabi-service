@@ -105,13 +105,14 @@ function priceCategory(listing, nearby, official) {
     return Math.max(0.6, Math.min(1.8, latestPerM2 / ref));
   };
   let timeAdjusted = false;
+  const adjustMap = new Map();
   const adjPerM2 = c => {
     const per = toPerM2(c);
     if (per == null) return null;
     const y = c?.dealDate ? Number(String(c.dealDate).slice(0, 4)) : null;
     if (latestYear != null && Number.isFinite(y) && y < latestYear) {
       const f = factorFor(y);
-      if (f !== 1) { timeAdjusted = true; return per * f; }
+      if (f !== 1) { timeAdjusted = true; adjustMap.set(y, f); return per * f; }
     }
     return per;
   };
@@ -131,7 +132,10 @@ function priceCategory(listing, nearby, official) {
   const stars = tableScore(ratio, [[0.70, 5.0], [0.85, 4.5], [0.95, 4.0], [1.05, 3.0], [1.15, 2.5], [1.30, 2.0], [1.50, 1.5], [Infinity, 1.0]]);
   const diff = Math.round((ratio - 1) * 100);
   const cmp = diff <= 0 ? `약 ${Math.abs(diff)}% 낮음` : `약 ${diff}% 높음`;
-  let evidence = `${timeAdjusted ? '과거 거래를 공시지가 변동폭으로 현재 시점 환산 · ' : ''}주변 ${casePerM2.length}건 중위 ${wonPerM2(median)} · 이 매물 ${wonPerM2(subjPerM2)} (${cmp} · ${basisLabel}${kindNote}${casePerM2.length === 1 ? ' · 비교 1건' : ''})`;
+  const adjustNote = timeAdjusted && adjustMap.size
+    ? `공시지가 연도별 변동 반영(${[...adjustMap.entries()].map(([y, f]) => `${y}년 거래 ×${f.toLocaleString('ko-KR', { maximumFractionDigits: 2 })}`).join(', ')}) · `
+    : '';
+  let evidence = `${adjustNote}주변 ${casePerM2.length}건 중위 ${wonPerM2(median)} · 이 매물 ${wonPerM2(subjPerM2)} (${cmp} · ${basisLabel}${kindNote}${casePerM2.length === 1 ? ' · 비교 1건' : ''})`;
   const subjLandPerM2 = land > 0 ? price / land : null;
   if (official && Number.isFinite(official.perM2) && official.perM2 > 0 && subjLandPerM2 != null) {
     const multiple = subjLandPerM2 / official.perM2;
@@ -149,14 +153,15 @@ function buildCategory(listing, context) {
   const facts = contextFacts(context);
   const listingFar = pos(listing?.farLimit);
   const zone = zoneFactsOf(listing);
-  const allowedFar = facts.allowedFar ?? listingFar ?? (zone && zone.far > 0 ? zone.far : null);
+  const zoneFar = zone && zone.far > 0 ? zone.far : null;
+  // 용적률·건폐율은 용도지역 법정 기준을 우선 사용(지구단위계획 값은 사용하지 않음).
+  const allowedFar = zoneFar ?? listingFar ?? facts.allowedFar ?? null;
   const currentFar = num(listing?.currentFar) ?? num(listing?.buildingFacts?.farPercent)
     ?? (num(listing?.floorAreaM2) > 0 && num(listing?.areaM2) > 0 ? Math.round(num(listing.floorAreaM2) / num(listing.areaM2) * 100) : null);
   const roadWidth = pos(context?.road?.widthM) ?? pos(listing?.roadWidthM) ?? pos(listing?.auction?.roadWidthM);
-  // 건폐율: 지구단위계획 기준 → 경매·공매 bcr_limit → 용도지역 법정 건폐율 순.
-  const bcrFromPlan = pos(facts.bcr);
-  const bcr = bcrFromPlan ?? pos(listing?.bcrLimit) ?? (zone && zone.bcr > 0 ? zone.bcr : null);
-  const bcrSource = bcrFromPlan != null ? '지구단위계획' : (pos(listing?.bcrLimit) != null ? '매물 자료' : (zone ? '용도지역 기준' : null));
+  const zoneBcr = zone && zone.bcr > 0 ? zone.bcr : null;
+  const bcr = zoneBcr ?? pos(listing?.bcrLimit) ?? pos(facts.bcr) ?? null;
+  const bcrSource = zoneBcr != null ? '용도지역 법정' : (pos(listing?.bcrLimit) != null ? '매물 자료' : (pos(facts.bcr) != null ? '지구단위계획' : null));
   const heightLimit = pos(facts.heightLimit) ?? pos(listing?.heightLimit);
 
   const metrics = [];
@@ -168,9 +173,9 @@ function buildCategory(listing, context) {
       const remaining = allowedFar - currentFar;
       b1 = tableScore(remaining, [[-0.001, 1.0], [25, 2.0], [50, 2.5], [100, 3.0], [150, 4.0], [200, 4.5], [Infinity, 5.0]]);
       metrics.push({ key: 'far', label: '여유 용적률', score: b1, available: true,
-        evidence: `허용 ${allowedFar}% · 현재 ${currentFar}% → 여유 ${round1(remaining)}%` });
+        evidence: `허용 ${allowedFar}%${zoneFar != null ? '(용도지역 법정)' : ''} · 현재 ${currentFar}% → 여유 ${round1(remaining)}%` });
     } else {
-      metrics.push({ key: 'far', label: '허용 용적률', score: null, available: false, evidence: `허용 ${allowedFar}% · 현재 용적률 미확인` });
+      metrics.push({ key: 'far', label: '허용 용적률', score: null, available: false, evidence: `허용 ${allowedFar}%${zoneFar != null ? '(용도지역 법정)' : ''} · 현재 용적률 미확인` });
     }
   } else {
     metrics.push({ key: 'far', label: '여유 용적률', score: null, available: false, evidence: '허용 용적률 자료 없음' });
