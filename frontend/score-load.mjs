@@ -52,8 +52,26 @@ function fromOnbid(item) {
 
 async function fetchListing(key, signal) {
   if (key.startsWith('auction:')) {
-    const d = await getJson(`/api/auctions/${encodeURIComponent(key.slice('auction:'.length))}`, signal);
-    return d && d.status === 'ready' ? fromAuction(d.item) : null;
+    const docid = key.slice('auction:'.length);
+    const d = await getJson(`/api/auctions/${encodeURIComponent(docid)}`, signal);
+    if (!d || d.status !== 'ready') return null;
+    const listing = fromAuction(d.item);
+    // 일괄매각이면 같은 사건의 토지 목적물만 합산해 점수를 계산한다.
+    if (d.item && d.item.sale_kind === 'bundle' && d.item.case_no) {
+      const list = await getJson(`/api/auctions?q=${encodeURIComponent(d.item.case_no)}&size=50&dealTypes=whole,land`, signal);
+      const rows = list && list.status === 'ready' ? (list.rows || []) : [];
+      const lands = rows.filter((r) => {
+        const usage = String(r.usage_name || '');
+        return r.obj_kind === 'land' || /토지|대지|임야|전답|잡종지|과수원|답|전/.test(usage);
+      }).map(fromAuction);
+      if (lands.length > 1) {
+        const area = lands.reduce((s, r) => s + (Number(r.areaM2) || 0), 0);
+        const prices = lands.map((r) => Number(r.priceWon) || 0);
+        const price = new Set(prices).size > 1 ? prices.reduce((s, x) => s + x, 0) : (prices[0] || 0);
+        return { ...listing, areaM2: area > 0 ? area : listing.areaM2, priceWon: price > 0 ? price : listing.priceWon, kind: 'land' };
+      }
+    }
+    return listing;
   }
   if (key.startsWith('onbid:')) {
     const rest = key.slice('onbid:'.length).split('::').map(encodeURIComponent).join('::');
