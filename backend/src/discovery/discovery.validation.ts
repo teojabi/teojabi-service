@@ -54,7 +54,8 @@ export function validateItem(kind:string,key:string,input:any) {
       minRoadWidthM:ROAD_WIDTHS.includes(Number(input.minRoadWidthM))?Number(input.minRoadWidthM):null,
       preferTourism:input.preferTourism===true,
       excludeEducation:input.excludeEducation===true,
-      excludeHeritage:input.excludeHeritage===true};
+      excludeHeritage:input.excludeHeritage===true,
+      alerts:input.alerts===true?true:input.alerts===false?false:undefined};
   }
   if(!Array.isArray(input.pnus)||input.pnus.some((p:any)=>typeof p!=='string'||!/^11\d{17}$/.test(p)))throw new BadRequestException('Invalid parcels');
   const pnus=[...new Set(input.pnus)];

@@ -81,7 +81,7 @@ export function previewMember(){
   member.emit();openMember();
 }
 let closeCurrent;
-const labels={favorite:'찜한 매물',condition:'관심 조건',analysis:'내 땅 검토',feedback:'매물 의견',account:'계정 정보'};
+const labels={favorite:'찜한 매물',condition:'관심 조건',analysis:'내 땅 검토',feedback:'매물 의견',alerts:'알림 설정',account:'계정 정보'};
 const itemLabels=['favorite','condition','analysis','feedback'];
 const SOURCE_LABEL={premium:'터잡이 추천',registered:'터잡이 등록',disco:'디스코 매물',naver:'네이버 매물','naver-land':'네이버 매물',auction:'경매 물건',onbid:'공매 물건'};
 const DEAL_LABEL={whole:'건물 통',floor:'층',unit:'호실',land:'토지',vehicle:'차량'};
@@ -92,6 +92,7 @@ const sourceOf=key=>String(key||'').split(':')[0];
 // 알림함/설정 데이터. 백엔드에서 채워지면 보관함 상단에 임박 알림·설정으로 표시된다.
 let memberAlerts=[];
 let memberPrefs=null;
+let memberConditionAlertCounts={};
 const buildAlerts=()=>memberAlerts;
 const conditionRows=p=>{
   const rows=[];
@@ -140,6 +141,30 @@ const memberDetail=item=>{
   }
   return rows.length?`<dl class="member-item-facts">${rows.map(([k,v])=>`<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl>`:'';
 };
+// 조건이 얼마나 좁은지(필터 개수)로 알림이 많아질지 가늠한다.
+const conditionBreadth=p=>{
+  let n=0;
+  if(p.districts?.length)n++;
+  if(p.neighborhoods?.length)n++;
+  if(Number(p.budgetWon)>0)n++;
+  if(p.minAreaM2!=null||p.maxAreaM2!=null)n++;
+  if(p.zones?.length)n++;
+  if(p.kind)n++;
+  if(p.query)n++;
+  if(p.auction?.enabled)n++;
+  return n;
+};
+// 조건별 알림 설명과 조정 안내 문구.
+const conditionAlertNote=item=>{
+  const p=item.payload||{};
+  const on=p.alerts!==false;
+  if(!on)return '<p class="case-note">이 조건은 알림을 꺼 두었어요. 새 매물을 받으려면 아래 “이 조건으로 새 매물 알림 받기”를 눌러 주세요.</p>';
+  const count=Number(memberConditionAlertCounts[p.name])||0;
+  const lines=['이 조건에 맞는 새 매물과 임박한 경매·공매를 알림함·이메일로 알려드려요.'];
+  if(count>=5)lines.push(`최근 30일 알림이 ${count}건이에요. 알림이 많으면 지역·예산·대지면적을 좁히면 줄일 수 있어요.`);
+  else if(conditionBreadth(p)<=1)lines.push('조건이 넓어 알림이 많아질 수 있어요. 지역·예산·대지면적을 좁혀보세요.');
+  return `<p class="case-note">${lines.join(' ')}</p>`;
+};
 export function openMember(mode='member'){
   closeCurrent?.();const before=document.activeElement,dialog=document.createElement('dialog');dialog.className='member-dialog';dialog.setAttribute('aria-labelledby','member-title');
   let filter='favorite';
@@ -148,12 +173,20 @@ export function openMember(mode='member'){
     const architectLink=/architect\.html$/.test(location.pathname)?'':'<p class="member-architect-link">건축사이신가요? <a href="./architect.html">건축사 입점 신청 ↗</a></p>';
     const available=status==='ready'||status==='guest';
     const alerts=buildAlerts();
-    const prefsSection=status==='ready'?`<section class="member-prefs"><h3 class="member-section-title">알림 설정 <small>이메일 · 사실 안내</small></h3><div class="member-pref-row"><span>이메일 알림</span><div class="member-pref-opts"><button type="button" class="outline" data-member="pref" data-field="email" data-value="true" aria-pressed="${memberPrefs?.email===true}">받기</button><button type="button" class="outline" data-member="pref" data-field="email" data-value="false" aria-pressed="${memberPrefs?.email!==true}">끄기</button></div></div><div class="member-pref-row"><span>알림 기준</span><div class="member-pref-opts">${[1,3,7].map(d=>`<button type="button" class="outline" data-member="pref" data-field="leadDays" data-value="${d}" aria-pressed="${(memberPrefs?.leadDays??7)===d}">D-${d}</button>`).join('')}</div></div><p class="case-note">찜·저장 조건을 기준으로 새로 올라온 맞춤 매물과 매각기일·입찰마감이 임박한 경매·공매를 이메일로 보내드려요. 권리분석·적정 입찰가는 제공하지 않아요.</p></section>`:'';
+    const prefsControls=status==='ready'?`<section class="member-prefs"><h3 class="member-section-title">알림 받기 <small>이메일 · 알림 기준</small></h3><div class="member-pref-row"><span>이메일 알림</span><div class="member-pref-opts"><button type="button" class="outline" data-member="pref" data-field="email" data-value="true" aria-pressed="${memberPrefs?.email===true}">받기</button><button type="button" class="outline" data-member="pref" data-field="email" data-value="false" aria-pressed="${memberPrefs?.email!==true}">끄기</button></div></div><div class="member-pref-row"><span>알림 기준</span><div class="member-pref-opts">${[1,3,7].map(d=>`<button type="button" class="outline" data-member="pref" data-field="leadDays" data-value="${d}" aria-pressed="${(memberPrefs?.leadDays??7)===d}">D-${d}</button>`).join('')}</div></div><p class="case-note">웹 알림함은 언제든 볼 수 있어요. 이메일은 ‘받기’를 선택한 경우 하루 한 번 보내드려요. 권리분석·적정 입찰가는 제공하지 않아요.</p></section>`:'';
+    const alertsGuide=status==='ready'?`<section class="member-prefs"><h3 class="member-section-title">알림이 오는 방식 <small>사실 안내</small></h3><p class="case-note"><b>찜한 물건</b>은 매각기일·입찰마감이 가까워지면 임박 알림을 드려요.</p><p class="case-note"><b>관심 조건</b>은 조건에 맞는 새 매물이 올라오면 알려드려요. 조건별로 받기를 켜고 끌 수 있어요.</p><p class="case-note">알림이 너무 많으면 조건의 지역·예산·대지면적을 좁히거나, 조건별 알림을 잠시 꺼 두세요.</p></section>`:'';
+    const conditionSummary=(()=>{const conditions=member.items.filter(i=>i.kind==='condition');const on=conditions.filter(i=>i.payload?.alerts!==false).length;return `<section class="member-prefs"><h3 class="member-section-title">관심 조건 알림 <small>조건별 켜기·끄기</small></h3><p class="case-note">${conditions.length?`관심 조건 ${conditions.length}개 중 ${on}개가 알림을 받고 있어요.`:'아직 저장한 관심 조건이 없어요. 조건을 만들면 새 매물을 알려드려요.'}</p><button class="primary" data-member="goto-conditions">관심 조건 관리</button></section>`;})();
+    const alertsSection=status==='ready'?`${prefsControls}${alertsGuide}${conditionSummary}`:'';
     const accountSection=status==='ready'?`<section class="member-prefs"><h3 class="member-section-title">계정 정보 <small>이름 · 이메일 · 연락처</small></h3><form class="member-account" id="member-account"><label>이름<input name="name" maxlength="40" autocomplete="name" value="${esc(member.user?.name||'')}"></label><label>이메일<input name="email" type="email" maxlength="120" autocomplete="email" value="${esc(member.user?.email||'')}"></label><label>연락처<input name="phone" maxlength="30" autocomplete="tel" placeholder="선택" value="${esc(member.user?.phone||'')}"></label><p class="case-note">이메일은 알림·연락 수신에 사용돼요. 로그인은 간편 로그인(네이버·카카오·구글)으로 그대로 유지돼요.</p><p class="validation" role="alert"></p><button type="submit" class="primary">계정 정보 저장</button></form></section>`:'';
-    dialog.innerHTML=`<div class="modal-heading"><div><span class="eyebrow">MY TEOJABI</span><h2 id="member-title">${available?'내 보관함':'로그인·회원가입'}</h2></div><button class="outline" data-member="close" aria-label="창 닫기">×</button></div>${architectLink}${available?`<p class="case-note">${status==='ready'?`${esc(member.user.name||'회원')}님의 계정에 저장한 내용이에요.`:'이 브라우저에 임시 저장한 찜 목록이에요. 로그인하면 계정으로 옮겨집니다.'}</p><div class="member-tabs">${Object.entries(labels).filter(([k])=>status==='ready'||k==='favorite').map(([k,v])=>`<button class="outline" data-member="tab" data-kind="${k}" aria-pressed="${filter===k}">${v}${itemLabels.includes(k)?` ${member.items.filter(i=>i.kind===k).length}`:''}</button>`).join('')}</div>${filter==='favorite'&&member.items.some(i=>i.kind==='favorite')?`<div class="member-favorites-actions"><button class="primary" data-member="open-favorites">찜한 매물 전체 보기 ${member.items.filter(i=>i.kind==='favorite').length}</button></div>`:''}${filter==='condition'&&member.items.some(i=>i.kind==='condition')?`<div class="member-favorites-actions"><button class="primary" data-member="edit-condition">관심조건 바꾸기</button></div>`:''}${alerts.length?`<section class="member-alerts" aria-label="임박 알림"><h3 class="member-section-title">임박 알림 <small>찜·조건 기준 · 사실 안내</small></h3>${alerts.map(a=>`<article class="member-alert"><div><p class="member-alert-kind">${esc(a.kindLabel)}</p><h4>${esc(a.title)}</h4><p>${esc(a.detail)}</p></div><div>${a.key?`<button class="outline" data-member="open" data-key="${esc(a.key)}">다시 보기</button>`:''}</div></article>`).join('')}</section>`:''}${filter==='account'?`${prefsSection}${accountSection}`:`<div class="member-items">${member.items.filter(i=>i.kind===filter).map(i=>{
-      const p=i.payload,title=p.name||p.address||(p.teojabiNo?`매물번호 ${p.teojabiNo}`:i.kind==='feedback'?'저장한 매물 의견':i.key);
+    dialog.innerHTML=`<div class="modal-heading"><div><span class="eyebrow">MY TEOJABI</span><h2 id="member-title">${available?'내 보관함':'로그인·회원가입'}</h2></div><button class="outline" data-member="close" aria-label="창 닫기">×</button></div>${architectLink}${available?`<p class="case-note">${status==='ready'?`${esc(member.user.name||'회원')}님의 계정에 저장한 내용이에요.`:'이 브라우저에 임시 저장한 찜 목록이에요. 로그인하면 계정으로 옮겨집니다.'}</p><div class="member-tabs">${Object.entries(labels).filter(([k])=>status==='ready'||k==='favorite').map(([k,v])=>`<button class="outline" data-member="tab" data-kind="${k}" aria-pressed="${filter===k}">${v}${itemLabels.includes(k)?` ${member.items.filter(i=>i.kind===k).length}`:''}</button>`).join('')}</div>${filter==='favorite'&&member.items.some(i=>i.kind==='favorite')?`<div class="member-favorites-actions"><button class="primary" data-member="open-favorites">찜한 매물 전체 보기 ${member.items.filter(i=>i.kind==='favorite').length}</button></div>`:''}${filter==='condition'?`<p class="case-note">조건에 맞는 <b>새 매물</b>과 임박한 경매·공매를 알림함·이메일로 알려드려요. 조건별로 알림을 켜고 끌 수 있어요. 알림이 많으면 조건을 더 좁혀보세요.</p><div class="member-favorites-actions">${member.items.filter(i=>i.kind==='condition').length<2?`<button class="primary" data-member="add-condition">관심 조건 추가 ${member.items.filter(i=>i.kind==='condition').length}/2</button>`:'<span class="case-note">관심 조건은 최대 2개까지 저장할 수 있어요.</span>'}</div>`:''}${alerts.length?`<section class="member-alerts" aria-label="임박 알림"><h3 class="member-section-title">임박 알림 <small>찜·조건 기준 · 사실 안내</small></h3>${alerts.map(a=>`<article class="member-alert"><div><p class="member-alert-kind">${esc(a.kindLabel)}</p><h4>${esc(a.title)}</h4><p>${esc(a.detail)}</p></div><div>${a.key?`<button class="outline" data-member="open" data-key="${esc(a.key)}">다시 보기</button>`:''}</div></article>`).join('')}</section>`:''}${filter==='account'?accountSection:filter==='alerts'?alertsSection:`<div class="member-items">${member.items.filter(i=>i.kind===filter).map(i=>{
+      const p=i.payload,title=p.name||p.address||(p.teojabiNo?`매물번호 ${p.teojabiNo}`:i.kind==='feedback'?'저장한 매물 의견':i.kind==='condition'?(i.key==='secondary'?'관심 조건 2':'관심 조건 1'):i.key);
       const detail=memberDetail(i);
-      return `<article class="member-item"><div class="member-item-head"><h3>${esc(title)}</h3><small>${new Date(i.updatedAt).toLocaleDateString('ko-KR')} 저장</small></div>${detail}${i.kind!=='feedback'?`<div class="member-item-actions"><button class="outline" data-member="open" data-key="${esc(i.key)}">다시 보기</button><button class="outline" data-member="remove" data-key="${esc(i.key)}">저장 해제</button></div>`:`<div class="member-item-actions"><button class="outline" data-member="remove" data-key="${esc(i.key)}">의견 되돌리기</button></div>`}</article>`;
+      const actions=i.kind==='condition'
+        ?`<div class="member-item-actions"><button class="primary" data-member="edit-condition" data-key="${esc(i.key)}">조건 수정</button><button class="outline" data-member="toggle-condition-alert" data-key="${esc(i.key)}" aria-pressed="${p.alerts!==false}">${p.alerts===false?'이 조건으로 새 매물 알림 받기':'알림 받는 중 · 끄기'}</button><button class="outline" data-member="open" data-key="${esc(i.key)}">다시 보기</button><button class="outline" data-member="remove" data-key="${esc(i.key)}">삭제</button></div>`
+        :i.kind==='feedback'
+          ?`<div class="member-item-actions"><button class="outline" data-member="remove" data-key="${esc(i.key)}">의견 되돌리기</button></div>`
+          :`<div class="member-item-actions"><button class="outline" data-member="open" data-key="${esc(i.key)}">다시 보기</button><button class="outline" data-member="remove" data-key="${esc(i.key)}">삭제</button></div>`;
+      return `<article class="member-item"><div class="member-item-head"><h3>${esc(title)}</h3><small>${new Date(i.updatedAt).toLocaleDateString('ko-KR')} 저장</small></div>${detail}${i.kind==='condition'?conditionAlertNote(i):''}${actions}</article>`;
     }).join('')||'<div class="empty"><p>아직 저장한 내용이 없어요.</p><small>매물이나 검토 화면에서 저장해 보세요.</small></div>'}</div>`}${status==='guest'?`<div class="member-guest-login"><p>로그인하면 찜 목록을 계정에 저장하고 다른 기기에서도 볼 수 있어요.</p>${loginChoices()}</div>`:''}`:`<div class="member-empty"><h3>${status==='loading'?'회원 연결을 확인하고 있어요.':status==='signed-out'?'로그인하거나 간편가입해 주세요.':'로그인·회원가입이 필요해요.'}</h3><p>${status==='pending'?'현재 미리보기에서는 회원 API 주소가 아직 연결되지 않았어요. 운영 사이트 로그인 페이지로 이동할 수 있어요.':status==='error'?'회원 서버에 연결하지 못했어요. 잠시 후 다시 확인해 주세요.':'가입된 계정이면 바로 로그인되고, 처음이라면 필수 약관 동의 후 간편가입으로 이어져요.'}</p>${status==='pending'?`<div class="login-provider-grid"><button class="primary" data-member="preview" type="button">보관함 미리보기</button><a class="outline login-provider" href="https://teojabi.com/" target="_blank" rel="noopener noreferrer">운영 사이트에서 계속하기 ↗</a></div>`:loginChoices()}<p class="login-note">완료 후 돌아오면 내 보관함이 자동으로 연결돼요.</p></div>`}<div class="member-bottom"><span role="status" class="member-message"></span><div>${status==='ready'?'<button class="outline" data-member="logout">로그아웃</button>':''}<button class="outline" data-member="refresh" ${status==='loading'?'disabled':''}>연결 다시 확인</button></div></div>`;
   };
   const close=()=>{member.removeEventListener('change',render);dialog.remove();before?.focus();};closeCurrent=close;
@@ -166,7 +199,10 @@ export function openMember(mode='member'){
     if(b.dataset.member==='open-favorites'){dialog.close();window.dispatchEvent(new CustomEvent('teojabi-open-favorites'));return;}
     if(b.dataset.member==='logout'){b.disabled=true;try{if(await member.logout())dialog.close();}catch(error){dialog.querySelector('.member-message').textContent=error.message;b.disabled=false;}return;}
     if(b.dataset.member==='tab'){filter=b.dataset.kind;render();return;}
-    if(b.dataset.member==='edit-condition'){const condition=member.items.find(i=>i.kind==='condition'&&i.key==='primary')||member.items.find(i=>i.kind==='condition');if(!condition)return;dialog.close();window.dispatchEvent(new CustomEvent('teojabi-edit-condition',{detail:condition}));return;}
+    if(b.dataset.member==='edit-condition'){const condition=member.items.find(i=>i.kind==='condition'&&i.key===b.dataset.key);if(!condition)return;dialog.close();window.dispatchEvent(new CustomEvent('teojabi-edit-condition',{detail:{key:condition.key,payload:condition.payload}}));return;}
+    if(b.dataset.member==='add-condition'){const used=member.items.filter(i=>i.kind==='condition').map(i=>i.key);const key=!used.includes('primary')?'primary':(!used.includes('secondary')?'secondary':null);if(!key)return;dialog.close();window.dispatchEvent(new CustomEvent('teojabi-edit-condition',{detail:{key,payload:null}}));return;}
+    if(b.dataset.member==='goto-conditions'){filter='condition';render();return;}
+    if(b.dataset.member==='toggle-condition-alert'){const item=member.items.find(i=>i.kind==='condition'&&i.key===b.dataset.key);if(!item)return;b.disabled=true;try{await member.save('condition',item.key,{...(item.payload||{}),alerts:item.payload?.alerts===false});}catch(error){dialog.querySelector('.member-message').textContent=error.message;}b.disabled=false;return;}
     if(b.dataset.member==='pref'){
       const field=b.dataset.field,value=b.dataset.value,next={...(memberPrefs||{})};
       if(field==='leadDays')next.leadDays=Number(value);else next[field]=value==='true';
@@ -189,7 +225,7 @@ export function openMember(mode='member'){
     finally{button.disabled=false;}
   });
   render();document.body.append(dialog);dialog.showModal();
-  if(member.status==='ready'){Promise.all([member.request('/notifications').catch(()=>null),member.request('/notifications/preferences').catch(()=>null)]).then(([inbox,prefs])=>{if(!dialog.open)return;if(Array.isArray(inbox?.items))memberAlerts=inbox.items;if(prefs&&typeof prefs==='object')memberPrefs=prefs;render();});}
+  if(member.status==='ready'){Promise.all([member.request('/notifications').catch(()=>null),member.request('/notifications/preferences').catch(()=>null)]).then(([inbox,prefs])=>{if(!dialog.open)return;if(Array.isArray(inbox?.items))memberAlerts=inbox.items;if(inbox?.conditionAlertCounts&&typeof inbox.conditionAlertCounts==='object')memberConditionAlertCounts=inbox.conditionAlertCounts;if(prefs&&typeof prefs==='object')memberPrefs=prefs;render();});}
   if(member.status==='idle')member.refresh();return close;
 }
 export async function saveNamed(kind,payload){

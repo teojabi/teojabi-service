@@ -14,7 +14,7 @@ import {logEvent} from './events.mjs';
 const app = document.querySelector('#app');
 const emptyAuction=()=>({enabled:false,source:'court',dealType:'',saleKind:'',failMax:'',usages:[],maxPriceEok:'',maxBidRate:''});
 const emptyDraft=()=>({budgetEok:'',districts:[],neighborhoods:[],purpose:null,minArea:'',maxArea:'',areaUnit:'pyeong',zones:[],auction:emptyAuction(),...BUILD_DEFAULTS});
-const state = { screen: 'home', siteDraft:null, parcelSearch:null, draft: emptyDraft(), applied: null, editing: false, pane: 'list', activity:null, activityError:false, search:null, neighborhoodsOpen:false };
+const state = { screen: 'home', siteDraft:null, parcelSearch:null, draft: emptyDraft(), applied: null, editing: false, conditionKey:'primary', pane: 'list', activity:null, activityError:false, search:null, neighborhoodsOpen:false };
 let pendingInitialSource=null;
 // 서비스별 고유 URL(/auction, /onbid, /new-build)을 SPA 화면으로 연결한다.
 const pathKey=()=>((location.pathname.replace(/\/+$/,'').split('/').pop())||'').replace(/\.html$/,'');
@@ -112,16 +112,24 @@ function faq() {
 window.addEventListener('teojabi-open-saved',event=>{
   const {kind,key,payload:p}=event.detail;
   if(kind==='favorite'){state.screen='results';history.replaceState(null,'','#listing='+encodeURIComponent(key));}
-  if(kind==='condition'){state.applied={...p,areaUnit:'m2',minArea:p.minAreaM2==null?'':String(p.minAreaM2),maxArea:p.maxAreaM2==null?'':String(p.maxAreaM2)};state.screen='results';history.replaceState(null,'',location.pathname);}
+  if(kind==='condition'){state.conditionKey=key||'primary';state.applied={...p,areaUnit:'m2',minArea:p.minAreaM2==null?'':String(p.minAreaM2),maxArea:p.maxAreaM2==null?'':String(p.maxAreaM2)};state.screen='results';history.replaceState(null,'',location.pathname);}
   if(kind==='analysis'){state.siteDraft={...createSiteDraft(),restore:{pnus:p.pnus,fields:p.fields},memo:p.memo,name:p.name};state.screen='analyze';history.replaceState(null,'',location.pathname);}
   render();
 });
 window.addEventListener('teojabi-edit-condition',event=>{
-  const p=event.detail?.payload||{};
-  state.applied={...p,areaUnit:'m2',minArea:p.minAreaM2==null?'':String(p.minAreaM2),maxArea:p.maxAreaM2==null?'':String(p.maxAreaM2)};
-  state.draft=appliedDraft();
-  state.editing=true;
-  state.screen='region';
+  const detail=event.detail||{},p=detail.payload||null;
+  state.conditionKey=detail.key||'primary';
+  if(p&&Object.keys(p).length){
+    state.applied={...p,areaUnit:'m2',minArea:p.minAreaM2==null?'':String(p.minAreaM2),maxArea:p.maxAreaM2==null?'':String(p.maxAreaM2)};
+    state.draft=appliedDraft();
+    state.editing=true;
+    state.screen='region';
+  }else{
+    state.applied=null;
+    state.draft=emptyDraft();
+    state.editing=false;
+    state.screen='purpose';
+  }
   history.replaceState(null,'',location.pathname);
   render();
 });
@@ -132,11 +140,13 @@ window.addEventListener('teojabi-open-favorites',()=>{
 });
 let enteredMember=null;
 let completedThisVisit=false;
-function rememberSearch(next){
+function rememberSearch(next,key='primary'){
   // 비회원(미리보기 포함)은 검색 조건을 저장하지 않는다. 로그인한 회원만 계정에 보관한다.
   if(member.status!=='ready'||member.base==='preview')return false;
-  writeMemberSearch(member.user,next);
-  member.save('condition','primary',next).catch(()=>{});
+  const payload=next.name?next:{...next,name:key==='secondary'?'관심 조건 2':'관심 조건 1'};
+  // 최근 검색 복원은 기본 조건(primary)만 대상으로 한다.
+  if(key==='primary')writeMemberSearch(member.user,payload);
+  member.save('condition',key,payload).catch(()=>{});
   return true;
 }
 function updateMemberButton(){
@@ -292,7 +302,7 @@ document.addEventListener('click', event => {
   if (action === 'home') { state.screen = 'home'; state.editing = false; }
   if (action === 'browse') { state.screen='results';state.applied=null;state.editing=false;state.picksOnly=true;history.replaceState(null,'',location.pathname); }
   if (action === 'find') {
-    state.draft=appliedDraft();state.editing=false;
+    state.draft=appliedDraft();state.editing=false;state.conditionKey='primary';
     if(state.applied){state.screen='results';history.replaceState(null,'',location.pathname+'#search');}
     else state.screen='purpose';
   }
@@ -340,7 +350,7 @@ document.addEventListener('click', event => {
     const draftAuction=state.draft.auction||{};
     state.applied = { ...state.draft,budgetWon:budgetWon(),districts:[...state.draft.districts],neighborhoods:[...(state.draft.neighborhoods||[])],zones:[...state.draft.zones],minAreaM2:range.minAreaM2,maxAreaM2:range.maxAreaM2,sort:'price',
       auction:normalizeAuction({enabled:draftAuction.enabled===true,source:draftAuction.source,dealType:draftAuction.dealType,saleKind:draftAuction.saleKind,failMax:draftAuction.failMax,usages:draftAuction.usages,maxPriceWon:draftAuction.maxPriceEok?Number(draftAuction.maxPriceEok)*1e8:null,maxBidRate:draftAuction.maxBidRate?Number(draftAuction.maxBidRate):null}) };
-    completedThisVisit=true;rememberSearch(state.applied);
+    completedThisVisit=true;rememberSearch(state.applied,state.conditionKey||'primary');state.conditionKey='primary';
     logEvent('condition_applied',{districts:state.applied.districts||[],budgetWon:state.applied.budgetWon||null,minAreaM2:state.applied.minAreaM2??null,maxAreaM2:state.applied.maxAreaM2??null,zones:state.applied.zones||[],purpose:state.applied.purpose||null,buildUse:state.applied.buildUse||null,preferTourism:state.applied.preferTourism===true,excludeEducation:state.applied.excludeEducation===true,excludeHeritage:state.applied.excludeHeritage===true,auctionEnabled:state.applied.auction?.enabled===true});
     state.screen = 'results'; state.editing = false;
     history.replaceState(null,'',location.pathname+'#search');

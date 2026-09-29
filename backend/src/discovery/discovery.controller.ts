@@ -27,7 +27,8 @@ export class DiscoveryController {
     await this.prisma.$transaction(async tx=>{
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${userId},0))`;
       const count=await tx.$queryRaw<Array<{total:bigint}>>`SELECT count(*) AS total FROM public.discovery_item WHERE user_id=${userId} AND kind=${kind} AND item_key<>${key}`;
-      if(Number(count[0].total)>=100)throw new BadRequestException('최대 100개까지 저장할 수 있어요.');
+      const limit=kind==='condition'?2:100;
+      if(Number(count[0].total)>=limit)throw new BadRequestException(kind==='condition'?'관심 조건은 최대 2개까지 저장할 수 있어요.':'최대 100개까지 저장할 수 있어요.');
       await tx.$executeRaw`INSERT INTO public.discovery_item(user_id,kind,item_key,payload) VALUES (${userId},${kind},${key},${JSON.stringify(payload)}::jsonb) ON CONFLICT(user_id,kind,item_key) DO UPDATE SET payload=EXCLUDED.payload,updated_at=now()`;
     });
     return {saved:true};
