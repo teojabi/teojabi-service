@@ -25,6 +25,11 @@ function cardMarkup(result, authed) {
   return `<div class="teojabi-score"><button type="button" class="score-toggle" data-score-toggle aria-expanded="false">${stars(result.score)}<b class="score-value">${result.score}</b><span class="score-grade">${esc(result.grade)}</span><span class="score-title">터잡이 점수</span><span class="score-more">근거 보기</span></button>${bodyMarkup(result, authed)}</div>`;
 }
 
+// 저장한 찜 등 이미 계산된 결과로 점수 카드(근거 포함)를 그릴 때 쓴다.
+export function scoreCardMarkup(result, authed = true) {
+  return cardMarkup(result, authed);
+}
+
 // 상세 화면의 점수 카드. 데이터가 도착할 때마다 다시 계산해 그린다.
 export function createScoreCard({ host, listing, authed, onLogin } = {}) {
   if (!host) return { setContext() {}, setCommercial() {}, setSurrounding() {}, setNearby() {}, setOfficial() {}, dispose() {} };

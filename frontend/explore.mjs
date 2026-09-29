@@ -217,6 +217,9 @@ const onbidGroups=rows=>{
   return [...map.values()];
 };
 
+// 비교 선택은 화면이 다시 그려져도(예: 찜에서 다시 보기 후 뒤로가기) 유지되도록 모듈 수준에 둔다.
+const compared=new Map();
+
 export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnalyze,initialId,initialSource,initialHeading,assistant,picksOnly,initialParcel,onParcelChange}={}) {
   document.body.classList.add('map-results-open');
   const picksOnlyMode=Boolean(picksOnly);
@@ -312,7 +315,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
   const favoriteItems=()=>member.items.filter(item=>item.kind==='favorite');
   $('#listing-list').before($('#explore-filters'));
   let listScrollTop=0;
-  const compared=new Map();let closeComparison,showPins=true,showTransactions=true,showAllPicks=false,pickGroups=null,nearby=null,loadTimer=null,quickFilters,assistantShown=5,commercialPopupVersion=0,scoreCard=null;
+  let closeComparison,showPins=true,showTransactions=true,showAllPicks=false,pickGroups=null,nearby=null,loadTimer=null,quickFilters,assistantShown=5,commercialPopupVersion=0,scoreCard=null;
   $('.map-controls').insertAdjacentHTML('beforeend','<button class="outline return-detail" data-explore="return-detail">매물 상세로 돌아가기</button>');
   $('.explore-toolbar').insertAdjacentHTML('afterend','<div class="discovery-actions"><button class="outline" data-explore="compare-open" disabled>비교할 매물을 골라주세요 (최대 3개)</button><button class="outline" data-explore="compare-clear" hidden>비교 선택 지우기</button><button class="outline" data-explore="pins" aria-pressed="true">지도 매물 표시</button><span class="discovery-notice" role="status"></span></div><div class="search-suggestions" aria-live="polite"></div>');
   if(picksOnlyMode)$('[data-explore="all-picks"]').setAttribute('aria-pressed','true');
