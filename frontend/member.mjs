@@ -178,17 +178,21 @@ const conditionAlertNote=item=>{
 export function openMember(mode='member'){
   closeCurrent?.();const before=document.activeElement,dialog=document.createElement('dialog');dialog.className='member-dialog';dialog.setAttribute('aria-labelledby','member-title');
   let filter='favorite',favoritesOpen=false;
-  // 찜한 매물의 터잡이 점수를 비동기로 채운다.
+  // 찜한 매물의 터잡이 점수를 비동기로 채운다. 점수 1건당 여러 API를 부르므로 동시 3건으로 제한한다.
   const fillScores=()=>{
-    for(const el of dialog.querySelectorAll('[data-save-score]')){
-      const key=el.dataset.saveScore;if(!key)continue;
-      loadSavedScore(key).then(res=>{
-        if(!el.isConnected)return;
-        if(res&&res.score!=null){el.textContent=`★ ${res.score}${res.grade?` ${res.grade}`:''}`;el.classList.add('is-ready');}
-        else if(res&&res.status==='pending'){el.textContent='점수 계산 중';}
-        else{el.textContent='점수 확인 필요';}
-      }).catch(()=>{if(el.isConnected)el.textContent='점수 확인 필요';});
-    }
+    const els=[...dialog.querySelectorAll('[data-save-score]')];let cursor=0;
+    const worker=async()=>{
+      while(cursor<els.length){
+        const el=els[cursor++],key=el.dataset.saveScore;if(!key)continue;
+        try{
+          const res=await loadSavedScore(key);if(!el.isConnected)continue;
+          if(res&&res.score!=null){el.textContent=`★ ${res.score}${res.grade?` ${res.grade}`:''}`;el.classList.add('is-ready');}
+          else if(res&&res.status==='pending'){el.textContent='점수 계산 중';}
+          else{el.textContent='점수 확인 필요';}
+        }catch{if(el.isConnected)el.textContent='점수 확인 필요';}
+      }
+    };
+    Promise.all(Array.from({length:3},worker));
   };
   const render=()=>{
     const status=member.status;
