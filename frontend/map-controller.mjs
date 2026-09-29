@@ -349,13 +349,20 @@ export class ListingMap {
   parcel(geometry) {
     if(!this.map||!this.ready)return;
     this.map.data.forEach(feature=>this.map.data.removeFeature(feature));
-    if(geometry) {
-      this.map.data.addGeoJson({type:'Feature',properties:{},geometry});
-      const bounds=new this.n.LatLngBounds();
-      const rings=geometry.type==='MultiPolygon'?geometry.coordinates.flat():geometry.coordinates;
-      for(const ring of rings)for(const point of ring)bounds.extend(new this.n.LatLng(point[1],point[0]));
-      if(!this.fitTransactions())this.map.fitBounds(bounds,{top:110,right:90,bottom:90,left:90});
-    }
+    if(!geometry)return;
+    // 일괄매각처럼 필지가 여러 개면 하나로 합쳐서(단일 Polygon/MultiPolygon) 표시한다.
+    const features=Array.isArray(geometry)?geometry.filter(Boolean):[geometry];
+    if(!features.length)return;
+    const shapes=features.map(g=>{
+      const rings=g.type==='MultiPolygon'?g.coordinates.flat():g.coordinates;
+      if(!rings||!rings.length)return null;
+      return {type:'Polygon',coordinates:rings};
+    }).filter(Boolean);
+    if(!shapes.length)return;
+    this.map.data.addGeoJson({type:'Feature',properties:{},geometry:shapes.length===1?features[0]:{type:'MultiPolygon',coordinates:shapes.map(s=>s.coordinates)}});
+    const bounds=new this.n.LatLngBounds();
+    for(const g of features){const rings=g.type==='MultiPolygon'?g.coordinates.flat():g.coordinates;for(const ring of rings)for(const point of ring)bounds.extend(new this.n.LatLng(point[1],point[0]));}
+    if(!this.fitTransactions())this.map.fitBounds(bounds,{top:110,right:90,bottom:90,left:90});
   }
   resetView() {if(!this.fitTransactions())this.setGroups(this.groups||[],this.selected,true);}
   toggleCadastral(){if(!this.ready)return false;this.cadastralLayer??=new this.n.CadastralLayer();this.cadastralVisible=!this.cadastralVisible;this.cadastralLayer.setMap(this.cadastralVisible?this.map:null);return this.cadastralVisible;}
