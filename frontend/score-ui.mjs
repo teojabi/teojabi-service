@@ -9,13 +9,15 @@ function metricRow(m) {
 }
 function categoryBlock(c) {
   const head = c.score != null ? `${stars(c.score)}<span class="score-cat-value">${c.score}</span>` : '<span class="score-cat-none">자료 없음</span>';
-  return `<div class="score-cat"><div class="score-cat-head"><b>${esc(c.label)}</b><span class="score-cat-right">${head}</span></div><ul class="score-metrics">${c.metrics.map(metricRow).join('')}</ul></div>`;
+  const weight = c.effectiveWeight ? `<span class="score-cat-weight">${c.effectiveWeight}%</span>` : '';
+  return `<div class="score-cat${c.included ? '' : ' is-missing'}"><div class="score-cat-head"><b>${esc(c.label)}</b>${weight}<span class="score-cat-right">${head}</span></div><ul class="score-metrics">${c.metrics.map(metricRow).join('')}</ul></div>`;
 }
+const LEGEND = `<div class="score-legend"><p class="score-legend-title">계산 기준</p><ul><li>가격 35% · 개발 여력 40% · 입지·상권 25% (자료 없는 항목은 제외하고 재계산)</li><li>가격: 대지면적 기준 평당가를 주변 실거래 중위값과 비교(사이트 실거래 표기와 동일 기준)</li><li>개발 여력: 여유 용적률 · 도로폭 · 건폐율·높이 · 구역·특구·재개발</li><li>입지·상권: 최근접 지하철역 · 상권 · 주변 개발</li></ul></div>`;
 function bodyMarkup(result, authed) {
   const cats = result.categories.map(categoryBlock).join('');
   const note = `<p class="score-note">${esc(result.note)}</p>`;
-  if (authed) return `<div class="score-body">${cats}${note}</div>`;
-  return `<div class="score-body score-body-locked"><div class="score-blur" aria-hidden="true">${cats}</div><div class="score-lock"><p>로그인하면 <b>점수 근거</b>를 자세히 볼 수 있어요.</p><button type="button" class="primary" data-score-login>로그인·회원가입</button></div></div>`;
+  if (authed) return `<div class="score-body">${LEGEND}${cats}${note}</div>`;
+  return `<div class="score-body score-body-locked"><div class="score-blur" aria-hidden="true">${LEGEND}${cats}</div><div class="score-lock"><p>로그인하면 <b>점수 근거</b>를 자세히 볼 수 있어요.</p><button type="button" class="primary" data-score-login>로그인·회원가입</button></div></div>`;
 }
 function cardMarkup(result, authed) {
   if (result.status === 'pending') return '<div class="teojabi-score is-pending"><span class="score-pending">터잡이 점수를 계산하고 있어요…</span></div>';

@@ -264,6 +264,10 @@ export function computeTeojabiScore({ listing, context, nearby, commercial, surr
   const wsum = active.reduce((s, c) => s + c.weight, 0);
   const raw = active.reduce((s, c) => s + c.score * c.weight, 0) / wsum;
   const score = roundHalf(clamp(raw, 0, 5));
+  for (const c of categories) {
+    c.included = active.includes(c);
+    c.effectiveWeight = c.included ? Math.round(c.weight / wsum * 100) : 0;
+  }
   const dataQuality = {};
   for (const c of categories) dataQuality[c.key] = c.available ? 'ok' : 'missing';
   return { status: 'ready', score, grade: gradeOf(score), categories, dataQuality, note: NOTE };
