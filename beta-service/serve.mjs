@@ -146,6 +146,7 @@ async function findListing(id) {
   const key=String(id||'');
   if(key.startsWith('disco:'))return discoListing(key.slice('disco:'.length));
   if(key.startsWith('auction:'))return auctionListing(key.slice('auction:'.length));
+  if(key.startsWith('onbid:'))return onbidListing(key.slice('onbid:'.length));
   const data=await catalog();
   return data.rows.find(row=>row.id===key)||await naverListing(key.split(':').slice(1).join(':'));
 }
@@ -197,6 +198,28 @@ async function auctionListing(docid) {
 const validDiscoListingId=id=>typeof id==='string'&&/^disco:[A-Za-z0-9]{4,24}$/.test(id);
 // 경매 물건(auction_item)은 카탈로그에 없어 좌표 기반으로 상세·주변 실거래를 조회한다.
 const validAuctionListingId=id=>typeof id==='string'&&/^auction:[A-Za-z0-9]{4,40}$/.test(id);
+// 공매 물건(onbid_item)도 카탈로그에 없어 좌표 기반으로 상세·주변 실거래를 조회한다.
+const validOnbidListingId=id=>typeof id==='string'&&/^onbid:[A-Za-z0-9:._-]{4,80}$/.test(id);
+async function onbidListing(value) {
+  const [cltr,pbct]=String(value||'').split('::');
+  if(!/^[A-Za-z0-9-]{4,30}$/.test(cltr))return null;
+  try {
+    const raw=await onbidRead('detail',pbct?`${cltr}::${pbct}`:cltr);
+    if(!raw||raw.status!=='ready'||!raw.item)return null;
+    const it=raw.item;
+    const id=it.pbct_cdtn_no?`onbid:${it.cltr_mng_no}::${it.pbct_cdtn_no}`:`onbid:${it.cltr_mng_no}`;
+    const lat=it.lat==null?NaN:Number(it.lat),lng=it.lng==null?NaN:Number(it.lng);
+    let pnu=/^11\d{17}$/.test(String(it.pnu||''))?it.pnu:null;
+    if(!pnu&&Number.isFinite(lat)&&Number.isFinite(lng)){
+      try{const near=await localRead('nearest-parcel',JSON.stringify({lat,lng}));if(near&&near.status==='ready'&&near.pnu&&near.distanceM<=150)pnu=near.pnu;}catch{/* 위치 기반 필지 조회 실패 */}
+    }
+    return {id,source:'onbid',sourceId:String(it.cltr_mng_no),sourceUrl:'',district:it.sigu||'',neighborhood:it.dong||'',address:it.full_address||'',
+      pnu,position:Number.isFinite(lat)&&Number.isFinite(lng)?{lat,lng}:null,
+      priceWon:it.lowst_bid_prc==null?null:Number(it.lowst_bid_prc),areaM2:it.land_area_m2==null?null:Number(it.land_area_m2),floorAreaM2:null,
+      description:'',floorInfo:'',kind:'building',kindConfirmed:true,areaSource:'listing',floorAreaSource:'listing',locationStatus:'pin-estimated',
+      zoning:{status:'missing',groups:[],entries:[]},development:null,nearbyTransactions:{status:'unavailable',cases:[]},origin:'onbid'};
+  } catch {return null;}
+}
 async function discoListing(sourceId) {
   if(!/^[A-Za-z0-9]{4,24}$/.test(String(sourceId||'')))return null;
   try {
@@ -549,10 +572,10 @@ createServer(async (request, response) => {
     const land=path.startsWith('/api/land-record/');
     const operation=land?'land-record':registers?'registers':compact?'context':'risk';
     const id=path.slice(land?'/api/land-record/'.length:registers?'/api/building-records/'.length:compact?'/api/site-context/'.length:'/api/risk/'.length),cacheKey=`${operation}:${id}`;
-    if(!validListingId(id)&&!validDiscoListingId(id)&&!validAuctionListingId(id)){send(response,request,{status:'missing'},404);return;}
+    if(!validListingId(id)&&!validDiscoListingId(id)&&!validAuctionListingId(id)&&!validOnbidListingId(id)){send(response,request,{status:'missing'},404);return;}
     try {
-      // 경매 물건은 카탈로그에 없어도 대장·구역 조회가 되도록 한다.
-      const data=await catalog().catch(error=>{if(validAuctionListingId(id))return {rows:[]};throw error;});
+      // 경매·공매 물건은 카탈로그에 없어도 대장·구역 조회가 되도록 한다.
+      const data=await catalog().catch(error=>{if(validAuctionListingId(id)||validOnbidListingId(id))return {rows:[]};throw error;});
       const listing=await findListing(id);
       if(!listing){send(response,request,{status:'missing'},404);return;}
       if(!riskCache.has(cacheKey)) {
@@ -568,11 +591,11 @@ createServer(async (request, response) => {
   if(path.startsWith('/api/nearby-transactions/')) {
     await refreshTransactionVersion().catch(()=>{});
     const id=path.slice('/api/nearby-transactions/'.length);
-    if(!validListingId(id)&&!validDiscoListingId(id)&&!validAuctionListingId(id)){send(response,request,{status:'missing',cases:[]},404);return;}
+    if(!validListingId(id)&&!validDiscoListingId(id)&&!validAuctionListingId(id)&&!validOnbidListingId(id)){send(response,request,{status:'missing',cases:[]},404);return;}
     try {
-      // 경매 물건은 카탈로그에 없어 좌표로 계산하므로, 카탈로그가 없어도 계속 진행한다.
-      const data=await catalog().catch(error=>{if(validAuctionListingId(id))return {rows:[]};throw error;});
-      let listing=await findListing(id).catch(error=>{if(validAuctionListingId(id))return null;throw error;});
+      // 경매·공매 물건은 카탈로그에 없어 좌표로 계산하므로, 카탈로그가 없어도 계속 진행한다.
+      const data=await catalog().catch(error=>{if(validAuctionListingId(id)||validOnbidListingId(id))return {rows:[]};throw error;});
+      let listing=await findListing(id).catch(error=>{if(validAuctionListingId(id)||validOnbidListingId(id))return null;throw error;});
       if(!listing){
         // 카탈로그에 없는 비서 매물(터잡이 추천 등)은 전달받은 좌표로 계산한다.
         const params=new URL(request.url,'http://localhost').searchParams;
