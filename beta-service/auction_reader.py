@@ -106,10 +106,13 @@ LIST_COLUMNS = ('docid, court_name, dept_name, case_no, usage_name, appraised_am
 
 
 def _where(payload):
-    # 지분 매각은 서비스 대상이 아니지만, 일괄매각(bundle) 목적물은 일부에 '지분' 표기가 있어도 사건 전체를 빼면 안 된다.
+    # 지분 매각 목적물은 서비스 대상이 아니므로 제외한다. 일괄매각이라도 지분 목적물은 개별 제외하며,
+    # 전 목적물이 지분이면 사건 자체가 목록에서 사라진다.
     where = ["court_code IS NOT NULL", "cancelled IS NOT TRUE",
-             "coalesce(sale_kind, 'whole') <> 'share'",
-             "(is_share IS NOT TRUE OR sale_kind = 'bundle')"]
+             "coalesce(sale_kind, 'whole') <> 'share'", "is_share IS NOT TRUE",
+             # 구분건물 호실·층 매각(예: '… 2층201호')은 서비스 대상이 아니므로 제외한다.
+             "detail_address !~* '[0-9]+[[:space:]]*(층|호)'",
+             "building_list !~* '[0-9]+[[:space:]]*(층|호)'"]
     params = {}
     for index, token in enumerate(EXCLUDED_USAGE):
         key = f'excluded{index}'

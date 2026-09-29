@@ -129,6 +129,7 @@ const auctionToListing=row=>{
     farLimit,bcrLimit,districtPlan:row.district_plan||'',currentFar,remainingFar,areaSuspect,farFromRegister:currentFar!=null,
     heightLimit:row.height_limit==null?null:Number(row.height_limit),heightDistrict:row.height_district||'',landscapeDistrict:row.landscape_district||'',specialZone:row.special_zone||'',otherZone:row.other_zone||'',
     district:row.sigu||'',neighborhood:row.dong||'',address:addr.land,detailAddress:row.detail_address||addr.detail,
+    isShare:row.is_share===true,
     pnu:/^\d{19}$/.test(String(row.pnu||''))?row.pnu:null,position,
     priceWon:row.min_price==null?null:Number(row.min_price),areaM2:areaValue,
     buildingAreaM2:row.building_area_m2==null?null:Number(row.building_area_m2),landAreaM2:row.land_area_m2==null?null:Number(row.land_area_m2),areaSource:row.area_source||'listed',
@@ -489,7 +490,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     // 일괄매각(경매)만 목적물을 합산한다. 공매는 같은 물건의 회차(공매조건)별 행이므로 합산하지 않는다.
     const isBundle=!isOnbid&&row.saleKind==='bundle';
     // 합계 면적은 같은 번지의 토지·건물이 섞이지 않도록 토지(대지) 목적물만 더한다.
-    const bundleLandLots=isBundle?group.listings.filter(r=>r.kind==='land'):[];
+    const bundleLandLots=isBundle?group.listings.filter(r=>r.kind==='land'&&!r.isShare):[];
     const bundleTotal=bundleLandLots.length>1?bundleLandLots.reduce((sum,r)=>sum+(Number(r.areaM2)||0),0):null;
     const areaValue=bundleTotal!=null?bundleTotal:(row.areaM2!=null?Number(row.areaM2):null);
     // 일괄매각 단가는 대표 물건이 아니라 대상 전체 대지면적 합계 기준으로 계산한다.
@@ -511,7 +512,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     const isBundle=row.source==='auction'?row.saleKind==='bundle':row.source==='onbid'?row.bundle===true:false;
     if(!isBundle)return row;
     const grp=groupForRow(row);
-    const lands=(grp?.listings||[]).filter(r=>r.kind==='land');
+    const lands=(grp?.listings||[]).filter(r=>r.kind==='land'&&!r.isShare);
     if(!grp||lands.length<2)return row;
     const area=lands.reduce((s,r)=>s+(Number(r.areaM2)||0),0);
     const minPrices=lands.map(r=>Number(r.auction?.minPrice)||0);
@@ -867,7 +868,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     const bundleLots=row.saleKind==='bundle'&&grp&&grp.listings.length>1?grp.listings:[];
     const inBatch=bundleLots.length>0;
     // 일괄은 감정가·최저가가 사건 전체 기준이므로, 헤더 면적도 목적물 면적 합계로 보여준다.
-    const bundleAreaM2=inBatch?bundleLots.filter(r=>r.kind==='land').reduce((sum,r)=>sum+(Number(r.areaM2)||0),0):null;
+    const bundleAreaM2=inBatch?bundleLots.filter(r=>r.kind==='land'&&!r.isShare).reduce((sum,r)=>sum+(Number(r.areaM2)||0),0):null;
     const totals=inBatch?bundlePriceTotals({listings:bundleLots}):{appraised:Number(a.appraisedWon)||0,min:Number(a.minPrice)||0};
     const stats=Array.isArray(d.around_stats)?d.around_stats[0]:null;
     const sourceUrl=esc(a.sourceUrl||'https://www.courtauction.go.kr/');
