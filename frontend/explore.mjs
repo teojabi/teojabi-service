@@ -488,12 +488,14 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     const dateNote=isOnbid?`입찰마감 ${esc(a.saleDate||'')} ${dday(a.saleDate)}`:`매각기일 ${esc(a.saleDate||'')} ${dday(a.saleDate)} · 유찰 ${a.failCount??0}회`;
     // 일괄매각(경매)만 목적물을 합산한다. 공매는 같은 물건의 회차(공매조건)별 행이므로 합산하지 않는다.
     const isBundle=!isOnbid&&row.saleKind==='bundle';
-    const bundleTotal=isBundle&&bundleN>1?group.listings.reduce((sum,r)=>sum+(Number(r.areaM2)||0),0):null;
+    // 합계 면적은 같은 번지의 토지·건물이 섞이지 않도록 토지(대지) 목적물만 더한다.
+    const bundleLandLots=isBundle?group.listings.filter(r=>r.kind==='land'):[];
+    const bundleTotal=bundleLandLots.length>1?bundleLandLots.reduce((sum,r)=>sum+(Number(r.areaM2)||0),0):null;
     const areaValue=bundleTotal!=null?bundleTotal:(row.areaM2!=null?Number(row.areaM2):null);
     // 일괄매각 단가는 대표 물건이 아니라 대상 전체 대지면적 합계 기준으로 계산한다.
-    const bundleLand=isBundle&&bundleN>1?group.listings.reduce((sum,r)=>sum+(Number(r.landAreaM2)||Number(r.areaM2)||0),0):null;
+    const bundleLand=bundleTotal;
     const pppArea=bundleLand!=null&&bundleLand>0?bundleLand:(row.landAreaM2??row.areaM2);
-    const areaLabel=bundleTotal!=null?'일괄 합계':(row.dealType==='unit'?'전유':(row.kind==='land'?'대지':'목적물'));
+    const areaLabel=bundleTotal!=null?'일괄 토지 합계':(row.dealType==='unit'?'전유':(row.kind==='land'?'대지':'목적물'));
     const areaExtra=(bundleTotal==null&&row.dealType==='whole'&&row.buildingAreaM2!=null&&areaValue!=null&&Math.round(Number(row.buildingAreaM2))!==Math.round(areaValue))?`<span>연면적 <b>${area(row.buildingAreaM2)}</b></span>`:'';
     const totals=isBundle&&bundleN>1?bundlePriceTotals(group):{appraised:Number(a.appraisedWon)||0,min:Number(a.minPrice)||0};
     return `<article class="property-card${selected===row.id?' selected':''}" data-card-id="${esc(row.id)}"><button class="property-select" data-explore="detail" data-id="${esc(row.id)}" aria-label="${esc(rowTitle(row))} ${money(row.priceWon)} 상세 보기"><div class="property-location"><span>${esc(rowTitle(row))}</span><em class="pick-badge auction-badge">${badge}</em>${kindBadge}${verifyBadge}${flagBadges}${rightsBadge}${member.get('favorite',row.id)?'<em class="pick-badge favorite-badge">♥ 찜한 물건</em>':''}</div><h2>${money(totals.min)}${pricePerAreaMarkup(totals.min,pppArea)}</h2><div class="area-pair"><span>감정가 <b>${money(totals.appraised)}</b></span><span>${priceLabel} <b>${money(totals.min)}</b></span>${areaValue!=null?`<span>${areaLabel} <b>${area(areaValue)}</b></span>`:''}${areaExtra}</div><p class="property-zoning">${esc(a.usageName||'용도 미기재')} · ${esc(row.district||'')} ${esc(row.neighborhood||'')}</p><p class="property-description">${esc(a.caseNo||'')} · ${dateNote}</p><span class="property-link">상세 보기 <span aria-hidden="true">↗</span></span></button></article>`;
@@ -502,6 +504,21 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
   const mapGroups=()=>source==='assistant'&&result?result.groups.slice(0,assistantShown):(result?.groups||[]);
   // 목록 그룹에서 id로 매물을 찾는다(대표가 아니어도 찾음). 상세의 필지 경계 표시 등에 쓴다.
   const findGroupRow=id=>{for(const group of (result?.groups||[])){if(group.representative?.id===id)return group.representative;const hit=(group.listings||[]).find(row=>row.id===id);if(hit)return hit;}return null;};
+  const groupForRow=row=>row?((result?.groups||[]).find(g=>g.representative?.id===row.id||(g.listings||[]).some(r=>r.id===row.id))||null):null;
+  // 점수 산정용 매물: 일괄매각이면 같은 번지의 토지·건물이 섞이지 않도록 토지 목적물만 합산해 계산한다.
+  const scoreListingFor=row=>{
+    if(!row)return row;
+    const isBundle=row.source==='auction'?row.saleKind==='bundle':row.source==='onbid'?row.bundle===true:false;
+    if(!isBundle)return row;
+    const grp=groupForRow(row);
+    const lands=(grp?.listings||[]).filter(r=>r.kind==='land');
+    if(!grp||lands.length<2)return row;
+    const area=lands.reduce((s,r)=>s+(Number(r.areaM2)||0),0);
+    const minPrices=lands.map(r=>Number(r.auction?.minPrice)||0);
+    const min=new Set(minPrices).size>1?minPrices.reduce((s,x)=>s+x,0):(minPrices[0]||0);
+    const rep=lands.find(r=>r.pnu)||lands[0];
+    return {...row,areaM2:area>0?area:row.areaM2,priceWon:min>0?min:row.priceWon,pnu:rep?.pnu||row.pnu,position:rep?.position||row.position,kind:'land'};
+  };
   function drawCards() {
     const favoritesMode=source==='favorites',assistantMode=source==='assistant',auctionMode=source==='auction';
     const picksView=showAllPicks&&pickGroups&&!favoritesMode&&!assistantMode&&!auctionMode;
@@ -850,7 +867,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     const bundleLots=row.saleKind==='bundle'&&grp&&grp.listings.length>1?grp.listings:[];
     const inBatch=bundleLots.length>0;
     // 일괄은 감정가·최저가가 사건 전체 기준이므로, 헤더 면적도 목적물 면적 합계로 보여준다.
-    const bundleAreaM2=inBatch?bundleLots.reduce((sum,r)=>sum+(Number(r.areaM2)||0),0):null;
+    const bundleAreaM2=inBatch?bundleLots.filter(r=>r.kind==='land').reduce((sum,r)=>sum+(Number(r.areaM2)||0),0):null;
     const totals=inBatch?bundlePriceTotals({listings:bundleLots}):{appraised:Number(a.appraisedWon)||0,min:Number(a.minPrice)||0};
     const stats=Array.isArray(d.around_stats)?d.around_stats[0]:null;
     const sourceUrl=esc(a.sourceUrl||'https://www.courtauction.go.kr/');
@@ -897,7 +914,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
       <div id="teojabi-score" class="teojabi-score-host" aria-live="polite"></div>
       <p class="detail-listing-number">${onbidMode?'물건관리번호':'사건번호'} ${esc(a.caseNo||'')} · ${esc(a.courtName||'')} ${esc(a.deptName||'')}</p>
       <div class="detail-conversion"><a class="primary" href="${onbidMode?sourceUrl:'https://www.courtauction.go.kr/pgj/index.on?w2xPath=/pgj/ui/pgj100/PGJ159M00.xml&pgjId=159M00'}" target="_blank" rel="noopener noreferrer">${onbidMode?'온비드 공매 원문 ↗':'법원경매정보에서 사건 검색 ↗'}</a><button class="outline" data-explore="copy-auction">물건 정보 복사</button><button class="outline" data-explore="favorite" data-id="${esc(row.id)}" aria-pressed="${Boolean(member.get('favorite',row.id))}">${member.get('favorite',row.id)?'♥ 찜함':'♡ 찜하기'}</button><small>${onbidMode?'입찰 전 온비드 공고 원문을 확인하세요.':`사건번호 ${esc(a.caseNo||'')}를 검색창에 입력해 원문(매각물건명세서·현황조사서)을 확인하세요.`}</small></div>
-      ${areaUnitControls()}<div class="detail-areas"><div><span>${inBatch?'일괄 전체 감정가':'감정가'}</span><strong>${money(totals.appraised)}</strong></div><div><span>${inBatch?'일괄 전체 최저매각가':'최저매각가'}</span><strong>${money(totals.min)}</strong></div><div><span>${inBatch?'일괄 합계 면적':(row.dealType==='unit'?'전유면적':'목적물 면적')}</span><strong>${area(inBatch?bundleAreaM2:row.areaM2)}</strong></div><div><span>유찰횟수</span><strong>${a.failCount??0}회</strong></div>${!inBatch&&row.landAreaM2!=null?`<div><span>${row.dealType==='unit'?'대지권(필지) 면적':'필지 대지면적'}</span><strong>${area(row.landAreaM2)}</strong></div>${row.areaSuspect?'<div><span>면적 확인</span><strong class="chk">여러 필지 가능 · 확인 필요</strong></div>':''}`:''}${!inBatch&&row.buildingAreaM2!=null?`<div><span>${row.dealType==='unit'?'건물 전체 연면적(공용 포함)':'건축 연면적'}</span><strong>${area(row.buildingAreaM2)}</strong></div>`:''}</div>
+      ${areaUnitControls()}<div class="detail-areas"><div><span>${inBatch?'일괄 전체 감정가':'감정가'}</span><strong>${money(totals.appraised)}</strong></div><div><span>${inBatch?'일괄 전체 최저매각가':'최저매각가'}</span><strong>${money(totals.min)}</strong></div>        <div><span>${inBatch?'일괄 토지 합계':(row.dealType==='unit'?'전유면적':'목적물 면적')}</span><strong>${area(inBatch?bundleAreaM2:row.areaM2)}</strong></div><div><span>유찰횟수</span><strong>${a.failCount??0}회</strong></div>${!inBatch&&row.landAreaM2!=null?`<div><span>${row.dealType==='unit'?'대지권(필지) 면적':'필지 대지면적'}</span><strong>${area(row.landAreaM2)}</strong></div>${row.areaSuspect?'<div><span>면적 확인</span><strong class="chk">여러 필지 가능 · 확인 필요</strong></div>':''}`:''}${!inBatch&&row.buildingAreaM2!=null?`<div><span>${row.dealType==='unit'?'건물 전체 연면적(공용 포함)':'건축 연면적'}</span><strong>${area(row.buildingAreaM2)}</strong></div>`:''}</div>
       ${inBatch?`<details class="auction-rounds auction-batch" open><summary>일괄매각 목적물 ${bundleLots.length}개</summary><ul>${bundleLots.map(r=>`<li>${esc(r.address||'')}${r.detailAddress?` ${esc(r.detailAddress)}`:''} · ${area(r.areaM2)}</li>`).join('')}</ul><small>감정가·최저매각가·유찰은 <b>일괄 전체</b> 기준이에요. 목적물별 값은 법원 원문을 확인하세요.</small></details>`:''}
       <div id="land-area-comparison" aria-live="polite"></div>
       <div class="detail-street"><div class="street-inline" id="street-inline" aria-label="네이버 거리뷰"><span class="street-inline-state">거리뷰를 불러오고 있어요.</span></div><button type="button" class="street-expand" data-explore="street" aria-label="거리뷰 크게 보기" title="거리뷰 크게 보기">⛶</button></div>
@@ -953,7 +970,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
       detail={listing:auctionToListing(data.item),auctionDetail:data.detail||null};
       renderAuctionDetail();
       logEvent('view_detail',{source:'auction',usage:detail.listing.auction?.usageName||'',district:detail.listing.district||'',priceWon:detail.listing.priceWon||null,address:detail.listing.address||''},detail.listing.id);
-      scoreCard=createScoreCard({host:$('#teojabi-score'),listing:detail.listing,authed:member.status==='ready',onLogin:openLogin});loadOfficialPrice(detail.listing,current);
+      {const scoreRow=scoreListingFor(detail.listing);scoreCard=createScoreCard({host:$('#teojabi-score'),listing:scoreRow,authed:member.status==='ready',onLogin:openLogin});loadOfficialPrice(scoreRow,current);}
       closeContext=mountInlineContext($('#context-facts'),detail.listing,d=>scoreCard?.setContext(d));
       closeRecords=mountBuildingRecords($('#building-records'),$('#building-records-toggle'),detail.listing);
       closeLand=mountLandRecords($('#land-area-comparison'),$('#land-records'),$('#land-records-toggle'),detail.listing);
@@ -988,7 +1005,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
       if(disposed||current!==detailVersion)return;
       detail={listing:onbidToListing(data.item),auctionDetail:data.detail||null,onbidDetail:data.detail||null,onbidResults:Array.isArray(data.results)?data.results:[]};
       renderAuctionDetail();
-      scoreCard=createScoreCard({host:$('#teojabi-score'),listing:detail.listing,authed:member.status==='ready',onLogin:openLogin});loadOfficialPrice(detail.listing,current);
+      {const scoreRow=scoreListingFor(detail.listing);scoreCard=createScoreCard({host:$('#teojabi-score'),listing:scoreRow,authed:member.status==='ready',onLogin:openLogin});loadOfficialPrice(scoreRow,current);}
       closeContext=mountInlineContext($('#context-facts'),detail.listing,d=>scoreCard?.setContext(d));
       closeRecords=mountBuildingRecords($('#building-records'),$('#building-records-toggle'),detail.listing);
       closeLand=mountLandRecords($('#land-area-comparison'),$('#land-records'),$('#land-records-toggle'),detail.listing);
