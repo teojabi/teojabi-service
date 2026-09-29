@@ -75,6 +75,11 @@ export class NotificationsService {
   }
 
   private dateOf(value: unknown) {
+    // date/timestamp 컬럼은 Prisma가 JS Date로 돌려준다. String(Date)는 "Wed Oct 02 ..."가 되므로 반드시 먼저 처리한다.
+    if (value instanceof Date) {
+      const t = value.getTime();
+      return Number.isNaN(t) ? '' : new Date(t).toISOString().slice(0, 10);
+    }
     const raw = String(value ?? '');
     if (/^\d{8}/.test(raw)) return `${raw.slice(0, 4)}-${raw.slice(4, 6)}-${raw.slice(6, 8)}`;
     return raw.slice(0, 10);
@@ -193,14 +198,21 @@ export class NotificationsService {
     for (const candidate of candidates) {
       if (!candidate.key || existing.has(candidate.key)) continue;
       existing.add(candidate.key);
-      await this.prisma.$executeRaw`
-        INSERT INTO public.notification_item
-          (user_id,item_key,kind,origin,condition_name,event_date,title,detail,meta,score,read_at)
-        VALUES (${userId},${candidate.key},${candidate.type},${candidate.origin},${candidate.conditionName},
-                ${candidate.date || null}::date,${candidate.title},${candidate.detail},
-                ${candidate.meta ? JSON.stringify(candidate.meta) : null}::jsonb,
-                ${candidate.meta?.score ?? null},${readAt})
-        ON CONFLICT (user_id,item_key) DO NOTHING`;
+      // 날짜 형식이 어긋나면 ::date 캐스트가 실패해 알림함 전체가 막히므로, 유효한 날짜만 넣고 나머지는 비운다.
+      const eventDate = /^\d{4}-\d{2}-\d{2}$/.test(String(candidate.date || '')) ? candidate.date : null;
+      try {
+        await this.prisma.$executeRaw`
+          INSERT INTO public.notification_item
+            (user_id,item_key,kind,origin,condition_name,event_date,title,detail,meta,score,read_at)
+          VALUES (${userId},${candidate.key},${candidate.type},${candidate.origin},${candidate.conditionName},
+                  ${eventDate}::date,${candidate.title},${candidate.detail},
+                  ${candidate.meta ? JSON.stringify(candidate.meta) : null}::jsonb,
+                  ${candidate.meta?.score ?? null},${readAt})
+          ON CONFLICT (user_id,item_key) DO NOTHING`;
+      } catch (error) {
+        // 한 건이 실패해도 나머지 알림은 정상적으로 저장되도록 건별로 흡수한다.
+        this.logger.error(`Inbox insert failed for ${candidate.key}`, error as Error);
+      }
     }
 
     const notices = await this.prisma.$queryRaw<Array<{ id: bigint; title: string; body: string | null; date: string }>>`
