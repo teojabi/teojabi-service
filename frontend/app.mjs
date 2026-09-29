@@ -111,7 +111,7 @@ function faq() {
 
 window.addEventListener('teojabi-open-saved',event=>{
   const {kind,key,payload:p}=event.detail;
-  if(kind==='favorite'||kind==='feedback'){state.screen='results';history.replaceState(null,'','#listing='+encodeURIComponent(key));}
+  if(kind==='favorite'||kind==='feedback'){state.screen='results';history.pushState(null,'','#listing='+encodeURIComponent(key));}
   if(kind==='condition'){state.conditionKey=key||'primary';state.applied={...p,areaUnit:'m2',minArea:p.minAreaM2==null?'':String(p.minAreaM2),maxArea:p.maxAreaM2==null?'':String(p.maxAreaM2)};state.screen='results';history.replaceState(null,'',location.pathname);}
   if(kind==='analysis'){state.siteDraft={...createSiteDraft(),restore:{pnus:p.pnus,fields:p.fields},memo:p.memo,name:p.name};state.screen='analyze';history.replaceState(null,'',location.pathname);}
   render();

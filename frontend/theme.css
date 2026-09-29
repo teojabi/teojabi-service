@@ -123,7 +123,7 @@ input,textarea,select{color:var(--text);background:var(--card)}button:focus-visi
 .member-item-facts dd{margin:0;overflow-wrap:anywhere}
 .member-item-actions{display:flex;gap:7px;margin-top:12px;align-items:center;flex-wrap:wrap}
 .member-item-actions button{padding:8px 10px;font-size:13px}
-.save-score{display:inline-block;margin:10px 0 0;padding:3px 11px;border-radius:999px;background:var(--selected);color:var(--muted);font-size:12px;font-weight:800}
+.save-score{display:inline-block;margin:10px 0 0;padding:3px 11px;border:0;border-radius:999px;background:var(--selected);color:var(--muted);font-family:inherit;font-size:12px;font-weight:800;cursor:pointer}
 .save-score.is-ready{background:var(--primary);color:#fff}
 .compare-check{display:inline-flex;align-items:center;gap:6px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--text);font-size:13px;cursor:pointer}
 .compare-check input{margin:0}
