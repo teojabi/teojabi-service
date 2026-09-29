@@ -29,7 +29,22 @@ export function areaMarkup(m2,unit=getAreaDisplayUnit()) {
 export function areaUnitControls(unit=getAreaDisplayUnit()) {
   return `<div class="area-display-control"><span>면적 단위</span><div role="group" aria-label="면적 표시 단위">${[['m2','㎡'],['pyeong','평']].map(([value,label])=>`<button type="button" data-area-unit="${value}" aria-label="면적을 ${label}${value==='pyeong'?'으로':'로'} 표시" aria-pressed="${unit===value}">${label}</button>`).join('')}</div></div>`;
 }
+// 대지면적 기준 단가(평 또는 ㎡) 표기. 면적 단위 전환에 함께 바뀐다.
+export function formatPricePerArea(perM2, unit=getAreaDisplayUnit()) {
+  if(!Number.isFinite(perM2)||perM2<=0)return '';
+  const pyeong=unit==='pyeong';
+  const value=pyeong?perM2*400/121:perM2; // 1평=400/121㎡
+  const man=value/1e4;
+  const text=man>=100?man.toLocaleString('ko-KR',{maximumFractionDigits:0}):man.toLocaleString('ko-KR',{maximumFractionDigits:1});
+  return `${pyeong?'평당':'㎡당'} ${text}만원`;
+}
+export function pricePerAreaMarkup(priceWon, areaM2, unit=getAreaDisplayUnit()) {
+  const perM2=(Number.isFinite(priceWon)&&priceWon>0&&Number.isFinite(areaM2)&&areaM2>0)?priceWon/areaM2:null;
+  if(perM2===null)return '';
+  return `<span class="price-per-area" data-display-ppp="${perM2}">${formatPricePerArea(perM2,unit)}</span>`;
+}
 export function refreshAreaDisplay(root,unit=getAreaDisplayUnit()) {
   for(const element of root.querySelectorAll('[data-display-area-m2]'))element.textContent=formatArea(Number(element.dataset.displayAreaM2),unit);
+  for(const element of root.querySelectorAll('[data-display-ppp]'))element.textContent=formatPricePerArea(Number(element.dataset.displayPpp),unit);
   for(const button of root.querySelectorAll('[data-area-unit]'))button.setAttribute('aria-pressed',String(button.dataset.areaUnit===unit));
 }

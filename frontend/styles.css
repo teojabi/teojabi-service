@@ -933,6 +933,7 @@ body.architect-lightbox-open{overflow:hidden}
 #listing-detail .brokerage-info{font-size:14px}
 #listing-list .property-location{font-size:14px}
 #listing-list .property-card h2{font-size:28px}
+.price-per-area{font-size:.5em;font-weight:600;color:var(--muted);margin-left:8px;white-space:nowrap}
 #listing-list .area-pair{font-size:14px}
 #listing-list .property-zoning{font-size:13.5px}
 #listing-list .property-description{font-size:14px;line-height:1.8}
