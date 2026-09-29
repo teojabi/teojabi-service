@@ -143,10 +143,40 @@ function buildAuctionListing(item) {
     description: "", floorInfo: "", kind: "building", kindConfirmed: true, areaSource: "listing", floorAreaSource: "listing", locationStatus: "pin-estimated",
     zoning: { status: "missing", groups: [], entries: [] }, development: null, nearbyTransactions: { status: "unavailable", cases: [] }, origin: "auction" };
 }
+function buildOnbidListing(item) {
+  if (!item || !item.cltr_mng_no) return null;
+  const id = item.pbct_cdtn_no ? `onbid:${item.cltr_mng_no}::${item.pbct_cdtn_no}` : `onbid:${item.cltr_mng_no}`;
+  const lat = item.lat == null ? NaN : Number(item.lat), lng = item.lng == null ? NaN : Number(item.lng);
+  return { id, source: "onbid", sourceId: String(item.cltr_mng_no), sourceUrl: "",
+    district: item.sigu || "", neighborhood: item.dong || "", address: item.full_address || "",
+    pnu: /^11\d{17}$/.test(String(item.pnu || "")) ? item.pnu : null,
+    position: Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : null,
+    priceWon: item.lowst_bid_prc == null ? null : Number(item.lowst_bid_prc),
+    areaM2: item.land_area_m2 == null ? null : Number(item.land_area_m2),
+    floorAreaM2: item.building_area_m2 == null ? null : Number(item.building_area_m2),
+    description: "", floorInfo: "", kind: "building", kindConfirmed: true, areaSource: "listing", floorAreaSource: "listing", locationStatus: "pin-estimated",
+    zoning: { status: "missing", groups: [], entries: [] }, development: null, nearbyTransactions: { status: "unavailable", cases: [] }, origin: "onbid" };
+}
 async function findListingEdge(database, data, id) {
   const key = String(id || "");
   if (key.startsWith("disco:")) { const { data: raw } = await database.rpc("teojabi_disco_listing", { p_id: key.slice(6) }); return buildDiscoListing(raw); }
   if (key.startsWith("auction:")) { const { data: raw } = await database.rpc("teojabi_auction_item", { p_docid: key.slice(8) }); return buildAuctionListing(raw); }
+  if (key.startsWith("onbid:")) {
+    const [cltr, pbct] = key.slice(6).split("::");
+    if (!cltr) return null;
+    let query = database.from("onbid_item").select("*").eq("cltr_mng_no", cltr);
+    if (pbct) query = query.eq("pbct_cdtn_no", pbct);
+    const { data: raw, error } = await query.limit(1).maybeSingle();
+    if (error) throw error;
+    const listing = buildOnbidListing(raw);
+    if (listing && !listing.pnu && listing.position) {
+      try {
+        const { data: near } = await database.rpc("teojabi_nearest_parcel", { p_lat: listing.position.lat, p_lng: listing.position.lng });
+        if (near && near.status === "ready" && near.pnu && near.distanceM <= 150) listing.pnu = near.pnu;
+      } catch (_e) { /* 좌표 기반 필지 조회 실패 */ }
+    }
+    return listing;
+  }
   const inCatalog = data.rows.find((row) => row.id === key);
   if (inCatalog) return inCatalog;
   const { data: raw } = await database.rpc("teojabi_naver_listing", { p_num: key.split(":").slice(1).join(":") });
@@ -317,7 +347,7 @@ Deno.serve(async (request: Request) => {
       const land = path.startsWith("/api/land-record/");
       const operation = land ? "land-record" : registers ? "registers" : compact ? "context" : "risk";
       const id = decodeURIComponent(path.slice(land ? "/api/land-record/".length : registers ? "/api/building-records/".length : compact ? "/api/site-context/".length : "/api/risk/".length));
-      const validId = /^(?:(?:naver|naver-land):\d{1,30}|premium:[a-f0-9-]{36})$/.test(id) || /^disco:[A-Za-z0-9]{4,24}$/.test(id) || /^auction:[A-Za-z0-9]{4,40}$/.test(id);
+      const validId = /^(?:(?:naver|naver-land):\d{1,30}|premium:[a-f0-9-]{36})$/.test(id) || /^disco:[A-Za-z0-9]{4,24}$/.test(id) || /^auction:[A-Za-z0-9]{4,40}$/.test(id) || /^onbid:[A-Za-z0-9:._-]{4,80}$/.test(id);
       if (!validId) return json({ status: "missing" }, 404, origin);
       const data = catalog(snaps);
       const listing = await findListingEdge(db, data, id);
