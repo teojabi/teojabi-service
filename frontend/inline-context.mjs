@@ -120,7 +120,7 @@ export function renderInlineContext(data) {
   const farSection=renderFarSummary(plans);
   return `<ul class="context-facts">${zoneRows}<li><span class="context-dot"></span><div><p>${road?.widthM>0?`인접 도로폭은 약 <b>${esc(road.widthM)}m</b>로 기록되어 있어요.`:'인접 도로폭은 확인이 필요해요.'}</p>${road?.widthM>0?'<small title="주변 10m 이내 도로 중 최소 폭으로 적재된 참고값입니다.">주변 도로 자료 기준 · 실제 접도 확인 필요</small>':''}</div></li></ul>${farSection}${plans.length?`<details class="context-plans"><summary>지구단위계획 고시·도면 보기</summary><div>${plans.map(p=>`<article><b>${esc(p.name)}</b><p>${esc(p.noticeDate||'고시일 미기재')}${p.noticeNumber?' · '+esc(p.noticeNumber):''}</p>${planSources(p)}${p.documentWarning?`<p>${esc(p.documentWarning)}</p>`:''}${link(p.pdfUrl,'고시 원문 보기')||'<p>연결된 고시 원문이 없어요.</p>'}${p.drawings?.length?`<details><summary>도면 ${p.drawings.length}개 보기</summary>${p.drawings.map(d=>link(d.url,d.name)).join('')}</details>`:''}</article>`).join('')}</div></details>`:''}<p class="context-source">연결된 필지의 저장 자료 기준이에요.</p>`;
 }
-export function mountInlineContext(host,listing) {
+export function mountInlineContext(host,listing,onData) {
   const abort=new AbortController();let disposed=false,busy=false;
   async function load() {
     if(busy)return;busy=true;host.setAttribute('aria-busy','true');host.innerHTML='<p class="case-note">이 필지의 구역과 도로를 확인하고 있어요.</p>';
@@ -135,6 +135,7 @@ export function mountInlineContext(host,listing) {
       }
       if(!data)throw new Error();
       if(disposed)return;
+      onData?.(data);
       host.innerHTML=renderInlineContext(data)+(data.status==='partial'?'<button class="context-retry">자료 다시 확인</button>':'');
     } catch {if(!disposed)host.innerHTML='<p class="case-note">구역과 도로 자료를 불러오지 못했어요.</p><button class="context-retry">다시 확인하기</button>';}
     finally {busy=false;if(!disposed)host.removeAttribute('aria-busy');}

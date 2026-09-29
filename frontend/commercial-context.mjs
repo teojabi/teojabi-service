@@ -122,7 +122,7 @@ export function renderCommercial(data, { trend = 'half', nearby = true, collapsi
   <p class="commercial-source">월 추정매출·유동인구는 상권 하나의 합계예요 · 서울시 상권분석서비스 · 기준 ${esc(data.basis?.quarter || '')} · 대표점 기준</p>`;
 }
 
-export function mountCommercial(host, listing) {
+export function mountCommercial(host, listing, onData) {
   const position = listing?.position;
   if (!position || position.lat == null || position.lng == null) {
     host.innerHTML = '<p class="case-note">매물 위치를 확인할 수 없어 상권을 조회하지 못했어요.</p>';
@@ -132,7 +132,7 @@ export function mountCommercial(host, listing) {
   host.innerHTML = '<p class="case-note">반경 500m 상권을 확인하고 있어요.</p>';
   apiFetch(`/api/commercial?lat=${position.lat}&lng=${position.lng}&radius=500`)
     .then(response => response.json())
-    .then(data => { if (!cancelled) host.innerHTML = renderCommercial(data, { collapsible: true }); })
+    .then(data => { if (!cancelled) { onData?.(data); host.innerHTML = renderCommercial(data, { collapsible: true }); } })
     .catch(() => { if (!cancelled) host.innerHTML = '<p class="case-note">상권 자료를 불러오지 못했어요.</p>'; });
   return () => { cancelled = true; };
 }

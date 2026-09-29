@@ -7,13 +7,14 @@ import { mountCommercial, renderCommercial, commercialAsk } from './commercial-c
 import { mountSurrounding } from './surrounding-context.mjs';
 import { PURPOSES } from './search-options.mjs';
 import { openComparison } from './compare.mjs';
-import { member,openFeedback } from './member.mjs';
+import { member,openFeedback,openLogin } from './member.mjs';
 import { mountQuickFilters } from './quick-filters.mjs';
 import { areaInput } from './recent-search.mjs';
 import { BUILD_DEFAULTS,validateBuildCriteria,appendBuildQuery } from './build-criteria.mjs';
 import { areaMarkup,areaUnitControls,getAreaDisplayUnit,setAreaDisplayUnit,areaDisplayEvents,refreshAreaDisplay,formatArea } from './area-display.mjs';
 import { mountAuctionFilters } from './auction-filters.mjs';
 import { logEvent } from './events.mjs';
+import { createScoreCard } from './score-ui.mjs';
 
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const dday=value=>{if(!value)return '';const t=new Date(String(value)+'T00:00:00');if(!Number.isFinite(t.getTime()))return '';const n=Math.ceil((t-Date.now())/86400000);return n>=0?`D-${n}`:'기일 지남';};
@@ -298,7 +299,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
   const favoriteItems=()=>member.items.filter(item=>item.kind==='favorite');
   $('#listing-list').before($('#explore-filters'));
   let listScrollTop=0;
-  const compared=new Map();let closeComparison,showPins=true,showTransactions=true,showAllPicks=false,pickGroups=null,nearby=null,loadTimer=null,quickFilters,assistantShown=5,commercialPopupVersion=0;
+  const compared=new Map();let closeComparison,showPins=true,showTransactions=true,showAllPicks=false,pickGroups=null,nearby=null,loadTimer=null,quickFilters,assistantShown=5,commercialPopupVersion=0,scoreCard=null;
   $('.map-controls').insertAdjacentHTML('beforeend','<button class="outline return-detail" data-explore="return-detail">매물 상세로 돌아가기</button>');
   $('.explore-toolbar').insertAdjacentHTML('afterend','<div class="discovery-actions"><button class="outline" data-explore="compare-open" disabled>비교할 매물을 골라주세요 (최대 3개)</button><button class="outline" data-explore="compare-clear" hidden>비교 선택 지우기</button><button class="outline" data-explore="pins" aria-pressed="true">지도 매물 표시</button><span class="discovery-notice" role="status"></span></div><div class="search-suggestions" aria-live="polite"></div>');
   if(picksOnlyMode)$('[data-explore="all-picks"]').setAttribute('aria-pressed','true');
@@ -711,7 +712,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     } finally {if(!disposed&&current===version)$('.explore-list').removeAttribute('aria-busy');}
   }
   function closeDetail(updateUrl=true,restoreFocus=true) {
-    closeContext?.();closeContext=null;closeRecords?.();closeRecords=null;closeLand?.();closeLand=null;closeCommercial?.();closeCommercial=null;closeSurrounding?.();closeSurrounding=null;closeStreetPreview?.();closeStreetPreview=null;
+    closeContext?.();closeContext=null;closeRecords?.();closeRecords=null;closeLand?.();closeLand=null;closeCommercial?.();closeCommercial=null;closeSurrounding?.();closeSurrounding=null;closeStreetPreview?.();closeStreetPreview=null;scoreCard?.dispose();scoreCard=null;
     const previousId=selected;
     ++detailVersion;selected=null;detail=null;parcel=null;nearby=null;map.setTransactions([]);syncTransactionToggle();
     $('.explore-board').classList.remove('transaction-map-open');
@@ -736,6 +737,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     const pickAnalysisSection=hasAnalysis?`<section class="detail-section pick-analysis" id="property-analysis"><h3>터잡이 신축분석</h3>${paImages.length?`<div class="analysis-gallery">${paImages.map((u,i)=>`<button type="button" class="analysis-thumb" data-explore="analysis-image" data-src="${esc(u)}" data-label="${i===0?'현재':i===1?'미래':''}"><img loading="lazy" src="${esc(u)}" alt="터잡이 신축분석 이미지 ${i+1}">${i===0?'<span class="analysis-tag">현재</span>':i===1?'<span class="analysis-tag">미래</span>':''}</button>`).join('')}</div>`:''}${paText?`<p class="listing-description analysis-text">${esc(paText).replace(/\n/g,'<br>')}</p>`:''}<p class="case-note">터잡이가 정리한 참고 분석입니다. 인허가·용적률 등 최종 판단은 관계기관 확인이 필요합니다.</p></section>`:'';
     $('#listing-detail').innerHTML=`<div class="detail-top"><button type="button" class="detail-back" data-explore="back-list">← 매물 목록</button><button class="detail-close" data-explore="close" aria-label="매물 상세 닫기">×</button></div>
       <div class="detail-content"><p class="detail-location">${esc(rowTitle(row))}${originBadge}</p><h2 tabindex="-1" id="detail-title">${money(row.priceWon)}</h2>
+      <div id="teojabi-score" class="teojabi-score-host" aria-live="polite"></div>
       ${row.teojabiNo?`<p class="detail-listing-number">매물번호 ${esc(row.teojabiNo)}</p>`:''}
       ${areaUnitControls()}<div class="detail-areas">${detailFactItems(row).map(([label,value])=>`<div><span>${label}</span><strong${String(value).includes('data-display-area-m2')?'':' class="detail-text"'}>${value}</strong></div>`).join('')}</div>
       <div id="land-area-comparison" aria-live="polite"></div><div class="detail-street"><div class="street-inline" id="street-inline" aria-label="네이버 거리뷰"><span class="street-inline-state">거리뷰를 불러오고 있어요.</span></div><button type="button" class="street-expand" data-explore="street" aria-label="거리뷰 크게 보기" title="거리뷰 크게 보기">⛶</button></div><nav class="detail-shortcuts" aria-label="상세 내용 이동"><button data-explore="section" data-section="property-description">매물 설명</button>${hasAnalysis?'<button data-explore="section" data-section="property-analysis">신축분석</button>':''}<button data-explore="section" data-section="property-parcel">필지 위치</button><button data-explore="section" data-section="property-commercial">상권</button><button data-explore="section" data-section="property-surrounding">주변 사업</button><button data-explore="section" data-section="property-documents">서류 확인</button><button data-explore="section" data-section="property-context">주변 조건</button></nav>
@@ -786,6 +788,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     }
     $('#listing-detail').innerHTML=`<div class="detail-top"><button type="button" class="detail-back" data-explore="back-list">← 매물 목록</button><button class="detail-close" data-explore="close" aria-label="${onbidMode?'공매':'경매'} 상세 닫기">×</button></div>
       <div class="detail-content"><p class="detail-location">${esc(rowTitle(row))}<em class="pick-badge detail-pick-badge auction-badge">${onbidMode?'공매':'경매'}</em>${auctionFlagBadges(row,6)}${rights?`<em class="pick-badge risk-badge">인수권리</em>`:''}</p><h2 tabindex="-1" id="detail-title">${money(totals.min)}</h2>
+      <div id="teojabi-score" class="teojabi-score-host" aria-live="polite"></div>
       <p class="detail-listing-number">${onbidMode?'물건관리번호':'사건번호'} ${esc(a.caseNo||'')} · ${esc(a.courtName||'')} ${esc(a.deptName||'')}</p>
       <div class="detail-conversion"><a class="primary" href="${onbidMode?sourceUrl:'https://www.courtauction.go.kr/pgj/index.on?w2xPath=/pgj/ui/pgj100/PGJ159M00.xml&pgjId=159M00'}" target="_blank" rel="noopener noreferrer">${onbidMode?'온비드 공매 원문 ↗':'법원경매정보에서 사건 검색 ↗'}</a><button class="outline" data-explore="copy-auction">물건 정보 복사</button><button class="outline" data-explore="favorite" data-id="${esc(row.id)}" aria-pressed="${Boolean(member.get('favorite',row.id))}">${member.get('favorite',row.id)?'♥ 찜함':'♡ 찜하기'}</button><small>${onbidMode?'입찰 전 온비드 공고 원문을 확인하세요.':`사건번호 ${esc(a.caseNo||'')}를 검색창에 입력해 원문(매각물건명세서·현황조사서)을 확인하세요.`}</small></div>
       ${areaUnitControls()}<div class="detail-areas"><div><span>${inBatch?'일괄 전체 감정가':'감정가'}</span><strong>${money(totals.appraised)}</strong></div><div><span>${inBatch?'일괄 전체 최저매각가':'최저매각가'}</span><strong>${money(totals.min)}</strong></div><div><span>${inBatch?'일괄 합계 면적':(row.dealType==='unit'?'전유면적':'목적물 면적')}</span><strong>${area(inBatch?bundleAreaM2:row.areaM2)}</strong></div><div><span>유찰횟수</span><strong>${a.failCount??0}회</strong></div>${!inBatch&&row.landAreaM2!=null?`<div><span>${row.dealType==='unit'?'대지권(필지) 면적':'필지 대지면적'}</span><strong>${area(row.landAreaM2)}</strong></div>`:''}${!inBatch&&row.buildingAreaM2!=null?`<div><span>${row.dealType==='unit'?'건물 전체 연면적(공용 포함)':'건축 연면적'}</span><strong>${area(row.buildingAreaM2)}</strong></div>`:''}</div>
@@ -826,7 +829,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     const id=`auction:${docid}`;
     if(!selected)listScrollTop=body.scrollTop;
     setSheet(true);
-    closeContext?.();closeContext=null;closeRecords?.();closeRecords=null;closeLand?.();closeLand=null;closeCommercial?.();closeCommercial=null;closeSurrounding?.();closeSurrounding=null;closeStreetPreview?.();closeStreetPreview=null;
+    closeContext?.();closeContext=null;closeRecords?.();closeRecords=null;closeLand?.();closeLand=null;closeCommercial?.();closeCommercial=null;closeSurrounding?.();closeSurrounding=null;closeStreetPreview?.();closeStreetPreview=null;scoreCard?.dispose();scoreCard=null;
     const current=++detailVersion;selected=id;detail=null;parcel=null;nearby=null;map.setTransactions([]);syncTransactionToggle();
     $('.explore-board').classList.remove('transaction-map-open');
     $('#listing-detail').hidden=false;$('.explore-board').classList.add('has-detail');
@@ -840,11 +843,12 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
       detail={listing:auctionToListing(data.item),auctionDetail:data.detail||null};
       renderAuctionDetail();
       logEvent('view_detail',{source:'auction',usage:detail.listing.auction?.usageName||'',district:detail.listing.district||'',priceWon:detail.listing.priceWon||null,address:detail.listing.address||''},detail.listing.id);
-      closeContext=mountInlineContext($('#context-facts'),detail.listing);
+      scoreCard=createScoreCard({host:$('#teojabi-score'),listing:detail.listing,authed:member.status==='ready',onLogin:openLogin});
+      closeContext=mountInlineContext($('#context-facts'),detail.listing,d=>scoreCard?.setContext(d));
       closeRecords=mountBuildingRecords($('#building-records'),$('#building-records-toggle'),detail.listing);
       closeLand=mountLandRecords($('#land-area-comparison'),$('#land-records'),$('#land-records-toggle'),detail.listing);
-      closeCommercial=mountCommercial($('#commercial-facts'),detail.listing);
-      closeSurrounding=mountSurrounding($('#surrounding-facts'),detail.listing);
+      closeCommercial=mountCommercial($('#commercial-facts'),detail.listing,d=>scoreCard?.setCommercial(d));
+      closeSurrounding=mountSurrounding($('#surrounding-facts'),detail.listing,d=>scoreCard?.setSurrounding(d));
       closeStreetPreview=mountStreetPreview($('#street-inline'),detail.listing.position);
       map.select(detail.listing);
       $('#detail-title')?.focus({preventScroll:true});
@@ -868,7 +872,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     const id=`onbid:${key}`;
     if(!selected)listScrollTop=body.scrollTop;
     setSheet(true);
-    closeContext?.();closeContext=null;closeRecords?.();closeRecords=null;closeLand?.();closeLand=null;closeCommercial?.();closeCommercial=null;closeSurrounding?.();closeSurrounding=null;closeStreetPreview?.();closeStreetPreview=null;
+    closeContext?.();closeContext=null;closeRecords?.();closeRecords=null;closeLand?.();closeLand=null;closeCommercial?.();closeCommercial=null;closeSurrounding?.();closeSurrounding=null;closeStreetPreview?.();closeStreetPreview=null;scoreCard?.dispose();scoreCard=null;
     const current=++detailVersion;selected=id;detail=null;parcel=null;nearby=null;map.setTransactions([]);syncTransactionToggle();
     $('.explore-board').classList.remove('transaction-map-open');
     $('#listing-detail').hidden=false;$('.explore-board').classList.add('has-detail');
@@ -881,11 +885,12 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
       if(disposed||current!==detailVersion)return;
       detail={listing:onbidToListing(data.item),auctionDetail:data.detail||null,onbidDetail:data.detail||null,onbidResults:Array.isArray(data.results)?data.results:[]};
       renderAuctionDetail();
-      closeContext=mountInlineContext($('#context-facts'),detail.listing);
+      scoreCard=createScoreCard({host:$('#teojabi-score'),listing:detail.listing,authed:member.status==='ready',onLogin:openLogin});
+      closeContext=mountInlineContext($('#context-facts'),detail.listing,d=>scoreCard?.setContext(d));
       closeRecords=mountBuildingRecords($('#building-records'),$('#building-records-toggle'),detail.listing);
       closeLand=mountLandRecords($('#land-area-comparison'),$('#land-records'),$('#land-records-toggle'),detail.listing);
-      closeCommercial=mountCommercial($('#commercial-facts'),detail.listing);
-      closeSurrounding=mountSurrounding($('#surrounding-facts'),detail.listing);
+      closeCommercial=mountCommercial($('#commercial-facts'),detail.listing,d=>scoreCard?.setCommercial(d));
+      closeSurrounding=mountSurrounding($('#surrounding-facts'),detail.listing,d=>scoreCard?.setSurrounding(d));
       closeStreetPreview=mountStreetPreview($('#street-inline'),detail.listing.position);
       map.select(detail.listing);
       loadNearby(id,current);
@@ -910,7 +915,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     if(String(id).startsWith('onbid:'))return openOnbidDetail(String(id).slice('onbid:'.length),updateUrl);
     if(!selected)listScrollTop=body.scrollTop;
     setSheet(true);
-    closeContext?.();closeContext=null;closeRecords?.();closeRecords=null;closeLand?.();closeLand=null;closeCommercial?.();closeCommercial=null;closeSurrounding?.();closeSurrounding=null;closeStreetPreview?.();closeStreetPreview=null;
+    closeContext?.();closeContext=null;closeRecords?.();closeRecords=null;closeLand?.();closeLand=null;closeCommercial?.();closeCommercial=null;closeSurrounding?.();closeSurrounding=null;closeStreetPreview?.();closeStreetPreview=null;scoreCard?.dispose();scoreCard=null;
     const current=++detailVersion;selected=id;detail=null;parcel=null;nearby=null;map.setTransactions([]);syncTransactionToggle();
     $('.explore-board').classList.remove('transaction-map-open');
     $('#listing-detail').hidden=false;$('.explore-board').classList.add('has-detail');
@@ -933,7 +938,8 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
       logEvent('view_detail',{source:data.listing.cohort||data.listing.source||'',usage:data.listing.auction?.usageName||data.listing.mainUse||'',district:data.listing.district||'',priceWon:data.listing.priceWon||null,address:data.listing.address||''},data.listing.id);
       const favoriteActive=Boolean(member.get('favorite',data.listing.id));
       $('.detail-content').insertAdjacentHTML('afterbegin',`<div class="detail-conversion"><a class="primary" href="https://pf.kakao.com/_qSQxhX/chat" target="_blank" rel="noopener noreferrer">터잡이와 상담하기 ↗</a><button class="outline" data-explore="favorite" data-favorite-detail="true" data-id="${esc(data.listing.id)}" aria-pressed="${favoriteActive}">${favoriteActive?'♥ 찜함':'♡ 찜하기'}</button><button class="outline" data-explore="copy-consult">상담할 매물 정보 복사</button><small>주소와 가격을 복사해서 상담 채널에 보내주세요.</small></div>`);
-      closeContext=mountInlineContext($('#context-facts'),data.listing);closeRecords=mountBuildingRecords($('#building-records'),$('#building-records-toggle'),data.listing);closeLand=mountLandRecords($('#land-area-comparison'),$('#land-records'),$('#land-records-toggle'),data.listing);closeCommercial=mountCommercial($('#commercial-facts'),data.listing);closeSurrounding=mountSurrounding($('#surrounding-facts'),data.listing);closeStreetPreview=mountStreetPreview($('#street-inline'),data.listing.position);map.select(data.listing);$('#detail-title').focus({preventScroll:true});
+      scoreCard=createScoreCard({host:$('#teojabi-score'),listing:data.listing,authed:member.status==='ready',onLogin:openLogin});
+      closeContext=mountInlineContext($('#context-facts'),data.listing,d=>scoreCard?.setContext(d));closeRecords=mountBuildingRecords($('#building-records'),$('#building-records-toggle'),data.listing);closeLand=mountLandRecords($('#land-area-comparison'),$('#land-records'),$('#land-records-toggle'),data.listing);closeCommercial=mountCommercial($('#commercial-facts'),data.listing,d=>scoreCard?.setCommercial(d));closeSurrounding=mountSurrounding($('#surrounding-facts'),data.listing,d=>scoreCard?.setSurrounding(d));closeStreetPreview=mountStreetPreview($('#street-inline'),data.listing.position);map.select(data.listing);$('#detail-title').focus({preventScroll:true});
       $('.detail-shortcuts').insertAdjacentHTML('beforeend','<button data-explore="section" data-section="property-transactions">주변 실거래</button>');
       loadNearby(id,current);
       if(updateUrl)history.pushState(null,'',`#listing=${encodeURIComponent(id)}`);
@@ -979,7 +985,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
       const response=await apiFetch(`/api/nearby-transactions/${encodeURIComponent(id)}${suffix}`,{signal:abort.signal}),data=await response.json();
       if(disposed||current!==detailVersion)return;
       if(!response.ok||data.status!=='ready'||data.listingId!==id)throw new Error('Nearby unavailable');
-      nearby=data;map.setTransactions(data.cases);map.setTransactionsVisible(showTransactions);
+      nearby=data;scoreCard?.setNearby(data);map.setTransactions(data.cases);map.setTransactionsVisible(showTransactions);
     } catch {if(disposed||current!==detailVersion)return;nearby={status:'error',cases:[]};}
     renderNearby();syncTransactionToggle();
   }
