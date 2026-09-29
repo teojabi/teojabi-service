@@ -55,6 +55,7 @@ function clampInt(value: string | null, fallback: number, lo: number, hi: number
 function applyFilters(query: any, params: URLSearchParams) {
   const gus = params.getAll("gu").flatMap((v) => v.split(",")).map((v) => v.trim()).filter(Boolean);
   const usages = params.getAll("usage").flatMap((v) => v.split(",")).map((v) => v.trim()).filter(Boolean).slice(0, 6);
+  const zones = params.getAll("zone").flatMap((v) => v.split(",")).map((v) => v.trim()).filter(Boolean).slice(0, 4);
   const keyword = (params.get("q") || "").trim().slice(0, 60);
   const minPrice = num(params.get("minPrice"));
   const maxPrice = num(params.get("maxPrice"));
@@ -65,6 +66,7 @@ function applyFilters(query: any, params: URLSearchParams) {
   let q = query.not("cltr_mng_no", "is", null);
   if (gus.length) q = q.in("sigu", gus);
   if (usages.length) q = q.or(usages.map((u) => `usg_mcls_nm.ilike.%${u}%`).join(","));
+  if (zones.length) q = q.or(zones.map((z) => `use_zone.ilike.%${z}%`).join(","));
   if (prpt) q = q.eq("prpt_div_cd", prpt);
   if (dealTypes.length) q = q.in("deal_type", dealTypes);
   else if (["whole", "floor", "unit", "land"].includes(dealType)) q = q.eq("deal_type", dealType);
