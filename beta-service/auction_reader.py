@@ -110,9 +110,8 @@ def _where(payload):
     # 전 목적물이 지분이면 사건 자체가 목록에서 사라진다.
     where = ["court_code IS NOT NULL", "cancelled IS NOT TRUE",
              "coalesce(sale_kind, 'whole') <> 'share'", "is_share IS NOT TRUE",
-             # 구분건물 호실·층 매각(예: '… 2층201호')은 서비스 대상이 아니므로 제외한다.
-             "detail_address !~* '[0-9]+[[:space:]]*(층|호)'",
-             "building_list !~* '[0-9]+[[:space:]]*(층|호)'"]
+             # 구분건물 호실·층 매각(예: '… 2층201호')은 서비스 대상이 아니므로 제외한다. (null은 통과)
+             "(detail_address IS NULL OR detail_address !~* '[0-9]+[[:space:]]*[층호]')"]
     params = {}
     for index, token in enumerate(EXCLUDED_USAGE):
         key = f'excluded{index}'

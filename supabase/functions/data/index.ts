@@ -247,8 +247,7 @@ Deno.serve(async (request: Request) => {
           .not("cancelled", "is", true)
           .not("sale_kind", "eq", "share")
           .not("is_share", "is", true)
-          .not("detail_address", "imatch", "[0-9]+[[:space:]]*(층|호)")
-          .not("building_list", "imatch", "[0-9]+[[:space:]]*(층|호)")
+          .or("detail_address.is.null,detail_address.not.imatch.[0-9]+[[:space:]]*[층호]")
           .in("deal_type_final", ["whole", "land"])
           .order("crawled_at", { ascending: false })
           .limit(1),
