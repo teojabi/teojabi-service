@@ -780,9 +780,8 @@ body.architect-lightbox-open{overflow:hidden}
 .map-radar-ring.r1{width:100%;height:100%;opacity:.12}
 .map-radar-ring.r2{width:66%;height:66%;opacity:.2}
 .map-radar-ring.r3{width:36%;height:36%;opacity:.3}
-/* 상권 마커는 필지 선택을 막지 않도록 투명하게 둔다. 클릭은 상권 상세 버튼(라벨)으로만 연다. */
-.map-radar{pointer-events:none}
-.map-radar-label{position:absolute;left:50%;top:100%;transform:translateX(-50%);pointer-events:auto;white-space:nowrap;border:1px solid var(--line);border-radius:999px;padding:3px 9px;background:var(--card);color:var(--text);font-family:inherit;font-size:11px;font-weight:700;box-shadow:0 2px 6px rgba(0,0,0,.18);cursor:pointer}
+/* 상권 마커는 필지 선택을 막지 않도록 투명하게 둔다. 클릭은 상권 상세 버튼(라벨)으로만 연다. */.map-radar{pointer-events:none}
+.map-radar-label{position:absolute;left:50%;top:100%;transform:translateX(-50%);pointer-events:auto;white-space:nowrap;border:1px solid var(--line);border-radius:999px;padding:3px 9px;background:var(--card);color:var(--text);font-family:inherit;font-size:11px;font-weight:700;box-shadow:0 2px 6px rgba(0,0,0,.18);cursor:pointer;-webkit-user-select:none;user-select:none}
 .map-radar-label:hover{background:var(--selected)}
 .map-radar-core{position:absolute;left:50%;top:50%;width:6px;height:6px;transform:translate(-50%,-50%);border-radius:50%;background:#ea580c;pointer-events:none}
 .map-radar:hover .map-radar-ring{background:#fb923c}
