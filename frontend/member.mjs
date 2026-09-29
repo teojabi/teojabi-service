@@ -204,7 +204,7 @@ export function openMember(mode='member'){
     if(b.dataset.member==='close'){dialog.close();return;}
     if(b.dataset.member==='refresh'){member.refresh();return;}
     if(b.dataset.member==='preview'){previewMember();return;}
-    if(b.dataset.member==='open-favorites'){dialog.close();window.dispatchEvent(new CustomEvent('teojabi-open-favorites'));return;}
+    if(b.dataset.member==='open-favorites'){const list=dialog.querySelector('.member-items');list?.scrollIntoView({behavior:'smooth',block:'start'});return;}
     if(b.dataset.member==='logout'){b.disabled=true;try{if(await member.logout())dialog.close();}catch(error){dialog.querySelector('.member-message').textContent=error.message;b.disabled=false;}return;}
     if(b.dataset.member==='tab'){filter=b.dataset.kind;render();return;}
     if(b.dataset.member==='edit-condition'){const condition=member.items.find(i=>i.kind==='condition'&&i.key===b.dataset.key);if(!condition)return;dialog.close();window.dispatchEvent(new CustomEvent('teojabi-edit-condition',{detail:{key:condition.key,payload:condition.payload}}));return;}
