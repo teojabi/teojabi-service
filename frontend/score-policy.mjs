@@ -15,6 +15,7 @@ const ZONE_FAR_LIMITS = {
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 const num = v => { const n = Number(v); return Number.isFinite(n) ? n : null; };
+const pos = v => { const n = Number(v); return Number.isFinite(n) && n > 0 ? n : null; };
 const round1 = v => Math.round(v * 10) / 10;
 const roundHalf = v => Math.round(v * 2) / 2;
 const wonPerPyeong = perM2 => `${(perM2 * 3.3058 / 1e4).toLocaleString('ko-KR', { maximumFractionDigits: 0 })}만원/평`;
@@ -45,11 +46,11 @@ function contextFacts(context) {
   const farRows = plans.flatMap(p => (Array.isArray(p.far) ? p.far : []));
   const maxOf = keys => {
     const vals = [];
-    for (const row of farRows) for (const key of keys) { const n = num(row[key]); if (n != null) vals.push(n); }
+    for (const row of farRows) for (const key of keys) { const n = pos(row[key]); if (n != null) vals.push(n); }
     return vals.length ? Math.max(...vals) : null;
   };
   const heights = [];
-  for (const row of farRows) { const n = num(row.heightM); if (n != null) heights.push(n); }
+  for (const row of farRows) { const n = pos(row.heightM); if (n != null) heights.push(n); }
   const inZone = id => zones.some(z => z.id === id && (z.items || []).some(i => ['geometry-contained', 'geometry-overlap'].includes(i.relation)));
   const planNames = plans.map(p => String(p.name || ''));
   return {
@@ -111,14 +112,17 @@ function priceCategory(listing, nearby) {
 function buildCategory(listing, context) {
   const base = { key: 'build', label: '개발 여력', weight: 0.40 };
   const facts = contextFacts(context);
-  const listingFar = num(listing?.farLimit);
+  const listingFar = pos(listing?.farLimit);
   const zone = zoneFactsOf(listing);
-  const allowedFar = facts.allowedFar ?? listingFar ?? (zone ? zone.far : null);
+  const allowedFar = facts.allowedFar ?? listingFar ?? (zone && zone.far > 0 ? zone.far : null);
   const currentFar = num(listing?.currentFar) ?? num(listing?.buildingFacts?.farPercent)
     ?? (num(listing?.floorAreaM2) > 0 && num(listing?.areaM2) > 0 ? Math.round(num(listing.floorAreaM2) / num(listing.areaM2) * 100) : null);
-  const roadWidth = num(context?.road?.widthM) ?? num(listing?.roadWidthM) ?? num(listing?.auction?.roadWidthM);
-  const bcr = facts.bcr ?? num(listing?.bcrLimit);
-  const heightLimit = facts.heightLimit ?? num(listing?.heightLimit);
+  const roadWidth = pos(context?.road?.widthM) ?? pos(listing?.roadWidthM) ?? pos(listing?.auction?.roadWidthM);
+  // 건폐율: 지구단위계획 기준 → 경매·공매 bcr_limit → 용도지역 법정 건폐율 순.
+  const bcrFromPlan = pos(facts.bcr);
+  const bcr = bcrFromPlan ?? pos(listing?.bcrLimit) ?? (zone && zone.bcr > 0 ? zone.bcr : null);
+  const bcrSource = bcrFromPlan != null ? '지구단위계획' : (pos(listing?.bcrLimit) != null ? '매물 자료' : (zone ? '용도지역 기준' : null));
+  const heightLimit = pos(facts.heightLimit) ?? pos(listing?.heightLimit);
 
   const metrics = [];
 
@@ -148,14 +152,12 @@ function buildCategory(listing, context) {
 
   // B3 규제 완화(건폐율·높이)
   let b3 = null;
-  if (bcr != null || heightLimit != null) {
-    const bcrScore = bcr == null ? 3.0 : (bcr >= 60 ? 4.5 : bcr >= 50 ? 3.5 : 2.5);
-    const heightScore = heightLimit == null ? 3.0 : (heightLimit >= 60 ? 4.5 : heightLimit >= 30 ? 3.5 : 2.0);
-    const parts = [];
-    if (bcr != null) parts.push(`허용 건폐율 ${bcr}%`);
-    if (heightLimit != null) parts.push(`높이제한 ${heightLimit}m`);
-    b3 = round1(bcrScore * 0.5 + heightScore * 0.5);
-    metrics.push({ key: 'regulation', label: '건폐율·높이', score: b3, available: true, evidence: parts.join(' · ') });
+  const comps = [], regParts = [];
+  if (bcr != null) { comps.push(bcr >= 60 ? 4.5 : bcr >= 50 ? 3.5 : 2.5); regParts.push(`허용 건폐율 ${bcr}%${bcrSource ? `(${bcrSource})` : ''}`); }
+  if (heightLimit != null) { comps.push(heightLimit >= 60 ? 4.5 : heightLimit >= 30 ? 3.5 : 2.0); regParts.push(`높이제한 ${heightLimit}m`); }
+  if (comps.length) {
+    b3 = round1(comps.reduce((a, b) => a + b, 0) / comps.length);
+    metrics.push({ key: 'regulation', label: '건폐율·높이', score: b3, available: true, evidence: regParts.join(' · ') });
   } else {
     metrics.push({ key: 'regulation', label: '건폐율·높이', score: null, available: false, evidence: '건폐율·높이 자료 없음' });
   }
