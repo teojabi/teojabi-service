@@ -71,25 +71,34 @@ function zoneFactsOf(listing) {
 // ---------- A. 가격 경쟁력 ----------
 function priceCategory(listing, nearby) {
   const base = { key: 'price', label: '가격 경쟁력', weight: 0.35 };
-  // 저장 면적이 0이어도 카탈로그는 면적을 제공하므로 0보다 크면 사용.
   const price = num(listing?.priceWon);
   const land = num(listing?.areaM2);
   const floor = num(listing?.floorAreaM2);
   if (!(price > 0)) return { ...base, available: false, score: null, metrics: [] };
-  const useFloorBasis = listing?.kind === 'building' && (aboveFloors(listing) ?? 0) >= 5 && floor > 0;
-  const subjArea = useFloorBasis ? floor : (land > 0 ? land : floor);
-  if (!(subjArea > 0)) return { ...base, available: false, score: null, metrics: [] };
-
-  const subjPerM2 = price / subjArea;
-  const sameKind = (nearby?.cases || []).filter(c => !listing?.kind || !c?.kind || c.kind === listing.kind);
-  const casePerM2 = sameKind.map(c => {
-    const a = useFloorBasis ? num(c.floorAreaM2) : num(c.areaM2);
+  const preferFloor = listing?.kind === 'building' && (aboveFloors(listing) ?? 0) >= 5 && floor > 0;
+  const bases = preferFloor ? ['floor', 'land'] : ['land', 'floor'];
+  const toPerM2 = (c, basis) => {
+    const a = basis === 'floor' ? num(c.floorAreaM2) : num(c.areaM2);
     const p = num(c.priceWon);
     return p > 0 && a > 0 ? p / a : null;
-  }).filter(v => v != null).sort((a, b) => a - b);
-  if (casePerM2.length < 2) {
-    return { ...base, available: false, score: null, metrics: [{ key: 'ppp', label: '평당가 비교', available: false, score: null, evidence: '주변 실거래가 부족해 비교하지 못했어요.' }] };
+  };
+  const all = (nearby?.cases || []).filter(Boolean);
+  let chosen = null;
+  for (const basis of bases) {
+    const subjArea = basis === 'floor' ? floor : (land > 0 ? land : floor);
+    if (!(subjArea > 0)) continue;
+    const candidates = all.filter(c => toPerM2(c, basis) != null);
+    const sameKind = listing?.kind ? candidates.filter(c => !c.kind || c.kind === listing.kind) : candidates;
+    const used = sameKind.length ? sameKind : candidates;
+    if (!used.length) continue;
+    chosen = { basis, subjPerM2: price / subjArea, used, mixed: sameKind.length === 0 && candidates.length > 0 };
+    break;
   }
+  if (!chosen) {
+    return { ...base, available: false, score: null, metrics: [{ key: 'ppp', label: '평당가 비교', available: false, score: null, evidence: '주변 실거래가 없어 비교하지 못했어요.' }] };
+  }
+  const { basis, subjPerM2, used, mixed } = chosen;
+  const casePerM2 = used.map(c => toPerM2(c, basis)).sort((a, b) => a - b);
   const median = casePerM2.length % 2
     ? casePerM2[(casePerM2.length - 1) / 2]
     : (casePerM2[casePerM2.length / 2 - 1] + casePerM2[casePerM2.length / 2]) / 2;
@@ -98,10 +107,11 @@ function priceCategory(listing, nearby) {
   const stars = tableScore(ratio, [[0.70, 5.0], [0.85, 4.5], [0.95, 4.0], [1.05, 3.0], [1.15, 2.5], [1.30, 2.0], [1.50, 1.5], [Infinity, 1.0]]);
   const diff = Math.round((ratio - 1) * 100);
   const cmp = diff <= 0 ? `약 ${Math.abs(diff)}% 낮음` : `약 ${diff}% 높음`;
+  const basisLabel = basis === 'floor' ? '연면적 기준' : '토지면적 기준';
   return {
     ...base, available: true, score: stars,
     metrics: [{ key: 'ppp', label: '평당가 비교', score: stars, available: true,
-      evidence: `주변 ${casePerM2.length}건 중위 ${wonPerPyeong(median)} · 이 매물 ${wonPerPyeong(subjPerM2)} (${cmp}${useFloorBasis ? ' · 연면적 기준' : ' · 토지면적 기준'})` }],
+      evidence: `주변 ${casePerM2.length}건 중위 ${wonPerPyeong(median)} · 이 매물 ${wonPerPyeong(subjPerM2)} (${cmp} · ${basisLabel}${casePerM2.length === 1 ? ' · 비교 1건' : ''}${mixed ? ' · 종류 다른 실거래 포함' : ''})` }],
   };
 }
 
