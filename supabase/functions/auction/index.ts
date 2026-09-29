@@ -90,6 +90,15 @@ function applyFilters(query: any, params: URLSearchParams, opts: { zoneCols?: bo
     .not("cancelled", "is", true)
     .not("sale_kind", "eq", "share")
     .not("is_share", "is", true);
+  // 건축 부적합 토지(뒷골목·맹지·도로 등)는 목록·지도에서 숨긴다. hideNonBuildable=0 으로 끌 수 있다.
+  //   - 지목이 도로·하천·구거·제방·유지·묘지 등 비건축인 토지는 값이 있으면 제외
+  //   - 단독 토지는 너무 작은 필지(기본 60㎡ 미만) 제외 (건물 물건은 그대로 통과)
+  if (!["0", "false"].includes((params.get("hideNonBuildable") || "1").toLowerCase())) {
+    const minLandArea = num(params.get("landMinArea")) ?? 60;
+    const nonBuildableJimok = ["도로", "하천", "구거", "제방", "유지", "묘지", "사사지", "수도용지", "철도용지", "공원", "체육용지", "유원지", "종교용지", "학교용지"];
+    q = q.or(`jimok.is.null,jimok.not.in.(${nonBuildableJimok.join(",")})`);
+    q = q.or(`deal_type_final.neq.land,deal_type_final.is.null,and(deal_type_final.eq.land,area_max.gte.${minLandArea})`);
+  }
   if (xgus.length) q = q.in("sigu", xgus);
   if (usages.length) q = q.or(usages.map((u) => `usage_name.ilike.%${u}%`).join(","));
   if (zones.length) q = q.or(zones.map((z) => `use_zone.ilike.%${z}%`).join(","));
