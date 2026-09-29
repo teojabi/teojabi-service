@@ -22,6 +22,7 @@ function fromAuction(item) {
   const area = Number(item.obj_area_m2 ?? item.area_max ?? item.land_area_m2);
   return {
     id: `auction:${item.docid}`, kind: isLand ? 'land' : 'building',
+    isShare: item.is_share === true,
     priceWon: Number.isFinite(price) ? price : null, areaM2: Number.isFinite(area) ? area : null, floorAreaM2: null,
     zoning: item.use_zone ? { status: 'matched', groups: [], entries: [{ name: item.use_zone }] } : { status: 'missing', groups: [], entries: [] },
     farLimit: item.far_limit == null ? null : Number(item.far_limit), bcrLimit: item.bcr_limit == null ? null : Number(item.bcr_limit),
@@ -62,7 +63,8 @@ async function fetchListing(key, signal) {
       const rows = list && list.status === 'ready' ? (list.rows || []) : [];
       const lands = rows.filter((r) => {
         const usage = String(r.usage_name || '');
-        return r.obj_kind === 'land' || /토지|대지|임야|전답|잡종지|과수원|답|전/.test(usage);
+        const isShare = r.is_share === true;
+        return !isShare && (r.obj_kind === 'land' || /토지|대지|임야|전답|잡종지|과수원|답|전/.test(usage));
       }).map(fromAuction);
       if (lands.length > 1) {
         const area = lands.reduce((s, r) => s + (Number(r.areaM2) || 0), 0);
