@@ -18,7 +18,7 @@ const num = v => { const n = Number(v); return Number.isFinite(n) ? n : null; };
 const pos = v => { const n = Number(v); return Number.isFinite(n) && n > 0 ? n : null; };
 const round1 = v => Math.round(v * 10) / 10;
 const roundHalf = v => Math.round(v * 2) / 2;
-const wonPerPyeong = perM2 => `${(perM2 * 3.3058 / 1e4).toLocaleString('ko-KR', { maximumFractionDigits: 0 })}만원/평`;
+const wonPerM2 = perM2 => `${(perM2 / 1e4).toLocaleString('ko-KR', { maximumFractionDigits: 0 })}만원/㎡`;
 
 // 테이블 조회: table = [[max, stars], ...] 오름차순 max, 마지막은 Infinity.
 function tableScore(value, table) {
@@ -76,19 +76,15 @@ function priceCategory(listing, nearby, official) {
   const land = num(listing?.areaM2);
   const floor = num(listing?.floorAreaM2);
   if (!(price > 0)) return { ...base, available: false, score: null, metrics: [] };
-  // 5층 이상 건물만 연면적 기준, 그 외(토지·저층 건물)는 대지면적 기준.
-  const highrise = listing?.kind === 'building' && (aboveFloors(listing) ?? 0) >= 5 && floor > 0;
+  // 가격 비교 기준은 대지면적으로 통일(사이트 실거래 표기와 동일).
   const rawCases = nearby?.cases || [];
-  const hasFloorCase = rawCases.some(c => num(c.floorAreaM2) > 0 && num(c.priceWon) > 0);
-  const basis = highrise && hasFloorCase ? 'floor' : 'land';
-  const basisLabel = basis === 'floor' ? '연면적 기준(5층 이상)' : '대지면적 기준';
-  const subjArea = basis === 'floor' ? floor : (land > 0 ? land : floor);
+  const basisLabel = '대지면적 기준';
+  const subjArea = land > 0 ? land : floor;
   if (!(subjArea > 0)) return { ...base, available: false, score: null, metrics: [] };
   const subjPerM2 = price / subjArea;
 
   const toPerM2 = c => {
-    const a = basis === 'floor' ? num(c.floorAreaM2) : num(c.areaM2);
-    const p = num(c.priceWon);
+    const a = num(c.areaM2), p = num(c.priceWon);
     return p > 0 && a > 0 ? p / a : null;
   };
   // 공시지가 시계열의 실제 변동폭(거래연도→현재)으로 과거 거래가를 현재 시점으로 환산(시점 보정).
@@ -122,10 +118,10 @@ function priceCategory(listing, nearby, official) {
   const used = rawCases.filter(c => adjPerM2(c) != null);
   const landCount = used.filter(c => c.kind === 'land').length;
   const bldgCount = used.filter(c => c.kind === 'building').length;
-  const kindNote = basis === 'floor' ? '' : (bldgCount && landCount ? ` · 토지 ${landCount}·건물 ${bldgCount}` : '');
+  const kindNote = bldgCount && landCount ? ` · 토지 ${landCount}·건물 ${bldgCount}` : '';
   const casePerM2 = used.map(adjPerM2).sort((a, b) => a - b);
   if (!casePerM2.length) {
-    return { ...base, available: false, score: null, metrics: [{ key: 'ppp', label: '평당가 비교', available: false, score: null, evidence: '주변 실거래가 없어 비교하지 못했어요.' }] };
+    return { ...base, available: false, score: null, metrics: [{ key: 'ppp', label: '대지면적 ㎡당 비교', available: false, score: null, evidence: '주변 실거래가 없어 비교하지 못했어요.' }] };
   }
   const median = casePerM2.length % 2
     ? casePerM2[(casePerM2.length - 1) / 2]
@@ -135,7 +131,7 @@ function priceCategory(listing, nearby, official) {
   const stars = tableScore(ratio, [[0.70, 5.0], [0.85, 4.5], [0.95, 4.0], [1.05, 3.0], [1.15, 2.5], [1.30, 2.0], [1.50, 1.5], [Infinity, 1.0]]);
   const diff = Math.round((ratio - 1) * 100);
   const cmp = diff <= 0 ? `약 ${Math.abs(diff)}% 낮음` : `약 ${diff}% 높음`;
-  let evidence = `${timeAdjusted ? '과거 거래를 공시지가 변동폭으로 현재 시점 환산 · ' : ''}주변 ${casePerM2.length}건 중위 ${wonPerPyeong(median)} · 이 매물 ${wonPerPyeong(subjPerM2)} (${cmp} · ${basisLabel}${kindNote}${casePerM2.length === 1 ? ' · 비교 1건' : ''})`;
+  let evidence = `${timeAdjusted ? '과거 거래를 공시지가 변동폭으로 현재 시점 환산 · ' : ''}주변 ${casePerM2.length}건 중위 ${wonPerM2(median)} · 이 매물 ${wonPerM2(subjPerM2)} (${cmp} · ${basisLabel}${kindNote}${casePerM2.length === 1 ? ' · 비교 1건' : ''})`;
   const subjLandPerM2 = land > 0 ? price / land : null;
   if (official && Number.isFinite(official.perM2) && official.perM2 > 0 && subjLandPerM2 != null) {
     const multiple = subjLandPerM2 / official.perM2;
@@ -143,7 +139,7 @@ function priceCategory(listing, nearby, official) {
   }
   return {
     ...base, available: true, score: stars,
-    metrics: [{ key: 'ppp', label: basis === 'floor' ? '연면적 평당가 비교' : '대지면적 평당가 비교', score: stars, available: true, evidence }],
+    metrics: [{ key: 'ppp', label: '대지면적 ㎡당 비교', score: stars, available: true, evidence }],
   };
 }
 
