@@ -47,6 +47,7 @@ export function validateItem(kind:string,key:string,input:any) {
     return {name:clean(input.name,80),budgetWon:optionalNumber(input.budgetWon),bounds,districts:Array.isArray(input.districts)?[...new Set(input.districts)]:[],
       neighborhoods:Array.isArray(input.neighborhoods)?[...new Set(input.neighborhoods.filter((n:any)=>typeof n==='string'&&n.length<=12))].slice(0,10):[],
       purpose:['new-build','renovate','invest','own-use'].includes(input.purpose)?input.purpose:null,minAreaM2:min,maxAreaM2:max,
+      kind:input.kind==='land'||input.kind==='building'?input.kind:null,
       zones:Array.isArray(input.zones)?[...new Set(input.zones.filter((z:any)=>zones.includes(z)))]:[],query:clean(input.query,100),sort:input.sort==='area'?'area':'price',
       auction:conditionAuction(input.auction),
       buildUse:BUILD_USES.includes(input.buildUse)?input.buildUse:null,
