@@ -29,7 +29,12 @@ export function validateItem(kind:string,key:string,input:any) {
   if(!KINDS.includes(kind)||!input||typeof input!=='object'||Array.isArray(input)||JSON.stringify(input).length>32768)throw new BadRequestException('Invalid saved item');
   if(['favorite','feedback'].includes(kind)&&!listingKey.test(key))throw new BadRequestException('Invalid listing');
   if(['condition','analysis'].includes(kind)&&!/^[-a-zA-Z0-9]{1,100}$/.test(key))throw new BadRequestException('Invalid key');
-  if(kind==='favorite')return {id:key,address:clean(input.address,200),priceWon:positive(input.priceWon),areaM2:positive(input.areaM2),floorAreaM2:positive(input.floorAreaM2)};
+  if(kind==='favorite') {
+    // 경매·공매 찜은 매각기일/입찰마감을 함께 보관해 목록에서 D-day를 보여준다.
+    const rawSale=input.auction!=null?input.auction.saleDate:input.saleDate!=null?input.saleDate:input.bidEndDt;
+    const saleDate=typeof rawSale==='string'&&/^\d{8}/.test(rawSale)?`${rawSale.slice(0,4)}-${rawSale.slice(4,6)}-${rawSale.slice(6,8)}`:(typeof rawSale==='string'&&/^\d{4}-\d{2}-\d{2}/.test(rawSale)?rawSale.slice(0,10):undefined);
+    return {id:key,address:clean(input.address,200),priceWon:positive(input.priceWon),areaM2:positive(input.areaM2),floorAreaM2:positive(input.floorAreaM2),saleDate};
+  }
   if(kind==='feedback') {
     if(!['like','dislike','hide'].includes(input.choice))throw new BadRequestException('Invalid choice');
     const reasons=['가격','위치','대지면적','건물상태','개발가능성','주변환경','기타'];

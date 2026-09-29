@@ -128,6 +128,13 @@ export function mountStreetPreview(host, position) {
   return ()=>{closed=true;try{if(n&&pano)for(const l of listeners)n.Event.removeListener(l);}catch{/* partial SDK */}try{pano?.destroy?.();}catch{/* partial SDK */}};
 }
 const formatPrice=won=>won>0?`${(won/1e8).toLocaleString('ko-KR',{maximumFractionDigits:2})}억`:'가격 확인 중';
+// 경매 매각기일·공매 입찰마감을 YYYY-MM-DD로 맞춘다. (공매는 YYYYMMDDHHMI)
+const saleDateOf=item=>{
+  if(item?.cohort==='auction')return String(item?.auction?.saleDate||'');
+  if(item?.cohort==='onbid'){const raw=String(item?.bidEndDt||item?.auction?.saleDate||'');return /^\d{8}/.test(raw)?`${raw.slice(0,4)}-${raw.slice(4,6)}-${raw.slice(6,8)}`:raw;}
+  return '';
+};
+const ddayText=value=>{if(!value)return '';const t=new Date(`${String(value).slice(0,10)}T00:00:00`);if(!Number.isFinite(t.getTime()))return '';const n=Math.ceil((t-Date.now())/86400000);return n>=0?`D-${n}`:'기일 지남';};
 export const markerArea=(m2,unit='m2')=>Number.isFinite(m2)&&m2>0?formatArea(m2,unit):'면적 미기재';
 export function transactionLabelOffsets(points,occupied,width,height) {
   const boxes=[...occupied],overlap=(a,b)=>Math.max(0,Math.min(a.x+72,b.x+72)-Math.max(a.x,b.x)+8)*Math.max(0,Math.min(a.y+72,b.y+72)-Math.max(a.y,b.y)+8);
@@ -179,12 +186,13 @@ export class ListingMap {
     badge.className='map-pin-badge';badge.textContent='⭐';badge.setAttribute('aria-hidden','true');
     const label=item.cohort==='existing'?'터잡이 추천':item.cohort==='disco'?'디스코 매물':item.cohort==='auction'?'경매 물건':item.cohort==='onbid'?'공매 물건':'선별매물';
     element.title=label;
+    const dday=ddayText(saleDateOf(item));
     price.textContent=formatPrice(item.priceWon);area.textContent=markerArea(item.areaM2,this.areaUnit);
-    if(item.cohort==='auction'){badge.textContent='경매';element.append(badge);}
-    else if(item.cohort==='onbid'){badge.textContent='공매';element.append(badge);}
+    if(item.cohort==='auction'){badge.textContent=`경매${dday?` ${dday}`:''}`;element.append(badge);}
+    else if(item.cohort==='onbid'){badge.textContent=`공매${dday?` ${dday}`:''}`;element.append(badge);}
     else if(item.cohort==='existing')element.append(badge);
     element.append(price,area);
-    element.setAttribute('aria-label',`${label} ${item.district} ${item.neighborhood||''} 매물 ${formatPrice(item.priceWon)}, ${area.textContent}, 상세 보기`);
+    element.setAttribute('aria-label',`${label} ${item.district} ${item.neighborhood||''} 매물 ${formatPrice(item.priceWon)}, ${area.textContent}${dday?`, ${dday}`:''}, 상세 보기`);
     return {content:element,anchor:new this.n.Point(0,5)};
   }
   transactionIcon(item,index,offset={x:0,y:-40}) {

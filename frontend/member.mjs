@@ -89,6 +89,9 @@ const feedbackLabel={like:'좋아요',dislike:'아쉬워요',hide:'목록에서 
 const moneyText=v=>Number(v)>0?`${(Number(v)/1e8).toLocaleString('ko-KR',{maximumFractionDigits:2})}억원`:'가격 미기재';
 const m2Text=v=>Number(v)>0?`${Number(v).toLocaleString('ko-KR',{maximumFractionDigits:1})}㎡`:'—';
 const sourceOf=key=>String(key||'').split(':')[0];
+// 찜한 경매·공매의 매각기일/입찰마감을 YYYY-MM-DD로 맞춘다.
+const favoriteSaleDate=p=>{const raw=String(p.saleDate||p.auction?.saleDate||p.bidEndDt||'');return /^\d{8}/.test(raw)?`${raw.slice(0,4)}-${raw.slice(4,6)}-${raw.slice(6,8)}`:(/^\d{4}-\d{2}-\d{2}/.test(raw)?raw.slice(0,10):'');};
+const ddayText=value=>{if(!value)return '';const t=new Date(`${String(value).slice(0,10)}T00:00:00`);if(!Number.isFinite(t.getTime()))return '';const n=Math.ceil((t-Date.now())/86400000);return n>=0?`D-${n}`:'기일 지남';};
 // 알림함/설정 데이터. 백엔드에서 채워지면 보관함 상단에 임박 알림·설정으로 표시된다.
 let memberAlerts=[];
 let memberPrefs=null;
@@ -122,7 +125,12 @@ const memberDetail=item=>{
   const p=item.payload||{};
   let rows=[];
   if(item.kind==='favorite'){
-    rows=[['구분',SOURCE_LABEL[sourceOf(item.key)]||'매물']];
+    const source=sourceOf(item.key);
+    rows=[['구분',SOURCE_LABEL[source]||'매물']];
+    if(source==='auction'||source==='onbid'){
+      const date=favoriteSaleDate(p);
+      if(date)rows.push([source==='onbid'?'입찰마감':'매각기일',`${date} ${ddayText(date)}`.trim()]);
+    }
     if(p.address)rows.push(['주소',p.address]);
     rows.push(['가격',moneyText(p.priceWon)]);
     if(p.areaM2)rows.push(['대지',m2Text(p.areaM2)]);
@@ -137,7 +145,7 @@ const memberDetail=item=>{
     if(p.fields?.height)rows.push(['높이',`${p.fields.height}m`]);
     rows.push(['메모',p.memo||'—']);
   } else {
-    rows=[['주소',p.address||'—'],['의견',feedbackLabel[p.choice]||'—'],['이유',p.reasons?.join(' · ')||'—']];
+    rows=[['주소',p.address||'주소 미확인'],['의견',feedbackLabel[p.choice]||'—'],['이유',p.reasons?.join(' · ')||'—']];
   }
   return rows.length?`<dl class="member-item-facts">${rows.map(([k,v])=>`<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl>`:'';
 };
@@ -184,7 +192,7 @@ export function openMember(mode='member'){
       const actions=i.kind==='condition'
         ?`<div class="member-item-actions"><button class="primary" data-member="edit-condition" data-key="${esc(i.key)}">조건 수정</button><button class="outline" data-member="toggle-condition-alert" data-key="${esc(i.key)}" aria-pressed="${p.alerts!==false}">${p.alerts===false?'이 조건으로 새 매물 알림 받기':'알림 받는 중 · 끄기'}</button><button class="outline" data-member="open" data-key="${esc(i.key)}">다시 보기</button><button class="outline" data-member="remove" data-key="${esc(i.key)}">삭제</button></div>`
         :i.kind==='feedback'
-          ?`<div class="member-item-actions"><button class="outline" data-member="remove" data-key="${esc(i.key)}">의견 되돌리기</button></div>`
+          ?`<div class="member-item-actions"><button class="outline" data-member="open" data-key="${esc(i.key)}">다시 보기</button><button class="outline" data-member="remove" data-key="${esc(i.key)}">의견 되돌리기</button></div>`
           :`<div class="member-item-actions"><button class="outline" data-member="open" data-key="${esc(i.key)}">다시 보기</button><button class="outline" data-member="remove" data-key="${esc(i.key)}">삭제</button></div>`;
       return `<article class="member-item"><div class="member-item-head"><h3>${esc(title)}</h3><small>${new Date(i.updatedAt).toLocaleDateString('ko-KR')} 저장</small></div>${detail}${i.kind==='condition'?conditionAlertNote(i):''}${actions}</article>`;
     }).join('')||'<div class="empty"><p>아직 저장한 내용이 없어요.</p><small>매물이나 검토 화면에서 저장해 보세요.</small></div>'}</div>`}${status==='guest'?`<div class="member-guest-login"><p>로그인하면 찜 목록을 계정에 저장하고 다른 기기에서도 볼 수 있어요.</p>${loginChoices()}</div>`:''}`:`<div class="member-empty"><h3>${status==='loading'?'회원 연결을 확인하고 있어요.':status==='signed-out'?'로그인하거나 간편가입해 주세요.':'로그인·회원가입이 필요해요.'}</h3><p>${status==='pending'?'현재 미리보기에서는 회원 API 주소가 아직 연결되지 않았어요. 운영 사이트 로그인 페이지로 이동할 수 있어요.':status==='error'?'회원 서버에 연결하지 못했어요. 잠시 후 다시 확인해 주세요.':'가입된 계정이면 바로 로그인되고, 처음이라면 필수 약관 동의 후 간편가입으로 이어져요.'}</p>${status==='pending'?`<div class="login-provider-grid"><button class="primary" data-member="preview" type="button">보관함 미리보기</button><a class="outline login-provider" href="https://teojabi.com/" target="_blank" rel="noopener noreferrer">운영 사이트에서 계속하기 ↗</a></div>`:loginChoices()}<p class="login-note">완료 후 돌아오면 내 보관함이 자동으로 연결돼요.</p></div>`}<div class="member-bottom"><span role="status" class="member-message"></span><div>${status==='ready'?'<button class="outline" data-member="logout">로그아웃</button>':''}<button class="outline" data-member="refresh" ${status==='loading'?'disabled':''}>연결 다시 확인</button></div></div>`;
