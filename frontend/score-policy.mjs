@@ -156,7 +156,8 @@ function buildCategory(listing, context) {
   const zoneFar = zone && zone.far > 0 ? zone.far : null;
   // 용적률·건폐율은 용도지역 법정 기준을 우선 사용(지구단위계획 값은 사용하지 않음).
   const allowedFar = zoneFar ?? listingFar ?? facts.allowedFar ?? null;
-  const currentFar = num(listing?.currentFar) ?? num(listing?.buildingFacts?.farPercent)
+  // 현재 용적률이 0이면 자료 없음(또는 미입력)으로 보고 반영하지 않는다. 0%를 여유 용적률로 오인하지 않도록.
+  const currentFar = pos(listing?.currentFar) ?? pos(listing?.buildingFacts?.farPercent)
     ?? (num(listing?.floorAreaM2) > 0 && num(listing?.areaM2) > 0 ? Math.round(num(listing.floorAreaM2) / num(listing.areaM2) * 100) : null);
   const roadWidth = pos(context?.road?.widthM) ?? pos(listing?.roadWidthM) ?? pos(listing?.auction?.roadWidthM);
   const zoneBcr = zone && zone.bcr > 0 ? zone.bcr : null;
