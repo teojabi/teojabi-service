@@ -12,7 +12,7 @@ function categoryBlock(c) {
   const weight = c.effectiveWeight ? `<span class="score-cat-weight">${c.effectiveWeight}%</span>` : '';
   return `<div class="score-cat${c.included ? '' : ' is-missing'}"><div class="score-cat-head"><b>${esc(c.label)}</b>${weight}<span class="score-cat-right">${head}</span></div><ul class="score-metrics">${c.metrics.map(metricRow).join('')}</ul></div>`;
 }
-const LEGEND = `<div class="score-legend"><p class="score-legend-title">계산 기준</p><ul><li>가격 35% · 개발 여력 40% · 입지·상권 25% (자료 없는 항목은 제외하고 재계산)</li><li>가격: 대지면적 기준 평당가를 주변 실거래 중위값과 비교(사이트 실거래 표기와 동일 기준). 공시지가 연도별 변동률로 거래시점을 보정하고, 공시지가 대비 배수를 함께 표시</li><li>개발 여력: 여유 용적률 · 도로폭 · 건폐율(지구단위계획·용도지역 법정) · 구역·특구·재개발</li><li>입지·상권: 최근접 지하철역 · 상권 · 주변 개발</li></ul></div>`;
+const LEGEND = `<div class="score-legend"><p class="score-legend-title">계산 기준</p><ul><li>가격 35% · 개발 여력 40% · 입지·상권 25% (자료 없는 항목은 제외하고 재계산)</li><li>가격: 대지면적 기준 평당가를 주변 실거래 중위값과 비교(사이트 실거래 표기와 동일 기준). 공시지가 연도별 변동률로 거래시점만 보정하고, 공시지가 배수는 참고 표시(점수 미반영)</li><li>개발 여력: 여유 용적률 · 도로폭 · 건폐율(지구단위계획·용도지역 법정) · 구역·특구·재개발</li><li>입지·상권: 최근접 지하철역 · 상권 · 주변 개발</li></ul></div>`;
 function bodyMarkup(result, authed) {
   const cats = result.categories.map(categoryBlock).join('');
   const note = `<p class="score-note">${esc(result.note)}</p>`;
