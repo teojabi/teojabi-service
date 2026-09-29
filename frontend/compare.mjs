@@ -3,6 +3,7 @@ const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 export function comparisonRows(listings,unit='m2') {
  const fmt=(n,suffix)=>typeof n==='number'&&Number.isFinite(n)&&n>0?n.toLocaleString('ko-KR',{maximumFractionDigits:2})+suffix:'미기재';
  return [
+  ['터잡이 점수',r=>r.score!=null?`★ ${r.score}${r.grade?` ${r.grade}`:''}`:'—'],
   ['매매가격',r=>fmt(r.priceWon/1e8,'억원')],['주소',r=>r.address||'주소 미확인'],
   ['대지면적',r=>formatArea(r.areaM2,unit)],['연면적',r=>formatArea(r.floorAreaM2,unit)],
   ['대지 1㎡당 호가',r=>r.priceWon>0&&r.areaM2>0?fmt(r.priceWon/r.areaM2/10000,'만원'):'계산 불가'],

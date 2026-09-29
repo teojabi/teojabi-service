@@ -121,8 +121,12 @@ input,textarea,select{color:var(--text);background:var(--card)}button:focus-visi
 .member-item-facts>div{display:flex;gap:8px;font-size:13px;line-height:1.6}
 .member-item-facts dt{color:var(--muted);flex:0 0 62px;margin:0}
 .member-item-facts dd{margin:0;overflow-wrap:anywhere}
-.member-item-actions{display:flex;gap:7px;margin-top:12px}
+.member-item-actions{display:flex;gap:7px;margin-top:12px;align-items:center;flex-wrap:wrap}
 .member-item-actions button{padding:8px 10px;font-size:13px}
+.save-score{display:inline-block;margin:10px 0 0;padding:3px 11px;border-radius:999px;background:var(--selected);color:var(--muted);font-size:12px;font-weight:800}
+.save-score.is-ready{background:var(--primary);color:#fff}
+.compare-check{display:inline-flex;align-items:center;gap:6px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--text);font-size:13px;cursor:pointer}
+.compare-check input{margin:0}
 .member-section-title{font-size:15px;margin:6px 0 10px}
 .member-section-title small{color:var(--muted);font-weight:500;font-size:12px;margin-left:6px}
 .member-alerts{margin:6px 0 18px;padding:14px 16px;border:1px solid var(--line);border-radius:12px;background:var(--selected)}
