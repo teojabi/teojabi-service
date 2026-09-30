@@ -78,6 +78,8 @@ function spatialZones(source,parcel) {
 }
 const FAR_CLASS_ORDER={'구역':0,'획지':1,'용도지역':2,'입지':3,'용도':4,'기타':5,'불명':6};
 function farRowValue(v){return number(v);}
+// 지구단위계획상 허용용적률은 기준용적률보다 작을 수 없다. 추출 단계에서 도면 범례 순서를 잘못 읽어 뒤바뀐 경우를 표시 단계에서 교정한다.
+function orderedFar(standard,allowed){const s=farRowValue(standard),a=farRowValue(allowed);return s!==null&&a!==null&&a<s?{standard:a,allowed:s}:{standard:s,allowed:a};}
 // 지구단위계획 용적률·건폐율·높이 기준. 획지 지정 여부는 원문 도면 확인 전이므로 구역 단위 참고값으로 정리한다.
 export function normalizeFar(source) {
   const rows=[];
@@ -88,13 +90,14 @@ export function normalizeFar(source) {
       // 명시적 태그([높이]/[용도지역] 등)가 붙은 행은 noise로 분류됐더라도 값이 있으면 유지한다.
       const tagged=/^\s*\[[^\]]+\]/.test(text(raw.zone_raw||raw.zone_type,120));
       if(quality==='noise'&&!tagged)continue;
+      const {standard,allowed}=orderedFar(raw.far_standard,raw.far_allowed);
       const item={
         dgmName:text(raw.dgmName||raw.dgm_nm,200),zoneClass:text(raw.zone_class,20)||'기타',
         zoneRaw:text(raw.zone_raw||raw.zone_type,120)||null,
         zoneDetail:text(raw.zone_detail,80)||null,
         roadSide:text(raw.road_side,20)||null,roadName:text(raw.road_name,80)||null,
         changeType:text(raw.change_type,20)||null,
-        standard:farRowValue(raw.far_standard),allowed:farRowValue(raw.far_allowed),upper:farRowValue(raw.far_upper),
+        standard,allowed,upper:farRowValue(raw.far_upper),
         bcr:farRowValue(raw.bcr),heightM:farRowValue(raw.height_m),floors:count(raw.floors),
         standardText:text(raw.far_standard_text,60)||null,allowedText:text(raw.far_allowed_text,60)||null,
         upperText:text(raw.far_upper_text,120)||null,bcrText:text(raw.bcr_text,60)||null,
@@ -138,14 +141,17 @@ export const statutoryZoneRatio=zone=>{
 export function normalizeDistrictParcel(source) {
   if(!source||typeof source!=='object')return null;
   const status=['ready','district-only','not-in-plan'].includes(source.status)?source.status:'unavailable';
-  const mapParcel=r=>({
+  const mapParcel=r=>{
+    const {standard,allowed}=orderedFar(r.farStandard,r.farAllowed);
+    return {
     dgmName:text(r.dgmName,200)||null,zoneName:text(r.zoneName,120)||null,zoneCode:text(r.zoneCode,60)||null,
-    farStandard:number(r.farStandard),farAllowed:number(r.farAllowed),farUpper:number(r.farUpper),
+    farStandard:standard,farAllowed:allowed,farUpper:number(r.farUpper),
     bcr:number(r.bcr),heightM:number(r.heightM),floors:count(r.floors),
     farText:text(r.farText,120)||null,heightText:text(r.heightText,120)||null,
     method:text(r.method,40)||null,confidence:text(r.confidence,20)||null,
     sourceFileName:text(r.sourceFile,300)||null,sourceFileUrl:safePublicDocumentUrl(r.sourceUrl),
-  });
+    };
+  };
   const mapZone=r=>({...mapParcel(r),farBasic:number(r.farBasic),sourceSheet:text(r.sourceSheet,200)||null,sourcePage:count(r.sourcePage)});
   const legal=source.legal&&typeof source.legal==='object'?{
     zone:text(source.legal.zone,80)||null,originalZone:text(source.legal.originalZone,80)||null,
