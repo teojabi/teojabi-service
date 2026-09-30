@@ -2,7 +2,11 @@
 """지구단위계획 서빙 데이터를 로컬 DB에서 운영(Supabase) DB로 이관한다.
 
 로컬 스키마를 그대로 따라가므로, 컬럼·뷰 정의가 바뀌어도 다시 실행하면 맞춰진다.
-- 기본 테이블(district_far_regulation, district_file_list): 누락 컬럼 추가 후 TRUNCATE + COPY
+- 기본 테이블: 누락 컬럼 추가 후 TRUNCATE + COPY
+    · district_far_regulation  (지구단위계획 구역/용도지역별 기준값)
+    · district_file_list       (고시문·도면·시행지침 파일 목록 = 근거자료 링크)
+    · dgm_parcel_reg           (필지별 지구단위계획 값 + 근거파일, master_land 승격 원본)
+    · dgm_district_regulation  (지구단위별 값 + 근거자료 링크)
 - v_district% / v_far% 뷰: 의존 순서를 계산해 DROP CASCADE 후 로컬 정의로 재생성
 - 전제: 운영 DB에 public.district_unit_plan 이 이미 있고 id 체계가 로컬과 같아야 한다.
 
@@ -18,7 +22,7 @@ from pathlib import Path
 
 import psycopg2
 
-TABLES = ['district_far_regulation', 'district_file_list']
+TABLES = ['district_far_regulation', 'district_file_list', 'dgm_parcel_reg', 'dgm_district_regulation']
 VIEW_PREFIXES = ('v_district', 'v_far')
 
 

@@ -182,7 +182,16 @@ async function findListingEdge(database, data, id) {
   const { data: raw } = await database.rpc("teojabi_naver_listing", { p_num: key.split(":").slice(1).join(":") });
   return buildNaverListing(raw);
 }
+async function attachParcelDistrict(database, raw) {
+  if (!raw) return;
+  if (!/^11\d{17}$/.test(String(raw.pnu || ""))) { raw.districtParcel = null; return; }
+  try {
+    const { data } = await database.rpc("teojabi_parcel_district", { p_pnu: raw.pnu });
+    raw.districtParcel = data || null;
+  } catch (_e) { raw.districtParcel = null; }
+}
 async function attachDistrictPlan(database, raw) {
+  await attachParcelDistrict(database, raw);
   const planRows = (raw.plans && raw.plans.rows) || [];
   const names = [];
   for (const row of planRows) { for (const key of ["dgmName", "name"]) { const v = row[key]; if (typeof v === "string" && v.trim()) { names.push(v.trim()); break; } } }
@@ -304,6 +313,7 @@ Deno.serve(async (request: Request) => {
       }
       raw.recap = { status: "skipped", rows: [] };
       raw.buildings = { status: "skipped", rows: [] };
+      await attachParcelDistrict(db, raw);
       return json(buildParcelContext(pnu, raw), 200, origin);
     }
     if (path.startsWith("/api/parcel-documents/")) {
@@ -380,7 +390,7 @@ Deno.serve(async (request: Request) => {
         }
       }
       const result = land ? normalizeLandRecord(listing, raw) : registers ? buildBuildingRecords(listing, raw) : buildRiskReview(listing, raw);
-      const body = compact && result.status !== "error" ? { status: (result.road && result.road.status === "error") ? "partial" : result.status, zones: result.zones, road: result.road } : result;
+      const body = compact && result.status !== "error" ? { status: (result.road && result.road.status === "error") ? "partial" : result.status, zones: result.zones, road: result.road, districtParcel: result.districtParcel } : result;
       return json(body, result.status === "error" ? 503 : 200, origin);
     }
     if (path === "/api/site-parcels") {

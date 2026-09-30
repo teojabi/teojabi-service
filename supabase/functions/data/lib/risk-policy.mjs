@@ -129,6 +129,35 @@ export function normalizeRoad(source,pnu) {
   const widthM=source?.status==='ready'&&rows?.length===1&&rows[0].pnu===pnu?number(rows[0].widthM):null;
   return {status:widthM!==null?'ready':'missing',widthM,source:'master_land.도로폭_m',adjacencyConfirmed:false};
 }
+// 용도지역 법정 일반기준 조회(렌더러·앱 공통).
+export const statutoryZoneRatio=zone=>{
+  const name=String(zone||'').replace(/\s+/g,'').replace(/\((?:7|12)층(?:이하)?\)$/,'');
+  return STATUTORY_ZONE_RATIOS[name]||null;
+};
+// 필지별 지구단위계획 값 + 지구단위별 근거자료 + 미해결 사유 + 용도지역 법정 기준.
+export function normalizeDistrictParcel(source) {
+  if(!source||typeof source!=='object')return null;
+  const status=['ready','district-only','not-in-plan'].includes(source.status)?source.status:'unavailable';
+  const mapParcel=r=>({
+    dgmName:text(r.dgmName,200)||null,zoneName:text(r.zoneName,120)||null,zoneCode:text(r.zoneCode,60)||null,
+    farStandard:number(r.farStandard),farAllowed:number(r.farAllowed),farUpper:number(r.farUpper),
+    bcr:number(r.bcr),heightM:number(r.heightM),floors:count(r.floors),
+    farText:text(r.farText,120)||null,heightText:text(r.heightText,120)||null,
+    method:text(r.method,40)||null,confidence:text(r.confidence,20)||null,
+    sourceFileName:text(r.sourceFile,300)||null,sourceFileUrl:safePublicDocumentUrl(r.sourceUrl),
+  });
+  const mapZone=r=>({...mapParcel(r),farBasic:number(r.farBasic),sourceSheet:text(r.sourceSheet,200)||null,sourcePage:count(r.sourcePage)});
+  const legal=source.legal&&typeof source.legal==='object'?{
+    zone:text(source.legal.zone,80)||null,originalZone:text(source.legal.originalZone,80)||null,
+    far:number(source.legal.far),bcr:number(source.legal.bcr),state:text(source.legal.state,40)||null,
+  }:null;
+  const hasValue=o=>o&&[o.farStandard,o.farAllowed,o.farUpper,o.farBasic,o.bcr,o.heightM,o.floors].some(v=>v!=null)||o&&(o.farText||o.heightText);
+  const parcels=(Array.isArray(source.parcels)?source.parcels:[]).slice(0,20).map(mapParcel).filter(o=>o&&(o.dgmName||o.zoneName||hasValue(o)));
+  const zones=(Array.isArray(source.zones)?source.zones:[]).slice(0,60).map(mapZone).filter(o=>o&&(o.zoneName||hasValue(o)));
+  const plans=(Array.isArray(source.plans)?source.plans:[]).slice(0,20).map(p=>({districtId:p&&p.districtId!=null?Number(p.districtId):null,dgmName:text(p&&p.dgmName,200)||null})).filter(p=>p.dgmName||p.districtId!=null);
+  return {status,pnu:text(source.pnu,20)||null,hasDistrictValue:source.hasDistrictValue===true,plans,parcels,zones,
+    legal:legal&&(legal.zone||legal.originalZone||legal.far!=null||legal.bcr!=null)?legal:null};
+}
 export function buildBuildingRecords(listing,raw) {
   if(!listing||raw?.sourceId!==listing.sourceId||raw.pnu!==listing.pnu||normalizeRiskAddress(raw.address)!==normalizeRiskAddress(listing.address))return {status:'error',reason:'SOURCE_MISMATCH'};
   const address=normalizeRiskAddress(listing.address),recap=candidates(raw.recap,address),buildings=candidates(raw.buildings,address);
@@ -194,6 +223,7 @@ export function buildRiskReview(listing,raw) {
   ];
   return {status:notes.length?'partial':'ready',listing:{id:listing.id,address:listing.address,priceWon:listing.priceWon,areaM2:listing.areaM2,floorAreaM2:listing.floorAreaM2,zoning:listing.zoning},
     observedAt:raw.observedAt,feasibility:'not-determined',recap,buildings,parcel,plans,zones,road:normalizeRoad(raw.road,listing.pnu),checks,notes,
+    districtParcel:normalizeDistrictParcel(raw.districtParcel),
     nextSteps:['매각 대상의 전체 필지·건물·지분과 임대 현황 확인','최신 대장·부속지번으로 대지와 건물 관계 대조','고시·도면에서 해당 획지의 건축 조건 확인','도로·주차·철거 조건을 건축사와 검토']};
 }
 
@@ -208,6 +238,6 @@ export function buildParcelContext(pnu,raw) {
   const legalName=String(zone||text(master?.originalZone)||'').replace(/\s+/g,'').replace(/\((?:7|12)층(?:이하)?\)$/,'');
   const legal=STATUTORY_ZONE_RATIOS[legalName];
   if(legal){if(!(far>0))far=legal[0];if(!(bcr>0))bcr=legal[1];}
-  return {status:result.status,pnu,address:raw.address,zones:result.zones,road:result.road,
+  return {status:result.status,pnu,address:raw.address,zones:result.zones,road:result.road,districtParcel:result.districtParcel,
     baseline:{far,bcr:bcr<=100?bcr:null,zone,originalZone:text(master?.originalZone),state:state||'자료미확인',downtown:master?.downtown==='서울도심',source:'master_land'}};
 }
