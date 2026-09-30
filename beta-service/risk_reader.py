@@ -108,6 +108,7 @@ def read_risk(connection, source_id, include_registers=True, include_context=Tru
     parcel = {'status': 'missing', 'rows': []}
     plans = {'status': 'missing-parcel', 'rows': []}
     far = {'status': 'missing-parcel', 'rows': []}
+    district_parcel = None
     education = {'status': 'missing-parcel', 'rows': []}
     tourism = {'status': 'missing-parcel', 'rows': []}
     road = {'status': 'missing-parcel', 'rows': []}
@@ -116,6 +117,9 @@ def read_risk(connection, source_id, include_registers=True, include_context=Tru
         road = fetch('''SELECT pnu,"도로폭_m" AS "widthM", "최대용적률" AS far,"최대건폐율" AS bcr,
             "용도지역" AS "originalZone","법정기준용도지역" AS zone,"법정기준상태" AS "baselineStatus",
             "서울도심" AS downtown FROM public.master_land WHERE pnu=%s LIMIT 2''', (pnu,))
+        # 필지별 지구단위계획 값 + 지구단위별 근거자료 + 미해결 사유 + 용도지역 법정 기준.
+        dp = fetch('SELECT public.teojabi_parcel_district(%s) AS district', (pnu,))
+        district_parcel = dp['rows'][0]['district'] if dp['status'] == 'ready' and dp['rows'] else None
         parcel = fetch('''
             SELECT ST_IsValid(geom) AS valid, ST_SRID(geom) AS srid,
                 CASE WHEN ST_IsValid(geom) AND ST_SRID(geom)=5174
@@ -265,4 +269,5 @@ def read_risk(connection, source_id, include_registers=True, include_context=Tru
     return {'sourceId': source_id, 'address': address, 'pnu': pnu,
             'observedAt': datetime.now(timezone.utc).isoformat(),
             'recap': recap, 'buildings': buildings, 'parcel': parcel, 'plans': plans, 'far': far,
-            'education': education, 'tourism': tourism, 'heritage': heritage, 'road': road}
+            'education': education, 'tourism': tourism, 'heritage': heritage, 'road': road,
+            'districtParcel': district_parcel}
