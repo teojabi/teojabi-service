@@ -194,7 +194,9 @@ export class ListingMap {
     const bundleMin=isBundle?(new Set(lots.map(r=>Number(r.auction?.minPrice)||0)).size>1?lots.reduce((s,r)=>s+(Number(r.auction?.minPrice)||0),0):(Number(lots[0]?.auction?.minPrice)||0)):null;
     const bundleArea=landLots.length?landLots.reduce((s,r)=>s+(Number(r.areaM2)||0),0):null;
     const shownPrice=bundleMin!=null?bundleMin:item.priceWon;
-    const shownArea=bundleArea!=null?bundleArea:item.areaM2;
+    // 공매는 지도에 대지면적 기준으로 표시한다(없으면 목적물 면적).
+    const onbidLand=item.cohort==='onbid'&&Number.isFinite(Number(item.landAreaM2))&&Number(item.landAreaM2)>0?Number(item.landAreaM2):null;
+    const shownArea=bundleArea!=null?bundleArea:(onbidLand!=null?onbidLand:item.areaM2);
     price.textContent=formatPrice(shownPrice);area.textContent=markerArea(shownArea,this.areaUnit);
     if(item.cohort==='auction'){badge.textContent=`경매${isBundle?' 일괄':''}${dday?` ${dday}`:''}`;element.append(badge);}
     else if(item.cohort==='onbid'){badge.textContent=`공매${dday?` ${dday}`:''}`;element.append(badge);}
