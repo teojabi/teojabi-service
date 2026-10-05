@@ -25,9 +25,9 @@ export class MailStatusController {
         name: '상업지역 신축 검토',
         summary: '성북구·관악구·금천구 · 200억 이하 · 경매·공매 포함',
         items: [
-          { type: 'listing', label: '맞춤', title: '서울특별시 성북구 동소문동5가 84', detail: '36억원 · 대지 · 노후 건물', url: 'https://teojabi.com/#listing=premium%3A2c29192c-f69a-4b50-9ab9-518b02e21e3a' },
-          { type: 'auction', label: '경매', title: '서울특별시 관악구 봉천동 66-92', detail: '대지 · 최저 6.4억원 · 매각기일 2026-10-06', url: 'https://teojabi.com/#listing=auction%3AB0002102023013011058011' },
-          { type: 'onbid', label: '공매', title: '서울특별시 금천구 독산동 293-4 대지', detail: '최저입찰 176.9억원 · 입찰마감 2026-10-06', url: 'https://teojabi.com/#listing=onbid%3A2026-0400-020363%3A%3A6220456' },
+          { type: 'listing', label: '맞춤', title: '서울특별시 성북구 동소문동5가 84', detail: '용도 미기재 · 36억원 · 대지 138㎡', url: 'https://teojabi.com/#listing=premium%3A2c29192c-f69a-4b50-9ab9-518b02e21e3a' },
+          { type: 'auction', label: '경매', title: '서울특별시 관악구 봉천동 66-92', detail: '대지 · 최저 6.4억원 · 면적 99㎡ · 매각기일 2026-10-06', url: 'https://teojabi.com/#listing=auction%3AB0002102023013011058011' },
+          { type: 'onbid', label: '공매', title: '서울특별시 금천구 독산동 293-4 대지', detail: '토지 · 최저입찰 176.9억원 · 면적 1,212㎡ · 입찰마감 2026-10-06', url: 'https://teojabi.com/#listing=onbid%3A2026-0400-020363%3A%3A6220456' },
         ],
       },
     ];

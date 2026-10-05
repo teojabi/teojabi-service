@@ -397,11 +397,28 @@ export class NotificationsService {
         if (failMax) conditions.push(Prisma.sql`a.fail_count <= ${failMax}`);
         const rows = await this.prisma.$queryRaw<any[]>(Prisma.sql`
           SELECT a.docid, a.full_address, a.min_price, a.usage_name, a.sale_date, a.sale_hour,
-                 a.use_zone, a.land_area_m2, a.building_area_m2, a.far_limit, a.bcr_limit, a.district_plan,
-                 a.sigu, a.special_zone, a.height_district
+                 a.use_zone, a.land_area_m2, a.building_area_m2, a.area_max, a.obj_area_m2,
+                 a.court_name, a.case_no, a.sale_kind,
+                 a.far_limit, a.bcr_limit, a.district_plan, a.sigu, a.special_zone, a.height_district
           FROM public.auction_item a WHERE ${Prisma.join(conditions, ' AND ')}
-          ORDER BY a.first_seen_at DESC LIMIT 3`);
-        for (const r of rows) items.push(this.auctionAlert(r, 'condition', conditionName, zoneMap));
+          ORDER BY a.first_seen_at DESC LIMIT 60`);
+        // 일괄매각(bundle)은 사건 단위로 묶어 면적을 합산한다(목록의 '일괄 합계'와 동일).
+        const groupMap = new Map<string, any[]>();
+        for (const r of rows) {
+          const key = (r.sale_kind || 'whole') === 'bundle' && r.case_no ? `case:${r.court_name || ''}:${r.case_no}` : `row:${r.docid}`;
+          const list = groupMap.get(key);
+          if (list) list.push(r);
+          else groupMap.set(key, [r]);
+        }
+        const areaOf = (x: any) => Number(x.obj_area_m2) || Number(x.area_max) || Number(x.land_area_m2) || Number(x.building_area_m2) || 0;
+        let shown = 0;
+        for (const list of groupMap.values()) {
+          if (shown >= 3) break;
+          shown += 1;
+          const representative = list.slice().sort((a, b) => areaOf(b) - areaOf(a))[0] || list[0];
+          const areaM2 = list.reduce((sum, r) => sum + areaOf(r), 0);
+          items.push(this.auctionAlert(representative, 'condition', conditionName, zoneMap, { areaM2: areaM2 || null, bundleCount: list.length }));
+        }
       }
 
       // 새로 올라온 공매 물건 — 최대 3건.
@@ -412,7 +429,8 @@ export class NotificationsService {
         if (dealType) conditions.push(Prisma.sql`o.deal_type = ${dealType}`);
         if (maxPrice) conditions.push(Prisma.sql`o.lowst_bid_prc <= ${maxPrice}`);
         const rows = await this.prisma.$queryRaw<any[]>(Prisma.sql`
-          SELECT o.cltr_mng_no, o.pbct_cdtn_no, o.cltr_nm, o.lowst_bid_prc, o.usg_mcls_nm, o.bid_end_dt
+          SELECT o.cltr_mng_no, o.pbct_cdtn_no, o.cltr_nm, o.lowst_bid_prc, o.usg_mcls_nm, o.usg_lcls_nm,
+                 o.land_area_m2, o.building_area_m2, o.bundle, o.bid_end_dt
           FROM public.onbid_item o WHERE ${Prisma.join(conditions, ' AND ')}
           ORDER BY o.first_seen_at DESC LIMIT 3`);
         for (const r of rows) items.push(this.onbidAlert(r, 'condition', conditionName));
@@ -481,9 +499,21 @@ export class NotificationsService {
     origin: 'favorite' | 'condition',
     conditionName: string | null,
     zoneMap: Record<string, { bcr: number; far: number }> = {},
+    opts: { areaM2?: number | null; bundleCount?: number } = {},
   ): Alert {
     const date = this.dateOf(r.sale_date);
     const development = this.development(r, zoneMap);
+    const areaM2 = opts.areaM2 != null
+      ? opts.areaM2
+      : Number(r.obj_area_m2) || Number(r.area_max) || Number(r.land_area_m2) || Number(r.building_area_m2) || null;
+    const bundle = (opts.bundleCount || 0) > 1;
+    const areaText = areaM2 ? `${bundle ? '일괄 합계 ' : '면적 '}${Math.round(areaM2).toLocaleString('ko-KR')}㎡` : '';
+    const detail = [
+      String(r.usage_name || '용도 미기재'),
+      `최저 ${this.money(r.min_price)}`,
+      areaText,
+      `${bundle ? `일괄 ${opts.bundleCount}건 · ` : ''}매각기일 ${date}${r.sale_hour ? ` ${r.sale_hour}` : ''}`,
+    ].filter(Boolean).join(' · ');
     return {
       type: 'auction',
       key: `auction:${r.docid}`,
@@ -492,7 +522,7 @@ export class NotificationsService {
       date,
       kindLabel: `경매 ${this.labelFor(date)}`,
       title: String(r.full_address || r.docid || ''),
-      detail: `${String(r.usage_name || '용도 미기재')} · 최저 ${this.money(r.min_price)} · 매각기일 ${date}${r.sale_hour ? ` ${r.sale_hour}` : ''}`,
+      detail,
       meta: {
         ...(development ? { development } : {}),
         features: {
@@ -511,6 +541,13 @@ export class NotificationsService {
 
   private onbidAlert(r: any, origin: 'favorite' | 'condition', conditionName: string | null): Alert {
     const date = this.dateOf(r.bid_end_dt);
+    const usage = String(r.usg_mcls_nm || r.usg_lcls_nm || '용도 미기재');
+    const isLand = /토지|대지|임야|전답|잡종지|과수원|답/.test(usage);
+    const landM2 = Number(r.land_area_m2) || null;
+    const bldgM2 = Number(r.building_area_m2) || null;
+    const areaM2 = isLand ? (landM2 ?? bldgM2) : (bldgM2 ?? landM2);
+    const areaText = areaM2 ? `${r.bundle === true ? '일괄 합계 ' : '면적 '}${Math.round(areaM2).toLocaleString('ko-KR')}㎡` : '';
+    const detail = [usage, `최저입찰 ${this.money(r.lowst_bid_prc)}`, areaText, `입찰마감 ${date}`].filter(Boolean).join(' · ');
     return {
       type: 'onbid',
       key: `onbid:${r.cltr_mng_no}::${r.pbct_cdtn_no}`,
@@ -519,7 +556,7 @@ export class NotificationsService {
       date,
       kindLabel: `공매 ${this.labelFor(date)}`,
       title: String(r.cltr_nm || r.cltr_mng_no || ''),
-      detail: `${String(r.usg_mcls_nm || '용도 미기재')} · 최저입찰 ${this.money(r.lowst_bid_prc)} · 입찰마감 ${date}`,
+      detail,
     };
   }
 
@@ -656,6 +693,12 @@ export class NotificationsService {
 
   private listingAlert(r: any, source: 'naver' | 'disco', conditionName: string): Alert {
     const priceWon = source === 'naver' ? (Number(r.price) || 0) * 1e8 : (Number(r.price_manwon) || 0) * 1e4;
+    const detail = [
+      String(r.use || '').trim() || '용도 미기재',
+      this.money(priceWon),
+      r.land ? `대지 ${this.area(r.land)}` : '',
+      String(r.zone || '').trim(),
+    ].filter(Boolean).join(' · ');
     return {
       type: 'listing',
       key: `${source}:${r.id}`,
@@ -664,7 +707,7 @@ export class NotificationsService {
       date: this.date(),
       kindLabel: '맞춤 매물',
       title: String(r.address || ''),
-      detail: `${String(r.use || '용도 미기재')} · ${this.money(priceWon)} · 대지 ${this.area(r.land)}${r.zone ? ` · ${r.zone}` : ''}`,
+      detail,
       meta: {
         features: {
           district: String(r.district || ''),
