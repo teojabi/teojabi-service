@@ -76,12 +76,6 @@ function hasUsableFilters(filters) {
   return Object.entries(filters || {}).some(([key, value]) => key !== 'limit' && (Array.isArray(value) ? value.length : value !== null && value !== undefined && value !== ''));
 }
 
-// 저장 조건으로 찾을 때는 경매·공매 물건도 함께 포함한다.
-function withAuction(condition) {
-  const auction = condition?.auction && typeof condition.auction === 'object' ? condition.auction : {};
-  return { ...(condition || {}), auction: { ...auction, enabled: true, source: auction.source || 'both' } };
-}
-
 // 매물을 고른 뒤 "이 주위 상권 알려줘" 같은 자유 질문을 매물 메뉴로 연결한다.
 function listingQuestion(message) {
   const t = String(message || '');
@@ -582,7 +576,8 @@ export function mountAssistant({ onResults, onAnalyze } = {}) {
       }
       lastFilters = { ...(data.filters || {}) };
       logSearchIntent(message, data.filters || editedFilters || {});
-      renderResult(null, data, !message && Boolean(editedFilters));
+      // 편집기는 자동으로 펼치지 않는다. '조건 바꾸기'를 눌렀을 때만 연다.
+      renderResult(null, data);
     } catch (error) {
       timers.forEach(clearTimeout); if (scan) scan.remove();
       addBot(error && (error.name === 'TimeoutError' || error.name === 'AbortError')
@@ -594,7 +589,8 @@ export function mountAssistant({ onResults, onAnalyze } = {}) {
   panel.addEventListener('click', event => {
     if (event.target.closest('[data-condition]')) {
       const condition = savedCondition();
-      if (condition && hasUsableFilters(condition)) runSearch(null, withAuction(condition));
+      // 저장 조건의 '경·공매 같이보기' 체크(auction.enabled)를 그대로 존중한다. 꺼져 있으면 매물만 찾는다.
+      if (condition && hasUsableFilters(condition)) runSearch(null, condition);
       else addBot('저장된 조건이 없어요. 지역·예산 같은 조건을 말씀해 주세요.');
       return;
     }
