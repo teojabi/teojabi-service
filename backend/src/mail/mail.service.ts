@@ -85,19 +85,27 @@ export class MailService {
   // 발송 요청 상태 조회(수신자별 처리 결과 확인용). 진단 목적.
   async requestStatus(requestId: string): Promise<any> {
     const { baseUrl, accessKey, secretKey } = this.config();
-    if (!accessKey || !secretKey || !requestId) return null;
-    const apiPath = `/api/v1/mails/${encodeURIComponent(requestId)}`;
+    if (!accessKey || !secretKey || !requestId) return { ok: false, reason: 'missing-config' };
+    const apiPath = `/api/v1/mails/${requestId}`;
     const timestamp = Date.now().toString();
     const signature = createHmac('sha256', secretKey as string)
       .update(`GET ${apiPath}\n${timestamp}\n${accessKey}`)
       .digest('base64');
-    const response = await axios.get(`${baseUrl.replace(/\/$/, '')}${apiPath}`, {
-      headers: {
-        'x-ncp-apigw-timestamp': timestamp,
-        'x-ncp-iam-access-key': accessKey as string,
-        'x-ncp-apigw-signature-v2': signature,
-      },
-    });
-    return response.data;
+    try {
+      const response = await axios.get(`${baseUrl.replace(/\/$/, '')}${apiPath}`, {
+        headers: {
+          'x-ncp-apigw-timestamp': timestamp,
+          'x-ncp-iam-access-key': accessKey as string,
+          'x-ncp-apigw-signature-v2': signature,
+        },
+      });
+      return { ok: true, httpStatus: response.status, data: response.data };
+    } catch (e) {
+      return {
+        ok: false,
+        httpStatus: (e as any)?.response?.status ?? null,
+        data: (e as any)?.response?.data ?? String((e as Error)?.message),
+      };
+    }
   }
 }
