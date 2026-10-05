@@ -637,7 +637,7 @@ createServer(async (request, response) => {
       }
       else if (path.startsWith('/api/listings/')) {
         const id=path.slice('/api/listings/'.length);
-        const listing=data.rows.find(row=>row.id===id)||await naverListing(String(id).split(':').slice(1).join(':'));
+        const listing=await findListing(id);
         send(response,request,listing?{status:'ready',mode:'local-snapshot',listing,observedAt:data.observedAt,
           documents:{building:{status:'stored-records',delivery:'in-site'},land:{status:'stored-records',delivery:'in-site'},registry:{status:'external',url:DOCUMENT_LINKS.registry}}}:{status:'missing'},listing?200:404);
       } else {
