@@ -23,11 +23,11 @@ export class MailStatusController {
     const conditions: DigestCondition[] = [
       {
         name: '상업지역 신축 검토',
-        summary: '마포구·서대문구 · 100억 이하 · 대지 100㎡ 이상 · 상업지역 · 경매·공매 포함',
+        summary: '성북구·관악구·금천구 · 200억 이하 · 경매·공매 포함',
         items: [
-          { type: 'listing', label: '맞춤', title: '서울 마포구 성산동 123-4', detail: '제2종근린생활시설 · 45억원 · 대지 120㎡ · 제2종일반주거지역', url: 'https://teojabi.com/#listing=naver%3A2649686780' },
-          { type: 'auction', label: '경매', title: '서울 마포구 서교동 5-1', detail: '근린생활시설 · 최저 3억원 · 매각기일 2026-10-19', url: 'https://teojabi.com/#listing=auction%3A2026%ED%83%80%EA%B2%BD12345-1' },
-          { type: 'auction', label: '경매', title: '서울 마포구 동교동 155-20', detail: '근린상업지역 · 최저 13.9억원 · 매각기일 2026-10-22', url: 'https://teojabi.com/#listing=auction%3A2026%ED%83%80%EA%B2%BD54321-1' },
+          { type: 'listing', label: '맞춤', title: '서울특별시 성북구 동소문동5가 84', detail: '36억원 · 대지 · 노후 건물', url: 'https://teojabi.com/#listing=premium%3A2c29192c-f69a-4b50-9ab9-518b02e21e3a' },
+          { type: 'auction', label: '경매', title: '서울특별시 관악구 봉천동 66-92', detail: '대지 · 최저 6.4억원 · 매각기일 2026-10-06', url: 'https://teojabi.com/#listing=auction%3AB0002102023013011058011' },
+          { type: 'onbid', label: '공매', title: '서울특별시 금천구 독산동 293-4 대지', detail: '최저입찰 176.9억원 · 입찰마감 2026-10-06', url: 'https://teojabi.com/#listing=onbid%3A2026-0400-020363%3A%3A6220456' },
         ],
       },
     ];
