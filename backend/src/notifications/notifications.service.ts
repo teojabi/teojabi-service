@@ -3,7 +3,7 @@ import { Cron } from '@nestjs/schedule';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { MailService } from '../mail/mail.service';
-import { buildDigestBody } from '../mail/digest.template';
+import { buildDigestBody, DigestCondition, DigestItem } from '../mail/digest.template';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
@@ -456,10 +456,11 @@ export class NotificationsService {
           VALUES (${user.userId},${dedupeKey},'email',${unread.length},'SENT')
           ON CONFLICT (dedupe_key) DO NOTHING`;
         if (inserted === 0) continue;
+        const summaries = await this.conditionSummaryMap(user.userId);
         await this.mail.send({
           to: user.email,
-          title: `[터잡이] 새 매물·경매·공매 알림 ${unread.length}건`,
-          body: buildDigestBody(unread),
+          title: `[터잡이] 조건에 맞는 새 매물 ${unread.length}건`,
+          body: buildDigestBody(this.toDigestConditions(unread, summaries), { inquiryEmail: 'teojabi@gmail.com' }),
         });
         await this.markRead(user.userId);
         sent += 1;
@@ -539,6 +540,70 @@ export class NotificationsService {
       INSERT INTO public.notification_source_cursor(source,last_seen_at,updated_at)
       VALUES ('all', now(), now())
       ON CONFLICT (source) DO UPDATE SET last_seen_at=now(), updated_at=now()`;
+  }
+
+  // 사용자의 저장 조건 이름 → 요약 문자열(이메일 상단에 표시).
+  private async conditionSummaryMap(userId: string): Promise<Map<string, string>> {
+    const rows = await this.prisma.$queryRaw<Array<{ payload: any }>>`
+      SELECT payload FROM public.discovery_item WHERE user_id=${userId} AND kind='condition'`;
+    const map = new Map<string, string>();
+    for (const row of rows) {
+      const p = row.payload || {};
+      map.set(String(p.name || '저장 조건'), this.conditionSummary(p));
+    }
+    return map;
+  }
+
+  private conditionSummary(payload: any): string {
+    const parts: string[] = [];
+    const districts = Array.isArray(payload?.districts) ? payload.districts.filter(Boolean) : [];
+    if (districts.length) parts.push(districts.join('·'));
+    if (Number(payload?.budgetWon) > 0) parts.push(`${(Number(payload.budgetWon) / 1e8).toLocaleString('ko-KR', { maximumFractionDigits: 1 })}억 이하`);
+    if (Number(payload?.minAreaM2) > 0) parts.push(`대지 ${Math.round(Number(payload.minAreaM2)).toLocaleString('ko-KR')}㎡ 이상`);
+    if (Number(payload?.maxAreaM2) > 0) parts.push(`대지 ${Math.round(Number(payload.maxAreaM2)).toLocaleString('ko-KR')}㎡ 이하`);
+    if (Array.isArray(payload?.zones) && payload.zones.length) parts.push(payload.zones.join('·'));
+    if (payload?.kind === 'land') parts.push('토지');
+    else if (payload?.kind === 'building') parts.push('건물');
+    if (Number(payload?.minRoadWidthM) > 0) parts.push(`도로 ${payload.minRoadWidthM}m 이상`);
+    if (payload?.auction?.enabled) {
+      const s = payload.auction.source;
+      parts.push(s === 'onbid' ? '공매 포함' : s === 'both' ? '경매·공매 포함' : '경매 포함');
+    }
+    return parts.join(' · ');
+  }
+
+  private static detailUrl(key: string): string | null {
+    if (!key || key.startsWith('notice:')) return null;
+    return `https://teojabi.com/#listing=${encodeURIComponent(key)}`;
+  }
+
+  private itemLabel(type: string): string {
+    return type === 'auction' ? '경매' : type === 'onbid' ? '공매' : type === 'notice' ? '공지' : '맞춤';
+  }
+
+  // 알림함 항목을 조건별로 묶어 이메일 모델로 만든다.
+  private toDigestConditions(unread: any[], summaries: Map<string, string>): DigestCondition[] {
+    const groups = new Map<string, DigestItem[]>();
+    const order: string[] = [];
+    for (const item of unread) {
+      const name = item.type === 'notice' ? '공지' : item.conditionName || (item.origin === 'favorite' ? '찜한 물건' : '맞춤 매물');
+      if (!groups.has(name)) {
+        groups.set(name, []);
+        order.push(name);
+      }
+      groups.get(name)!.push({
+        type: item.type,
+        label: this.itemLabel(item.type),
+        title: item.title || '',
+        detail: item.detail || '',
+        url: NotificationsService.detailUrl(item.key),
+      });
+    }
+    return order.map((name) => ({
+      name,
+      summary: summaries.get(name) || (name === '찜한 물건' ? '내가 찜한 물건' : ''),
+      items: groups.get(name)!,
+    }));
   }
 
   private area(value: unknown) {
