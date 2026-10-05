@@ -20,12 +20,18 @@ export class MailStatusController {
     const to = process.env.MAIL_TEST_RECIPIENT || 'delete9876@naver.com';
     if (!this.mail.isConfigured()) return { sent: false, reason: 'not-configured' };
     try {
-      await this.mail.send({
+      const send = await this.mail.send({
         to,
         title: '[터잡이] 이메일 알림 설정 테스트',
         body: '<div style="font-family:\'Malgun Gothic\',sans-serif"><p>이 메일은 터잡이 알림(Cloud Outbound Mailer) 설정 확인용 테스트입니다.</p><p>정상 수신되면 이메일 알림 발송이 준비된 것입니다.</p></div>',
       });
-      return { sent: true, to };
+      let status: any = null;
+      try {
+        if (send?.requestId) status = await this.mail.requestStatus(send.requestId);
+      } catch (e) {
+        status = { error: String((e as any)?.response?.data ?? (e as Error)?.message).slice(0, 300) };
+      }
+      return { sent: true, to, send, status };
     } catch (e) {
       return { sent: false, reason: String((e as Error)?.message || e).slice(0, 200) };
     }
