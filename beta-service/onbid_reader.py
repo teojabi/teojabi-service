@@ -107,6 +107,8 @@ def _where(payload):
                   if value in ('whole', 'floor', 'unit', 'land')][:4]
     min_price = _num(payload.get('minPrice'))
     max_price = _num(payload.get('maxPrice'))
+    min_area = _num(payload.get('minArea'))
+    max_area = _num(payload.get('maxArea'))
     if deal_types:
         where.append('deal_type = ANY(%(dealtypes)s)')
         params['dealtypes'] = deal_types
@@ -135,6 +137,16 @@ def _where(payload):
     if max_price is not None:
         where.append('lowst_bid_prc <= %(maxp)s')
         params['maxp'] = max_price
+    # 카드에 표시되는 면적 기준으로 거른다: 토지는 대지면적, 그 외는 건물면적. 없으면 다른 면적으로 대체한다.
+    if min_area is not None or max_area is not None:
+        area_expr = ("CASE WHEN deal_type = 'land' THEN coalesce(land_area_m2, building_area_m2)"
+                     " ELSE coalesce(building_area_m2, land_area_m2) END")
+        if min_area is not None:
+            where.append(f'{area_expr} >= %(minarea)s')
+            params['minarea'] = min_area
+        if max_area is not None:
+            where.append(f'{area_expr} <= %(maxarea)s')
+            params['maxarea'] = max_area
     return where, params
 
 

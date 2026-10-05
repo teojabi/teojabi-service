@@ -446,7 +446,8 @@ createServer(async (request, response) => {
             :Promise.resolve(null);
           const onbidPromise=wantOnbid
             ?onbidRead('list',JSON.stringify({gu:parsed.filters.districts||[],usage:a.usages||[],
-              q:parsed.filters.q||'',maxPrice:a.maxPriceWon||'',dealType:a.dealType||'',sort:'bid',size:60})).catch(()=>null)
+              q:parsed.filters.q||'',maxPrice:a.maxPriceWon||'',dealType:a.dealType||'',sort:'bid',size:60,
+              minArea:parsed.filters.minAreaM2||'',maxArea:parsed.filters.maxAreaM2||''})).catch(()=>null)
             :Promise.resolve(null);
           const [listingSearch,auctionData,onbidData]=await Promise.all([listingPromise,courtPromise,onbidPromise]);
           send(response,request,buildCombinedResult(parsed.filters,listingSearch,auctionData,onbidData));

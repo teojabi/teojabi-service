@@ -631,7 +631,11 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
       if(criteria.preferTourism)p.set('preferTourism','1');
       // 서비스 타겟: 건물 통 + 토지 (층·호실 제외)
       p.set('dealTypes','whole,land');
-      if(onbid){p.set('sort','bid');return p;}
+      if(onbid){
+        if(criteria.minAreaM2!=null)p.set('minArea',String(criteria.minAreaM2));
+        if(criteria.maxAreaM2!=null)p.set('maxArea',String(criteria.maxAreaM2));
+        p.set('sort','bid');return p;
+      }
       if(a.saleKind)p.set('saleKind',a.saleKind);
       if(a.maxBidRate)p.set('maxBidRate',String(a.maxBidRate));
       if(a.failMax)p.set('maxFail',String(a.failMax));
@@ -786,6 +790,9 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
       if(wantOnbid){
         const params=baseParams();
         params.set('sort',auctionFilters.sort||'bid');
+        // 공매는 서버에서 카드 표시 면적 기준으로 거른다(토지=대지, 그 외=건물).
+        if(criteria.minAreaM2!=null)params.set('minArea',String(criteria.minAreaM2));
+        if(criteria.maxAreaM2!=null)params.set('maxArea',String(criteria.maxAreaM2));
         // 일반매물 조건(용도지역·교육보호구역/문화재 제외·관광특구 우선)을 공매에도 반영한다.
         (criteria.zones||[]).forEach(z=>params.append('zone',z));
         if(criteria.excludeEducation)params.set('excludeEducation','1');
