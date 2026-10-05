@@ -217,6 +217,28 @@ const onbidGroups=rows=>{
   }
   return [...map.values()];
 };
+// 카드에 실제 표시되는 면적을 기준으로 삼는다. 경매 일괄매각은 토지 목적물 합계, 그 외는 대표 물건 면적.
+const groupDisplayAreaM2=group=>{
+  const row=group?.representative;if(!row)return null;
+  const isBundle=row.cohort==='auction'&&row.saleKind==='bundle';
+  if(isBundle){
+    const lands=(group.listings||[]).filter(r=>r.kind==='land'&&!r.isShare);
+    if(lands.length>1){const sum=lands.reduce((s,r)=>s+(Number(r.areaM2)||0),0);if(sum>0)return sum;}
+  }
+  return row.areaM2!=null&&Number.isFinite(Number(row.areaM2))?Number(row.areaM2):null;
+};
+// 경매·공매 물건을 '카드에 표시되는 면적'(일괄은 토지 합계) 기준으로 거른다. 면적 미확인 물건은 제외한다.
+const filterAuctionsByArea=(groups,minArea,maxArea)=>{
+  if(groups==null)return groups;
+  if(minArea==null&&maxArea==null)return groups;
+  return groups.filter(group=>{
+    const area=groupDisplayAreaM2(group);
+    if(area==null)return false;
+    if(minArea!=null&&area<minArea)return false;
+    if(maxArea!=null&&area>maxArea)return false;
+    return true;
+  });
+};
 
 // 비교 선택은 화면이 다시 그려져도(예: 찜에서 다시 보기 후 뒤로가기) 유지되도록 모듈 수준에 둔다.
 const compared=new Map();
@@ -607,8 +629,6 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
       if(criteria.excludeEducation)p.set('excludeEducation','1');
       if(criteria.excludeHeritage)p.set('excludeHeritage','1');
       if(criteria.preferTourism)p.set('preferTourism','1');
-      if(criteria.minAreaM2!=null)p.set('minArea',String(criteria.minAreaM2));
-      if(criteria.maxAreaM2!=null)p.set('maxArea',String(criteria.maxAreaM2));
       // 서비스 타겟: 건물 통 + 토지 (층·호실 제외)
       p.set('dealTypes','whole,land');
       if(onbid){p.set('sort','bid');return p;}
@@ -625,7 +645,8 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     const groups=[];let total=0,index=0;
     if(wantCourt){const d=results[index++];if(d&&d.status==='ready'){groups.push(...auctionGroups((d.rows||[]).map(auctionToListing)));total+=Number(d.total||0);}}
     if(wantOnbid){const d=results[index++];if(d&&d.status==='ready'){const g=onbidGroups((d.rows||[]).map(onbidToListing));groups.push(...g);total+=g.length;}}
-    return groups.length?{groups,total}:null;
+    const filtered=filterAuctionsByArea(groups,criteria.minAreaM2,criteria.maxAreaM2);
+    return filtered.length?{groups:filtered,total:filtered.length}:null;
   }
   async function load({fit=true}={}) {
     clearTimeout(loadTimer);
@@ -664,7 +685,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
   function loadAssistant() {
     if(!assistantResult){source='conditions';return load();}
     const data=assistantResult;assistantShown=5;
-    result={status:'ready',groups:mixAssistantGroups(data.groups||[]),totalParcels:Number(data.total||0),totalListings:Number(data.total||0),hasMore:false,observedAt:data.searchedAt||null,station:data.station||null,reply:data.reply||''};
+    result={status:'ready',groups:filterAuctionsByArea(mixAssistantGroups(data.groups||[]),criteria.minAreaM2,criteria.maxAreaM2),totalParcels:Number(data.total||0),totalListings:Number(data.total||0),hasMore:false,observedAt:data.searchedAt||null,station:data.station||null,reply:data.reply||''};
     $('.explore-list').removeAttribute('aria-busy');drawCards();map.setGroups(mapGroups(),selected,true);
     if(initialId){const id=initialId;initialId=null;openDetail(id);}
   }
@@ -785,6 +806,8 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
         const seen=new Set(result.groups.map(g=>g.key));
         groups=[...result.groups,...fresh.filter(g=>!seen.has(g.key))];
       }
+      // 조건의 대지면적을 카드 표시 면적(일괄 합계) 기준으로 적용한다.
+      groups=filterAuctionsByArea(groups,criteria.minAreaM2,criteria.maxAreaM2);
       auctionPage=page;
       const rawTotal=Number(courtData?.total||0)+Number(onbidData?.total||0);
       auctionLoaded=groups.length;
