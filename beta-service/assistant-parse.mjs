@@ -355,12 +355,16 @@ export function viewOnbidRow(row) {
   const usage = String(row.usg_mcls_nm || row.usg_lcls_nm || '');
   const land = /토지|대지|임야|전답|잡종지|과수원|답/.test(usage);
   const id = `onbid:${row.cltr_mng_no}::${row.pbct_cdtn_no}`;
+  // 공매도 카드에 대지·목적물 면적을 표시한다. 대지면적이 없으면 목적물(건물) 면적으로 대체한다.
+  const landM2 = row.land_area_m2 == null ? null : Number(row.land_area_m2), bldgM2 = row.building_area_m2 == null ? null : Number(row.building_area_m2);
+  const areaM2 = land ? (landM2 != null ? landM2 : bldgM2) : (bldgM2 != null ? bldgM2 : landM2);
   return {
     id, source: 'onbid', sourceId: String(row.cltr_mng_no), sourceUrl: 'https://www.onbid.co.kr/', cohort: 'onbid', origin: 'onbid',
     district: row.sigu || '', neighborhood: row.dong || '', address: row.full_address || '', detailAddress: '',
     pnu: /^11\d{17}$/.test(String(row.pnu || '')) ? row.pnu : null,
     position: Number.isFinite(row.lat) && Number.isFinite(row.lng) ? { lat: Number(row.lat), lng: Number(row.lng) } : null,
-    priceWon: row.lowst_bid_prc == null ? null : Number(row.lowst_bid_prc), areaM2: null, floorAreaM2: null,
+    priceWon: row.lowst_bid_prc == null ? null : Number(row.lowst_bid_prc), areaM2, floorAreaM2: null,
+    buildingAreaM2: bldgM2, landAreaM2: landM2,
     description: '', floorInfo: '', kind: land ? 'land' : 'building', kindConfirmed: true,
     areaSource: 'listing', floorAreaSource: 'listing', locationStatus: 'pin-estimated',
     zoning: { status: 'missing', groups: [], entries: [] }, development: null, nearbyTransactions: { status: 'unavailable', cases: [] },
