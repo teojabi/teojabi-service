@@ -60,6 +60,8 @@ function applyFilters(query: any, params: URLSearchParams, opts: { zoneCols?: bo
   const keyword = (params.get("q") || "").trim().slice(0, 60);
   const minPrice = num(params.get("minPrice"));
   const maxPrice = num(params.get("maxPrice"));
+  const minArea = num(params.get("minArea"));
+  const maxArea = num(params.get("maxArea"));
   const prpt = (params.get("prptDivCd") || "").trim();
   const dealType = (params.get("dealType") || "").trim().toLowerCase();
   const dealTypes = params.getAll("dealTypes").flatMap((v) => v.split(",")).map((v) => v.trim().toLowerCase()).filter((v) => ["whole", "floor", "unit", "land"].includes(v)).slice(0, 4);
@@ -80,6 +82,9 @@ function applyFilters(query: any, params: URLSearchParams, opts: { zoneCols?: bo
   if (keyword) q = q.or(`cltr_nm.ilike.%${keyword}%,full_address.ilike.%${keyword}%`);
   if (minPrice != null) q = q.gte("lowst_bid_prc", minPrice);
   if (maxPrice != null) q = q.lte("lowst_bid_prc", maxPrice);
+  // 카드에 표시되는 면적 기준(토지=대지면적, 그 외=건물면적)으로 거른다.
+  if (minArea != null) q = q.or(`and(deal_type.eq.land,land_area_m2.gte.${minArea}),and(or(deal_type.neq.land,deal_type.is.null),building_area_m2.gte.${minArea})`);
+  if (maxArea != null) q = q.or(`and(deal_type.eq.land,land_area_m2.lte.${maxArea}),and(or(deal_type.neq.land,deal_type.is.null),building_area_m2.lte.${maxArea})`);
   // 일반매물 조건(교육보호구역·문화재보존구역 제외)을 공매에도 적용한다.
   // 해당 컬럼이 없으면(구 자료) 건너뛴다. 자료 미확인(null)도 제외하는 보수적 기준은 경매와 동일.
   if (opts.zoneCols) {
