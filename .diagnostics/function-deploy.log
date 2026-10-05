@@ -1,0 +1,49 @@
+=== deploy auction ===
+Bundling Function: auction
+v1.77.1: Pulling from supabase/edge-runtime
+774043ccc8cc: Pulling fs layer
+8a4221b43423: Pulling fs layer
+6b96467f84f7: Pulling fs layer
+b6a94ebfb5d3: Pulling fs layer
+d6df31423628: Pulling fs layer
+911b0bac1c2c: Pulling fs layer
+d6df31423628: Waiting
+911b0bac1c2c: Waiting
+b6a94ebfb5d3: Waiting
+6b96467f84f7: Verifying Checksum
+6b96467f84f7: Download complete
+774043ccc8cc: Verifying Checksum
+774043ccc8cc: Download complete
+8a4221b43423: Verifying Checksum
+8a4221b43423: Download complete
+b6a94ebfb5d3: Verifying Checksum
+b6a94ebfb5d3: Download complete
+911b0bac1c2c: Verifying Checksum
+911b0bac1c2c: Download complete
+d6df31423628: Verifying Checksum
+d6df31423628: Download complete
+774043ccc8cc: Pull complete
+8a4221b43423: Pull complete
+6b96467f84f7: Pull complete
+b6a94ebfb5d3: Pull complete
+d6df31423628: Pull complete
+911b0bac1c2c: Pull complete
+Digest: sha256:645d0e45446181f3e9d87efeef637b494615f32365befff00e2d2b0fe8535fef
+Status: Downloaded newer image for public.ecr.aws/supabase/edge-runtime:v1.77.1
+public.ecr.aws/supabase/edge-runtime:v1.77.1
+No change found in Function: auction
+Deployed Functions on project tvrfrgozfoiucoeojrta: auction
+You can inspect your deployment in the Dashboard: https://supabase.com/dashboard/project/tvrfrgozfoiucoeojrta/functions
+auction_exit=0
+=== deploy onbid ===
+Bundling Function: onbid
+Deploying Function: onbid (script size: 68 kB)
+Deployed Functions on project tvrfrgozfoiucoeojrta: onbid
+You can inspect your deployment in the Dashboard: https://supabase.com/dashboard/project/tvrfrgozfoiucoeojrta/functions
+onbid_exit=0
+=== deploy data ===
+Bundling Function: data
+No change found in Function: data
+Deployed Functions on project tvrfrgozfoiucoeojrta: data
+You can inspect your deployment in the Dashboard: https://supabase.com/dashboard/project/tvrfrgozfoiucoeojrta/functions
+data_exit=0
