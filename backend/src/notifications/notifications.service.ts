@@ -385,6 +385,7 @@ export class NotificationsService {
       const maxPrice = Number(auction.maxPriceWon) || 0;
       const maxRate = Number(auction.maxBidRate) || 0;
       const failMax = Number(auction.failMax) || 0;
+      const sort = payload?.sort;
 
       // 새로 올라온 경매 물건 — 최대 3건.
       if (wantCourt) {
@@ -401,7 +402,7 @@ export class NotificationsService {
                  a.court_name, a.case_no, a.sale_kind,
                  a.far_limit, a.bcr_limit, a.district_plan, a.sigu, a.special_zone, a.height_district
           FROM public.auction_item a WHERE ${Prisma.join(conditions, ' AND ')}
-          ORDER BY a.first_seen_at DESC LIMIT 60`);
+          ORDER BY ${sort === 'ppp' ? Prisma.sql`(a.min_price / NULLIF(coalesce(a.obj_area_m2, a.area_max, a.land_area_m2, a.building_area_m2), 0)) ASC NULLS LAST` : Prisma.sql`a.first_seen_at DESC`} LIMIT 60`);
         // 일괄매각(bundle)은 사건 단위로 묶어 면적을 합산한다(목록의 '일괄 합계'와 동일).
         const groupMap = new Map<string, any[]>();
         for (const r of rows) {
@@ -432,7 +433,7 @@ export class NotificationsService {
           SELECT o.cltr_mng_no, o.pbct_cdtn_no, o.cltr_nm, o.lowst_bid_prc, o.usg_mcls_nm, o.usg_lcls_nm,
                  o.land_area_m2, o.building_area_m2, o.bundle, o.bid_end_dt
           FROM public.onbid_item o WHERE ${Prisma.join(conditions, ' AND ')}
-          ORDER BY o.first_seen_at DESC LIMIT 3`);
+          ORDER BY ${sort === 'ppp' ? Prisma.sql`(o.lowst_bid_prc / NULLIF(coalesce(o.land_area_m2, o.building_area_m2), 0)) ASC NULLS LAST` : Prisma.sql`o.first_seen_at DESC`} LIMIT 3`);
         for (const r of rows) items.push(this.onbidAlert(r, 'condition', conditionName));
       }
     }
