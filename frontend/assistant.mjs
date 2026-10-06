@@ -554,9 +554,10 @@ export function mountAssistant({ onResults, onAnalyze } = {}) {
     selectedListing = null;
     // 실제 매물 조건을 말했을 때만 검색 로딩을 보여준다. 인사·사이트 질문은 바로 답한다.
     const showScan = message ? needsSearch(message) : true;
-    const isAuctionQuery = /경매|공매|법원|온비드/.test(String(message||''));
-    const steps = isAuctionQuery ? AUCTION_STEPS : STEPS;
-    const scanTitle = isAuctionQuery ? '경매·공매 물건을 찾고 있습니다…' : '조건에 맞는 매물을 찾고 있습니다…';
+    // 메시지에 경·공매가 없어도, 저장 조건(또는 편집 조건)에 '경·공매 같이보기'가 켜져 있으면 경·공매 로딩을 보여준다.
+    const auctionIncluded = /경매|공매|법원|온비드/.test(String(message||'')) || Boolean((editedFilters||{}).auction?.enabled) || Boolean(savedCondition()?.auction?.enabled);
+    const steps = auctionIncluded ? AUCTION_STEPS : STEPS;
+    const scanTitle = auctionIncluded ? '경매·공매 물건을 찾고 있습니다…' : '조건에 맞는 매물을 찾고 있습니다…';
     const started = Date.now();
     let scan = null;
     let bar = null;
