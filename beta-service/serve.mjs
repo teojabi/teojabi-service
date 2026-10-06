@@ -419,8 +419,9 @@ createServer(async (request, response) => {
     const message=String(body?.message||'').slice(0,500);
     const condition=body?.condition&&typeof body.condition==='object'?body.condition:null;
     const edited=body?.filters&&typeof body.filters==='object'?body.filters:null;
+    const history=Array.isArray(body?.history)?body.history.slice(-8).filter(h=>h&&typeof h==='object'):[];
     try {
-      const parsed=await parseAssistant(message,condition,process.env.GEMINI_API_KEY,edited);
+      const parsed=await parseAssistant(message,condition,process.env.GEMINI_API_KEY,edited,history);
       if(!hasMeaningfulFilters(parsed.filters)){
         send(response,request,{status:'ready',
           reply:parsed.reply || (parsed.unsupported?`죄송해요, ${parsed.unsupported} 정보는 아직 확인할 수 없어요. 예) "종로구 상업지역 100억 이하 도로 6m"처럼 알려주세요.`:'조건을 이해하지 못했어요. 예) "마포구 30억 이하 건물", "홍대입구역 도보 3분"처럼 알려주세요.'),
