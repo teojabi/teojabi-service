@@ -87,7 +87,7 @@ let closeCurrent;
 const labels={favorite:'찜한 매물',condition:'관심 조건',analysis:'내 땅 검토',feedback:'매물 의견',alerts:'알림 설정',account:'계정 정보'};
 const itemLabels=['favorite','condition','analysis','feedback'];
 const SOURCE_LABEL={premium:'터잡이 추천',registered:'터잡이 등록',disco:'디스코 매물',naver:'네이버 매물','naver-land':'네이버 매물',auction:'경매 물건',onbid:'공매 물건'};
-const DEAL_LABEL={whole:'건물 통',floor:'층',unit:'호실',land:'토지',vehicle:'차량'};
+const DEAL_LABEL={whole:'건물',floor:'층',unit:'호실',land:'토지',vehicle:'차량'};
 const feedbackLabel={like:'좋아요',dislike:'아쉬워요',hide:'목록에서 숨김'};
 const moneyText=v=>Number(v)>0?`${(Number(v)/1e8).toLocaleString('ko-KR',{maximumFractionDigits:2})}억원`:'가격 미기재';
 const m2Text=v=>Number(v)>0?`${Number(v).toLocaleString('ko-KR',{maximumFractionDigits:1})}㎡`:'—';
