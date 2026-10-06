@@ -36,7 +36,8 @@ export function validateExtraCriteria(input) {
   const stationName=typeof input.stationName==='string'?input.stationName.trim().slice(0,20):'';
   const distRaw=Number(input.maxDistanceM);
   const maxDistanceM=Number.isFinite(distRaw)&&distRaw>0&&distRaw<=5000?Math.round(distRaw):null;
-  return {ok:true,value:{purpose,zones:[...new Set(zones)],minAreaM2:min??null,maxAreaM2:max??null,stationName:stationName||null,maxDistanceM,...build.value,auction:normalizeAuction(input.auction)}};
+  const sort=['ppp','area','price','price-desc'].includes(input.sort)?input.sort:null;
+  return {ok:true,value:{purpose,zones:[...new Set(zones)],minAreaM2:min??null,maxAreaM2:max??null,stationName:stationName||null,maxDistanceM,sort,...build.value,auction:normalizeAuction(input.auction)}};
 }
 // 경매 용도(법원 공시 용도명). 건물·토지·개인주택 위주로 운영하며 아파트는 제외한다.
 export const AUCTION_USAGES=Object.freeze(['상가','근린시설','오피스텔','업무','단독주택','다가구','다세대','연립주택','빌라','대지','임야']);

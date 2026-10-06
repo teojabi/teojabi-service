@@ -247,7 +247,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
   document.body.classList.add('map-results-open');
   const picksOnlyMode=Boolean(picksOnly);
   const abort=new AbortController();let disposed=false,version=0,detailVersion=0,closeStreet,closeStreetPreview,closeContext,closeRecords,closeLand,closeCommercial,closeSurrounding;
-  let result=null,selected=null,detail=null,parcel=null,limit=5,bounds=conditions?.bounds||null,query='',sort=conditions?.sort==='price-desc'?'price-desc':'price',mapView=null;
+  let result=null,selected=null,detail=null,parcel=null,limit=5,bounds=conditions?.bounds||null,query='',sort=['price','price-desc','area','ppp'].includes(conditions?.sort)?conditions.sort:'price',mapView=null;
   let assistantResult=assistant&&Array.isArray(assistant.groups)?assistant:null;
   let source=assistantResult?'assistant':initialSource==='favorites'?'favorites':(initialSource==='auction'||initialSource==='onbid')?'auction':'conditions';
   const conditionAuction=conditions?.auction||null;
@@ -260,7 +260,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
   const title=initialHeading||defaultTitle();
   let pageHeading=initialHeading||null;
   root.innerHTML=`<section class="explore-page"><div class="result-head"><div><span class="eyebrow">EXPLORE TEOJABI</span><h1>${title}</h1></div><button class="outline" data-explore="back-conditions" hidden>내 조건으로 보기</button><button class="outline" data-explore="edit">검색 조건 바꾸기</button></div>
-    <form class="explore-search" id="explore-filters"><div class="explore-filters"><label><span>정렬</span><select name="sort"><option value="price" ${sort==='price'?'selected':''}>가격 낮은 순</option><option value="price-desc" ${sort==='price-desc'?'selected':''}>가격 높은 순</option></select></label><button class="primary" type="submit">이 조건 검색</button></div></form>
+    <form class="explore-search" id="explore-filters"><div class="explore-filters"><label><span>정렬</span><select name="sort"><option value="price" ${sort==='price'?'selected':''}>가격 낮은 순</option><option value="price-desc" ${sort==='price-desc'?'selected':''}>가격 높은 순</option><option value="ppp" ${sort==='ppp'?'selected':''}>평당가 낮은 순</option><option value="area" ${sort==='area'?'selected':''}>면적 넓은 순</option></select></label><button class="primary" type="submit">이 조건 검색</button></div></form>
     <p class="purpose-guide" id="purpose-guide" hidden></p>
     <div class="auction-filters" id="auction-filters" hidden></div>
     <div class="explore-toolbar"><div class="quick-filters"></div><span id="bounds-chip"></span><div class="explore-toggle" role="group" aria-label="결과 보기 방식"><button data-explore="pane" data-value="list" aria-pressed="true">리스트</button><button data-explore="pane" data-value="map" aria-pressed="false">지도</button></div></div>

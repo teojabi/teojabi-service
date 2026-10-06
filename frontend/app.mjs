@@ -376,7 +376,7 @@ document.addEventListener('click', event => {
 });
 
 app.addEventListener('input', event => {
-  if(state.screen==='region'&&event.target.matches('[name=minArea],[name=maxArea],[name=areaUnit],[name=zone],[name=stationName],[name=maxDistanceM],[name=auction],[name=auctionSource],[name=auctionDealType],[name=auctionSaleKind],[name=auctionUsage],[name=auctionMaxPrice],[name=auctionMaxBidRate],[name=auctionFailMax]')){
+  if(state.screen==='region'&&event.target.matches('[name=minArea],[name=maxArea],[name=areaUnit],[name=zone],[name=sort],[name=stationName],[name=maxDistanceM],[name=auction],[name=auctionSource],[name=auctionDealType],[name=auctionSaleKind],[name=auctionUsage],[name=auctionMaxPrice],[name=auctionMaxBidRate],[name=auctionFailMax]')){
     Object.assign(state.draft,readCriteriaFields(app));
     app.querySelector('[data-area-help]').textContent=areaHelp(state.draft);
     const body=app.querySelector('.auction-condition-body');if(body)body.hidden=!state.draft.auction?.enabled;
