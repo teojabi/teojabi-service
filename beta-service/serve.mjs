@@ -657,7 +657,8 @@ createServer(async (request, response) => {
           documents:{building:{status:'stored-records',delivery:'in-site'},land:{status:'stored-records',delivery:'in-site'},registry:{status:'external',url:DOCUMENT_LINKS.registry}}}:{status:'missing'},listing?200:404);
       } else {
         const pnu=path.slice('/api/parcels/'.length);
-        if (!/^\d{19}$/.test(pnu) || !data.rows.some(row=>row.pnu===pnu)) {send(response,request,{status:'missing'},404);return;}
+        // 카탈로그에 없는 매물(비서·디스코·경매 등)도 필지 경계를 그릴 수 있도록 pnu 형식만 확인한다.
+        if (!/^\d{19}$/.test(pnu)) {send(response,request,{status:'missing'},404);return;}
         if (!parcelCache.has(pnu)) {
           const result=await localRead('parcel',pnu);
           if (result.status==='ready' && !validParcelGeometry(result.geometry)) {send(response,request,{status:'invalid'});return;}
