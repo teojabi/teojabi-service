@@ -238,7 +238,8 @@ def zone_overlap_sql(key):
     if os.getenv('TEOJABI_DATA_SOURCE') in ('supabase', 'remote'):
         column = {'education': 'education', 'heritage': 'heritage'}.get(key)
         if column:
-            return 'NOT EXISTS (SELECT 1 FROM public.parcel_zone_flags f WHERE f.pnu = n.pnu AND f.' + column + ')'
+            # 목록 검색기와 동일하게 '명확히 안전(clear)'인 필지만 남긴다. 플래그가 없는(미확인) 필지는 제외한다.
+            return 'EXISTS (SELECT 1 FROM public.parcel_zone_flags f WHERE f.pnu = n.pnu AND f.' + column + ' = false)'
     if key == 'education':
         table, column, srid = ('education_protection', 'geom_5174', 5174)
         restriction = 'true'
