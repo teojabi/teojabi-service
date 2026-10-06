@@ -492,6 +492,9 @@ def search(conn, filters):
             sort_from = (' CROSS JOIN LATERAL (SELECT 최신월매출 AS sales FROM public.commercial_districts c3 '
                          'WHERE c3.geom IS NOT NULL ORDER BY c3.geom <-> ST_SetSRID(ST_MakePoint(n.lng,n.lat),4326) LIMIT 1) cs')
             order = 'cs.sales DESC NULLS LAST, ' + order
+        elif sort == 'ppp':
+            # 평당가(거래가격/대지면적) 낮은 순. 0으로 나누지 않도록 NULLIF.
+            order = '(n."거래가격" / NULLIF(n."대지면적", 0)) ASC NULLS LAST, ' + order
         # SQL 파라미터 순서는 SELECT(요청 역 거리) → WHERE → LIMIT 이다.
         query_params = station_distance_params(station) + params + [limit]
         row_sql = '''WITH q AS MATERIALIZED (
