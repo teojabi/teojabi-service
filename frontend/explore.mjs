@@ -587,7 +587,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
       $('[data-explore="more"]').hidden=!result.hasMore;
       $('#explore-foot').textContent=`선별 매물 미리보기 · ${date(result.observedAt)} 구성 · 면적은 매물 기재 기준 · 용도지역은 연결 필지의 보유 토지자료 기준입니다.`;
       if(criteria.purpose==='new-build')$('#explore-foot').textContent+=' 신축 용도는 계획한 용도이며 건축 가능 판정이 아닙니다. 도로폭·보호구역 제외 조건은 연결 필지의 저장 자료 기준으로, 해당 항목 미확인 매물은 제외됩니다.';
-      if(result.station)$('#explore-foot').textContent+=` · ${result.station.name}역 ${result.station.maxDistanceM}m 이내 직선거리 기준`;
+      if(result.station){const label=result.station.name?`${result.station.name}역`:'가까운 역';$('#explore-foot').textContent+=` · ${label} ${result.station.maxDistanceM}m 이내 직선거리 기준`;}
       $('#bounds-chip').innerHTML=bounds?'<button class="pill clear-bounds" data-explore="clear-bounds">지도 범위 해제 ×</button>':'';
     }
     for(const cardEl of root.querySelectorAll('[data-card-id]')){
@@ -664,7 +664,8 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     if(criteria.purpose)params.set('purpose',criteria.purpose);
     appendBuildQuery(params,criteria);
     if(criteria.minAreaM2!=null)params.set('minAreaM2',criteria.minAreaM2);if(criteria.maxAreaM2!=null)params.set('maxAreaM2',criteria.maxAreaM2);criteria.zones.forEach(z=>params.append('zone',z));
-    if(criteria.stationName)params.set('stationName',criteria.stationName);if(criteria.stationName&&criteria.maxDistanceM)params.set('maxDistanceM',String(criteria.maxDistanceM));
+    if(criteria.stationName)params.set('stationName',criteria.stationName);
+    if(criteria.maxDistanceM!=null)params.set('maxDistanceM',String(criteria.maxDistanceM));
     member.hiddenIds().forEach(id=>params.append('exclude',id));
     if(query)params.set('q',query);if(bounds)params.set('bounds',bounds.join(','));
     const prefParam=prefParamOf(criteria,await loadUserPref(),conditions?.budgetWon);

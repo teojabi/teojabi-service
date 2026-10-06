@@ -67,6 +67,7 @@ export function normalizeCatalog(raw, contract={}, zoningSnapshot=null, developm
       description:text(source.description,2000),floorInfo:text(source.floorInfo,60),pnu,
       position,priceWon:contract.priceUnitConfirmed===true?toWon(source.askingPrice,contract.priceUnit):null,
       areaM2:positive(source.landArea),floorAreaM2:positive(source.floorArea),
+      subwayDistM:positive(source.subwayDistM),
       areaSource:'listing',floorAreaSource:'listing',locationStatus:'pin-estimated',
       zoning:zoning.index.get(pnu)||{status:'missing',groups:[],entries:[]},
       development:development.index.get(pnu)||null,
@@ -136,7 +137,7 @@ export function browseCatalog(catalog, query) {
     (!zones.length || row.zoning?.status==='matched'&&row.zoning.groups.some(z=>zones.includes(z))) &&
     (sort!=='area'||row.areaM2!==null) &&
     (!bounds || row.position.lng>=bounds.west && row.position.lng<=bounds.east && row.position.lat>=bounds.south && row.position.lat<=bounds.north) &&
-    (!station || maxDistanceM===null || (row.position && haversineM(row.position, station)<=maxDistanceM)) &&
+    (!maxDistanceM || (station ? (row.position && haversineM(row.position, station)<=maxDistanceM) : (row.subwayDistM!=null && row.subwayDistM<=maxDistanceM))) &&
     (!keyword || `${row.address} ${row.neighborhood} ${row.sourceId}`.toLocaleLowerCase('ko-KR').includes(keyword)) && matchesDevelopment(row,build)));
   // Choose the cheapest matching listing per parcel before sorting the visible representatives.
   rows.sort((a,b)=>(a.priceWon??Infinity)-(b.priceWon??Infinity) || a.id.localeCompare(b.id));
@@ -156,7 +157,7 @@ export function browseCatalog(catalog, query) {
     criteria:extra.value,zoningAvailable:catalog.zoningAvailable,
     developmentObservedAt:catalog.developmentObservedAt,tourismPreferredCount:build.preferTourism?orderedGroups.filter(group=>tourismRank(group.representative)===0).length:null,
     sourceUpdatedAt:null,priceUnitConfirmed:catalog.priceUnitConfirmed,
-    station:station&&maxDistanceM!==null?{name:station.name,maxDistanceM}:null,
+    station:maxDistanceM!==null?{name:station?station.name:null,maxDistanceM}:null,
     totalListings:rows.length,totalParcels:groups.size,groups:orderedGroups.slice(0,limit),
     hasMore:groups.size>limit && limit<maxLimit,limit,rawCount:catalog.rawCount};
 }
