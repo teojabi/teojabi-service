@@ -99,6 +99,7 @@ def _where(payload):
     params = {}
     gus = _tokens(payload.get('gu'))
     usages = _tokens(payload.get('usage'))
+    zones = _tokens(payload.get('zone'))
     q = _text(payload.get('q'), 60)
     prpt = _text(payload.get('prptDivCd'), 10)
     deal_type = (payload.get('dealType') or '').strip().lower() or None
@@ -125,6 +126,13 @@ def _where(payload):
             clauses.append(f'(usg_mcls_nm ILIKE %({key})s OR usg_scls_nm ILIKE %({key})s)')
             params[key] = f'%{token}%'
         where.append('(' + ' OR '.join(clauses) + ')')
+    if zones:
+        clauses = []
+        for index, token in enumerate(zones[:4]):
+            key = f'zone{index}'
+            clauses.append(f'use_zone ILIKE %({key})s')
+            params[key] = f'%{token}%'
+        where.append('(' + ' OR '.join(clauses) + ')')
     if prpt:
         where.append('prpt_div_cd = %(prpt)s')
         params['prpt'] = prpt
@@ -147,6 +155,11 @@ def _where(payload):
         if max_area is not None:
             where.append(f'{area_expr} <= %(maxarea)s')
             params['maxarea'] = max_area
+    # 일반매물 부지 조건(교육보호구역·문화재보존구역 제외)을 공매에도 적용한다. 자료 미확인(null)도 제외.
+    if str(payload.get('excludeEducation')).lower() in ('1', 'true'):
+        where.append('education = false')
+    if str(payload.get('excludeHeritage')).lower() in ('1', 'true'):
+        where.append('heritage = false')
     return where, params
 
 
