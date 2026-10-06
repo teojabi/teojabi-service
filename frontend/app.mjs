@@ -13,7 +13,7 @@ import {BUILD_DEFAULTS,buildCriteriaFields,buildConditionLabels,validateBuildCri
 import {openNotifications,scheduleNotificationBadge,refreshNotificationBadge} from './notifications.mjs';
 import {logEvent} from './events.mjs';
 const app = document.querySelector('#app');
-const emptyAuction=()=>({enabled:false,source:'court',dealType:'',saleKind:'',failMax:'',usages:[],maxPriceEok:'',maxBidRate:''});
+const emptyAuction=()=>({enabled:false,source:'both',dealType:'',saleKind:'',failMax:'',usages:[],maxPriceEok:'',maxBidRate:''});
 const emptyDraft=()=>({budgetEok:'',districts:[],neighborhoods:[],purpose:null,minArea:'',maxArea:'',areaUnit:'pyeong',zones:[],auction:emptyAuction(),...BUILD_DEFAULTS});
 const state = { screen: 'home', siteDraft:null, parcelSearch:null, draft: emptyDraft(), applied: null, editing: false, conditionKey:'primary', pane: 'list', activity:null, activityError:false, search:null, neighborhoodsOpen:false };
 let pendingInitialSource=null;
@@ -33,7 +33,7 @@ function screenTitle(screen){
   if(screen==='analyze')return '건물·토지 신축 가능성 분석 | 터잡이';
   return ({purpose:'건물 찾는 목적 | 터잡이','build-use':'개발 용도·부지 조건 | 터잡이',budget:'매입 예산 선택 | 터잡이',region:'관심 지역 선택 | 터잡이'})[screen] || '터잡이';
 }
-const appliedAuctionDraft=auction=>auction?{enabled:auction.enabled===true,source:auction.source||'court',dealType:auction.dealType||'',saleKind:auction.saleKind||'',failMax:auction.failMax??'',usages:Array.isArray(auction.usages)?[...auction.usages]:[],maxPriceEok:auction.maxPriceWon?String(auction.maxPriceWon/1e8):'',maxBidRate:auction.maxBidRate??''}:emptyAuction();
+const appliedAuctionDraft=auction=>auction?{enabled:auction.enabled===true,source:auction.source||'both',dealType:auction.dealType||'',saleKind:auction.saleKind||'',failMax:auction.failMax??'',usages:Array.isArray(auction.usages)?[...auction.usages]:[],maxPriceEok:auction.maxPriceWon?String(auction.maxPriceWon/1e8):'',maxBidRate:auction.maxBidRate??''}:emptyAuction();
 const appliedDraft=()=>state.applied?{...emptyDraft(),...state.applied,budgetEok:state.applied.budgetWon?String(state.applied.budgetWon/1e8):'',districts:[...state.applied.districts],zones:[...state.applied.zones],auction:appliedAuctionDraft(state.applied.auction)}:emptyDraft();
 let disposeExplorer;
 let renderVersion=0;
@@ -369,7 +369,7 @@ document.addEventListener('click', event => {
 });
 
 app.addEventListener('input', event => {
-  if(state.screen==='region'&&event.target.matches('[name=minArea],[name=maxArea],[name=areaUnit],[name=zone],[name=auction],[name=auctionSource],[name=auctionDealType],[name=auctionSaleKind],[name=auctionUsage],[name=auctionMaxPrice],[name=auctionMaxBidRate],[name=auctionFailMax]')){
+  if(state.screen==='region'&&event.target.matches('[name=minArea],[name=maxArea],[name=areaUnit],[name=zone],[name=stationName],[name=maxDistanceM],[name=auction],[name=auctionSource],[name=auctionDealType],[name=auctionSaleKind],[name=auctionUsage],[name=auctionMaxPrice],[name=auctionMaxBidRate],[name=auctionFailMax]')){
     Object.assign(state.draft,readCriteriaFields(app));
     app.querySelector('[data-area-help]').textContent=areaHelp(state.draft);
     const body=app.querySelector('.auction-condition-body');if(body)body.hidden=!state.draft.auction?.enabled;

@@ -33,7 +33,10 @@ export function validateExtraCriteria(input) {
   if([min,max].some(v=>v!=null&&(!Number.isFinite(v)||v<=0)))return {ok:false,message:'대지면적은 0보다 큰 숫자로 입력해 주세요.'};
   if(min!=null&&max!=null&&min>max)return {ok:false,message:'최대 대지면적은 최소 대지면적 이상이어야 합니다.'};
   const build=validateBuildCriteria(input);if(!build.ok)return build;
-  return {ok:true,value:{purpose,zones:[...new Set(zones)],minAreaM2:min??null,maxAreaM2:max??null,...build.value,auction:normalizeAuction(input.auction)}};
+  const stationName=typeof input.stationName==='string'?input.stationName.trim().slice(0,20):'';
+  const distRaw=Number(input.maxDistanceM);
+  const maxDistanceM=Number.isFinite(distRaw)&&distRaw>0&&distRaw<=5000?Math.round(distRaw):null;
+  return {ok:true,value:{purpose,zones:[...new Set(zones)],minAreaM2:min??null,maxAreaM2:max??null,stationName:stationName||null,maxDistanceM:stationName?maxDistanceM:null,...build.value,auction:normalizeAuction(input.auction)}};
 }
 // 경매 용도(법원 공시 용도명). 건물·토지·개인주택 위주로 운영하며 아파트는 제외한다.
 export const AUCTION_USAGES=Object.freeze(['상가','근린시설','오피스텔','업무','단독주택','다가구','다세대','연립주택','빌라','대지','임야']);
@@ -51,7 +54,7 @@ export function normalizeAuction(raw) {
   const maxBidRate=Number.isFinite(rateRaw)&&rateRaw>0&&rateRaw<=100?Math.round(rateRaw*100)/100:null;
   const failRaw=Number(source.failMax);
   const failMax=Number.isFinite(failRaw)&&failRaw>0?Math.round(failRaw):null;
-  const auctionSource=AUCTION_SOURCES.some(([value])=>value===source.source)?source.source:'court';
+  const auctionSource=AUCTION_SOURCES.some(([value])=>value===source.source)?source.source:'both';
   const dealType=AUCTION_DEAL_TYPES.some(([value])=>value===source.dealType)?source.dealType:null;
   const saleKind=['whole','share','bundle'].includes(source.saleKind)?source.saleKind:null;
   return {enabled:true,source:auctionSource,dealType,saleKind,failMax,usages,maxPriceWon,maxBidRate};

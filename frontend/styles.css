@@ -907,6 +907,12 @@ body.architect-lightbox-open{overflow:hidden}
 .criteria-auction{border:0;border-top:1px solid var(--line);padding:22px 0 0;margin:28px 0 0;min-width:0}
 .criteria-auction legend{font-weight:600;font-size:16px;padding:0 12px 0 0}
 .criteria-auction legend small{font-size:11px;color:var(--muted);font-weight:400;margin-left:8px}
+.criteria-station{border:0;border-top:1px solid var(--line);padding:22px 0 0;margin:28px 0 0;min-width:0}
+.criteria-station legend{font-weight:600;font-size:16px;padding:0 12px 0 0}
+.criteria-station legend small{font-size:11px;color:var(--muted);font-weight:400;margin-left:8px}
+.criteria-station .station-inputs{display:flex;gap:12px;flex-wrap:wrap;margin-top:10px}
+.criteria-station .station-inputs label{flex:1 1 180px;display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--muted)}
+.criteria-station .station-inputs input,.criteria-station .station-inputs select{min-height:44px;padding:0 12px;border:1px solid var(--line);border-radius:10px;font-size:14px;background:#fff}
 .auction-toggle{display:inline-flex;align-items:center;gap:8px;margin:10px 0 2px;font-size:14px;cursor:pointer}
 .auction-condition-body{display:grid;gap:16px;margin-top:14px}
 .auction-row{display:grid;gap:7px}

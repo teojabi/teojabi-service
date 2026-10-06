@@ -278,6 +278,7 @@ async function neighborhoodIndex() {
 const parcelCache=new Map();
 const riskCache=new Map();
 const transactionCache=new Map();
+const stationCache=new Map();
 let commercialAreasCache=null,commercialAreasCachedAt=0;
 let transactionVersion=0;
 async function refreshTransactionVersion(){
@@ -633,7 +634,18 @@ createServer(async (request, response) => {
     try {
       const data=await catalog();
       if (path==='/api/catalog') {
-        const query=new URL(request.url,'http://localhost').searchParams,current=browseCatalog(data,query);
+        const query=new URL(request.url,'http://localhost').searchParams;
+        // 역에서 거리 조건: 역 좌표를 확인해 카탈로그 필터에 넘긴다.
+        const stationName=(query.get('stationName')||'').trim();
+        let station=null;
+        if(stationName){
+          const key=stationName.replace(/\s+/g,'');
+          if(!stationCache.has(key))stationCache.set(key,localRead('station',stationName).catch(error=>{stationCache.delete(key);throw error;}));
+          const resolved=await stationCache.get(key).catch(()=>null);
+          if(!resolved||resolved.status!=='ready'||!resolved.station){send(response,request,{status:'unavailable',reason:'STATION_UNKNOWN'},200);return;}
+          station=resolved.station;
+        }
+        const current=browseCatalog(station?{...data,station}:data,query);
         send(response,request,{...current,suggestions:suggestCatalogChanges(data,query,current)});
       }
       else if (path.startsWith('/api/listings/')) {

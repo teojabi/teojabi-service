@@ -255,7 +255,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
   if(source==='auction')limit=100;
   if(initialSource==='onbid')auctionFilters.listingSource='onbid';
   let auctionPage=1,auctionLoaded=0;
-  let criteria={purpose:conditions?.purpose||null,minArea:conditions?.minArea||'',maxArea:conditions?.maxArea||'',areaUnit:conditions?.areaUnit||'pyeong',zones:conditions?.zones||[],minAreaM2:conditions?.minAreaM2??null,maxAreaM2:conditions?.maxAreaM2??null,auction:conditions?.auction||null,...BUILD_DEFAULTS,...(validateBuildCriteria(conditions||{}).value||{})};
+  let criteria={purpose:conditions?.purpose||null,minArea:conditions?.minArea||'',maxArea:conditions?.maxArea||'',areaUnit:conditions?.areaUnit||'pyeong',zones:conditions?.zones||[],minAreaM2:conditions?.minAreaM2??null,maxAreaM2:conditions?.maxAreaM2??null,stationName:conditions?.stationName||'',maxDistanceM:conditions?.maxDistanceM??null,auction:conditions?.auction||null,...BUILD_DEFAULTS,...(validateBuildCriteria(conditions||{}).value||{})};
   const defaultTitle=()=>source==='assistant'?'AI 비서 결과':source==='favorites'?'찜한 매물':source==='auction'?(auctionFilters.listingSource==='onbid'?'공매 물건':auctionFilters.listingSource==='both'?'경매·공매 물건':'경매 물건'):picksOnlyMode?'터잡이 선별 매물':conditions?'내 조건으로 살펴보기':'지도에서 매물 살펴보기';
   const title=initialHeading||defaultTitle();
   let pageHeading=initialHeading||null;
@@ -587,6 +587,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
       $('[data-explore="more"]').hidden=!result.hasMore;
       $('#explore-foot').textContent=`선별 매물 미리보기 · ${date(result.observedAt)} 구성 · 면적은 매물 기재 기준 · 용도지역은 연결 필지의 보유 토지자료 기준입니다.`;
       if(criteria.purpose==='new-build')$('#explore-foot').textContent+=' 신축 용도는 계획한 용도이며 건축 가능 판정이 아닙니다. 도로폭·보호구역 제외 조건은 연결 필지의 저장 자료 기준으로, 해당 항목 미확인 매물은 제외됩니다.';
+      if(result.station)$('#explore-foot').textContent+=` · ${result.station.name}역 ${result.station.maxDistanceM}m 이내 직선거리 기준`;
       $('#bounds-chip').innerHTML=bounds?'<button class="pill clear-bounds" data-explore="clear-bounds">지도 범위 해제 ×</button>':'';
     }
     for(const cardEl of root.querySelectorAll('[data-card-id]')){
@@ -663,6 +664,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     if(criteria.purpose)params.set('purpose',criteria.purpose);
     appendBuildQuery(params,criteria);
     if(criteria.minAreaM2!=null)params.set('minAreaM2',criteria.minAreaM2);if(criteria.maxAreaM2!=null)params.set('maxAreaM2',criteria.maxAreaM2);criteria.zones.forEach(z=>params.append('zone',z));
+    if(criteria.stationName)params.set('stationName',criteria.stationName);if(criteria.stationName&&criteria.maxDistanceM)params.set('maxDistanceM',String(criteria.maxDistanceM));
     member.hiddenIds().forEach(id=>params.append('exclude',id));
     if(query)params.set('q',query);if(bounds)params.set('bounds',bounds.join(','));
     const prefParam=prefParamOf(criteria,await loadUserPref(),conditions?.budgetWon);
@@ -682,7 +684,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
       if(disposed||current!==version)return;
       result=null;map.setGroups([],null,false);closeDetail(false);
       $('#result-count').textContent='매물 자료를 확인하지 못했어요.';
-      $('#listing-list').innerHTML=`<div class="empty"><h2>${error.message==='PRICE_UNIT_UNCONFIRMED'?'가격 단위를 확인하고 있어요.':error.message==='ZONING_UNAVAILABLE'?'용도지역 자료 연결을 확인해 주세요.':error.message==='DEVELOPMENT_UNAVAILABLE'?'신축 조건에 사용할 도로·구역 자료를 확인해 주세요.':'로컬 매물 연결을 확인해 주세요.'}</h2><p>연결 실패를 검색 결과 0건으로 표시하지 않습니다.</p><button class="outline" data-explore="retry">다시 불러오기</button></div>`;
+      $('#listing-list').innerHTML=`<div class="empty"><h2>${error.message==='PRICE_UNIT_UNCONFIRMED'?'가격 단위를 확인하고 있어요.':error.message==='STATION_UNKNOWN'?'역을 찾지 못했어요. 역 이름을 확인해 주세요.':error.message==='ZONING_UNAVAILABLE'?'용도지역 자료 연결을 확인해 주세요.':error.message==='DEVELOPMENT_UNAVAILABLE'?'신축 조건에 사용할 도로·구역 자료를 확인해 주세요.':'로컬 매물 연결을 확인해 주세요.'}</h2><p>연결 실패를 검색 결과 0건으로 표시하지 않습니다.</p><button class="outline" data-explore="retry">다시 불러오기</button></div>`;
       $('[data-explore="more"]').hidden=true;
     } finally {if(!disposed&&current===version)$('.explore-list').removeAttribute('aria-busy');}
   }

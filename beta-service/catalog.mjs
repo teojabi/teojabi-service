@@ -9,6 +9,13 @@ const positive = value => {
   if (!['string','number'].includes(typeof value) || !/^\d+(?:\.\d+)?$/.test(String(value))) return null;
   const n=Number(value); return Number.isFinite(n) && n>0 ? n : null;
 };
+// 두 좌표(위경도) 사이 거리(미터). 역까지 직선거리 필터에 쓴다.
+const haversineM=(a,b)=>{
+  const R=6371000,rad=x=>x*Math.PI/180;
+  const dLat=rad(b.lat-a.lat),dLng=rad(b.lng-a.lng);
+  const s=Math.sin(dLat/2)**2+Math.cos(rad(a.lat))*Math.cos(rad(b.lat))*Math.sin(dLng/2)**2;
+  return 2*R*Math.asin(Math.min(1,Math.sqrt(s)));
+};
 // 사용자의 관심 프로필(목적·지역·용도지역·용도·예산)을 압축해 받아 매물 점수를 낸다.
 export function parsePref(value) {
   if (!value) return null;
@@ -108,6 +115,11 @@ export function browseCatalog(catalog, query) {
   try {bounds=parseBounds(query.get('bounds'));} catch {return {status:'invalid'};}
   const sort=query.get('sort')||'price';
   if (!['price','price-desc','area'].includes(sort)) return {status:'invalid'};
+  // 역에서 거리(직선) 조건: 역 좌표는 serve에서 확인해 catalog.station에 담아 넘긴다.
+  const station=catalog.station&&typeof catalog.station==='object'&&Number.isFinite(catalog.station.lat)&&Number.isFinite(catalog.station.lng)?catalog.station:null;
+  let maxDistanceM=query.has('maxDistanceM')?Number(query.get('maxDistanceM')):null;
+  if(maxDistanceM!==null&&(!Number.isFinite(maxDistanceM)||maxDistanceM<=0||maxDistanceM>5000))return {status:'invalid'};
+  if(station&&maxDistanceM===null)maxDistanceM=500;
   const pref=parsePref(query.get('pref'));
   const maxLimit=requestedIds?100:catalog.mode==='selected-preview'?500:20;
   const limit=requestedIds?maxLimit:Math.min(maxLimit,Math.max(5,Math.floor(Number(query.get('limit')))||5));
@@ -124,6 +136,7 @@ export function browseCatalog(catalog, query) {
     (!zones.length || row.zoning?.status==='matched'&&row.zoning.groups.some(z=>zones.includes(z))) &&
     (sort!=='area'||row.areaM2!==null) &&
     (!bounds || row.position.lng>=bounds.west && row.position.lng<=bounds.east && row.position.lat>=bounds.south && row.position.lat<=bounds.north) &&
+    (!station || maxDistanceM===null || (row.position && haversineM(row.position, station)<=maxDistanceM)) &&
     (!keyword || `${row.address} ${row.neighborhood} ${row.sourceId}`.toLocaleLowerCase('ko-KR').includes(keyword)) && matchesDevelopment(row,build)));
   // Choose the cheapest matching listing per parcel before sorting the visible representatives.
   rows.sort((a,b)=>(a.priceWon??Infinity)-(b.priceWon??Infinity) || a.id.localeCompare(b.id));
@@ -143,6 +156,7 @@ export function browseCatalog(catalog, query) {
     criteria:extra.value,zoningAvailable:catalog.zoningAvailable,
     developmentObservedAt:catalog.developmentObservedAt,tourismPreferredCount:build.preferTourism?orderedGroups.filter(group=>tourismRank(group.representative)===0).length:null,
     sourceUpdatedAt:null,priceUnitConfirmed:catalog.priceUnitConfirmed,
+    station:station&&maxDistanceM!==null?{name:station.name,maxDistanceM}:null,
     totalListings:rows.length,totalParcels:groups.size,groups:orderedGroups.slice(0,limit),
     hasMore:groups.size>limit && limit<maxLimit,limit,rawCount:catalog.rawCount};
 }
