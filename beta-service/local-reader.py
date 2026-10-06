@@ -57,12 +57,24 @@ def connect():
 
 
 def read(operation, value=None):
-    if operation not in ('catalog', 'parcel', 'risk', 'context', 'registers', 'site-parcels', 'parcel-context', 'parcel-documents', 'land-record', 'nearby-transactions', 'selected-risk', 'selected-context', 'selected-registers', 'selected-land-record', 'naver-listing', 'disco-listing', 'commercial', 'commercial-areas', 'surrounding', 'nearest-parcel', 'neighborhoods'):
+    if operation not in ('catalog', 'parcel', 'risk', 'context', 'registers', 'site-parcels', 'parcel-context', 'parcel-documents', 'land-record', 'nearby-transactions', 'selected-risk', 'selected-context', 'selected-registers', 'selected-land-record', 'naver-listing', 'disco-listing', 'commercial', 'commercial-areas', 'surrounding', 'nearest-parcel', 'neighborhoods', 'station'):
         raise ValueError('Unsupported operation')
     if operation == 'parcel' and not re.fullmatch(r'\d{19}', value or ''):
         raise ValueError('Invalid parcel')
     connection = connect()
     try:
+        if operation == 'station':
+            token = re.sub(r'\s+', '', value or '')
+            if not token or len(token) > 20:
+                raise ValueError('Invalid station')
+            with connection.cursor(cursor_factory=RealDictCursor) as cursor:
+                cursor.execute('''SELECT station_name, lat, lng FROM public.seoul_subway_stations
+                                  WHERE replace(station_name,' ','') LIKE %s AND lat IS NOT NULL
+                                  ORDER BY length(station_name) LIMIT 1''', ('%' + token + '%',))
+                row = cursor.fetchone()
+            if not row:
+                return {'status': 'missing'}
+            return {'status': 'ready', 'station': {'name': row['station_name'], 'lat': float(row['lat']), 'lng': float(row['lng'])}}
         if operation == 'naver-listing':
             if not re.fullmatch(r'\d{1,30}', value or ''):
                 raise ValueError('Invalid listing number')
