@@ -90,8 +90,9 @@ export function ruleFilters(text) {
     if (!auction.maxPriceWon && filters.budgetWon) auction.maxPriceWon = filters.budgetWon;
     filters.auction = auction;
   }
-  // 정렬 요청: 상권 좋은 순 / 역 가까운 순 / 가격 낮은 순 / 면적 넓은 순.
-  if (/상권\s*(?:이|가|은|는)?\s*(?:좋|괜찮|높|나은|순)/.test(t) || /좋은\s*상권|상권\s*좋은/.test(t)) filters.sort = 'commercial';
+  // 정렬 요청: 평당가 낮은 순 / 상권 좋은 순 / 역 가까운 순 / 가격 낮은 순 / 면적 넓은 순.
+  if (/평당\s*가?/.test(t) && /낮|싼|저렴|순/.test(t)) filters.sort = 'ppp';
+  else if (/상권\s*(?:이|가|은|는)?\s*(?:좋|괜찮|높|나은|순)/.test(t) || /좋은\s*상권|상권\s*좋은/.test(t)) filters.sort = 'commercial';
   else if (/역\s*(?:이|가|은|는)?\s*(?:가까|근처)/.test(t) || /가까운\s*역|역\s*가까운|역세권\s*순/.test(t)) filters.sort = 'station';
   else if (/(?:가격|값|매매가|저렴)\s*(?:이|가|은|는)?\s*(?:낮|싼|저렴|순)/.test(t) || /낮은\s*가격|싼\s*순|저렴한\s*순|가격\s*낮은/.test(t)) filters.sort = 'price';
   else if (/(?:면적|대지|땅)\s*(?:이|가|은|는)?\s*(?:큰|넓)/.test(t) || /넓은\s*순|큰\s*순|면적\s*큰/.test(t)) filters.sort = 'area';
@@ -183,7 +184,7 @@ export function siteFaqAnswer(text) {
 // Free-form text goes to Gemini only when the rule parser found nothing.
 export async function geminiFilters(message, key, condition, history) {
   if (!key) return null;
-  const schema = `{"districts":["자치구"],"neighborhood":"동이름(예: 성산동)","q":"키워드","budgetWon":숫자(원),"minAreaM2":숫자,"maxAreaM2":숫자,"kind":"land|building","zones":["주거지역|상업지역|공업지역|녹지지역"],"stationName":"역이름","maxDistanceM":숫자,"minRoadWidthM":숫자,"purpose":"new-build","commercialType":["골목상권|전통시장|발달상권|관광특구"],"commercialName":"상권이름","minCommercialSalesWon":숫자(원),"minCommercialPopulation":숫자,"commercialRadiusM":숫자,"sort":"price|area|station|commercial(정렬: 가격낮은순·면적큰순·역가까운순·상권좋은순)"}`;
+  const schema = `{"districts":["자치구"],"neighborhood":"동이름(예: 성산동)","q":"키워드","budgetWon":숫자(원),"minAreaM2":숫자,"maxAreaM2":숫자,"kind":"land|building","zones":["주거지역|상업지역|공업지역|녹지지역"],"stationName":"역이름","maxDistanceM":숫자,"minRoadWidthM":숫자,"purpose":"new-build","commercialType":["골목상권|전통시장|발달상권|관광특구"],"commercialName":"상권이름","minCommercialSalesWon":숫자(원),"minCommercialPopulation":숫자,"commercialRadiusM":숫자,"sort":"price|area|station|commercial|ppp(정렬: 가격낮은순·면적큰순·역가까운순·상권좋은순·평당가낮은순)"}`;
   const prompt = [
     '너는 터잡이(teojabi.com) 부동산 서비스의 똑똑하고 친근한 AI 비서다. 반드시 JSON 객체 하나만 출력한다(설명·코드블록 금지).',
     '가장 중요한 역할: 사용자가 진짜 원하는 게 뭔지 대화로 파악한다. 애매하면 조건을 지어내지 말고 되물어본다(예: 목적, 지역, 예산, 면적, 용도).',
@@ -249,7 +250,7 @@ export function sanitize(raw) {
     else if (raw.kind.includes('building')) out.kind = 'building';
   }
   if (raw.purpose === 'new-build') out.purpose = 'new-build';
-  if (['price', 'area', 'station', 'commercial'].includes(raw.sort)) out.sort = raw.sort;
+  if (['price', 'area', 'station', 'commercial', 'ppp'].includes(raw.sort)) out.sort = raw.sort;
   // 경매·공매 물건 조건(매물과 분리된 하위 객체).
   const auctionSource = raw.auction && typeof raw.auction === 'object' && !Array.isArray(raw.auction) ? raw.auction : raw.auction === true ? { enabled: true } : null;
   if (auctionSource && auctionSource.enabled === true) {
@@ -421,7 +422,8 @@ export function buildCombinedResult(filters, listingSearch, auctionData, onbidDa
   if (onbidTotal > 0) lines.push(`온비드 공매 물건 ${onbidTotal.toLocaleString('ko-KR')}건`);
   let reply;
   if (lines.length) {
-    reply = `조건에 맞는 결과는 ${lines.join(', ')}이에요. 아래에서 확인해 보세요.`;
+    const sortLabel = { commercial: '상권 좋은 순', station: '역 가까운 순', price: '가격 낮은 순', area: '면적 넓은 순', ppp: '평당가 낮은 순' }[filters.sort];
+    reply = `${sortLabel ? `${sortLabel}으로 정렬했어요. ` : ''}조건에 맞는 결과는 ${lines.join(', ')}이에요. 아래에서 확인해 보세요.`;
   } else {
     reply = base.reply;
   }
@@ -490,7 +492,7 @@ export function chipList(filters) {
   if (filters.minCommercialSalesWon) chips.push({ key: 'minCommercialSalesWon', value: filters.minCommercialSalesWon, label: `상권 월매출 ${(filters.minCommercialSalesWon / 1e8).toLocaleString('ko-KR')}억 이상`, kind: 'value' });
   if (filters.minCommercialPopulation) chips.push({ key: 'minCommercialPopulation', value: filters.minCommercialPopulation, label: `상권 유동 ${Math.round(filters.minCommercialPopulation / 10000).toLocaleString('ko-KR')}만 이상`, kind: 'value' });
   if (filters.commercialRadiusM) chips.push({ key: 'commercialRadiusM', value: filters.commercialRadiusM, label: `상권 반경 ${filters.commercialRadiusM}m`, kind: 'value' });
-  const SORT_LABEL = { commercial: '상권 좋은 순', station: '역 가까운 순', price: '가격 낮은 순', area: '면적 넓은 순' };
+  const SORT_LABEL = { commercial: '상권 좋은 순', station: '역 가까운 순', price: '가격 낮은 순', area: '면적 넓은 순', ppp: '평당가 낮은 순' };
   if (filters.sort && SORT_LABEL[filters.sort]) chips.push({ key: 'sort', value: filters.sort, label: SORT_LABEL[filters.sort], kind: 'value' });
   return chips;
 }
@@ -559,6 +561,9 @@ export function buildResult(filters, search, unsupported) {
   } else if (total > 0 && (filters.commercialType?.length || filters.minCommercialSalesWon || filters.minCommercialPopulation)) {
     reply += `\n🏪 조건에 맞는 상권 반경 ${filters.commercialRadiusM || 500}m 안의 매물이에요.`;
   }
+  // 정렬을 적용했으면 뭘로 정렬했는지 항상 알려준다(묵묵히 결과만 주지 않는다).
+  const sortLabel = { commercial: '상권 좋은 순', station: '역 가까운 순', price: '가격 낮은 순', area: '면적 넓은 순', ppp: '평당가 낮은 순' }[filters.sort];
+  if (total > 0 && sortLabel) reply = `${sortLabel}으로 정렬했어요. ` + reply;
   return {
     status: 'ready', reply, filters, chips: chipList(filters), total, groups,
     originTotals: { premium, registered, disco, naver },
