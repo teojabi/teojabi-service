@@ -224,8 +224,14 @@ def read(operation, value=None):
                            CASE WHEN ST_SRID(geom)=5174 AND GeometryType(geom)='POINT'
                                 THEN ST_Y(ST_Transform(geom,4326)) END AS latitude,
                            CASE WHEN ST_SRID(geom)=5174 AND GeometryType(geom)='POINT'
-                                THEN ST_X(ST_Transform(geom,4326)) END AS longitude
-                    FROM public.naver ORDER BY "매물번호"
+                                THEN ST_X(ST_Transform(geom,4326)) END AS longitude,
+                           (SELECT ST_Distance(ST_SetSRID(ST_MakePoint(n.lng,n.lat),4326)::geography,
+                                               ST_SetSRID(ST_MakePoint(s.lng,s.lat),4326)::geography)
+                            FROM public.seoul_subway_stations s WHERE s.lat IS NOT NULL
+                            ORDER BY ST_SetSRID(ST_MakePoint(s.lng,s.lat),4326)::geography
+                                     <-> ST_SetSRID(ST_MakePoint(n.lng,n.lat),4326)::geography
+                            LIMIT 1) AS "subwayDistM"
+                    FROM public.naver n ORDER BY "매물번호"
                 ''')
                 return {'observedAt': datetime.now(timezone.utc).isoformat(), 'rows': cursor.fetchall()}
             cursor.execute('''
