@@ -438,18 +438,10 @@ export function mountAssistant({ onResults, onAnalyze } = {}) {
     if (data.commercial) chips.push(`<button type="button" class="assistant-chip assistant-chip-primary" data-commercial="${esc(data.commercial.code)}">🏪 이 상권에서 매물 찾기</button>`);
     if (groups.length || data.chips?.length) chips.push(`<button type="button" class="assistant-chip" data-editor="1">조건 바꾸기</button>`);
     if (data.conditionNote) chips.push(`<button type="button" class="assistant-chip" data-condition="1">저장 조건으로 찾기</button>`);
-    (data.suggestions || []).forEach(s => chips.push(`<button type="button" class="assistant-chip" data-send="${esc(s.message)}">${esc(s.label)}</button>`));
     if (chips.length) reply += `<div class="assistant-chiprow">${chips.join('')}</div>`;
     reply += `<div class="assistant-editor-slot" hidden></div>`;
     const bubble = addResultBot(reply);
 
-    const relax = Array.isArray(data.relaxations) ? data.relaxations : [];
-    if (!groups.length && relax.length) {
-      const row = document.createElement('div');
-      row.className = 'assistant-chiprow assistant-relax';
-      row.innerHTML = relax.slice(0, 4).map(r => `<button type="button" class="assistant-chip" data-relax="${esc(JSON.stringify(r.patch))}">${esc(r.label)} (${r.count}건)</button>`).join('');
-      bubble.append(row);
-    }
     if (groups.length) {
       bubble.querySelector('[data-map]')?.addEventListener('click', () => onResults?.(data));
       const byId = new Map(groups.map(g => [g.representative.id, g.representative]));
