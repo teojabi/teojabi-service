@@ -14,7 +14,7 @@ import { ASSISTANT_ROBOT } from './assistant-icon.mjs';
 import { logEvent } from './events.mjs';
 export { ASSISTANT_ROBOT };
 const ROBOT = ASSISTANT_ROBOT;
-const SCAN_MS = 5000;
+const SCAN_MS = 6500;
 const STEPS = [
   '터잡이 등록·추천 매물을 찾는 중이에요…',
   '네이버 매물을 찾는 중이에요…',
@@ -556,7 +556,7 @@ export function mountAssistant({ onResults, onAnalyze } = {}) {
     const showScan = message ? needsSearch(message) : true;
     const isAuctionQuery = /경매|공매|법원|온비드/.test(String(message||''));
     const steps = isAuctionQuery ? AUCTION_STEPS : STEPS;
-    const scanTitle = isAuctionQuery ? 'AI가 경매·공매 물건을 살펴보는 중…' : 'AI 공간 분석 중…';
+    const scanTitle = isAuctionQuery ? '경매·공매 물건을 찾고 있습니다…' : '조건에 맞는 매물을 찾고 있습니다…';
     const started = Date.now();
     let scan = null;
     let bar = null;
