@@ -41,7 +41,7 @@ export function validateExtraCriteria(input) {
 // 경매 용도(법원 공시 용도명). 건물·토지·개인주택 위주로 운영하며 아파트는 제외한다.
 export const AUCTION_USAGES=Object.freeze(['상가','근린시설','오피스텔','업무','단독주택','다가구','다세대','연립주택','빌라','대지','임야']);
 export const AUCTION_SOURCES=Object.freeze([['court','경매(법원)'],['onbid','공매(온비드)'],['both','경매+공매']]);
-export const AUCTION_DEAL_TYPES=Object.freeze([['whole','건물 통'],['floor','층'],['unit','호실'],['land','토지']]);
+export const AUCTION_DEAL_TYPES=Object.freeze([['whole','건물'],['floor','층'],['unit','호실'],['land','토지']]);
 // 경매·공매 조건은 매물과 의미가 달라 별도 하위 객체로 둔다. (구분·거래단위·용도·최저가·최저가율·유찰)
 export function normalizeAuction(raw) {
   const source=raw&&typeof raw==='object'&&!Array.isArray(raw)?raw:raw===true?{enabled:true}:null;

@@ -8,7 +8,7 @@ const AUCTION_SOURCES = ['court', 'onbid', 'both'];
 const AUCTION_DEAL_TYPES = ['whole', 'floor', 'unit', 'land'];
 const AUCTION_SALE_KINDS = ['whole', 'share', 'bundle'];
 const AUCTION_SALE_LABEL = { whole: '전체', share: '지분', bundle: '일괄' };
-const AUCTION_DEAL_LABEL = { whole: '건물 통', floor: '층', unit: '호실', land: '토지' };
+const AUCTION_DEAL_LABEL = { whole: '건물', floor: '층', unit: '호실', land: '토지' };
 const ORIGIN_LABEL = { premium: '터잡이 추천 매물', registered: '터잡이 등록 매물', disco: '디스코 매물', naver: '네이버 매물' };
 const won = value => Math.round(Number(value) * 100000000);
 const m2 = (value, unit) => Math.round((unit === '평' ? Number(value) * 3.305785 : Number(value)) * 100) / 100;

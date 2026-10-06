@@ -25,14 +25,14 @@ export const AUCTION_SORT_OPTIONS = Object.freeze([
   ['area', '면적 큰순'],
 ]);
 
-const CHIPS = [['listingSource', '구분'], ['districts', '지역'], ['usage', '용도'], ['saleKind', '매각 구분'], ['maxPrice', '최저매각가'], ['maxBidRate', '최저가율'], ['failMax', '유찰'], ['sort', '정렬']];
-const DEAL_LABEL = { whole: '건물 통', floor: '층', unit: '호실', land: '토지' };
+const CHIPS = [['listingSource', '구분'], ['districts', '지역'], ['usage', '용도'], ['maxPrice', '최저매각가'], ['maxBidRate', '최저가율'], ['failMax', '유찰'], ['sort', '정렬']];
+const DEAL_LABEL = { whole: '건물', floor: '층', unit: '호실', land: '토지' };
 const SALE_LABEL = { whole: '전체 소유', share: '지분', bundle: '일괄' };
 const LISTING_LABEL = { court: '경매', onbid: '공매', both: '경매·공매' };
 // 법원 공시 비고(mulBigo)에서 파생한 위험·특이사항 필터. 선택한 항목 중 하나라도 있으면 표시한다.
 export const AUCTION_RISK_OPTIONS = Object.freeze([['lien', '유치권'], ['legalSuperficies', '법정지상권'], ['landSeparate', '토지별도등기'], ['unregistered', '대지권미등기'], ['illegalBuilding', '위반건축물'], ['saleExcluded', '매각제외'], ['specialSale', '특별매각'], ['farmland', '농지취득'], ['coOwned', '공유'], ['extraBuilding', '제시외']]);
 const RISK_LABEL = Object.fromEntries(AUCTION_RISK_OPTIONS);
-const emptyDraft = () => ({ listingSource: 'court', query: '', gu: [], usage: '', dealType: '', saleKind: '', risk: [], sort: 'sale', maxPrice: '', maxBidRate: '', failMax: '' });
+const emptyDraft = () => ({ listingSource: 'both', query: '', gu: [], usage: '', dealType: '', saleKind: '', risk: [], sort: 'sale', maxPrice: '', maxBidRate: '', failMax: '' });
 
 // 경매 조건 UI. 건물찾기(매물) 퀵필터와 같은 칩 + 편집 패널 구조.
 // 칩에는 조건 이름이 함께 보이고, 아래 '이 조건으로 검색하기'로 조회한다.
@@ -93,7 +93,7 @@ export function mountAuctionFilters(root, { getValue, onChange } = {}) {
   function open(key) { active = key; panel.hidden = false; renderEditor(); update(); }
   function close() { active = null; panel.hidden = true; update(); }
   function apply() {
-    onChange({ listingSource: draft.listingSource || 'court', query: (draft.query || '').trim(), gu: [...draft.gu], usage: draft.usage || '', dealType: draft.dealType || '', saleKind: draft.saleKind || '', risk: [...(draft.risk || [])], sort: draft.sort || 'sale', maxPrice: draft.maxPrice || '', maxBidRate: draft.maxBidRate || '', failMax: draft.failMax ?? '' });
+    onChange({ listingSource: draft.listingSource || 'both', query: (draft.query || '').trim(), gu: [...draft.gu], usage: draft.usage || '', dealType: draft.dealType || '', saleKind: draft.saleKind || '', risk: [...(draft.risk || [])], sort: draft.sort || 'sale', maxPrice: draft.maxPrice || '', maxBidRate: draft.maxBidRate || '', failMax: draft.failMax ?? '' });
     close();
   }
   root.addEventListener('click', event => {
