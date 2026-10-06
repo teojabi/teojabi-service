@@ -14,7 +14,7 @@ import { ASSISTANT_ROBOT } from './assistant-icon.mjs';
 import { logEvent } from './events.mjs';
 export { ASSISTANT_ROBOT };
 const ROBOT = ASSISTANT_ROBOT;
-const SCAN_MS = 8000;
+const SCAN_MS = 5000;
 const STEPS = [
   '터잡이 등록·추천 매물을 찾는 중이에요…',
   '네이버 매물을 찾는 중이에요…',
