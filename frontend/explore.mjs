@@ -299,6 +299,8 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     renderParcelResult();
     if(searchedParcel&&searchedParcel.geometry&&map)map.parcel(searchedParcel.geometry);
   }
+  // 매물을 선택하면 하단 검색창에 주소를 채우고, '이 땅 신축검토' 버튼이 뜨게 한다.
+  const fillParcelSearch=address=>{const qi=$('#map-parcel-search input[name=query]');if(qi&&address)qi.value=address;};
   function applyParcelFeatures(features,q){
     const result=$('#map-parcel-result');if(!result||!features.length)return;
     const f=features[0];
@@ -375,7 +377,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
         catch{}
         if(disposed||current!==detailVersion)return;
       }
-      if(geometries.length){parcel={status:'ready',geometry:geometries.length===1?geometries[0]:geometries};map.parcel(geometries.length===1?geometries[0]:geometries);return;}
+      if(geometries.length){const geom=geometries.length===1?geometries[0]:geometries;parcel={status:'ready',geometry:geom};setSearchedParcel({pnu:pnus[0]||row.pnu||null,address:row.address||'',areaM2:row.areaM2??null,geometry:geom});fillParcelSearch(row.address);return;}
     }
     const p=row.position;if(p)return loadParcelAt(p.lat,p.lng);
   }
@@ -1113,11 +1115,11 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
         catch {receivedParcel={status:'error'};}
         if(disposed||current!==detailVersion)return;
         parcel=receivedParcel;
-        if(parcel.status==='ready'){map.parcel(parcel.geometry);parcelDrawn=true;}
+        if(parcel.status==='ready'){setSearchedParcel({pnu:data.listing.pnu,address:data.listing.address||'',areaM2:data.listing.areaM2??null,geometry:parcel.geometry});fillParcelSearch(data.listing.address);parcelDrawn=true;}
         if($('#parcel-status'))$('#parcel-status').textContent=parcel.status==='ready'?parcelMessage():'필지 경계를 확인하지 못했습니다. 핀 위치로 표시합니다.';
       }
       // pnu가 없거나 필지 경계를 못 받으면 핀 위치로 필지를 찾아 지도에 표시한다(핀 클릭과 같은 결과).
-      if(!parcelDrawn&&data.listing.position){try{const response=await apiFetch(`/api/site-parcels?lat=${data.listing.position.lat}&lng=${data.listing.position.lng}`,{signal:abort.signal});const d2=await response.json();if(!disposed&&current===detailVersion&&d2.status==='ready'&&Array.isArray(d2.features)&&d2.features.length)map.parcel(d2.features[0].geometry);}catch{}}
+      if(!parcelDrawn&&data.listing.position){try{const response=await apiFetch(`/api/site-parcels?lat=${data.listing.position.lat}&lng=${data.listing.position.lng}`,{signal:abort.signal});const d2=await response.json();if(!disposed&&current===detailVersion&&d2.status==='ready'&&Array.isArray(d2.features)&&d2.features.length){const f=d2.features[0];setSearchedParcel({pnu:f.id||data.listing.pnu||null,address:data.listing.address||(f.properties&&f.properties.address)||'',areaM2:data.listing.areaM2??(f.properties&&f.properties.officialAreaM2)??null,geometry:f.geometry});fillParcelSearch(data.listing.address||(f.properties&&f.properties.address));}}catch{}}
     } catch (error) {
       if(disposed||current!==detailVersion)return;
       console.warn('listing detail failed', error);
