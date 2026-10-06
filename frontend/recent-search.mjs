@@ -10,7 +10,7 @@ export function normalizeRecentSearch(input){
   if(budgetWon!==null&&(!Number.isSafeInteger(budgetWon)||budgetWon<=0))return null;
   if(!Array.isArray(districts)||districts.some(d=>!DISTRICTS.includes(d)))return null;
   if(!Array.isArray(neighborhoods)||neighborhoods.some(n=>typeof n!=='string'||!n.trim()||n.length>20))return null;
-  if(typeof query!=='string'||query.length>100||!['price','price-desc','area'].includes(sort))return null;
+  if(typeof query!=='string'||query.length>100||!['price','price-desc','area','ppp'].includes(sort))return null;
   if(bounds!==null&&(!Array.isArray(bounds)||bounds.length!==4||!bounds.every(Number.isFinite)||bounds[0]>=bounds[2]||bounds[1]>=bounds[3]||bounds[0]<124||bounds[2]>132||bounds[1]<33||bounds[3]>40))return null;
   const extra=validateExtraCriteria(input);if(!extra.ok)return null;
   const areaUnit=input.areaUnit==='m2'?'m2':'pyeong';

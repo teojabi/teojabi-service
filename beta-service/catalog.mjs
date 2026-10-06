@@ -115,7 +115,7 @@ export function browseCatalog(catalog, query) {
   let bounds;
   try {bounds=parseBounds(query.get('bounds'));} catch {return {status:'invalid'};}
   const sort=query.get('sort')||'price';
-  if (!['price','price-desc','area'].includes(sort)) return {status:'invalid'};
+  if (!['price','price-desc','area','ppp'].includes(sort)) return {status:'invalid'};
   // 역에서 거리(직선) 조건: 역 좌표는 serve에서 확인해 catalog.station에 담아 넘긴다.
   const station=catalog.station&&typeof catalog.station==='object'&&Number.isFinite(catalog.station.lat)&&Number.isFinite(catalog.station.lng)?catalog.station:null;
   let maxDistanceM=query.has('maxDistanceM')?Number(query.get('maxDistanceM')):null;
@@ -135,7 +135,7 @@ export function browseCatalog(catalog, query) {
     (minArea===null || row.areaM2!==null&&row.areaM2>=minArea) &&
     (maxArea===null || row.areaM2!==null&&row.areaM2<=maxArea) &&
     (!zones.length || row.zoning?.status==='matched'&&row.zoning.groups.some(z=>zones.includes(z))) &&
-    (sort!=='area'||row.areaM2!==null) &&
+    (sort!=='area'&&sort!=='ppp'||row.areaM2!==null) &&
     (!bounds || row.position.lng>=bounds.west && row.position.lng<=bounds.east && row.position.lat>=bounds.south && row.position.lat<=bounds.north) &&
     (!maxDistanceM || (station ? (row.position && haversineM(row.position, station)<=maxDistanceM) : (row.subwayDistM!=null && row.subwayDistM<=maxDistanceM))) &&
     (!keyword || `${row.address} ${row.neighborhood} ${row.sourceId}`.toLocaleLowerCase('ko-KR').includes(keyword)) && matchesDevelopment(row,build)));
@@ -151,7 +151,10 @@ export function browseCatalog(catalog, query) {
   // 목적·프로필 가중은 기본 정렬(가격순)에서 대표 매물 점수로 먼저 정렬한다.
   const prefRank=new Map();
   if(pref&&sort==='price')for(const g of groups.values())prefRank.set(g,prefScore(g.representative,pref));
+  // 평당가(가격/대지면적) 낮은 순 정렬용 값. 면적·가격이 없으면 맨 뒤로.
+  const ppp=g=>{const r=g.representative;return r.priceWon>0&&r.areaM2>0?r.priceWon/r.areaM2:Infinity;};
   const orderedGroups=[...groups.values()].sort((a,b)=>(build.preferTourism?tourismRank(a.representative)-tourismRank(b.representative):0)||((prefRank.get(b)||0)-(prefRank.get(a)||0))||(sort==='area'?b.representative.areaM2-a.representative.areaM2:
+    sort==='ppp'?ppp(a)-ppp(b):
     sort==='price-desc'?(b.representative.priceWon??-Infinity)-(a.representative.priceWon??-Infinity):(a.representative.priceWon??Infinity)-(b.representative.priceWon??Infinity))||a.representative.id.localeCompare(b.representative.id));
   return {status:'ready',mode:catalog.mode||'local-snapshot',observedAt:catalog.observedAt,
     criteria:extra.value,zoningAvailable:catalog.zoningAvailable,
