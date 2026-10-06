@@ -3,6 +3,7 @@ import { member, openLogin } from './member.mjs';
 import { DISTRICTS } from './policy.mjs';
 import { formatArea, getAreaDisplayUnit } from './area-display.mjs';
 import { renderInlineContext, renderFarSummary } from './inline-context.mjs';
+import { getCondition, setCondition } from './condition-store.mjs';
 
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const money = won => won > 0 ? `${(won / 1e8).toLocaleString('ko-KR', { maximumFractionDigits: 2 })}억` : '가격 미기재';
@@ -57,6 +58,9 @@ function mixGroups(groups) {
 }
 
 function savedCondition() {
+  // 목록·경매와 같은 '내 조건'(작업 조건)을 먼저 본다. 없으면 계정에 저장된 조건을 쓴다.
+  const working = getCondition();
+  if (working && typeof working === 'object' && Object.keys(working).length) return working;
   if (member.status !== 'ready') return null;
   const item = member.items.find(i => i.kind === 'condition' && i.key === 'primary') || member.items.find(i => i.kind === 'condition');
   return item?.payload || null;
@@ -468,9 +472,20 @@ export function mountAssistant({ onResults, onAnalyze } = {}) {
     });
     const slot = bubble.querySelector('.assistant-editor-slot');
     bubble.querySelector('[data-commercial]')?.addEventListener('click', () => runSearch(null, { commercialCode: bubble.querySelector('[data-commercial]').dataset.commercial, commercialRadiusM: 500, limit: 60 }));
+    const editorKeys = ['districts','kind','zones','auction','budgetWon','minAreaM2','maxAreaM2','stationName','maxDistanceM','minRoadWidthM'];
+    // '조건 바꾸기' 편집기는 목록·경매와 같은 '내 조건'(단일 저장소)을 편집한다.
     const openEditorUi = () => {
       slot.hidden = false;
+      const base = getCondition();
+      if (base && typeof base === 'object' && Object.keys(base).length) lastFilters = { ...base };
       slot.innerHTML = editorMarkup(lastFilters || {});
+    };
+    const commitEditor = () => {
+      const prev = getCondition() || {};
+      const next = { ...prev };
+      for (const key of editorKeys) { if (lastFilters && key in lastFilters) next[key] = lastFilters[key]; else delete next[key]; }
+      setCondition(next);
+      openEditorUi();
     };
     bubble.querySelector('[data-editor]')?.addEventListener('click', () => { slot.hidden ? openEditorUi() : (slot.hidden = true); slot.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); });
     if (openEditor) openEditorUi();
@@ -482,7 +497,7 @@ export function mountAssistant({ onResults, onAnalyze } = {}) {
         const v = asrc.dataset.auctionSrc;
         if (v === 'off') delete lastFilters.auction;
         else lastFilters.auction = { ...(lastFilters.auction || {}), enabled: true, source: v };
-        openEditorUi();
+        commitEditor();
         return;
       }
       const pick = event.target.closest('[data-pick]');
@@ -491,13 +506,13 @@ export function mountAssistant({ onResults, onAnalyze } = {}) {
         // 유형(kind)은 값이 하나다. 배열로 넣으면 서버 sanitize에서 통째로 버려진다.
         if (key === 'kind') {
           if (lastFilters.kind === value) delete lastFilters.kind; else lastFilters.kind = value;
-          openEditorUi();
+          commitEditor();
           return;
         }
         const list = Array.isArray(lastFilters[key]) ? lastFilters[key] : (lastFilters[key] ? [lastFilters[key]] : []);
         const next = list.includes(value) ? list.filter(v => v !== value) : [...list, value];
         if (next.length) lastFilters[key] = next; else delete lastFilters[key];
-        openEditorUi();
+        commitEditor();
         return;
       }
       const num = event.target.closest('[data-num]');
@@ -506,7 +521,7 @@ export function mountAssistant({ onResults, onAnalyze } = {}) {
         if (key === 'budgetWon') lastFilters.budgetWon = value * 1e8;
         else if (key === 'minAreaM2') lastFilters.minAreaM2 = Math.round(value * 3.305785);
         else lastFilters[key] = value;
-        openEditorUi();
+        commitEditor();
         return;
       }
       const relaxChip = event.target.closest('[data-relax]');
@@ -514,6 +529,7 @@ export function mountAssistant({ onResults, onAnalyze } = {}) {
         const patch = JSON.parse(relaxChip.dataset.relax);
         lastFilters = { ...(lastFilters || {}), ...patch };
         for (const key of Object.keys(patch)) if (patch[key] === null) delete lastFilters[key];
+        setCondition({ ...(getCondition()||{}), ...lastFilters });
         runSearch(null, lastFilters);
       }
     });
@@ -532,6 +548,7 @@ export function mountAssistant({ onResults, onAnalyze } = {}) {
         addBot('조건을 하나 이상 선택해 주세요. 예) 지역·유형·예산 중 하나를 골라주세요.');
         return;
       }
+      commitEditor();
       runSearch(null, lastFilters || {});
     });
   }
