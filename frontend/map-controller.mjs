@@ -184,7 +184,7 @@ export class ListingMap {
     const price=document.createElement('strong'),area=document.createElement('span'),badge=document.createElement('span');
     price.className='map-pin-price';area.className='map-pin-area';
     badge.className='map-pin-badge';badge.textContent='⭐';badge.setAttribute('aria-hidden','true');
-    const label=item.cohort==='existing'?'터잡이 추천':item.cohort==='disco'?'디스코 매물':item.cohort==='auction'?'경매 물건':item.cohort==='onbid'?'공매 물건':'선별매물';
+    const label=item.cohort==='existing'?'터잡이 추천':item.cohort==='disco'?'디스코 매물':item.cohort==='auction'?'경매 물건':item.cohort==='onbid'?'공매 물건':'네이버 매물';
     element.title=label;
     const dday=ddayText(saleDateOf(item));
     // 일괄매각(경매)은 카드와 같이 사건 전체 최저가·토지 면적 합계로 표시한다. (공매 회차는 합산하지 않음)

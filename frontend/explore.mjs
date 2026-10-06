@@ -524,7 +524,23 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     return `<article class="property-card${selected===row.id?' selected':''}" data-card-id="${esc(row.id)}"><button class="property-select" data-explore="detail" data-id="${esc(row.id)}" aria-label="${esc(rowTitle(row))} ${money(row.priceWon)} 상세 보기"><div class="property-location"><span>${esc(rowTitle(row))}</span><em class="pick-badge auction-badge">${badge}</em>${kindBadge}${verifyBadge}${flagBadges}${rightsBadge}${member.get('favorite',row.id)?'<em class="pick-badge favorite-badge">♥ 찜한 물건</em>':''}</div><h2>${money(totals.min)}${pricePerAreaMarkup(totals.min,pppArea)}</h2><div class="area-pair"><span>감정가 <b>${money(totals.appraised)}</b></span><span>${priceLabel} <b>${money(totals.min)}</b></span>${areaValue!=null?`<span>${areaLabel} <b>${area(areaValue)}</b></span>`:''}${areaExtra}</div><p class="property-zoning">${esc(a.usageName||'용도 미기재')} · ${esc(row.district||'')} ${esc(row.neighborhood||'')}</p><p class="property-description">${esc(a.caseNo||'')} · ${dateNote}</p><span class="property-link">상세 보기 <span aria-hidden="true">↗</span></span></button></article>`;
   }
   // AI 결과는 화면에 보이는 만큼(5개 → 더보기)만 지도에도 표시한다.
-  const mapGroups=()=>source==='assistant'&&result?result.groups.slice(0,assistantShown):(result?.groups||[]);
+  // 같은 위치(필지 또는 좌표)에 여러 매물이 있으면 한 개만 남긴다: 터잡이 추천 우선, 없으면 최저가.
+  const isPremiumRow=row=>row?.cohort==='existing'||row?.origin==='premium'||row?.premium===true;
+  const dedupeGroupsByLocation=groups=>{
+    const byLoc=new Map();
+    for(const group of groups){
+      const row=group?.representative;if(!row)continue;
+      const key=row.pnu||(row.position?`${Number(row.position.lat).toFixed(5)},${Number(row.position.lng).toFixed(5)}`:row.id);
+      const cur=byLoc.get(key);
+      if(!cur){byLoc.set(key,group);continue;}
+      const curRow=cur.representative;
+      const curPremium=isPremiumRow(curRow),newPremium=isPremiumRow(row);
+      if(newPremium&&!curPremium){byLoc.set(key,group);continue;}
+      if(newPremium===curPremium&&(Number(row.priceWon)||Infinity)<(Number(curRow.priceWon)||Infinity))byLoc.set(key,group);
+    }
+    return [...byLoc.values()];
+  };
+  const mapGroups=()=>{const base=source==='assistant'&&result?result.groups.slice(0,assistantShown):(result?.groups||[]);return source==='auction'?base:dedupeGroupsByLocation(base);};
   // 목록 그룹에서 id로 매물을 찾는다(대표가 아니어도 찾음). 상세의 필지 경계 표시 등에 쓴다.
   const findGroupRow=id=>{for(const group of (result?.groups||[])){if(group.representative?.id===id)return group.representative;const hit=(group.listings||[]).find(row=>row.id===id);if(hit)return hit;}return null;};
   const groupForRow=row=>row?((result?.groups||[]).find(g=>g.representative?.id===row.id||(g.listings||[]).some(r=>r.id===row.id))||null):null;
@@ -1090,17 +1106,18 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
       $('.detail-shortcuts').insertAdjacentHTML('beforeend','<button data-explore="section" data-section="property-transactions">주변 실거래</button>');
       loadNearby(id,current);
       if(updateUrl)history.pushState(null,'',`#listing=${encodeURIComponent(id)}`);
+      let parcelDrawn=false;
       if(data.listing.pnu) {
         let receivedParcel;
         try {const response=await apiFetch(`/api/parcels/${data.listing.pnu}`,{signal:abort.signal});receivedParcel=await response.json();}
         catch {receivedParcel={status:'error'};}
         if(disposed||current!==detailVersion)return;
         parcel=receivedParcel;
-        if(parcel.status==='ready')map.parcel(parcel.geometry);
-        if($('#parcel-status'))$('#parcel-status').textContent=parcel.status==='ready'?parcelMessage():'필지 경계를 확인하지 못했습니다. 핀 위치만 표시합니다.';
+        if(parcel.status==='ready'){map.parcel(parcel.geometry);parcelDrawn=true;}
+        if($('#parcel-status'))$('#parcel-status').textContent=parcel.status==='ready'?parcelMessage():'필지 경계를 확인하지 못했습니다. 핀 위치로 표시합니다.';
       }
-      // 매물에 pnu가 없으면 핀 위치로 필지를 찾아 지도에 표시한다(핀 클릭과 같은 결과).
-      else if(data.listing.position){try{const response=await apiFetch(`/api/site-parcels?lat=${data.listing.position.lat}&lng=${data.listing.position.lng}`,{signal:abort.signal});const d2=await response.json();if(!disposed&&current===detailVersion&&d2.status==='ready'&&Array.isArray(d2.features)&&d2.features.length)map.parcel(d2.features[0].geometry);}catch{}}
+      // pnu가 없거나 필지 경계를 못 받으면 핀 위치로 필지를 찾아 지도에 표시한다(핀 클릭과 같은 결과).
+      if(!parcelDrawn&&data.listing.position){try{const response=await apiFetch(`/api/site-parcels?lat=${data.listing.position.lat}&lng=${data.listing.position.lng}`,{signal:abort.signal});const d2=await response.json();if(!disposed&&current===detailVersion&&d2.status==='ready'&&Array.isArray(d2.features)&&d2.features.length)map.parcel(d2.features[0].geometry);}catch{}}
     } catch (error) {
       if(disposed||current!==detailVersion)return;
       console.warn('listing detail failed', error);
