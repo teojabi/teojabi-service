@@ -420,7 +420,6 @@ export function buildCombinedResult(filters, listingSearch, auctionData, onbidDa
   let reply;
   if (lines.length) {
     reply = `조건에 맞는 결과는 ${lines.join(', ')}이에요. 아래에서 확인해 보세요.`;
-    if (auctionTotal > 0 || onbidTotal > 0) reply += ' 법원경매정보·온비드 공시 기준이며, 권리분석·적정 입찰가는 제공하지 않아요.';
   } else {
     reply = base.reply;
   }
