@@ -668,11 +668,18 @@ export class NotificationsService {
     if (kind === 'land') naverCond.push(Prisma.sql`n."주용도코드명" = '토지'`);
     else if (kind === 'building') naverCond.push(Prisma.sql`coalesce(n."주용도코드명",'') <> '토지'`);
     if (zones.length) naverCond.push(Prisma.sql`(${Prisma.join(zones.map((z: string) => Prisma.sql`n."용도지역" ILIKE ${'%' + z.replace('지역', '') + '%'}`), ' OR ')})`);
+    // 저장 조건의 정렬을 알림 추천 순서에도 적용한다(평당가 낮은 순 등).
+    const sort = payload?.sort;
+    const naverOrder = sort === 'ppp' ? Prisma.sql`(n."거래가격" / NULLIF(n."대지면적", 0)) ASC NULLS LAST`
+      : sort === 'area' ? Prisma.sql`n."대지면적" DESC NULLS LAST`
+      : sort === 'price-desc' ? Prisma.sql`n."거래가격" DESC NULLS LAST`
+      : sort === 'price' ? Prisma.sql`n."거래가격" ASC NULLS LAST`
+      : Prisma.sql`n.first_seen_at DESC`;
     const naverRows = await this.prisma.$queryRaw<any[]>(Prisma.sql`
       SELECT n."매물번호" AS id, n."거래가격" AS price, n."대지면적" AS land, n."대지위치" AS address,
              n."구" AS district, n."동" AS dong, n."주용도코드명" AS use, n."용도지역" AS zone, n."도로폭_m" AS road
       FROM public.naver n WHERE ${Prisma.join(naverCond, ' AND ')}
-      ORDER BY n.first_seen_at DESC LIMIT 3`);
+      ORDER BY ${naverOrder} LIMIT 3`);
     for (const r of naverRows) out.push(this.listingAlert(r, 'naver', conditionName));
 
     if (out.length < 3) {
@@ -681,11 +688,16 @@ export class NotificationsService {
       if (budgetWon) discoCond.push(Prisma.sql`d.price_manwon <= ${budgetWon / 1e4}`);
       if (minArea) discoCond.push(Prisma.sql`d.land_area_m2 >= ${minArea}`);
       if (maxArea) discoCond.push(Prisma.sql`d.land_area_m2 <= ${maxArea}`);
+      const discoOrder = sort === 'ppp' ? Prisma.sql`(d.price_manwon / NULLIF(d.land_area_m2, 0)) ASC NULLS LAST`
+        : sort === 'area' ? Prisma.sql`d.land_area_m2 DESC NULLS LAST`
+        : sort === 'price-desc' ? Prisma.sql`d.price_manwon DESC NULLS LAST`
+        : sort === 'price' ? Prisma.sql`d.price_manwon ASC NULLS LAST`
+        : Prisma.sql`d.first_seen_at DESC`;
       const discoRows = await this.prisma.$queryRaw<any[]>(Prisma.sql`
         SELECT d.did AS id, d.price_manwon AS price_manwon, d.land_area_m2 AS land, d.address AS address,
                d.gu AS district, d.dong AS dong, d.main_use AS use, d.use_zone AS zone
         FROM public.disco_listing d WHERE ${Prisma.join(discoCond, ' AND ')}
-        ORDER BY d.first_seen_at DESC LIMIT ${3 - out.length}`);
+        ORDER BY ${discoOrder} LIMIT ${3 - out.length}`);
       for (const r of discoRows) out.push(this.listingAlert(r, 'disco', conditionName));
     }
     return out;
