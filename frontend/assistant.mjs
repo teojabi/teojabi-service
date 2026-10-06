@@ -142,7 +142,8 @@ function commercialDistrictMarkup(data, gu) {
   return `🏪 <b>${esc(gu)}</b>에서 최근 매출이 큰 상권이에요.${n ? `<br><small>그중 1위는 <b>${esc(n.name)}</b>${n.type ? ` (${esc(n.type)})` : ''}이에요.</small>` : ''}<div class="assistant-facts">${rank}</div>${cats ? `<p class="assistant-conditions">${esc(n.name)} 주요 업종 · ${cats}</p>` : ''}<small>서울시 상권분석서비스(추정매출) · 상권 합계 기준이에요.</small><div class="assistant-chiprow">${list.slice(0, 3).map(d => `<button type="button" class="assistant-chip" data-commercial-district="${esc(d.name)} 상권">🏪 ${esc(d.name)} 매물</button>`).join('')}</div>`;
 }
 
-// 실제 매물 조건(지역·예산·면적·용도지역·역·도로 등)이 있을 때만 검색 로딩을 띄운다.
+// 실제 매물 조건(지역·예산·면적·용도지역·역·도로·경공매 등)이 분명할 때만 검색 로딩을 띄운다.
+// "건물/토지/추천" 같은 일반 단어만으로는 검색 로딩을 띄우지 않는다(대화로 파악하는 경우가 많다).
 function needsSearch(message) {
   const t = String(message || '');
   return DISTRICTS.some(d => t.includes(d) || (d.endsWith('구') && d.length >= 3 && t.includes(d.slice(0, -1)))) ||
@@ -154,8 +155,7 @@ function needsSearch(message) {
     /도보\s*\d+\s*분/.test(t) ||
     /(?:[가-힣]{1,5}[0-9]가|[가-힣]{1,6}동)(?=[\s,.]|이|에|은|는|쪽|근처|$)/.test(t) ||
     /(?:골목상권|전통시장|발달상권|관광특구)/.test(t) ||
-    /(?:토지|땅|필지|건물|빌딩|상가|주택|근린|신축)/.test(t) ||
-    /(?:경매|공매|법원|온비드|상권|번화가|유동인구|매출)/.test(t);
+    /(?:경매|공매|법원|온비드)/.test(t);
 }
 
 function cardMarkup(listing, hidden = false) {
@@ -560,8 +560,10 @@ let conversation = [];
     if (message) addUser(message);
     // 새 검색을 시작하면 이전에 고른 매물 기준 질문 맥락은 끝난다.
     selectedListing = null;
-    // 실제 매물 조건을 말했을 때만 검색 로딩을 보여준다. 인사·사이트 질문은 바로 답한다.
-    const showScan = message ? needsSearch(message) : true;
+    // 실제 매물 조건이 분명하면 검색 로딩을, 아니면 짧은 '확인 중' 표시를 보여준다.
+    const isSearch = message ? needsSearch(message) : true;
+    const showScan = isSearch;
+    const thinking = Boolean(message) && !isSearch;
     // 메시지에 경·공매가 없어도 저장/편집 조건에 '경·공매 같이보기'가 켜져 있으면 경·공매 스텝을 함께 보여준다.
     const messageAuction = /경매|공매|법원|온비드/.test(String(message||''));
     const auctionIncluded = messageAuction || Boolean((editedFilters||{}).auction?.enabled) || Boolean(savedCondition()?.auction?.enabled);
@@ -580,6 +582,9 @@ let conversation = [];
         stepsEl.insertAdjacentHTML('beforeend', `<li>${esc(text)}</li>`); scroll();
         if (bar) bar.style.width = `${Math.round(((i + 1) / steps.length) * 92)}%`;
       }, 250 + i * interval));
+    } else if (thinking) {
+      // 검색이 아닌 대화·미지원 요청에는 검색 스텝 대신 짧은 '확인 중'만 보여준다.
+      scan = addBot(`<div class="assistant-scan"><span class="assistant-spinner"></span><b>AI가 확인하고 있어요…</b></div>`);
     }
     const condition = savedCondition();
     const payload = { message: message || '', condition, filters: editedFilters || undefined, history: conversation.slice(-8) };
@@ -591,6 +596,10 @@ let conversation = [];
         await new Promise(resolve => setTimeout(resolve, wait));
         if (bar) bar.style.width = '100%';
         timers.forEach(clearTimeout);
+        scan.remove();
+      } else if (thinking && scan) {
+        const wait = Math.max(0, 700 - (Date.now() - started));
+        await new Promise(resolve => setTimeout(resolve, wait));
         scan.remove();
       }
       lastFilters = { ...(data.filters || {}) };
