@@ -139,7 +139,7 @@ def source_from(has_disco, has_premium):
                       p.pnu::text AS pnu, ST_Y(p.location::geometry)::double precision AS lat, ST_X(p.location::geometry)::double precision AS lng,
                       'premium'::text AS source_kind, NULL::text AS source_url
                FROM public.property p
-               LEFT JOIN public.master_land m ON m.pnu = p.pnu
+               LEFT JOIN public.master_land m ON m.pnu = p.pnu::varchar
                LEFT JOIN public.property_building_facts f ON f.property_id = p.id
                WHERE p.location IS NOT NULL AND p.price IS NOT NULL AND p.price > 0''')
     return '(' + ' UNION ALL '.join(parts) + ')'
