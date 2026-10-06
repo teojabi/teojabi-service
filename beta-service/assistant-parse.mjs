@@ -29,7 +29,9 @@ export function ruleFilters(text) {
   // "이 주위 상권"처럼 지시어가 붙은 표현을 상권 이름으로 잘못 잡지 않는다.
   const genericCommercial = /여기|저기|거기|이곳|요기|주위|주변|근처|동네|이쪽|저쪽|(?:^|\s)이(?:\s|$)|(?:^|\s)그(?:\s|$)|(?:^|\s)저(?:\s|$)|(?:^|\s)어느(?:\s|$)|(?:^|\s)어떤(?:\s|$)|(?:^|\s)무슨(?:\s|$)/;
   const cname = t.match(/([가-힣A-Za-z0-9]{2,20}(?:\s*\d+번)?)\s*상권/);
-  if (cname && !COMMERCIAL_TYPES.some(type => cname[1].includes(type.replace('상권', ''))) && !genericCommercial.test(cname[1].trim()) && !DISTRICTS.includes(cname[1].trim())) {
+  // "상권이 좋은순", "조건에서 상권"처럼 정렬·일반명사가 상권명으로 잘못 잡히지 않게 막는다.
+  const commercialStop = /조건|순|추천|좋|나은|우선|정렬|비교|전체|매물|곳|중|상권|동네|여기|저기|거기/;
+  if (cname && !commercialStop.test(cname[1].trim()) && !COMMERCIAL_TYPES.some(type => cname[1].includes(type.replace('상권', ''))) && !genericCommercial.test(cname[1].trim()) && !DISTRICTS.includes(cname[1].trim())) {
     filters.commercialName = cname[1].trim();
   }
   // "상업지역", "특화구역" 같은 용도·구역 표현을 역 이름으로 잘못 잡지 않도록 제거한 뒤 역을 찾는다.
@@ -88,6 +90,11 @@ export function ruleFilters(text) {
     if (!auction.maxPriceWon && filters.budgetWon) auction.maxPriceWon = filters.budgetWon;
     filters.auction = auction;
   }
+  // 정렬 요청: 상권 좋은 순 / 역 가까운 순 / 가격 낮은 순 / 면적 넓은 순.
+  if (/상권\s*(?:이|가|은|는)?\s*(?:좋|괜찮|높|나은|순)/.test(t) || /좋은\s*상권|상권\s*좋은/.test(t)) filters.sort = 'commercial';
+  else if (/역\s*(?:이|가|은|는)?\s*(?:가까|근처)/.test(t) || /가까운\s*역|역\s*가까운|역세권\s*순/.test(t)) filters.sort = 'station';
+  else if (/(?:가격|값|매매가|저렴)\s*(?:이|가|은|는)?\s*(?:낮|싼|저렴|순)/.test(t) || /낮은\s*가격|싼\s*순|저렴한\s*순|가격\s*낮은/.test(t)) filters.sort = 'price';
+  else if (/(?:면적|대지|땅)\s*(?:이|가|은|는)?\s*(?:큰|넓)/.test(t) || /넓은\s*순|큰\s*순|면적\s*큰/.test(t)) filters.sort = 'area';
   return filters;
 }
 
@@ -176,7 +183,7 @@ export function siteFaqAnswer(text) {
 // Free-form text goes to Gemini only when the rule parser found nothing.
 export async function geminiFilters(message, key, condition) {
   if (!key) return null;
-  const schema = `{"districts":["자치구"],"neighborhood":"동이름(예: 성산동)","q":"키워드","budgetWon":숫자(원),"minAreaM2":숫자,"maxAreaM2":숫자,"kind":"land|building","zones":["주거지역|상업지역|공업지역|녹지지역"],"stationName":"역이름","maxDistanceM":숫자,"minRoadWidthM":숫자,"purpose":"new-build","commercialType":["골목상권|전통시장|발달상권|관광특구"],"commercialName":"상권이름","minCommercialSalesWon":숫자(원),"minCommercialPopulation":숫자,"commercialRadiusM":숫자}`;
+  const schema = `{"districts":["자치구"],"neighborhood":"동이름(예: 성산동)","q":"키워드","budgetWon":숫자(원),"minAreaM2":숫자,"maxAreaM2":숫자,"kind":"land|building","zones":["주거지역|상업지역|공업지역|녹지지역"],"stationName":"역이름","maxDistanceM":숫자,"minRoadWidthM":숫자,"purpose":"new-build","commercialType":["골목상권|전통시장|발달상권|관광특구"],"commercialName":"상권이름","minCommercialSalesWon":숫자(원),"minCommercialPopulation":숫자,"commercialRadiusM":숫자,"sort":"price|area|station|commercial(정렬: 가격낮은순·면적큰순·역가까운순·상권좋은순)"}`;
   const prompt = [
     '너는 터잡이(teojabi.com) 부동산 서비스의 안내 도우미다. 반드시 JSON 객체 하나만 출력한다(설명·인사말·코드블록 금지).',
     '하는 일은 두 가지뿐이다: (1) 매물 검색 조건 추출, (2) 터잡이 서비스 사용법·기능 안내.',
@@ -240,6 +247,7 @@ export function sanitize(raw) {
     else if (raw.kind.includes('building')) out.kind = 'building';
   }
   if (raw.purpose === 'new-build') out.purpose = 'new-build';
+  if (['price', 'area', 'station', 'commercial'].includes(raw.sort)) out.sort = raw.sort;
   // 경매·공매 물건 조건(매물과 분리된 하위 객체).
   const auctionSource = raw.auction && typeof raw.auction === 'object' && !Array.isArray(raw.auction) ? raw.auction : raw.auction === true ? { enabled: true } : null;
   if (auctionSource && auctionSource.enabled === true) {
@@ -481,6 +489,8 @@ export function chipList(filters) {
   if (filters.minCommercialSalesWon) chips.push({ key: 'minCommercialSalesWon', value: filters.minCommercialSalesWon, label: `상권 월매출 ${(filters.minCommercialSalesWon / 1e8).toLocaleString('ko-KR')}억 이상`, kind: 'value' });
   if (filters.minCommercialPopulation) chips.push({ key: 'minCommercialPopulation', value: filters.minCommercialPopulation, label: `상권 유동 ${Math.round(filters.minCommercialPopulation / 10000).toLocaleString('ko-KR')}만 이상`, kind: 'value' });
   if (filters.commercialRadiusM) chips.push({ key: 'commercialRadiusM', value: filters.commercialRadiusM, label: `상권 반경 ${filters.commercialRadiusM}m`, kind: 'value' });
+  const SORT_LABEL = { commercial: '상권 좋은 순', station: '역 가까운 순', price: '가격 낮은 순', area: '면적 넓은 순' };
+  if (filters.sort && SORT_LABEL[filters.sort]) chips.push({ key: 'sort', value: filters.sort, label: SORT_LABEL[filters.sort], kind: 'value' });
   return chips;
 }
 
@@ -572,31 +582,37 @@ export async function parseAssistant(message, condition, geminiKey, editedFilter
   let unsupported = null;
   let reply = null;
   let source = Object.keys(spoken).length ? 'spoken' : Object.keys(saved).length ? 'saved' : 'none';
-  const strongKeys = ['auction', 'districts', 'neighborhood', 'budgetWon', 'minAreaM2', 'maxAreaM2', 'zones', 'stationName', 'maxDistanceM', 'minRoadWidthM', 'commercialName', 'commercialCode', 'commercialType', 'minCommercialSalesWon', 'minCommercialPopulation'];
+  const strongKeys = ['auction', 'districts', 'neighborhood', 'budgetWon', 'minAreaM2', 'maxAreaM2', 'zones', 'stationName', 'maxDistanceM', 'minRoadWidthM', 'commercialName', 'commercialCode', 'commercialType', 'minCommercialSalesWon', 'minCommercialPopulation', 'sort'];
   const hasStrong = strongKeys.some(key => { const value = spoken[key]; return Array.isArray(value) ? value.length > 0 : value !== undefined && value !== null && value !== ''; });
   const conversational = /안녕|반갑|반가|잘\s*부탁|고마|감사|수고|하이|헬로|hello|\bhi\b/i.test(String(message || ''));
   const bare = !hasMeaningfulFilters(spoken);
-  if (!hasStrong) {
-    // 인사·감사는 검색 없이 바로 답한다.
-    if (conversational && bare) {
-      return { filters: {}, unsupported: null, source: 'chat', conflicts: [], reply: '안녕하세요! 터잡이 AI 부동산 비서예요. 터잡이 이용 방법이 궁금하면 물어봐 주세요. 원하시는 지역·예산·면적·용도지역을 알려주시면 매물을 찾아드릴게요.' };
+  // 규칙이 강한 조건을 못 잡아도, 추천·정렬 같은 소프트한 요청이면 Gemini가 한 번 더 해석한다.
+  const softIntent = /추천|골라|골라줘|줄래|줄수|괜찮|어때|나은|비교|우선|정렬|좋은\s*순|순으로|낮은\s*순|큰\s*순|가까운\s*순|좋은\s*상권/.test(String(message || ''));
+  if (!hasStrong || softIntent) {
+    if (!hasStrong) {
+      // 인사·감사는 검색 없이 바로 답한다.
+      if (conversational && bare) {
+        return { filters: {}, unsupported: null, source: 'chat', conflicts: [], reply: '안녕하세요! 터잡이 AI 부동산 비서예요. 터잡이 이용 방법이 궁금하면 물어봐 주세요. 원하시는 지역·예산·면적·용도지역을 알려주시면 매물을 찾아드릴게요.' };
+      }
+      // 매물 맥락 없이 "이 주위 상권"을 물으면 검색하지 않고 어느 매물 기준인지 안내한다.
+      if (bare && isRelativeQuestion(message)) {
+        return { filters: {}, unsupported: null, source: 'prompt', conflicts: [], reply: '어느 매물이나 지역 기준인지 알려주시면 주변 상권·실거래를 찾아드릴게요. 매물 카드에서 "이 매물 물어보기"를 누른 뒤 "이 주위 상권 알려줘"라고 물어보시면 바로 확인할 수 있어요.' };
+      }
+      // 사이트 사용법·기능 같은 간단한 질문은 모델 없이 바로 답한다.
+      if (bare) {
+        const faq = siteFaqAnswer(message);
+        if (faq) return { filters: {}, unsupported: null, source: 'faq', conflicts: [], reply: faq };
+      }
     }
-    // 매물 맥락 없이 "이 주위 상권"을 물으면 검색하지 않고 어느 매물 기준인지 안내한다.
-    if (bare && isRelativeQuestion(message)) {
-      return { filters: {}, unsupported: null, source: 'prompt', conflicts: [], reply: '어느 매물이나 지역 기준인지 알려주시면 주변 상권·실거래를 찾아드릴게요. 매물 카드에서 "이 매물 물어보기"를 누른 뒤 "이 주위 상권 알려줘"라고 물어보시면 바로 확인할 수 있어요.' };
-    }
-    // 사이트 사용법·기능 같은 간단한 질문은 모델 없이 바로 답한다.
-    if (bare) {
-      const faq = siteFaqAnswer(message);
-      if (faq) return { filters: {}, unsupported: null, source: 'faq', conflicts: [], reply: faq };
-    }
-    // 그 외 자유 문장만 Gemini가 매물 검색인지 대화인지 판단한다.
+    // 자유 문장은 Gemini가 해석한다. 규칙이 뽑은 조건을 우선하고 Gemini가 보완한다(정렬 등).
     const gem = await geminiFilters(message, geminiKey, condition);
     if (gem && hasMeaningfulFilters(gem.filters)) {
-      merged = mergeFilters({ ...spoken, ...gem.filters }, saved); source = 'gemini';
-    } else if (gem) {
+      merged = mergeFilters({ ...gem.filters, ...spoken }, saved);
+      if (!merged.sort && gem.filters.sort) merged.sort = gem.filters.sort;
+      source = 'gemini';
+    } else if (gem && !hasStrong) {
       merged = {}; unsupported = gem.unsupported; reply = gem.reply; source = 'none';
-    } else {
+    } else if (!hasStrong) {
       // Gemini를 쓸 수 없으면 규칙 결과로 최선을 다한다.
       merged = mergeFilters(spoken, saved);
     }
