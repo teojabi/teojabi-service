@@ -479,6 +479,19 @@ def search(conn, filters):
         if filters.get('preferTourism'):
             # 관광숙박특화구역에 포함·걸친 매물을 먼저 보여준다. 조건이 아니라 정렬 우선순위다.
             order = tourism_rank_sql() + ', ' + order
+        # 정렬 요청(가격·면적·역거리·상권). 상권 정렬은 가장 가까운 상권의 최신 월매출 기준.
+        sort = clean(filters.get('sort'), 20)
+        sort_from = ''
+        if sort == 'price':
+            order = 'n."거래가격" ASC NULLS LAST, ' + order
+        elif sort == 'area':
+            order = 'n."대지면적" DESC NULLS LAST, ' + order
+        elif sort == 'station' and station:
+            order = 'requested_dist_m ASC NULLS LAST, ' + order
+        elif sort == 'commercial':
+            sort_from = (' CROSS JOIN LATERAL (SELECT 최신월매출 AS sales FROM public.commercial_districts c3 '
+                         'WHERE c3.geom IS NOT NULL ORDER BY c3.geom <-> ST_SetSRID(ST_MakePoint(n.lng,n.lat),4326) LIMIT 1) cs')
+            order = 'cs.sales DESC NULLS LAST, ' + order
         # SQL 파라미터 순서는 SELECT(요청 역 거리) → WHERE → LIMIT 이다.
         query_params = station_distance_params(station) + params + [limit]
         row_sql = '''WITH q AS MATERIALIZED (
@@ -486,7 +499,7 @@ def search(conn, filters):
                                 n."구", n."동", n."주용도코드명", n."용도지역", n."매물특징", n."도로폭_m",
                                 n."사용승인일자", n."용적률", n.pnu, n.lat, n.lng, n.source_kind, n.source_url,
                                 ''' + origin + ''' AS origin, ''' + pick_no + ''' AS teojabi_no''' + select_point + '''
-                         FROM ''' + source + ''' n ''' + join + '''
+                         FROM ''' + source + ''' n ''' + join + sort_from + '''
                          WHERE ''' + where_sql + '''
                          ORDER BY ''' + order + '''
                          LIMIT %s
