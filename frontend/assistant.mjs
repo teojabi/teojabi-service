@@ -254,6 +254,7 @@ export function mountAssistant({ onResults, onAnalyze } = {}) {
   const form = panel.querySelector('.assistant-form');
   let busy = false;
   let lastFilters = null;
+let conversation = [];
   let selectedListing = null;
   const scroll = () => { log.scrollTop = log.scrollHeight; };
   // 결과처럼 긴 메시지는 그 메시지의 맨 위부터 보이게 하고, 짧은 대화는 맨 아래로 내린다.
@@ -439,8 +440,15 @@ export function mountAssistant({ onResults, onAnalyze } = {}) {
     if (groups.length || data.chips?.length) chips.push(`<button type="button" class="assistant-chip" data-editor="1">조건 바꾸기</button>`);
     if (data.conditionNote) chips.push(`<button type="button" class="assistant-chip" data-condition="1">저장 조건으로 찾기</button>`);
     if (chips.length) reply += `<div class="assistant-chiprow">${chips.join('')}</div>`;
+    // 어떤 검색 결과든 '조건으로 저장'으로 유도해, 계속 찾아주기·알림으로 이어지게 한다.
+    if (groups.length) reply += `<p class="assistant-note assistant-save-note">이 결과는 <b>지금 한 번</b> 찾아드린 거예요. <b>내 조건</b>으로 저장하면 조건에 맞는 새 매물을 계속 찾아드리고, 임박 알림도 받을 수 있어요.</p><div class="assistant-chiprow"><button type="button" class="assistant-chip assistant-chip-primary" data-save-condition="1">이 조건 저장</button></div>`;
     reply += `<div class="assistant-editor-slot" hidden></div>`;
     const bubble = addResultBot(reply);
+    bubble.querySelector('[data-save-condition]')?.addEventListener('click', event => {
+      event.currentTarget.disabled = true;
+      window.dispatchEvent(new CustomEvent('teojabi-save-condition', { detail: { payload: { ...(lastFilters || {}) } } }));
+      addBot('조건을 저장했어요. 이제 조건에 맞는 새 매물을 계속 찾아드려요. <b>내 보관함 &gt; 알림 설정</b>에서 이메일 알림을 켜면 임박 알림도 받을 수 있어요.');
+    });
 
     if (groups.length) {
       bubble.querySelector('[data-map]')?.addEventListener('click', () => onResults?.(data));
@@ -574,7 +582,7 @@ export function mountAssistant({ onResults, onAnalyze } = {}) {
       }, 250 + i * interval));
     }
     const condition = savedCondition();
-    const payload = { message: message || '', condition, filters: editedFilters || undefined };
+    const payload = { message: message || '', condition, filters: editedFilters || undefined, history: conversation.slice(-8) };
     try {
       const response = await apiFetch('/api/assistant', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload), signal: AbortSignal.timeout(75000) });
       const data = await response.json();
@@ -587,6 +595,10 @@ export function mountAssistant({ onResults, onAnalyze } = {}) {
       }
       lastFilters = { ...(data.filters || {}) };
       logSearchIntent(message, data.filters || editedFilters || {});
+      // 대화 맥락을 쌓아 다음 턴이 이어지게 한다.
+      if (message) conversation.push({ role: 'user', text: String(message).slice(0, 300) });
+      if (data.reply) conversation.push({ role: 'assistant', text: String(data.reply).slice(0, 400) });
+      if (conversation.length > 16) conversation = conversation.slice(-16);
       // 편집기는 자동으로 펼치지 않는다. '조건 바꾸기'를 눌렀을 때만 연다.
       renderResult(null, data);
     } catch (error) {

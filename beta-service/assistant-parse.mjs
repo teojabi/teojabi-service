@@ -181,23 +181,25 @@ export function siteFaqAnswer(text) {
 }
 
 // Free-form text goes to Gemini only when the rule parser found nothing.
-export async function geminiFilters(message, key, condition) {
+export async function geminiFilters(message, key, condition, history) {
   if (!key) return null;
   const schema = `{"districts":["자치구"],"neighborhood":"동이름(예: 성산동)","q":"키워드","budgetWon":숫자(원),"minAreaM2":숫자,"maxAreaM2":숫자,"kind":"land|building","zones":["주거지역|상업지역|공업지역|녹지지역"],"stationName":"역이름","maxDistanceM":숫자,"minRoadWidthM":숫자,"purpose":"new-build","commercialType":["골목상권|전통시장|발달상권|관광특구"],"commercialName":"상권이름","minCommercialSalesWon":숫자(원),"minCommercialPopulation":숫자,"commercialRadiusM":숫자,"sort":"price|area|station|commercial(정렬: 가격낮은순·면적큰순·역가까운순·상권좋은순)"}`;
   const prompt = [
-    '너는 터잡이(teojabi.com) 부동산 서비스의 안내 도우미다. 반드시 JSON 객체 하나만 출력한다(설명·인사말·코드블록 금지).',
-    '하는 일은 두 가지뿐이다: (1) 매물 검색 조건 추출, (2) 터잡이 서비스 사용법·기능 안내.',
-    '매물 검색이면 filters에 조건만 넣는다. 값이 없는 항목은 넣지 않는다. 도보 N분은 maxDistanceM = N*80(미터), N미터는 그대로. 가격 "N억"은 원 단위로 바꾼다(예: 30억 → 3000000000). 평은 그대로 넣지 말고 ㎡로 환산한다(1평=3.305785㎡).',
-    '동 이름(예: 성산동, 종로5가)은 neighborhood에 넣는다. 구와 동을 함께 말하면(예: "마포구 성산동") districts와 neighborhood 모두 넣는다.',
-    '상권 조건(골목상권·전통시장·발달상권·관광특구, 상권 월매출, 상권 유동인구, 상권 이름)은 commercialType·minCommercialSalesWon·minCommercialPopulation·commercialName 으로 넣는다. 매출 "5억 이상"은 minCommercialSalesWon=500000000, 유동인구 "30만 이상"은 minCommercialPopulation=300000 이다.',
-    '터잡이 서비스 사용법·기능 질문이면 filters를 비우고 reply에 아래 [서비스 안내] 내용만 근거로 2~3문장으로 친절히 답한다. 안내에 없는 내용은 지어내지 말고 "정확한 내용은 터잡이 상담으로 확인해 주세요"라고 답한다.',
-    '간단한 인사·감사·안부는 reply로 한두 문장 친근하게 답하고, 이어서 원하는 매물 조건이나 궁금한 점을 물어보게 안내한다.',
-    '그 외 요청(외부 정보·인터넷 검색, 일반 상식·잡담, 시세 전망, 투자·법률·세무 조언, 다른 서비스)은 filters를 비우고 reply에 "터잡이 매물 찾기와 서비스 안내만 도와드릴 수 있어요. 원하는 조건을 알려주시면 매물을 찾아드릴게요."라고 답한다.',
-    'reply는 한국어 300자 이내, 확정적 투자·법률 조언 금지. 매물 검색으로 표현할 수 없는 요청은 filters를 비우고 "unsupported"에 이유를 적는다.',
-    `스키마: {"filters":{...},"unsupported":"이유","reply":"답변"}  (filters 스키마: ${schema})`,
-    '[서비스 안내]',
+    '너는 터잡이(teojabi.com) 부동산 서비스의 똑똑하고 친근한 AI 비서다. 반드시 JSON 객체 하나만 출력한다(설명·코드블록 금지).',
+    '가장 중요한 역할: 사용자가 진짜 원하는 게 뭔지 대화로 파악한다. 애매하면 조건을 지어내지 말고 되물어본다(예: 목적, 지역, 예산, 면적, 용도).',
+    '매물 검색 조건이 분명하면 filters에 조건만 넣는다(값 없는 항목 생략). 도보 N분은 maxDistanceM = N*80(미터), "N억"은 원 단위(예: 30억 → 3000000000), 평은 ㎡로 환산(1평=3.305785㎡).',
+    '동 이름(예: 성산동, 종로5가)은 neighborhood, 구와 동을 함께 말하면 districts와 neighborhood 모두. 상권 조건은 commercialType·minCommercialSalesWon·minCommercialPopulation·commercialName. 정렬은 sort=price|area|station|commercial.',
+    '터잡이·부동산·상권 관련 질문은 대화 맥락(이전 대화)을 살려 자연스럽게 설명한다. "그거", "니가 골라준", "방금" 같은 지시어는 이전 대화에 비춰 해석한다.',
+    '[터잡이 지식]',
+    '- 정렬: 상권 좋은 순 = 가장 가까운 상권의 최신 월 추정매출이 높은 순, 역 가까운 순 = 가장 가까운 지하철역 직선거리 순, 가격 낮은 순, 면적 넓은 순.',
+    '- 상권 = 사람들이 모여 장사하는 범위. 서울시 상권분석서비스로 골목상권·발달상권·전통시장·관광특구를 구분하고 월 추정매출·유동인구를 제공.',
     FAQ_CONTEXT,
+    '어떤 대화든 자연스럽게 "원하는 조건을 알려주시면 내 조건으로 저장해 계속 찾아드리고, 알림도 받을 수 있어요"라고 조건 설정으로 부드럽게 유도한다.',
+    '아직 지원하지 않는 조건(예: 건물 간 이격거리, 특정 브랜드 등)은 "그 기능은 아직 없어요"라고 솔직히 말하고, 대신 지금 설정할 수 있는 관련 조건(예: 인접 도로폭 minRoadWidthM, 대지면적, 용도지역, 역까지 거리, 상권, 교육·문화재 제외, 경매·공매)을 구체적으로 제안하며 조건 설정으로 유도한다.',
+    '확정적 투자·법률·세무 조언은 하지 않는다(필요하면 "터잡이 상담" 권유). reply는 한국어, 최대 4문장. 매물 검색으로 표현할 수 없는 요청은 filters를 비우고 reply로 친절히 답한다.',
+    `스키마: {"filters":{...},"unsupported":"이유","reply":"답변"}  (filters 스키마: ${schema})`,
     condition ? `회원 저장 조건(참고용, 사용자가 말한 조건과 충돌하면 무시): ${JSON.stringify(condition)}` : '',
+    Array.isArray(history) && history.length ? `이전 대화:\n${history.map(h => `${h.role === 'user' ? '사용자' : '비서'}: ${String(h.text || '').slice(0, 200)}`).join('\n')}` : '',
     `사용자 문장: ${String(message).slice(0, 400)}`,
   ].filter(Boolean).join('\n');
   try {
@@ -568,7 +570,7 @@ export function buildResult(filters, search, unsupported) {
   };
 }
 
-export async function parseAssistant(message, condition, geminiKey, editedFilters) {
+export async function parseAssistant(message, condition, geminiKey, editedFilters, history) {
   // Edited filters (from the in-window condition editor) skip parsing entirely.
   if (editedFilters && typeof editedFilters === 'object' && hasMeaningfulFilters(editedFilters)) {
     const filters = sanitize(editedFilters); filters.limit = 60;
@@ -588,7 +590,8 @@ export async function parseAssistant(message, condition, geminiKey, editedFilter
   // 규칙이 강한 조건을 못 잡아도, 추천·정렬 같은 소프트한 요청이면 Gemini가 한 번 더 해석한다.
   const softIntent = /추천|골라|골라줘|줄래|줄수|괜찮|어때|나은|비교|우선|정렬|좋은\s*순|순으로|낮은\s*순|큰\s*순|가까운\s*순|좋은\s*상권/.test(String(message || ''));
   if (!hasStrong || softIntent) {
-    if (!hasStrong) {
+    const hasHistory = Array.isArray(history) && history.length > 0;
+    if (!hasStrong && !hasHistory) {
       // 인사·감사는 검색 없이 바로 답한다.
       if (conversational && bare) {
         return { filters: {}, unsupported: null, source: 'chat', conflicts: [], reply: '안녕하세요! 터잡이 AI 부동산 비서예요. 터잡이 이용 방법이 궁금하면 물어봐 주세요. 원하시는 지역·예산·면적·용도지역을 알려주시면 매물을 찾아드릴게요.' };
@@ -603,8 +606,8 @@ export async function parseAssistant(message, condition, geminiKey, editedFilter
         if (faq) return { filters: {}, unsupported: null, source: 'faq', conflicts: [], reply: faq };
       }
     }
-    // 자유 문장은 Gemini가 해석한다. 규칙이 뽑은 조건을 우선하고 Gemini가 보완한다(정렬 등).
-    const gem = await geminiFilters(message, geminiKey, condition);
+    // 자유 문장은 Gemini가 대화 맥락과 함께 해석한다. 규칙이 뽑은 조건을 우선하고 Gemini가 보완한다.
+    const gem = await geminiFilters(message, geminiKey, condition, history);
     if (gem && hasMeaningfulFilters(gem.filters)) {
       merged = mergeFilters({ ...gem.filters, ...spoken }, saved);
       if (!merged.sort && gem.filters.sort) merged.sort = gem.filters.sort;

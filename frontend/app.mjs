@@ -141,6 +141,13 @@ window.addEventListener('teojabi-open-favorites',()=>{
   history.replaceState(null,'',location.pathname+'#favorites');
   render();
 });
+// AI 비서에서 찾은 조건을 '내 조건'으로 저장한다(계속 찾기·알림 대상).
+window.addEventListener('teojabi-save-condition',event=>{
+  const p=event.detail&&event.detail.payload;
+  if(!p||!Object.keys(p).length)return;
+  state.applied={...p,areaUnit:'m2',minArea:p.minAreaM2==null?'':String(p.minAreaM2),maxArea:p.maxAreaM2==null?'':String(p.maxAreaM2)};
+  rememberSearch(state.applied);
+});
 let enteredMember=null;
 let completedThisVisit=false;
 function rememberSearch(next){
