@@ -389,6 +389,11 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
   $('.map-controls').insertAdjacentHTML('beforeend','<button class="outline return-detail" data-explore="return-detail">매물 상세로 돌아가기</button>');
   $('.explore-toolbar').insertAdjacentHTML('afterend','<div class="discovery-actions"><button class="outline" data-explore="compare-open" disabled>비교할 매물을 골라주세요 (최대 3개)</button><button class="outline" data-explore="compare-clear" hidden>비교 선택 지우기</button><button class="outline" data-explore="pins" aria-pressed="true">지도 매물 표시</button><span class="discovery-notice" role="status"></span></div><div class="search-suggestions" aria-live="polite"></div>');
   if(picksOnlyMode)$('[data-explore="all-picks"]').setAttribute('aria-pressed','true');
+  // 비회원이 조건을 만들고 결과를 보기 전에 가입을 안내한다(조건 저장·알림 대상).
+  if(member.status!=='ready'&&!picksOnlyMode){
+    $('.explore-toolbar').insertAdjacentHTML('beforebegin','<div class="guest-alert-prompt" id="guest-alert-prompt"><div><b>가입하면 이 조건으로 계속 찾아드려요</b><span>조건에 맞는 새 매물과 임박 알림을 알림함·이메일로 받을 수 있어요. 지금 만든 조건은 가입하면 그대로 이어져요.</span></div><button type="button" class="primary" data-explore="guest-signup">3초 간편가입</button></div>');
+  }
+  member.addEventListener('change',()=>{const el=$('#guest-alert-prompt');if(el&&member.status==='ready')el.remove();},{signal:abort.signal});
   function drawCompare(){const n=compared.size,b=$('[data-explore=compare-open]');b.disabled=n<2;b.textContent=n?`선택 ${n}개 비교하기`:'비교할 매물을 골라주세요 (최대 3개)';$('[data-explore=compare-clear]').hidden=!n;}
   function applySourceUi(){
     const simpleMode=source==='favorites'||source==='assistant';
@@ -1244,6 +1249,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
         try{await navigator.clipboard.writeText(`터잡이 경매 물건\n${detail.listing.address}\n사건번호 ${detail.listing.auction?.caseNo||''}\n감정가 ${money(detail.listing.auction?.appraisedWon)} · 최저매각가 ${money(detail.listing.auction?.minPrice)}\n매각기일 ${detail.listing.auction?.saleDate||''}`);button.textContent='물건 정보 복사됨';}catch{button.textContent='주소와 가격을 선택해 복사해 주세요.';}break;
       case 'back-conditions':setSource('conditions');break;
       case 'edit':onEdit?.();break;
+    case 'guest-signup':openLogin();break;
       case 'detail':{
         // 지도에서 이미 그룹으로 선택된 물건이면(일괄 등) 대표와 객체가 달라도 같은 그룹으로 인식되도록 id를 맞춘다.
         let detailId=button.dataset.id;

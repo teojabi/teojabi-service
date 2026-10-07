@@ -988,6 +988,11 @@ body.architect-lightbox-open{overflow:hidden}
 .member-alerts-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px}
 .member-alerts-head .member-section-title{margin:0}
 .member-alerts-head .outline{min-height:34px;padding:6px 12px;font-size:12px}
+.guest-alert-prompt{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;margin:12px 0 4px;padding:14px 16px;border:1px solid var(--primary);background:var(--selected);border-radius:12px}
+.guest-alert-prompt b{display:block;font-size:14px;color:var(--text)}
+.guest-alert-prompt span{display:block;font-size:12px;color:var(--muted);margin-top:3px}
+.guest-alert-prompt .primary{white-space:nowrap}
+@media(max-width:700px){.guest-alert-prompt{align-items:flex-start;flex-direction:column}.guest-alert-prompt .primary{width:100%}}
 /* 지도 오른쪽 상단 세로 버튼(실거래·지적도·상권) */
 .map-controls-right{position:absolute;top:16px;right:16px;display:flex;flex-direction:column;align-items:flex-end;gap:7px;z-index:3}
 .map-controls-right .outline{box-shadow:0 3px 10px var(--shadow);font-size:12px}
