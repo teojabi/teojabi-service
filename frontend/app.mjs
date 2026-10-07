@@ -1,6 +1,6 @@
 import { apiFetch } from './api-client.mjs';
 import {resumeSignup} from './signup.mjs';
-import { member,openMember,openLogin,previewMember } from './member.mjs';
+import { member,openMember,openLogin,previewMember,promptEmailIfMissing } from './member.mjs';
 import { ASSISTANT_ROBOT } from './assistant-icon.mjs';
 import { createSiteDraft } from './site-inputs.mjs';
 import { DISTRICTS, toWon } from './policy.mjs';
@@ -162,6 +162,8 @@ function updateMemberButton(){
 member.addEventListener('change',()=>{
   updateMemberButton();
   scheduleNotificationBadge();
+  // 이메일이 없으면 알림을 못 받으니, 로그인 후 한 번 이메일 등록을 안내한다.
+  promptEmailIfMissing();
   if(member.status!=='ready'||!member.user?.id||enteredMember===member.user.id)return;
   enteredMember=member.user.id;
   if(completedThisVisit&&state.applied){rememberSearch(state.applied);return;}

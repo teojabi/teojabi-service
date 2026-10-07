@@ -314,6 +314,26 @@ export function openMember(mode='member'){
   if(member.status==='ready'){Promise.all([member.request('/notifications').catch(()=>null),member.request('/notifications/preferences').catch(()=>null)]).then(([inbox,prefs])=>{if(!dialog.open)return;if(Array.isArray(inbox?.items))memberAlerts=inbox.items;if(inbox?.conditionAlertCounts&&typeof inbox.conditionAlertCounts==='object')memberConditionAlertCounts=inbox.conditionAlertCounts;if(prefs&&typeof prefs==='object')memberPrefs=prefs;render();});}
   if(member.status==='idle')member.refresh();return close;
 }
+export function promptEmailIfMissing(){
+  if(member.status!=='ready'||member.base==='preview')return;
+  if(String(member.user?.email||'').trim())return;
+  // 로그인 후 세션당 한 번만 묻는다(성가시지 않게).
+  try{if(sessionStorage.getItem('teojabi.emailPrompted')==='1')return;sessionStorage.setItem('teojabi.emailPrompted','1');}catch{}
+  const before=document.activeElement,d=document.createElement('dialog');
+  d.className='save-dialog';d.setAttribute('aria-labelledby','email-prompt-title');
+  d.innerHTML=`<form><h2 id="email-prompt-title">이메일을 등록해 주세요</h2><p class="case-note">조건에 맞는 <b>새 매물</b>과 임박한 경매·공매 알림을 <b>이메일로</b> 받으려면 이메일 주소가 필요해요.</p><label for="email-prompt-input">이메일</label><input id="email-prompt-input" name="email" type="email" maxlength="120" autocomplete="email" placeholder="you@example.com" required><p class="case-note">알림은 내 보관함 &gt; 알림 설정에서 언제든 끌 수 있어요.</p><p class="validation" role="alert"></p><div><button class="outline" type="button" data-cancel>나중에</button><button class="primary" type="submit">저장</button></div></form>`;
+  d.addEventListener('close',()=>{d.remove();before?.focus?.();});
+  d.querySelector('[data-cancel]').onclick=()=>d.close();
+  d.querySelector('form').onsubmit=async e=>{
+    e.preventDefault();
+    const email=d.querySelector('input[name=email]').value.trim(),msg=d.querySelector('.validation'),btn=d.querySelector('[type=submit]');
+    if(!email){msg.textContent='이메일을 입력해 주세요.';return;}
+    btn.disabled=true;msg.textContent='저장하고 있어요.';
+    try{const updated=await member.request('/users/me',{method:'PATCH',body:JSON.stringify({email})});member.user={...(member.user||{}),...(updated||{}),email};d.close();}
+    catch(error){msg.textContent=error.message||'저장하지 못했어요.';btn.disabled=false;}
+  };
+  document.body.append(d);d.showModal();
+}
 export async function saveNamed(kind,payload){
   if(member.status!=='ready'){openMember();return false;}
   return new Promise(resolve=>{
