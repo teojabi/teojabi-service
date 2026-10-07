@@ -477,8 +477,14 @@ export class NotificationsService {
       }
     }
 
+    // 같은 키(경매·공매는 조건·찜 공통)와, 매물은 같은 주소가 여러 조건에 걸려도 하나만 남긴다.
     const dedup = new Map<string, Alert>();
-    for (const item of items) if (item.key && !dedup.has(item.key)) dedup.set(item.key, item);
+    for (const item of items) {
+      if (!item.key) continue;
+      const addr = String(item.title || '').replace(/\s+/g, '');
+      const dedupKey = item.type === 'listing' && addr ? `addr:${addr}` : item.key;
+      if (!dedup.has(dedupKey)) dedup.set(dedupKey, item);
+    }
     return [...dedup.values()];
   }
 
