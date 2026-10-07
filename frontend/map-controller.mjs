@@ -149,13 +149,15 @@ export function transactionLabelOffsets(points,occupied,width,height) {
     boxes.push(best.box);return best.offset;
   });
 }
+const haversineMeters=(a,b)=>{const R=6371000,rad=x=>x*Math.PI/180;const dLat=rad(b.lat-a.lat),dLng=rad(b.lng-a.lng);const s=Math.sin(dLat/2)**2+Math.cos(rad(a.lat))*Math.cos(rad(b.lat))*Math.sin(dLng/2)**2;return 2*R*Math.asin(Math.min(1,Math.sqrt(s)));};
 export class ListingMap {
-  constructor(container,{onSelect,onTransaction,onCommercial,onMapClick,onMove,onStatus,center,zoom,areaUnit='m2'}={}) {
+  constructor(container,{onSelect,onTransaction,onCommercial,onMapClick,onMove,onStatus,onMeasure,center,zoom,areaUnit='m2'}={}) {
     this.areaUnit=areaUnit==='pyeong'?'pyeong':'m2';
-    this.container=container;this.onSelect=onSelect;this.onMove=onMove;this.onStatus=onStatus;this.onMapClick=onMapClick;
+    this.container=container;this.onSelect=onSelect;this.onMove=onMove;this.onStatus=onStatus;this.onMapClick=onMapClick;this.onMeasure=onMeasure;
     this.onTransaction=onTransaction;this.onCommercial=onCommercial;this.transactionMarkers=[];this.transactions=[];this.transactionsVisible=true;
     this.commercialMarkers=[];this.commercialAreas=[];this.commercialVisible=false;
     this.center=center;this.zoom=zoom;this.markers=[];this.listeners=[];this.dead=false;this.selected=null;
+    this.satellite=false;this.measuring=false;this.measurePath=[];this.measureLine=null;this.measureMarkers=[];
     this.onAuthFailure=event=>{this.ready=false;this.onStatus?.('error',event.detail);};
     window.addEventListener('teojabi-map-auth-error',this.onAuthFailure);
   }
@@ -169,7 +171,7 @@ export class ListingMap {
       if(authError)throw new Error(authError);
       this.ready=true;
       this.listeners.push(n.Event.addListener(this.map,'idle',()=>{this.layoutTransactions();if(this.commercialVisible)this.renderCommercialMarkers();this.onMove?.(this.view());}));
-      this.listeners.push(n.Event.addListener(this.map,'click',e=>this.onMapClick?.(e&&e.coord?{lat:e.coord.lat(),lng:e.coord.lng()}:null)));
+      this.listeners.push(n.Event.addListener(this.map,'click',e=>{const c=e&&e.coord?{lat:e.coord.lat(),lng:e.coord.lng()}:null;if(this.measuring){this.addMeasurePoint(c);return;}this.onMapClick?.(c);}));
       this.map.data.setStyle({fillColor:'#93c5fd',fillOpacity:.35,strokeColor:'#2563eb',strokeWeight:3});
       this.resizeObserver=new ResizeObserver(()=>{if(this.ready && !this.dead && this.container.clientWidth)n.Event.trigger(this.map,'resize');});
       this.resizeObserver.observe(this.container);
@@ -375,6 +377,11 @@ export class ListingMap {
     if(!this.fitTransactions())this.map.fitBounds(bounds,{top:110,right:90,bottom:90,left:90});
   }
   resetView() {if(!this.fitTransactions())this.setGroups(this.groups||[],this.selected,true);}
+  toggleSatellite(){ if(!this.ready)return false; this.satellite=!this.satellite; this.map.setMapTypeId(this.satellite?this.n.MapTypeId.HYBRID:this.n.MapTypeId.NORMAL); return this.satellite; }
+  toggleMeasure(){ if(!this.ready)return false; this.measuring=!this.measuring; if(!this.measuring)this.clearMeasure(); return this.measuring; }
+  clearMeasure(){ if(this.measureLine){this.measureLine.setMap(null);this.measureLine=null;} for(const m of this.measureMarkers)m.setMap(null); this.measureMarkers=[]; this.measurePath=[]; this.onMeasure?.(0); }
+  addMeasurePoint(coord){ if(!coord||!this.ready)return; this.measurePath.push(coord); const p=new this.n.LatLng(coord.lat,coord.lng); this.measureMarkers.push(new this.n.Marker({map:this.map,position:p,icon:{content:'<span class="measure-dot"></span>',anchor:new this.n.Point(6,6)},zIndex:120})); if(this.measurePath.length>=2){const path=this.measurePath.map(c=>new this.n.LatLng(c.lat,c.lng));if(this.measureLine)this.measureLine.setPath(path);else this.measureLine=new this.n.Polyline({map:this.map,path,strokeColor:'#dc2626',strokeWeight:3,strokeOpacity:.9});} this.onMeasure?.(this.measureDistance()); }
+  measureDistance(){ let total=0; for(let i=1;i<this.measurePath.length;i++)total+=haversineMeters(this.measurePath[i-1],this.measurePath[i]); return total; }
   toggleCadastral(){if(!this.ready)return false;this.cadastralLayer??=new this.n.CadastralLayer();this.cadastralVisible=!this.cadastralVisible;this.cadastralLayer.setMap(this.cadastralVisible?this.map:null);return this.cadastralVisible;}
   setVisible(value){this.visible=Boolean(value);if(!this.ready)return;for(const {marker} of this.markers)marker.setMap(this.visible?this.map:null);this.extraMarker?.setMap(this.visible?this.map:null);this.layoutTransactions();}
   view() {
