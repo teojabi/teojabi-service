@@ -10,6 +10,9 @@ declare
   v_new_signups int;
   v_total_users int;
   v_active_users int;
+  v_cond_users  int;
+  v_email_on    int;
+  v_email_off   int;
   v_sent        int;
   v_failed      int;
   v_cursor_h    numeric;
@@ -37,6 +40,11 @@ begin
   into v_sent, v_failed
   from notification_delivery where dedupe_key like 'email:%:' || to_char(v_today, 'YYYY-MM-DD');
 
+  -- 전환 지표: 조건을 설정한 회원 수 / 이메일 알림을 켠 회원 수(기본 켜짐, 명시적으로 끈 사람 제외)
+  select count(distinct user_id) into v_cond_users from discovery_item where kind = 'condition';
+  select count(*) into v_email_off from notification_preference where email = false;
+  v_email_on := greatest(coalesce(v_total_users,0) - coalesce(v_email_off,0), 0);
+
   -- 데이터 신선도(시간) — 로더가 실제 수집·갱신한 시각 기준.
   -- naver는 매일 신규가 들어와 first_seen_at이 전진, 나머지는 crawled_at/last_seen_at이 수집 시각.
   select round(extract(epoch from (now() - max(first_seen_at))) / 3600) into v_naver_h from naver;
@@ -61,6 +69,9 @@ begin
   v_text := '🩺 터잡이 일일 점검 (' || to_char(v_today, 'YYYY-MM-DD') || ') — ' || v_status || E'\n'
     || E'\n'
     || '▫ 신규 가입자: ' || coalesce(v_new_signups,0) || '명 / 총 ' || coalesce(v_total_users,0) || '명' || E'\n'
+    || '· 조건 설정: ' || coalesce(v_cond_users,0) || '명 ('
+      || case when coalesce(v_total_users,0)=0 then 0 else round(100.0*coalesce(v_cond_users,0)/v_total_users) end || '%) · 이메일 알림 '
+      || case when coalesce(v_total_users,0)=0 then 0 else round(100.0*v_email_on/v_total_users) end || '%' || E'\n'
     || E'\n'
     || '📦 데이터 갱신(시간 전)' || E'\n'
     || '· 네이버 ' || coalesce(v_naver_h,-1) || 'h · 디스코 ' || coalesce(v_disco_h,-1) || 'h' || E'\n'
