@@ -37,11 +37,12 @@ begin
   into v_sent, v_failed
   from notification_delivery where dedupe_key like 'email:%:' || to_char(v_today, 'YYYY-MM-DD');
 
-  -- 데이터 신선도(시간)
+  -- 데이터 신선도(시간) — 로더가 실제 수집·갱신한 시각 기준.
+  -- naver는 매일 신규가 들어와 first_seen_at이 전진, 나머지는 crawled_at/last_seen_at이 수집 시각.
   select round(extract(epoch from (now() - max(first_seen_at))) / 3600) into v_naver_h from naver;
-  select round(extract(epoch from (now() - max(first_seen_at))) / 3600) into v_disco_h from disco_listing where active is true;
-  select round(extract(epoch from (now() - max(first_seen_at))) / 3600) into v_auction_h from auction_item;
-  select round(extract(epoch from (now() - max(first_seen_at))) / 3600) into v_onbid_h from onbid_item;
+  select round(extract(epoch from (now() - max(last_seen_at))) / 3600) into v_disco_h from disco_listing where active is true;
+  select round(extract(epoch from (now() - max(crawled_at))) / 3600) into v_auction_h from auction_item;
+  select round(extract(epoch from (now() - max(crawled_at))) / 3600) into v_onbid_h from onbid_item;
 
   -- 알림 커서 경과(시간)
   select round(extract(epoch from (now() - last_seen_at)) / 3600) into v_cursor_h
