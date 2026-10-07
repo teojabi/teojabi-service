@@ -192,10 +192,11 @@ export class NotificationsService {
     return { status: 'ok' };
   }
 
-  // 이메일로 보낸 항목 표시(앱에서 읽음 처리와 분리). 배지는 앱을 열 때만 지운다.
-  private async markEmailed(userId: string) {
+  // 이메일로 보낸 항목만 '보냄' 표시(앱에서 읽음 처리와 분리). 못 보낸 나머지는 다음에 다시 시도한다.
+  private async markEmailed(userId: string, keys: string[]) {
+    if (!keys.length) return;
     await this.prisma.$executeRaw`
-      UPDATE public.notification_item SET emailed_at=now() WHERE user_id=${userId} AND emailed_at IS NULL`;
+      UPDATE public.notification_item SET emailed_at=now() WHERE user_id=${userId} AND item_key IN (${Prisma.join(keys)})`;
   }
 
   // 저장된 최근 알림 항목을 반환한다(목록 + 안 읽은 개수).
@@ -527,8 +528,8 @@ export class NotificationsService {
           conditions: preferences.conditions,
         });
         if (!mailReady || !preferences.email || !user.email) continue;
-        // 아직 메일로 안 보낸 항목만 담는다(이메일 발송과 앱 읽음은 분리).
-        const unread = inbox.items.filter((item) => !item.emailed);
+        // 아직 메일로 안 보낸 항목만 담는다(이메일 발송과 앱 읽음은 분리). 한 번에 너무 많지 않게 상한을 둔다.
+        const unread = inbox.items.filter((item) => !item.emailed).slice(0, 15);
         if (!unread.length) continue;
         const dedupeKey = `email:${user.userId}:${today}`;
         const inserted = await this.prisma.$executeRaw`
@@ -542,7 +543,7 @@ export class NotificationsService {
           title: `[터잡이] 조건에 맞는 새 매물 ${unread.length}건`,
           body: buildDigestBody(this.toDigestConditions(unread, summaries), { inquiryEmail: 'teojabi@gmail.com', unsubscribeUrl: this.unsubscribeUrl(user.userId) }),
         });
-        await this.markEmailed(user.userId);
+        await this.markEmailed(user.userId, unread.map((item: any) => item.key).filter(Boolean));
         sent += 1;
       } catch (error) {
         this.logger.error(`Email digest failed for ${user.userId}`, error as Error);
