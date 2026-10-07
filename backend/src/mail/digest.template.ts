@@ -53,7 +53,7 @@ function conditionSection(condition: DigestCondition): string {
   return `<section style="border:1px solid #e5e7eb;border-radius:12px;padding:16px;margin:0 0 16px;">${head}${summary}${countLine}${condition.items.map(itemRow).join('')}</section>`;
 }
 
-export function buildDigestBody(conditions: DigestCondition[], opts: { inquiryEmail?: string } = {}): string {
+export function buildDigestBody(conditions: DigestCondition[], opts: { inquiryEmail?: string; unsubscribeUrl?: string } = {}): string {
   const inquiry = opts.inquiryEmail || 'teojabi@gmail.com';
   const total = conditions.reduce((sum, c) => sum + c.items.length, 0);
   return `
@@ -64,5 +64,6 @@ export function buildDigestBody(conditions: DigestCondition[], opts: { inquiryEm
   <p style="margin:18px 0 6px;font-size:13px;">문의: <a href="mailto:${escape(inquiry)}" style="color:#2563eb;">${escape(inquiry)}</a></p>
   <p style="margin:0 0 18px;"><a href="${SITE_URL}" style="display:inline-block;padding:12px 20px;background:#2563eb;color:#fff;text-decoration:none;border-radius:8px;font-weight:700;">터잡이에서 확인하기</a></p>
   <p style="margin:0;font-size:12px;color:#6b7280;">권리분석·적정 입찰가는 제공하지 않아요. 사실 안내이니 계약·입찰 전 원문을 확인하세요. 알림 수신은 내 보관함 &gt; 알림 설정에서 끌 수 있어요.</p>
+  ${opts.unsubscribeUrl ? `<p style="margin:8px 0 0;font-size:12px;color:#9ca3af;">더 이상 이 메일을 받지 않으려면 <a href="${escape(opts.unsubscribeUrl)}" style="color:#9ca3af;text-decoration:underline;">수신거부</a>를 눌러주세요.</p>` : ''}
 </div>`.trim();
 }
