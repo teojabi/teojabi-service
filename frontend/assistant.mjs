@@ -424,6 +424,8 @@ let conversation = [];
     let reply = `<p>${esc(data.reply || '결과를 가져왔어요.').replace(/\n/g, '<br>')}</p>`;
     if (data.conditionNote) reply += `<p class="assistant-note">${esc(data.conditionNote)}</p>`;
     if (cards) reply += `<div class="assistant-cards">${cards}</div>`;
+    // 네이버·디스코 매물은 그때그때 찾는 1회성 결과라, 지금 찾은 매물임을 강조한다.
+    if (groups.some(g => ['naver', 'disco'].includes(g.representative?.origin))) reply += `<p class="assistant-note">🔎 지금 찾은 매물이에요 · 매물은 수시로 바뀔 수 있어요.</p>`;
     if (groups.length > 8) reply += `<button type="button" class="assistant-chip assistant-more" data-more>더보기 (남은 ${groups.length - 8}건)</button>`;
     if (data.commercial) {
       const c = data.commercial;
