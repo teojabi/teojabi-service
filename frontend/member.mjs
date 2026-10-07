@@ -68,6 +68,8 @@ export const member=new MemberStore();
 function authBase(){return member.base||'https://api.teojabi.com';}
 function providerLoginUrl(provider){return `${authBase()}/api/v1/auth/${provider}`;}
 function loginChoices(){return `<div class="login-provider-grid" aria-label="간편 로그인 및 회원가입 선택">${[['naver','네이버로 계속하기'],['kakao','카카오로 계속하기'],['google','구글로 계속하기']].map(([provider,label])=>`<a class="outline login-provider" href="${esc(providerLoginUrl(provider))}">${label}</a>`).join('')}</div>`;}
+// 로그인(간편 로그인)을 시작하면 표시해 두고, 돌아온 뒤 이메일 안내를 1회 띄운다(새로고침에는 안 뜸).
+document.addEventListener('click',event=>{if(event.target.closest('.login-provider')){try{sessionStorage.setItem('teojabi.justLoggedIn','1');}catch{}}});
 export function openLogin(){openMember('login');}
 
 const previewItems=[
@@ -318,8 +320,10 @@ let emailPromptShown=false;
 export function promptEmailIfMissing(){
   if(member.status!=='ready'||member.base==='preview')return;
   if(String(member.user?.email||'').trim())return;
-  // 페이지 로드당 한 번만 묻는다. '나중에'로 닫아도 새로고침하면 다시 안내한다.
-  if(emailPromptShown)return;emailPromptShown=true;
+  // 로그인 직후에만 안내한다(새로고침에는 뜨지 않음).
+  let justLoggedIn=false;
+  try{justLoggedIn=sessionStorage.getItem('teojabi.justLoggedIn')==='1';if(justLoggedIn)sessionStorage.removeItem('teojabi.justLoggedIn');}catch{}
+  if(!justLoggedIn||emailPromptShown)return;emailPromptShown=true;
   const before=document.activeElement,d=document.createElement('dialog');
   d.className='save-dialog';d.setAttribute('aria-labelledby','email-prompt-title');
   d.innerHTML=`<form><h2 id="email-prompt-title">이메일을 등록해 주세요</h2><p class="case-note">조건에 맞는 <b>새 매물</b>과 임박한 경매·공매 알림을 <b>이메일로</b> 받으려면 이메일 주소가 필요해요.</p><label for="email-prompt-input">이메일</label><input id="email-prompt-input" name="email" type="email" maxlength="120" autocomplete="email" placeholder="you@example.com" required><p class="case-note">알림은 내 보관함 &gt; 알림 설정에서 언제든 끌 수 있어요.</p><p class="validation" role="alert"></p><div><button class="outline" type="button" data-cancel>나중에</button><button class="primary" type="submit">저장</button></div></form>`;
