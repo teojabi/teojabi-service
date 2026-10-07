@@ -7,6 +7,7 @@ export type DigestItem = {
   label: string; // 맞춤 | 경매 | 공매 | 공지
   title: string;
   detail: string;
+  score?: number | null; // 터잡이 점수(0~100)
   url: string | null; // 매물 상세페이지 링크
 };
 export type DigestCondition = {
@@ -26,7 +27,8 @@ const countByType = (items: DigestItem[]) => ({
 
 function itemRow(item: DigestItem): string {
   const chip = `<span style="display:inline-block;font-size:11px;font-weight:700;color:#2563eb;border:1px solid #bfdbfe;background:#eff6ff;border-radius:999px;padding:1px 9px;">${escape(item.label)}</span>`;
-  const inner = `${chip}<span style="display:block;font-weight:700;color:#111827;margin:7px 0 3px;">${escape(item.title)}</span><span style="display:block;font-size:13px;color:#6b7280;">${escape(item.detail)}</span>`;
+  const scoreChip = item.score != null ? `<span style="display:inline-block;font-size:11px;font-weight:700;color:#b45309;border:1px solid #fcd34d;background:#fffbeb;border-radius:999px;padding:1px 9px;margin-left:6px;">터잡이 점수 ${Math.round(Number(item.score))}</span>` : '';
+  const inner = `${chip}${scoreChip}<span style="display:block;font-weight:700;color:#111827;margin:7px 0 3px;">${escape(item.title)}</span><span style="display:block;font-size:13px;color:#6b7280;">${escape(item.detail)}</span>`;
   const style = 'display:block;text-decoration:none;color:inherit;padding:13px 0;border-top:1px solid #f3f4f6;';
   return item.url
     ? `<a href="${escape(item.url)}" style="${style}">${inner}</a>`
