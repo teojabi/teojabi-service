@@ -99,19 +99,6 @@ function activity() {
   return `<div class="inventory-strip" aria-label="보유 자료 현황">${items.map(item=>`<span title="${escape(item.note||'')} · ${item.value==null?'미확인':Number(item.value).toLocaleString('ko-KR')+(item.unit||'건')}${data?.observedAt?' · '+new Date(data.observedAt).toLocaleDateString('ko-KR')+' 조회 기준':''}"><span>${escape(item.label)}</span><strong>${item.value==null?'확인 중':compact(item.value)+(item.unit||'건')}</strong><small class="inventory-date">${dateLabel(item.updatedAt)}</small></span>`).join('')}</div>`;
 }
 
-function faq() {
-  const entries=[
-    ['어떤 매물을 찾을 수 있나요?','터잡이가 선별한 매물과 기존 등록 매물을 함께 살펴볼 수 있어요. 찾는 목적과 예산, 지역, 대지면적, 용도지역을 선택해 내 조건에 맞는 매물을 찾아보세요. 가격과 현재 판매 여부는 상담할 때 다시 확인해 주세요.'],
-    ['검색 조건을 바꾸려면 처음부터 다시 해야 하나요?','목록 위에 있는 예산·지역·목적 등의 조건을 누르면 바로 바꿀 수 있어요. 가격 낮은 순·높은 순으로 정렬하고, 목록을 접어 지도를 넓게 볼 수도 있어요. 로그인하면 저장한 조건을 계정에서 다시 불러와 이어서 볼 수 있어요.'],
-    ['매물 가격이 적절한지 어떻게 비교하나요?','매물 상세에서 가까운 필지의 실거래를 최대 5곳까지 확인할 수 있어요. 최근 36개월 거래를 반경 500m부터 찾고, 부족하면 1km까지 넓혀요. 거리순으로 보여주므로 면적이나 건물 상태가 비슷한 사례만 모은 것은 아니에요. 거래일·대지면적·연면적을 함께 비교하고, 각 카드의 지도 보기로 위치를 확인해 보세요.'],
-    ['직접 방문하기 전에 무엇을 확인할 수 있나요?','지도와 네이버 거리뷰로 주변 환경을 살펴보고, 보유한 토지대장·건축물대장 자료를 펼쳐볼 수 있어요. 매물에 표시된 면적과 대장에 기록된 면적은 각각의 자료 그대로 보여드려요. 대장 보기는 발급 원본 서류가 아니며, 거리뷰도 촬영 시점의 모습이에요.'],
-    ['신축할 땅을 찾을 때 어떤 조건을 볼 수 있나요?','신축 목적을 선택하면 계획한 용도와 도로폭, 교육보호구역·문화재보존구역 제외 조건 등을 고를 수 있어요. 호텔·숙박시설은 관광숙박특화구역 우선 조건도 선택할 수 있어요. 상세에서는 해당 구역과 지구단위계획, 보유한 높이제한 자료 등을 확인할 수 있으며, 실제 건축 가능 여부는 별도 검토가 필요해요.'],
-    ['이미 가진 건물이나 여러 필지도 검토할 수 있나요?','건물·토지에서 지도를 눌러 필지를 선택하면 주소가 자동으로 입력돼요. 여러 필지를 함께 선택하고, 공부상 면적 합계를 검토에 적용할 수 있어요. 확인되는 용적률·건폐율은 자동으로 채워지며, 필지별 값이 다르거나 자료가 없으면 직접 확인해 입력하도록 안내해요.'],
-    ['예상 공사비는 어떻게 계산하나요?','대지면적에 용적률을 적용한 검토 연면적을 기준으로 계산해요. 평당 공사비는 기본 1,000만원이며 원하는 금액으로 바꿀 수 있고, 설계비는 공사비의 5%로 표시해요. 면적은 ㎡·평으로 전환할 수 있어요. 지하층 등 용적률 제외 면적과 토지비·철거비·세금 등을 포함한 총사업비는 아니며, 계산 결과는 검토 내보내기로 보관할 수 있어요.'],
-  ];
-  return `<section class="faq-section" id="service-faq" aria-labelledby="faq-title"><div class="faq-intro"><span class="eyebrow">WHY TEOJABI</span><h2 id="faq-title" tabindex="-1">찾기부터 검토까지,<br>궁금한 점을 모았어요.</h2><p>내 조건으로 찾고, 자료로 비교하고,<br>내 땅의 가능성을 살펴보세요.</p></div><div class="faq-list">${entries.map(([q,a],i)=>`<details><summary><span class="faq-q">Q.</span><span>${q}</span><span class="faq-plus" aria-hidden="true">+</span></summary><p>${a}</p></details>`).join('')}<p class="faq-preview-note">자료별 기준일과 현황은 다를 수 있어요. 계약이나 설계 전에는 최신 서류와 현장을 함께 확인해 주세요.</p></div></section>`;
-}
-
 window.addEventListener('teojabi-open-saved',event=>{
   const {kind,key,payload:p}=event.detail;
   if(kind==='favorite'||kind==='feedback'){state.screen='results';history.pushState(null,'','#listing='+encodeURIComponent(key));}
@@ -216,17 +203,18 @@ function home() {
     <div class="entry-grid"><button class="entry entry-primary" data-action="find"><span class="entry-tag">FIND YOUR BUILDING</span><h2>마음에 드는<br>건물을 찾고 싶어요.</h2><p>목적과 예산, 원하는 지역부터 알려주세요.<br>경매·공매 물건을 함께 찾아드립니다.</p><span class="entry-cta">건물 찾기 시작 <span class="circle">${arrow}</span></span>${buildingArt}</button>
     <button class="entry entry-secondary" data-action="analyze"><span class="entry-tag">UNDERSTAND YOUR PLACE</span><h2>건물과 토지를<br>살펴보고 싶어요.</h2><p>신축할 필지의 현황과 확인할 자료를 함께 봐요.<br>지구단위계획구역이면 기준 용적률·건폐율·높이 제한까지 함께 확인해요.</p><span class="entry-cta">신축 검토 시작 <span class="circle">${arrow}</span></span>${parcelArt}</button></div>
     <div class="home-browse"><p class="home-note"><span>i</span>확인된 정보로 살펴보고, 확인이 필요한 부분은 구분해 알려드려요.</p><button class="outline" data-action="browse">터잡이 선별 매물 둘러보기 ↗</button><button class="outline" data-action="preview-member">내 보관함 미리보기</button></div>
-    ${homeAbout()}
-    ${faq()}</section>`;
+    ${homeAbout()}</section>`;
 }
 
 function homeAbout() {
   return `<section class="home-about" aria-labelledby="home-about-title"><h2 id="home-about-title">터잡이는 어떤 서비스인가요?</h2>
-    <p>터잡이는 서울 상업용 건물·토지의 일반매물, 경매·공매를 탐색하고 신축 가능성을 사전 검토하는 부동산 플랫폼입니다. 중개사 등이 제공한 일반매물과 경매·공매 물건을 한곳에서 살펴보고, 터잡이가 구축한 토지·건축 데이터를 이용해 용적률·건폐율·높이 등 토지별 건축 조건을 분석합니다. 사용자의 관심 조건에 맞는 물건을 찾고, 검토할 만한 후보를 좁힐 수 있도록 돕습니다.</p>
-    <h3>신축분석에서는 무엇을 확인하나요?</h3>
-    <p>주소와 필지를 기준으로 용도지역, 지구단위계획, 용적률, 건폐율, 높이 등 확인 가능한 건축 조건을 검토합니다. 실제 건축 가능 규모는 도로, 주차, 건축선, 개별 법령 및 인허가 조건에 따라 달라질 수 있습니다.</p>
-    <h3>어떤 물건을 볼 수 있나요?</h3>
-    <p>서울의 상업용 건물·토지 일반매물과 경매·공매 물건을 제공합니다. 일반매물은 등록 또는 이용권한이 확인된 제공 경로를 통해 확보하고, 공매 등은 이용 가능한 공식·공공 데이터를 활용합니다.</p>
+    <p>터잡이는 서울의 건물·토지 매물을 찾아주는 서비스입니다. 원하는 조건을 설정하면 일반매물과 경매·공매 물건을 한 화면에서 찾아드립니다.</p>
+    <ul class="home-about-list">
+      <li><b>찾기</b> 조건에 맞는 일반매물·경매·공매를 지도와 목록으로 함께 봐요.</li>
+      <li><b>비교</b> 주변 실거래와 대지면적·연면적을 나란히 비교해요.</li>
+      <li><b>검토</b> 용도지역·용적률·건폐율·높이 등 건축 조건을 살펴봐요.</li>
+      <li><b>알림</b> 조건을 저장하면 새 매물과 임박한 경매·공매를 알려드려요.</li>
+    </ul>
     <p>서비스 정의와 데이터·분석 기준은 <a href="./about">터잡이 소개</a>에서 확인할 수 있어요.</p></section>`;
 }
 
@@ -303,8 +291,7 @@ document.addEventListener('click', event => {
   const button = event.target.closest('[data-action]');
   if (!button || button.disabled) return;
   const action = button.dataset.action;
-  if (['home','find','analyze','faq'].includes(action)) history.replaceState(null,'',location.pathname);
-  if (action === 'faq') { state.screen='home'; render(false); app.querySelector('#faq-title').focus({preventScroll:true}); app.querySelector('#service-faq').scrollIntoView({behavior:'smooth'}); return; }
+  if (['home','find','analyze'].includes(action)) history.replaceState(null,'',location.pathname);
   if (action === 'login') {member.status==='ready'?openMember():openLogin();return;}
   if (action === 'assistant') {ensureAssistant().then(controls=>controls.open());return;}
   if (action === 'preview-member') {previewMember();return;}
