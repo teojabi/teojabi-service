@@ -690,6 +690,19 @@ export class NotificationsService {
     const minRoad = Number(payload?.minRoadWidthM) || 0;
     const kind = payload?.kind;
     const out: Alert[] = [];
+    // 저장 조건의 '역에서 가까운 곳'도 알림에 반영한다. 역 좌표를 조회해 직선거리로 거른다.
+    const stationName = String(payload?.stationName || '').trim();
+    const maxDistance = Number(payload?.maxDistanceM) || 0;
+    let station: { lat: number; lng: number } | null = null;
+    if (stationName) {
+      try {
+        const st = await this.prisma.$queryRaw<Array<{ lat: number; lng: number }>>`
+          SELECT lat, lng FROM public.seoul_subway_stations
+          WHERE replace(station_name,' ','') LIKE ${'%' + stationName.replace(/\s+/g, '') + '%'} AND lat IS NOT NULL
+          ORDER BY length(station_name) LIMIT 1`;
+        if (st.length) station = { lat: Number(st[0].lat), lng: Number(st[0].lng) };
+      } catch { /* 역 조회 실패 시 거리 조건 생략 */ }
+    }
     // 같은 주소(필지)가 여러 출처(네이버·디스코·터잡이 추천)에 있으면 하나만 추천한다.
     const keyOf = (r: any) => {
       const pnu = String(r.pnu || '').trim();
@@ -706,6 +719,7 @@ export class NotificationsService {
     if (kind === 'land') naverCond.push(Prisma.sql`n."주용도코드명" = '토지'`);
     else if (kind === 'building') naverCond.push(Prisma.sql`coalesce(n."주용도코드명",'') <> '토지'`);
     if (zones.length) naverCond.push(Prisma.sql`(${Prisma.join(zones.map((z: string) => Prisma.sql`n."용도지역" ILIKE ${'%' + z.replace('지역', '') + '%'}`), ' OR ')})`);
+    if (station && maxDistance) naverCond.push(Prisma.sql`ST_Distance(ST_SetSRID(ST_MakePoint(n.lng,n.lat),4326)::geography, ST_SetSRID(ST_MakePoint(${station.lng},${station.lat}),4326)::geography) <= ${maxDistance}`);
     // 저장 조건의 정렬을 알림 추천 순서에도 적용한다(평당가 낮은 순 등).
     const sort = payload?.sort;
     const naverOrder = sort === 'ppp' ? Prisma.sql`(n."거래가격" / NULLIF(n."대지면적", 0)) ASC NULLS LAST`
@@ -726,6 +740,7 @@ export class NotificationsService {
       if (budgetWon) discoCond.push(Prisma.sql`d.price_manwon <= ${budgetWon / 1e4}`);
       if (minArea) discoCond.push(Prisma.sql`d.land_area_m2 >= ${minArea}`);
       if (maxArea) discoCond.push(Prisma.sql`d.land_area_m2 <= ${maxArea}`);
+      if (station && maxDistance) discoCond.push(Prisma.sql`ST_Distance(ST_SetSRID(ST_MakePoint(d.lng,d.lat),4326)::geography, ST_SetSRID(ST_MakePoint(${station.lng},${station.lat}),4326)::geography) <= ${maxDistance}`);
       const discoOrder = sort === 'ppp' ? Prisma.sql`(d.price_manwon / NULLIF(d.land_area_m2, 0)) ASC NULLS LAST`
         : sort === 'area' ? Prisma.sql`d.land_area_m2 DESC NULLS LAST`
         : sort === 'price-desc' ? Prisma.sql`d.price_manwon DESC NULLS LAST`
