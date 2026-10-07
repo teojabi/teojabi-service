@@ -13,6 +13,7 @@ declare
   v_cond_users  int;
   v_email_on    int;
   v_email_off   int;
+  v_email_missing int;
   v_sent        int;
   v_failed      int;
   v_cursor_h    numeric;
@@ -44,6 +45,10 @@ begin
   select count(distinct user_id) into v_cond_users from discovery_item where kind = 'condition';
   select count(*) into v_email_off from notification_preference where email = false;
   v_email_on := greatest(coalesce(v_total_users,0) - coalesce(v_email_off,0), 0);
+  -- 이메일 알림은 켜져 있는데(끈 사람 아님) 계정 이메일이 없는 회원 — 이메일을 못 받는다.
+  select count(*) into v_email_missing from "user" u
+   where coalesce(u.email,'') = ''
+     and not exists (select 1 from notification_preference p where p.user_id = u.id and p.email = false);
 
   -- 데이터 신선도(시간) — 로더가 실제 수집·갱신한 시각 기준.
   -- naver는 매일 신규가 들어와 first_seen_at이 전진, 나머지는 crawled_at/last_seen_at이 수집 시각.
@@ -71,7 +76,8 @@ begin
     || '▫ 신규 가입자: ' || coalesce(v_new_signups,0) || '명 / 총 ' || coalesce(v_total_users,0) || '명' || E'\n'
     || '· 조건 설정: ' || coalesce(v_cond_users,0) || '명 ('
       || case when coalesce(v_total_users,0)=0 then 0 else round(100.0*coalesce(v_cond_users,0)/v_total_users) end || '%) · 이메일 알림 '
-      || case when coalesce(v_total_users,0)=0 then 0 else round(100.0*v_email_on/v_total_users) end || '%' || E'\n'
+      || case when coalesce(v_total_users,0)=0 then 0 else round(100.0*v_email_on/v_total_users) end || '%'
+      || case when coalesce(v_email_missing,0) > 0 then ' · 이메일 미등록 ' || v_email_missing || '명' else '' end || E'\n'
     || E'\n'
     || '📦 데이터 갱신(시간 전)' || E'\n'
     || '· 네이버 ' || coalesce(v_naver_h,-1) || 'h · 디스코 ' || coalesce(v_disco_h,-1) || 'h' || E'\n'
