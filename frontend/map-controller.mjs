@@ -157,7 +157,7 @@ export class ListingMap {
     this.onTransaction=onTransaction;this.onCommercial=onCommercial;this.transactionMarkers=[];this.transactions=[];this.transactionsVisible=true;
     this.commercialMarkers=[];this.commercialAreas=[];this.commercialVisible=false;
     this.center=center;this.zoom=zoom;this.markers=[];this.listeners=[];this.dead=false;this.selected=null;
-    this.satellite=false;this.measuring=false;this.measurePath=[];this.measureLine=null;this.measureMarkers=[];
+    this.satellite=false;this.measuring=false;this.measurePath=[];this.measureLine=null;this.measureMarkers=[];this.seoulMask=null;
     this.onAuthFailure=event=>{this.ready=false;this.onStatus?.('error',event.detail);};
     window.addEventListener('teojabi-map-auth-error',this.onAuthFailure);
   }
@@ -377,6 +377,8 @@ export class ListingMap {
     if(!this.fitTransactions())this.map.fitBounds(bounds,{top:110,right:90,bottom:90,left:90});
   }
   resetView() {if(!this.fitTransactions())this.setGroups(this.groups||[],this.selected,true);}
+  // 서울 외곽을 어둡게: 큰 사각형에서 서울 경계를 구멍(hole)으로 뚫어 표시한다.
+  async showSeoulMask(){ if(!this.ready||this.seoulMask)return; try{const res=await fetch('./assets/seoul-boundary.json',{cache:'force-cache'});if(!res.ok)return;const geo=await res.json();const geom=geo.features?.[0]?.geometry;if(!geom)return;const polys=geom.type==='Polygon'?[geom.coordinates]:geom.coordinates;const holes=polys.map(poly=>(poly[0]||[]).map(([lng,lat])=>new this.n.LatLng(lat,lng)));const outer=[new this.n.LatLng(33,124),new this.n.LatLng(33,132),new this.n.LatLng(39,132),new this.n.LatLng(39,124)];this.seoulMask=new this.n.Polygon({map:this.map,paths:[outer,...holes],fillColor:'#0B1736',fillOpacity:.45,strokeColor:'#0B1736',strokeWeight:0,clickable:false,zIndex:1});}catch{/* 경계 로드 실패 시 생략 */} }
   toggleSatellite(){ if(!this.ready)return false; this.satellite=!this.satellite; this.map.setMapTypeId(this.satellite?this.n.MapTypeId.HYBRID:this.n.MapTypeId.NORMAL); return this.satellite; }
   toggleMeasure(){ if(!this.ready)return false; this.measuring=!this.measuring; if(!this.measuring)this.clearMeasure(); return this.measuring; }
   clearMeasure(){ if(this.measureLine){this.measureLine.setMap(null);this.measureLine=null;} for(const m of this.measureMarkers)m.setMap(null); this.measureMarkers=[]; this.measurePath=[]; this.onMeasure?.(0); }
