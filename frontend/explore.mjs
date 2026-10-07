@@ -38,7 +38,13 @@ const normalizeFloorScale=value=>{
 };
 // 용도지역 법정 허용 용적률·건폐율(%). 지구단위계획 기준은 상세 '주변 조건'에 별도 표시된다.
 const ZONE_FAR_LIMITS={'제1종전용주거지역':[100,50],'제2종전용주거지역':[120,40],'제1종일반주거지역':[150,60],'제2종일반주거지역':[200,60],'제3종일반주거지역':[250,50],'준주거지역':[400,60],'중심상업지역':[1000,60],'일반상업지역':[800,60],'근린상업지역':[600,60],'유통상업지역':[600,60],'전용공업지역':[200,60],'일반공업지역':[200,60],'준공업지역':[400,60],'보전녹지지역':[50,20],'생산녹지지역':[50,20],'자연녹지지역':[50,20]};
-const zoneFactsOf=row=>{for(const e of (row.zoning?.entries||[])){const n=String(e.name||'').replace(/\s+/g,'').replace(/\((?:7|12)층(?:이하)?\)$/,'');if(ZONE_FAR_LIMITS[n])return {zone:n,far:ZONE_FAR_LIMITS[n][0],bcr:ZONE_FAR_LIMITS[n][1]};}return null;};
+// 역사도심(한양도성 일대)은 상업지역 용적률 상한이 더 낮다(서울 도시계획 조례 제55조).
+const HISTORIC_CORE_FAR={'중심상업지역':800,'일반상업지역':600,'근린상업지역':500,'유통상업지역':500};
+let historicCoreRing=null;
+(async()=>{try{const res=await fetch('./assets/historic-core.json',{cache:'force-cache'});if(!res.ok)return;const g=await res.json();const geom=g.features?.[0]?.geometry;if(!geom)return;historicCoreRing=geom.type==='Polygon'?geom.coordinates[0]:(geom.coordinates[0]?.[0]||null);}catch{/* 역사도심 경계 없으면 생략 */}})();
+const pointInRing=(lng,lat,ring)=>{if(!ring)return false;let inside=false;for(let i=0,j=ring.length-1;i<ring.length;j=i++){const xi=ring[i][0],yi=ring[i][1],xj=ring[j][0],yj=ring[j][1];if(((yi>lat)!==(yj>lat))&&(lng<(xj-xi)*(lat-yi)/(yj-yi)+xi))inside=!inside;}return inside;};
+const inHistoricCore=pos=>pos&&Number.isFinite(pos.lat)&&Number.isFinite(pos.lng)?pointInRing(pos.lng,pos.lat,historicCoreRing):false;
+const zoneFactsOf=row=>{for(const e of (row.zoning?.entries||[])){const n=String(e.name||'').replace(/\s+/g,'').replace(/\((?:7|12)층(?:이하)?\)$/,'');if(ZONE_FAR_LIMITS[n]){const historic=HISTORIC_CORE_FAR[n]!=null&&inHistoricCore(row.position);return {zone:n,far:historic?HISTORIC_CORE_FAR[n]:ZONE_FAR_LIMITS[n][0],bcr:ZONE_FAR_LIMITS[n][1],historic};}}return null;};
 const detailFactItems=row=>{
   const facts=row.buildingFacts||{},items=[];
   const landArea=row.areaM2||facts.landAreaM2||null;
@@ -48,7 +54,7 @@ const detailFactItems=row=>{
   const currentFar=(landArea&&floorArea)?Math.round(Number(floorArea)/Number(landArea)*100):null;
   const zoneFacts=zoneFactsOf(row);
   if(currentFar!=null)items.push(['현재 용적률',`${currentFar}%`]);
-  if(zoneFacts)items.push(['허용 용적률',`${zoneFacts.far}% (용도지역 기준)`]);
+  if(zoneFacts)items.push(['허용 용적률',`${zoneFacts.far}% (${zoneFacts.historic?'역사도심':'용도지역'} 기준)`]);
   if(zoneFacts&&currentFar!=null)items.push(['여유 용적률',`${Math.round((zoneFacts.far-currentFar)*10)/10}%`]);
   if(facts.floorAreaM2&&(!floorArea||Number(facts.floorAreaM2)!==Number(floorArea)))items.push(['기존 연면적',area(facts.floorAreaM2)]);
   const floorScale=facts.floorScale||normalizeFloorScale(row.floorInfo);
