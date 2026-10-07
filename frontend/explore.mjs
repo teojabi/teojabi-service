@@ -498,7 +498,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     if(status==='error'){const searchMap=$('[data-explore="search-map"]');if(searchMap)searchMap.disabled=true;}
   }});
   areaDisplayEvents.addEventListener('change',()=>{refreshAreaDisplay(root);map.setAreaUnit(getAreaDisplayUnit());},{signal:abort.signal});
-  map.mount([],null,false);map.showSeoulMask?.();
+  map.mount([],null,false).then(()=>map.showSeoulMask?.()).catch(()=>{});
   renderParcelResult();
   const parcelMessage=()=>map.ready?'연결된 필지 경계를 지도에 표시했습니다.':'필지 경계를 불러왔습니다. 지도 연결 후 표시됩니다.';
   function card(group) {
@@ -1268,7 +1268,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
       case 'search-map':if(mapView){bounds=mapView.bounds;limit=5;closeDetail();load({fit:false});}break;
       case 'clear-bounds':bounds=null;limit=5;load();break;
       case 'reset-map':map.resetView();break;
-      case 'retry-map':map.mount(result?.groups||[],selected,true);map.showSeoulMask?.();break;
+      case 'retry-map':map.mount(result?.groups||[],selected,true).then(()=>map.showSeoulMask?.()).catch(()=>{});break;
       case 'analyze-site':if(detail)onAnalyze?.(detail.listing);break;
       case 'street':if(detail){closeStreet?.();closeStreet=await openStreetView(detail.listing.position,detail.listing.address||rowTitle(detail.listing));if(disposed)closeStreet?.();}break;
       case 'section':{const target=$(`#${button.dataset.section}`);if(button.dataset.section==='property-transactions')$('#nearby-details')?.setAttribute('open','');target?.scrollIntoView({behavior:'smooth',block:'start'});break;}
