@@ -177,7 +177,9 @@ member.addEventListener('change',()=>{
   scheduleNotificationBadge();
   if(member.status!=='ready'||!member.user?.id||enteredMember===member.user.id)return;
   enteredMember=member.user.id;
-  if(completedThisVisit&&state.applied){writeMemberSearch(member.user,state.applied);return;}
+  if(completedThisVisit&&state.applied){rememberSearch(state.applied);return;}
+  // 비회원 때 만든 조건이 있고 계정에 저장된 조건이 없으면 계정으로 옮긴다(알림 대상 포함).
+  if(state.applied&&!member.items.some(i=>i.kind==='condition')){rememberSearch(state.applied);return;}
   const saved=readMemberSearch(member.user,member.items);
   if(!saved||state.screen!=='home'||location.hash)return;
   state.applied=saved;state.screen='results';
