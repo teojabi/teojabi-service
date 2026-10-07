@@ -9,15 +9,10 @@ declare
   v_yesterday   date;
   v_new_signups int;
   v_total_users int;
-  v_ai_today    int;
-  v_ai_month    int;
-  v_sub_today   int;
-  v_sub_total   int;
-  v_credit_month int;
   v_active_users int;
   v_sent        int;
   v_failed      int;
-  v_cursor_h     numeric;
+  v_cursor_h    numeric;
   v_naver_h     numeric;
   v_disco_h     numeric;
   v_auction_h   numeric;
@@ -32,19 +27,6 @@ begin
   -- user.created_at는 timestamp without time zone (KST 저장). AT TIME ZONE 쓰면 하루 빠지는 버그가 있어 직접 ::date.
   select count(*) into v_new_signups from "user" where created_at::date = v_yesterday;
   select count(*) into v_total_users from "user";
-
-  select
-    coalesce(sum(used_count) filter (where usage_date = v_yesterday), 0),
-    coalesce(sum(used_count) filter (where usage_date >= date_trunc('month', v_yesterday) and usage_date <= v_yesterday), 0)
-  into v_ai_today, v_ai_month
-  from user_credit_daily_usage;
-
-  select count(*) into v_sub_today from "user"
-   where role IN ('PREMIUM_BASIC', 'PREMIUM_PLUS') and created_at::date = v_yesterday;
-  select count(*) into v_sub_total from "user"
-   where role IN ('PREMIUM_BASIC', 'PREMIUM_PLUS');
-  select coalesce(sum(used_count), 0) into v_credit_month from user_credit_daily_usage
-   where usage_date >= date_trunc('month', v_yesterday) and usage_date <= v_yesterday;
 
   -- 알림 대상 회원 / 오늘(08:30 KST 발송분) 성공·실패
   select count(distinct user_id) into v_active_users from discovery_item
@@ -78,9 +60,6 @@ begin
   v_text := '🩺 터잡이 일일 점검 (' || to_char(v_today, 'YYYY-MM-DD') || ') — ' || v_status || E'\n'
     || E'\n'
     || '▫ 신규 가입자: ' || coalesce(v_new_signups,0) || '명 / 총 ' || coalesce(v_total_users,0) || '명' || E'\n'
-    || '▫ AI 신축 분석: 일 ' || coalesce(v_ai_today,0) || '회 / 월 ' || coalesce(v_ai_month,0) || '회' || E'\n'
-    || '▫ 구독자: 하루 ' || coalesce(v_sub_today,0) || '건 / 총 ' || coalesce(v_sub_total,0) || '건' || E'\n'
-    || '▫ 크레딧 사용(월): ' || coalesce(v_credit_month,0) || '번' || E'\n'
     || E'\n'
     || '📦 데이터 갱신(시간 전)' || E'\n'
     || '· 네이버 ' || coalesce(v_naver_h,-1) || 'h · 디스코 ' || coalesce(v_disco_h,-1) || 'h' || E'\n'
