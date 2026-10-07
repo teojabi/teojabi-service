@@ -33,6 +33,7 @@ type InboxRow = {
   date: string | null;
   title: string | null;
   detail: string | null;
+  score: number | null;
   readAt: Date | null;
   emailedAt: Date | null;
 };
@@ -210,6 +211,7 @@ export class NotificationsService {
       title: row.title ?? '',
       detail: row.detail ?? '',
       meta: (row as any).meta ?? null,
+      score: row.score == null ? null : Number(row.score),
       read: row.readAt != null,
       emailed: row.emailedAt != null,
     }));
@@ -371,6 +373,8 @@ export class NotificationsService {
     const startStamp = this.stamp(0);
     const endStamp = this.stamp(leadDays);
     const items: Alert[] = [];
+    // '안 보신 매물' 판정용(조회·찜·이전 알림) — 조건 처리 전에 한 번만 모은다.
+    const seen = includeConditions ? await this.seenListingIds(userId).catch(() => ({ naver: [] as string[], disco: [] as string[] })) : { naver: [] as string[], disco: [] as string[] };
 
     const favAuction = includeFavorites
       ? saved.filter((r) => r.kind === 'favorite' && r.key.startsWith('auction:')).map((r) => r.key.slice('auction:'.length))
@@ -413,6 +417,8 @@ export class NotificationsService {
       const districts = Array.isArray(payload.districts) ? payload.districts.filter((d: any) => typeof d === 'string') : [];
       // 새로 올라온 매물(네이버·디스코) 매칭 — 최대 3건.
       try { items.push(...(await this.listingAlerts(payload, conditionName, cursor))); } catch { /* 매물 매칭 실패는 무시 */ }
+      // 매일 1건: 조건에 맞는 '아직 안 보신 매물'(평당가 낮은 순 고정).
+      try { const d = await this.discoveryAlert(payload, conditionName, seen); if (d) items.push(d); } catch { /* 발견 매칭 실패는 무시 */ }
 
       const auction = payload.auction;
       if (!auction?.enabled) continue;
@@ -679,6 +685,7 @@ export class NotificationsService {
         label: this.itemLabel(item.type),
         title: item.title || '',
         detail: item.detail || '',
+        score: item.score ?? null,
         url: NotificationsService.detailUrl(item.key),
       });
     }
@@ -793,7 +800,71 @@ export class NotificationsService {
     }
   }
 
-  private listingAlert(r: any, source: 'naver' | 'disco', conditionName: string): Alert {
+  // 사용자가 이미 본(조회·찜·이전 알림) 매물 키를 출처별로 모은다.
+  private async seenListingIds(userId: string): Promise<{ naver: string[]; disco: string[] }> {
+    const naver = new Set<string>(), disco = new Set<string>();
+    const add = (key: unknown) => {
+      const k = String(key || '');
+      if (k.startsWith('naver:')) naver.add(k.slice('naver:'.length));
+      else if (k.startsWith('disco:')) disco.add(k.slice('disco:'.length));
+    };
+    try {
+      const viewed = await this.prisma.$queryRaw<Array<{ e: string }>>`
+        SELECT DISTINCT entity_id AS e FROM public.user_event WHERE user_id=${userId} AND type='view_detail' AND entity_id IS NOT NULL`;
+      for (const r of viewed) add(r.e);
+      const favs = await this.prisma.$queryRaw<Array<{ k: string }>>`
+        SELECT item_key AS k FROM public.discovery_item WHERE user_id=${userId} AND kind='favorite'`;
+      for (const r of favs) add(r.k);
+      const alerted = await this.prisma.$queryRaw<Array<{ k: string }>>`
+        SELECT item_key AS k FROM public.notification_item WHERE user_id=${userId}`;
+      for (const r of alerted) add(r.k);
+    } catch { /* 조회 실패 시 빈 집합 */ }
+    return { naver: [...naver], disco: [...disco] };
+  }
+
+  // 조건에 맞는 '아직 안 보신 매물' 1건. 정렬은 평당가 낮은 순 고정.
+  private async discoveryAlert(payload: any, conditionName: string, seen: { naver: string[]; disco: string[] }): Promise<Alert | null> {
+    const districts = Array.isArray(payload?.districts) ? payload.districts.filter((d: any) => typeof d === 'string') : [];
+    const zones = Array.isArray(payload?.zones) ? payload.zones.filter((z: any) => typeof z === 'string') : [];
+    const budgetWon = Number(payload?.budgetWon) || 0;
+    const minArea = Number(payload?.minAreaM2) || 0;
+    const maxArea = Number(payload?.maxAreaM2) || 0;
+    const minRoad = Number(payload?.minRoadWidthM) || 0;
+    const kind = payload?.kind;
+
+    const naverCond: Prisma.Sql[] = [Prisma.sql`n."상태" IN ('신규','유지')`, Prisma.sql`n."대지면적" > 0`, Prisma.sql`n."거래가격" > 0`];
+    if (districts.length) naverCond.push(Prisma.sql`n."구" IN (${Prisma.join(districts)})`);
+    if (budgetWon) naverCond.push(Prisma.sql`n."거래가격" <= ${budgetWon / 1e8}`);
+    if (minArea) naverCond.push(Prisma.sql`n."대지면적" >= ${minArea}`);
+    if (maxArea) naverCond.push(Prisma.sql`n."대지면적" <= ${maxArea}`);
+    if (minRoad) naverCond.push(Prisma.sql`n."도로폭_m" >= ${minRoad}`);
+    if (kind === 'land') naverCond.push(Prisma.sql`n."주용도코드명" = '토지'`);
+    else if (kind === 'building') naverCond.push(Prisma.sql`coalesce(n."주용도코드명",'') <> '토지'`);
+    if (zones.length) naverCond.push(Prisma.sql`(${Prisma.join(zones.map((z: string) => Prisma.sql`n."용도지역" ILIKE ${'%' + z.replace('지역', '') + '%'}`), ' OR ')})`);
+    if (seen.naver.length) naverCond.push(Prisma.sql`n."매물번호" NOT IN (${Prisma.join(seen.naver)})`);
+    const rows = await this.prisma.$queryRaw<any[]>(Prisma.sql`
+      SELECT n."매물번호" AS id, n."거래가격" AS price, n."대지면적" AS land, n."대지위치" AS address,
+             n."구" AS district, n."동" AS dong, n."주용도코드명" AS use, n."용도지역" AS zone, n."도로폭_m" AS road, n.pnu AS pnu
+      FROM public.naver n WHERE ${Prisma.join(naverCond, ' AND ')}
+      ORDER BY (n."거래가격" / NULLIF(n."대지면적", 0)) ASC NULLS LAST LIMIT 1`);
+    if (rows.length) return this.listingAlert(rows[0], 'naver', conditionName, '아직 안 보신 매물');
+
+    const discoCond: Prisma.Sql[] = [Prisma.sql`d.active IS TRUE`, Prisma.sql`d.land_area_m2 > 0`, Prisma.sql`d.price_manwon > 0`];
+    if (districts.length) discoCond.push(Prisma.sql`d.gu IN (${Prisma.join(districts)})`);
+    if (budgetWon) discoCond.push(Prisma.sql`d.price_manwon <= ${budgetWon / 1e4}`);
+    if (minArea) discoCond.push(Prisma.sql`d.land_area_m2 >= ${minArea}`);
+    if (maxArea) discoCond.push(Prisma.sql`d.land_area_m2 <= ${maxArea}`);
+    if (seen.disco.length) discoCond.push(Prisma.sql`d.did NOT IN (${Prisma.join(seen.disco)})`);
+    const drows = await this.prisma.$queryRaw<any[]>(Prisma.sql`
+      SELECT d.did AS id, d.price_manwon AS price_manwon, d.land_area_m2 AS land, d.address AS address,
+             d.gu AS district, d.dong AS dong, d.main_use AS use, d.use_zone AS zone, d.pnu AS pnu
+      FROM public.disco_listing d WHERE ${Prisma.join(discoCond, ' AND ')}
+      ORDER BY (d.price_manwon / NULLIF(d.land_area_m2, 0)) ASC NULLS LAST LIMIT 1`);
+    if (drows.length) return this.listingAlert(drows[0], 'disco', conditionName, '아직 안 보신 매물');
+    return null;
+  }
+
+  private listingAlert(r: any, source: 'naver' | 'disco', conditionName: string, kindLabel = '맞춤 매물'): Alert {
     const priceWon = source === 'naver' ? (Number(r.price) || 0) * 1e8 : (Number(r.price_manwon) || 0) * 1e4;
     const detail = [
       String(r.use || '').trim() || '용도 미기재',
@@ -808,7 +879,7 @@ export class NotificationsService {
       origin: 'condition',
       conditionName,
       date: this.date(),
-      kindLabel: '맞춤 매물',
+      kindLabel,
       title: String(r.address || ''),
       detail,
       meta: {
