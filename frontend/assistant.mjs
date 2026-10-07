@@ -440,8 +440,11 @@ let conversation = [];
     if (groups.length || data.chips?.length) chips.push(`<button type="button" class="assistant-chip" data-editor="1">조건 바꾸기</button>`);
     if (data.conditionNote) chips.push(`<button type="button" class="assistant-chip" data-condition="1">저장 조건으로 찾기</button>`);
     if (chips.length) reply += `<div class="assistant-chiprow">${chips.join('')}</div>`;
-    // 어떤 검색 결과든 '조건으로 저장'으로 유도해, 계속 찾아주기·알림으로 이어지게 한다.
-    if (groups.length) reply += `<p class="assistant-note assistant-save-note">이 결과는 <b>지금 한 번</b> 찾아드린 거예요. <b>내 조건</b>으로 저장하면 조건에 맞는 새 매물을 계속 찾아드리고, 임박 알림도 받을 수 있어요.</p><div class="assistant-chiprow"><button type="button" class="assistant-chip assistant-chip-primary" data-save-condition="1">이 조건 저장</button></div>`;
+    // 어떤 검색 결과든 '조건으로 저장'으로 유도하되, 이미 저장된 내 조건과 같은 검색이면 안내를 숨긴다.
+    const savedCond = savedCondition();
+    const normVal = v => Array.isArray(v) ? [...v].sort() : (v ?? null);
+    const sameAsSaved = Boolean(savedCond) && ['districts', 'budgetWon', 'minAreaM2', 'maxAreaM2', 'zones', 'kind', 'stationName', 'maxDistanceM'].every(k => JSON.stringify(normVal(lastFilters?.[k])) === JSON.stringify(normVal(savedCond[k])));
+    if (groups.length && !sameAsSaved) reply += `<p class="assistant-note assistant-save-note">이 결과는 <b>지금 한 번</b> 찾아드린 거예요. <b>내 조건</b>으로 저장하면 조건에 맞는 새 매물을 계속 찾아드리고, 임박 알림도 받을 수 있어요.</p><div class="assistant-chiprow"><button type="button" class="assistant-chip assistant-chip-primary" data-save-condition="1">이 조건 저장</button></div>`;
     reply += `<div class="assistant-editor-slot" hidden></div>`;
     const bubble = addResultBot(reply);
     bubble.querySelector('[data-save-condition]')?.addEventListener('click', event => {
