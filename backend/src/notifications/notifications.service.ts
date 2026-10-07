@@ -724,11 +724,8 @@ export class NotificationsService {
     };
     const candidates: Array<{ source: 'naver' | 'disco'; row: any; key: string }> = [];
 
-    const naverCond: Prisma.Sql[] = [
-      Prisma.sql`n.first_seen_at > ${cursor}`,
-      // '새 매물'은 매물번호가 아니라 대지위치 기준: 같은 주소가 이미 있던 매물(재등록)이면 알리지 않는다.
-      Prisma.sql`NOT EXISTS (SELECT 1 FROM public.naver n0 WHERE n0."대지위치" = n."대지위치" AND n0.first_seen_at <= ${cursor})`,
-    ];
+    // '새 매물'은 매물번호가 아니라 대지위치 기준이다. 재등록(같은 주소) 제외는 아래에서 한 번에 처리한다.
+    const naverCond: Prisma.Sql[] = [Prisma.sql`n.first_seen_at > ${cursor}`];
     if (districts.length) naverCond.push(Prisma.sql`n."구" IN (${Prisma.join(districts)})`);
     if (budgetWon) naverCond.push(Prisma.sql`n."거래가격" <= ${budgetWon / 1e8}`);
     if (minArea) naverCond.push(Prisma.sql`n."대지면적" >= ${minArea}`);
@@ -749,16 +746,11 @@ export class NotificationsService {
       SELECT n."매물번호" AS id, n."거래가격" AS price, n."대지면적" AS land, n."대지위치" AS address,
              n."구" AS district, n."동" AS dong, n."주용도코드명" AS use, n."용도지역" AS zone, n."도로폭_m" AS road, n.pnu AS pnu
       FROM public.naver n WHERE ${Prisma.join(naverCond, ' AND ')}
-      ORDER BY ${naverOrder} LIMIT 3`);
-    for (const r of naverRows) candidates.push({ source: 'naver', row: r, key: keyOf(r) });
+      ORDER BY ${naverOrder} LIMIT 30`);
+    for (const r of await this.freshAddressRows(naverRows, 'naver', cursor)) candidates.push({ source: 'naver', row: r, key: keyOf(r) });
 
     if (candidates.length < 3) {
-      const discoCond: Prisma.Sql[] = [
-        Prisma.sql`d.first_seen_at > ${cursor}`,
-        Prisma.sql`d.active IS TRUE`,
-        // 같은 주소가 이미 있던 매물(재등록)이면 알리지 않는다.
-        Prisma.sql`NOT EXISTS (SELECT 1 FROM public.disco_listing d0 WHERE d0.address = d.address AND d0.first_seen_at <= ${cursor})`,
-      ];
+      const discoCond: Prisma.Sql[] = [Prisma.sql`d.first_seen_at > ${cursor}`, Prisma.sql`d.active IS TRUE`];
       if (districts.length) discoCond.push(Prisma.sql`d.gu IN (${Prisma.join(districts)})`);
       if (budgetWon) discoCond.push(Prisma.sql`d.price_manwon <= ${budgetWon / 1e4}`);
       if (minArea) discoCond.push(Prisma.sql`d.land_area_m2 >= ${minArea}`);
@@ -773,8 +765,8 @@ export class NotificationsService {
         SELECT d.did AS id, d.price_manwon AS price_manwon, d.land_area_m2 AS land, d.address AS address,
                d.gu AS district, d.dong AS dong, d.main_use AS use, d.use_zone AS zone, d.pnu AS pnu
         FROM public.disco_listing d WHERE ${Prisma.join(discoCond, ' AND ')}
-        ORDER BY ${discoOrder} LIMIT ${3 - candidates.length}`);
-      for (const r of discoRows) candidates.push({ source: 'disco', row: r, key: keyOf(r) });
+        ORDER BY ${discoOrder} LIMIT 30`);
+      for (const r of await this.freshAddressRows(discoRows, 'disco', cursor)) candidates.push({ source: 'disco', row: r, key: keyOf(r) });
     }
     const seen = new Set<string>();
     for (const c of candidates) {
@@ -784,6 +776,21 @@ export class NotificationsService {
       if (out.length >= 3) break;
     }
     return out;
+  }
+
+  // 커서 이전에 이미 있던 대지위치는 재등록으로 보고 제외한다. 상관 서브쿼리 대신 후보 주소만 한 번에 조회한다.
+  private async freshAddressRows(rows: any[], source: 'naver' | 'disco', cursor: Date): Promise<any[]> {
+    const addrs = [...new Set(rows.map((r) => String(r.address || '').trim()).filter(Boolean))];
+    if (!addrs.length) return rows;
+    try {
+      const known = source === 'naver'
+        ? await this.prisma.$queryRaw<Array<{ a: string }>>`SELECT DISTINCT "대지위치" AS a FROM public.naver WHERE "대지위치" IN (${Prisma.join(addrs)}) AND first_seen_at <= ${cursor}`
+        : await this.prisma.$queryRaw<Array<{ a: string }>>`SELECT DISTINCT address AS a FROM public.disco_listing WHERE address IN (${Prisma.join(addrs)}) AND first_seen_at <= ${cursor}`;
+      const knownSet = new Set(known.map((k) => String(k.a || '').trim()));
+      return rows.filter((r) => !knownSet.has(String(r.address || '').trim()));
+    } catch {
+      return rows;
+    }
   }
 
   private listingAlert(r: any, source: 'naver' | 'disco', conditionName: string): Alert {
