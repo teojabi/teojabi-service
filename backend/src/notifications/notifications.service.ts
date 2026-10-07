@@ -98,6 +98,17 @@ export class NotificationsService {
     return n > 0 ? `${(n / 1e8).toLocaleString('ko-KR', { maximumFractionDigits: 2 })}억원` : '가격 미기재';
   }
 
+  // 평당가(가격 ÷ 평수). 1평 = 3.3058㎡.
+  private pppText(priceWon: number, areaM2: number) {
+    const area = Number(areaM2) || 0;
+    if (!(priceWon > 0) || !(area > 0)) return '';
+    const perPyeong = (priceWon * 3.3058) / area;
+    const text = perPyeong >= 1e8
+      ? `${(perPyeong / 1e8).toLocaleString('ko-KR', { maximumFractionDigits: 1 })}억원`
+      : `${Math.round(perPyeong / 1e4).toLocaleString('ko-KR')}만원`;
+    return `평당 ${text}`;
+  }
+
   private kindLabelFor(kind: string, date: string | null) {
     if (kind === 'notice') return '공지';
     if (kind === 'listing') return '맞춤 매물';
@@ -659,6 +670,12 @@ export class NotificationsService {
     const minRoad = Number(payload?.minRoadWidthM) || 0;
     const kind = payload?.kind;
     const out: Alert[] = [];
+    // 같은 주소(필지)가 여러 출처(네이버·디스코·터잡이 추천)에 있으면 하나만 추천한다.
+    const keyOf = (r: any) => {
+      const pnu = String(r.pnu || '').trim();
+      return /^\d{19}$/.test(pnu) ? `pnu:${pnu}` : `addr:${String(r.address || '').replace(/\s+/g, '').slice(0, 40)}`;
+    };
+    const candidates: Array<{ source: 'naver' | 'disco'; row: any; key: string }> = [];
 
     const naverCond: Prisma.Sql[] = [Prisma.sql`n.first_seen_at > ${cursor}`];
     if (districts.length) naverCond.push(Prisma.sql`n."구" IN (${Prisma.join(districts)})`);
@@ -678,12 +695,12 @@ export class NotificationsService {
       : Prisma.sql`n.first_seen_at DESC`;
     const naverRows = await this.prisma.$queryRaw<any[]>(Prisma.sql`
       SELECT n."매물번호" AS id, n."거래가격" AS price, n."대지면적" AS land, n."대지위치" AS address,
-             n."구" AS district, n."동" AS dong, n."주용도코드명" AS use, n."용도지역" AS zone, n."도로폭_m" AS road
+             n."구" AS district, n."동" AS dong, n."주용도코드명" AS use, n."용도지역" AS zone, n."도로폭_m" AS road, n.pnu AS pnu
       FROM public.naver n WHERE ${Prisma.join(naverCond, ' AND ')}
       ORDER BY ${naverOrder} LIMIT 3`);
-    for (const r of naverRows) out.push(this.listingAlert(r, 'naver', conditionName));
+    for (const r of naverRows) candidates.push({ source: 'naver', row: r, key: keyOf(r) });
 
-    if (out.length < 3) {
+    if (candidates.length < 3) {
       const discoCond: Prisma.Sql[] = [Prisma.sql`d.first_seen_at > ${cursor}`, Prisma.sql`d.active IS TRUE`];
       if (districts.length) discoCond.push(Prisma.sql`d.gu IN (${Prisma.join(districts)})`);
       if (budgetWon) discoCond.push(Prisma.sql`d.price_manwon <= ${budgetWon / 1e4}`);
@@ -696,10 +713,17 @@ export class NotificationsService {
         : Prisma.sql`d.first_seen_at DESC`;
       const discoRows = await this.prisma.$queryRaw<any[]>(Prisma.sql`
         SELECT d.did AS id, d.price_manwon AS price_manwon, d.land_area_m2 AS land, d.address AS address,
-               d.gu AS district, d.dong AS dong, d.main_use AS use, d.use_zone AS zone
+               d.gu AS district, d.dong AS dong, d.main_use AS use, d.use_zone AS zone, d.pnu AS pnu
         FROM public.disco_listing d WHERE ${Prisma.join(discoCond, ' AND ')}
-        ORDER BY ${discoOrder} LIMIT ${3 - out.length}`);
-      for (const r of discoRows) out.push(this.listingAlert(r, 'disco', conditionName));
+        ORDER BY ${discoOrder} LIMIT ${3 - candidates.length}`);
+      for (const r of discoRows) candidates.push({ source: 'disco', row: r, key: keyOf(r) });
+    }
+    const seen = new Set<string>();
+    for (const c of candidates) {
+      if (seen.has(c.key)) continue;
+      seen.add(c.key);
+      out.push(this.listingAlert(c.row, c.source, conditionName));
+      if (out.length >= 3) break;
     }
     return out;
   }
@@ -709,6 +733,7 @@ export class NotificationsService {
     const detail = [
       String(r.use || '').trim() || '용도 미기재',
       this.money(priceWon),
+      this.pppText(priceWon, Number(r.land) || 0),
       r.land ? `대지 ${this.area(r.land)}` : '',
       String(r.zone || '').trim(),
     ].filter(Boolean).join(' · ');
