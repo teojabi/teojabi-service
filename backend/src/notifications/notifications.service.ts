@@ -866,47 +866,59 @@ export class NotificationsService {
     return null;
   }
 
-  // '예외 추천': 조건에서 예산만 약 15% 넉넉히 보되 다른 조건은 맞는 매물 중, 평당가가 가장 낮은 1건.
+  // '예외 추천': 예산·면적·지역 중 하나만 살짝 벗어나지만 평당가가 가장 낮은 1건(매일 무작위).
   private async exceptionAlert(payload: any, conditionName: string, seen: { naver: string[]; disco: string[] }): Promise<Alert | null> {
     const budgetWon = Number(payload?.budgetWon) || 0;
-    if (!budgetWon) return null;
-    const low = budgetWon / 1e8, high = (budgetWon * 1.15) / 1e8;
     const districts = Array.isArray(payload?.districts) ? payload.districts.filter((d: any) => typeof d === 'string') : [];
     const zones = Array.isArray(payload?.zones) ? payload.zones.filter((z: any) => typeof z === 'string') : [];
     const minArea = Number(payload?.minAreaM2) || 0;
     const maxArea = Number(payload?.maxAreaM2) || 0;
     const minRoad = Number(payload?.minRoadWidthM) || 0;
     const kind = payload?.kind;
-    const note = `조건 예산 ${(budgetWon / 1e8).toLocaleString('ko-KR')}억보다 조금 높지만 평당가가 낮아요`;
 
-    const naverCond: Prisma.Sql[] = [Prisma.sql`n."상태" IN ('신규','유지')`, Prisma.sql`n."대지면적" > 0`, Prisma.sql`n."거래가격" > ${low}`, Prisma.sql`n."거래가격" <= ${high}`];
-    if (districts.length) naverCond.push(Prisma.sql`n."구" IN (${Prisma.join(districts)})`);
-    if (minArea) naverCond.push(Prisma.sql`n."대지면적" >= ${minArea}`);
-    if (maxArea) naverCond.push(Prisma.sql`n."대지면적" <= ${maxArea}`);
-    if (minRoad) naverCond.push(Prisma.sql`n."도로폭_m" >= ${minRoad}`);
-    if (kind === 'land') naverCond.push(Prisma.sql`n."주용도코드명" = '토지'`);
-    else if (kind === 'building') naverCond.push(Prisma.sql`coalesce(n."주용도코드명",'') <> '토지'`);
-    if (zones.length) naverCond.push(Prisma.sql`(${Prisma.join(zones.map((z: string) => Prisma.sql`n."용도지역" ILIKE ${'%' + z.replace('지역', '') + '%'}`), ' OR ')})`);
-    if (seen.naver.length) naverCond.push(Prisma.sql`n."매물번호" NOT IN (${Prisma.join(seen.naver)})`);
+    const options: Array<'budget' | 'area' | 'region'> = [];
+    if (budgetWon) options.push('budget');
+    if (minArea || maxArea) options.push('area');
+    if (districts.length) options.push('region');
+    if (!options.length) return null;
+    const type = options[Math.floor(Math.random() * options.length)];
+
+    // 공통 필터: 용도지역·도로폭·용도·이미 본 것 제외.
+    const cond: Prisma.Sql[] = [Prisma.sql`n."상태" IN ('신규','유지')`, Prisma.sql`n."대지면적" > 0`];
+    if (zones.length) cond.push(Prisma.sql`(${Prisma.join(zones.map((z: string) => Prisma.sql`n."용도지역" ILIKE ${'%' + z.replace('지역', '') + '%'}`), ' OR ')})`);
+    if (minRoad) cond.push(Prisma.sql`n."도로폭_m" >= ${minRoad}`);
+    if (kind === 'land') cond.push(Prisma.sql`n."주용도코드명" = '토지'`);
+    else if (kind === 'building') cond.push(Prisma.sql`coalesce(n."주용도코드명",'') <> '토지'`);
+    if (seen.naver.length) cond.push(Prisma.sql`n."매물번호" NOT IN (${Prisma.join(seen.naver)})`);
+
+    let note: string;
+    if (type === 'budget') {
+      cond.push(Prisma.sql`n."거래가격" > ${budgetWon / 1e8}`, Prisma.sql`n."거래가격" <= ${(budgetWon * 1.15) / 1e8}`);
+      if (districts.length) cond.push(Prisma.sql`n."구" IN (${Prisma.join(districts)})`);
+      if (minArea) cond.push(Prisma.sql`n."대지면적" >= ${minArea}`);
+      if (maxArea) cond.push(Prisma.sql`n."대지면적" <= ${maxArea}`);
+      note = `조건 예산 ${(budgetWon / 1e8).toLocaleString('ko-KR')}억보다 조금 높지만 평당가가 낮아요`;
+    } else if (type === 'area') {
+      if (districts.length) cond.push(Prisma.sql`n."구" IN (${Prisma.join(districts)})`);
+      if (budgetWon) cond.push(Prisma.sql`n."거래가격" <= ${budgetWon / 1e8}`);
+      if (minArea && maxArea) cond.push(Prisma.sql`((n."대지면적" >= ${minArea * 0.85} AND n."대지면적" < ${minArea}) OR (n."대지면적" > ${maxArea} AND n."대지면적" <= ${maxArea * 1.15}))`);
+      else if (minArea) cond.push(Prisma.sql`(n."대지면적" >= ${minArea * 0.85} AND n."대지면적" < ${minArea})`);
+      else cond.push(Prisma.sql`(n."대지면적" > ${maxArea} AND n."대지면적" <= ${maxArea * 1.15})`);
+      note = '조건 대지면적에서 조금 벗어나지만 평당가가 낮아요';
+    } else {
+      cond.push(Prisma.sql`n."구" NOT IN (${Prisma.join(districts)})`);
+      if (budgetWon) cond.push(Prisma.sql`n."거래가격" <= ${budgetWon / 1e8}`);
+      if (minArea) cond.push(Prisma.sql`n."대지면적" >= ${minArea}`);
+      if (maxArea) cond.push(Prisma.sql`n."대지면적" <= ${maxArea}`);
+      note = '조건 지역은 아니지만 나머지 조건은 맞고 평당가가 낮아요';
+    }
+
     const rows = await this.prisma.$queryRaw<any[]>(Prisma.sql`
       SELECT n."매물번호" AS id, n."거래가격" AS price, n."대지면적" AS land, n."대지위치" AS address,
              n."구" AS district, n."동" AS dong, n."주용도코드명" AS use, n."용도지역" AS zone, n."도로폭_m" AS road, n.pnu AS pnu
-      FROM public.naver n WHERE ${Prisma.join(naverCond, ' AND ')}
+      FROM public.naver n WHERE ${Prisma.join(cond, ' AND ')}
       ORDER BY (n."거래가격" / NULLIF(n."대지면적", 0)) ASC NULLS LAST LIMIT 1`);
     if (rows.length) return this.listingAlert(rows[0], 'naver', conditionName, '예외 추천', note);
-
-    const dLow = budgetWon / 1e4, dHigh = (budgetWon * 1.15) / 1e4;
-    const discoCond: Prisma.Sql[] = [Prisma.sql`d.active IS TRUE`, Prisma.sql`d.land_area_m2 > 0`, Prisma.sql`d.price_manwon > ${dLow}`, Prisma.sql`d.price_manwon <= ${dHigh}`];
-    if (districts.length) discoCond.push(Prisma.sql`d.gu IN (${Prisma.join(districts)})`);
-    if (minArea) discoCond.push(Prisma.sql`d.land_area_m2 >= ${minArea}`);
-    if (maxArea) discoCond.push(Prisma.sql`d.land_area_m2 <= ${maxArea}`);
-    if (seen.disco.length) discoCond.push(Prisma.sql`d.did NOT IN (${Prisma.join(seen.disco)})`);
-    const drows = await this.prisma.$queryRaw<any[]>(Prisma.sql`
-      SELECT d.did AS id, d.price_manwon AS price_manwon, d.land_area_m2 AS land, d.address AS address,
-             d.gu AS district, d.dong AS dong, d.main_use AS use, d.use_zone AS zone, d.pnu AS pnu
-      FROM public.disco_listing d WHERE ${Prisma.join(discoCond, ' AND ')}
-      ORDER BY (d.price_manwon / NULLIF(d.land_area_m2, 0)) ASC NULLS LAST LIMIT 1`);
-    if (drows.length) return this.listingAlert(drows[0], 'disco', conditionName, '예외 추천', note);
     return null;
   }
 
