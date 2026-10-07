@@ -34,6 +34,7 @@ type InboxRow = {
   title: string | null;
   detail: string | null;
   readAt: Date | null;
+  emailedAt: Date | null;
 };
 export type NotificationPreferences = {
   email: boolean;
@@ -184,11 +185,17 @@ export class NotificationsService {
     return { status: 'ok' };
   }
 
+  // 이메일로 보낸 항목 표시(앱에서 읽음 처리와 분리). 배지는 앱을 열 때만 지운다.
+  private async markEmailed(userId: string) {
+    await this.prisma.$executeRaw`
+      UPDATE public.notification_item SET emailed_at=now() WHERE user_id=${userId} AND emailed_at IS NULL`;
+  }
+
   // 저장된 최근 알림 항목을 반환한다(목록 + 안 읽은 개수).
   private async listInbox(userId: string) {
     const rows = await this.prisma.$queryRaw<InboxRow[]>`
       SELECT item_key AS "key", kind, origin, condition_name AS "conditionName",
-             to_char(event_date,'YYYY-MM-DD') AS "date", title, detail, meta, score, read_at AS "readAt"
+             to_char(event_date,'YYYY-MM-DD') AS "date", title, detail, meta, score, read_at AS "readAt", emailed_at AS "emailedAt"
       FROM public.notification_item
       WHERE user_id=${userId}
       ORDER BY (read_at IS NULL) DESC, score DESC NULLS LAST, event_date ASC NULLS LAST, created_at DESC
@@ -204,6 +211,7 @@ export class NotificationsService {
       detail: row.detail ?? '',
       meta: (row as any).meta ?? null,
       read: row.readAt != null,
+      emailed: row.emailedAt != null,
     }));
     const unreadCount = items.filter((item) => !item.read).length;
     // 조건별 최근 30일 알림 건수. 알림이 많은 조건에 조정 안내를 보여주기 위한 참고값.
@@ -234,11 +242,11 @@ export class NotificationsService {
       try {
         await this.prisma.$executeRaw`
           INSERT INTO public.notification_item
-            (user_id,item_key,kind,origin,condition_name,event_date,title,detail,meta,score,read_at)
+            (user_id,item_key,kind,origin,condition_name,event_date,title,detail,meta,score,read_at,emailed_at)
           VALUES (${userId},${candidate.key},${candidate.type},${candidate.origin},${candidate.conditionName},
                   ${eventDate}::date,${candidate.title},${candidate.detail},
                   ${candidate.meta ? JSON.stringify(candidate.meta) : null}::jsonb,
-                  ${candidate.meta?.score ?? null},${readAt})
+                  ${candidate.meta?.score ?? null},${readAt},${readAt})
           ON CONFLICT (user_id,item_key) DO NOTHING`;
       } catch (error) {
         // 한 건이 실패해도 나머지 알림은 정상적으로 저장되도록 건별로 흡수한다.
@@ -255,8 +263,8 @@ export class NotificationsService {
       existing.add(key);
       await this.prisma.$executeRaw`
         INSERT INTO public.notification_item
-          (user_id,item_key,kind,origin,condition_name,event_date,title,detail,read_at)
-        VALUES (${userId},${key},'notice','notice',NULL,${notice.date}::date,${notice.title},${notice.body ?? ''},${readAt})
+          (user_id,item_key,kind,origin,condition_name,event_date,title,detail,read_at,emailed_at)
+        VALUES (${userId},${key},'notice','notice',NULL,${notice.date}::date,${notice.title},${notice.body ?? ''},${readAt},now())
         ON CONFLICT (user_id,item_key) DO NOTHING`;
     }
   }
@@ -497,8 +505,8 @@ export class NotificationsService {
           conditions: preferences.conditions,
         });
         if (!mailReady || !preferences.email || !user.email) continue;
-        // 읽지 않은 새 알림만 메일로 보낸다(이미 본 항목 반복 발송 방지).
-        const unread = inbox.items.filter((item) => !item.read);
+        // 아직 메일로 안 보낸 항목만 담는다(이메일 발송과 앱 읽음은 분리).
+        const unread = inbox.items.filter((item) => !item.emailed);
         if (!unread.length) continue;
         const dedupeKey = `email:${user.userId}:${today}`;
         const inserted = await this.prisma.$executeRaw`
@@ -512,7 +520,7 @@ export class NotificationsService {
           title: `[터잡이] 조건에 맞는 새 매물 ${unread.length}건`,
           body: buildDigestBody(this.toDigestConditions(unread, summaries), { inquiryEmail: 'teojabi@gmail.com', unsubscribeUrl: this.unsubscribeUrl(user.userId) }),
         });
-        await this.markRead(user.userId);
+        await this.markEmailed(user.userId);
         sent += 1;
       } catch (error) {
         this.logger.error(`Email digest failed for ${user.userId}`, error as Error);
