@@ -724,7 +724,11 @@ export class NotificationsService {
     };
     const candidates: Array<{ source: 'naver' | 'disco'; row: any; key: string }> = [];
 
-    const naverCond: Prisma.Sql[] = [Prisma.sql`n.first_seen_at > ${cursor}`];
+    const naverCond: Prisma.Sql[] = [
+      Prisma.sql`n.first_seen_at > ${cursor}`,
+      // '새 매물'은 매물번호가 아니라 대지위치 기준: 같은 주소가 이미 있던 매물(재등록)이면 알리지 않는다.
+      Prisma.sql`NOT EXISTS (SELECT 1 FROM public.naver n0 WHERE n0."대지위치" = n."대지위치" AND n0.first_seen_at <= ${cursor})`,
+    ];
     if (districts.length) naverCond.push(Prisma.sql`n."구" IN (${Prisma.join(districts)})`);
     if (budgetWon) naverCond.push(Prisma.sql`n."거래가격" <= ${budgetWon / 1e8}`);
     if (minArea) naverCond.push(Prisma.sql`n."대지면적" >= ${minArea}`);
@@ -749,7 +753,12 @@ export class NotificationsService {
     for (const r of naverRows) candidates.push({ source: 'naver', row: r, key: keyOf(r) });
 
     if (candidates.length < 3) {
-      const discoCond: Prisma.Sql[] = [Prisma.sql`d.first_seen_at > ${cursor}`, Prisma.sql`d.active IS TRUE`];
+      const discoCond: Prisma.Sql[] = [
+        Prisma.sql`d.first_seen_at > ${cursor}`,
+        Prisma.sql`d.active IS TRUE`,
+        // 같은 주소가 이미 있던 매물(재등록)이면 알리지 않는다.
+        Prisma.sql`NOT EXISTS (SELECT 1 FROM public.disco_listing d0 WHERE d0.address = d.address AND d0.first_seen_at <= ${cursor})`,
+      ];
       if (districts.length) discoCond.push(Prisma.sql`d.gu IN (${Prisma.join(districts)})`);
       if (budgetWon) discoCond.push(Prisma.sql`d.price_manwon <= ${budgetWon / 1e4}`);
       if (minArea) discoCond.push(Prisma.sql`d.land_area_m2 >= ${minArea}`);
