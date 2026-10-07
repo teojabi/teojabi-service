@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
+import { createHmac } from 'crypto';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { MailService } from '../mail/mail.service';
@@ -45,7 +46,7 @@ export type NotificationPreferences = {
 
 // 이메일·푸시·카카오는 명시적 수신 동의(옵트인) 전까지 꺼둔다. 알림함(웹)은 동의 없이도 보인다.
 const DEFAULT_PREFERENCES: NotificationPreferences = {
-  email: false,
+  email: true,
   webPush: false,
   kakao: false,
   favorites: true,
@@ -148,6 +149,25 @@ export class NotificationsService {
       ON CONFLICT (user_id) DO UPDATE SET email=EXCLUDED.email,web_push=EXCLUDED.web_push,kakao=EXCLUDED.kakao,
         favorites=EXCLUDED.favorites,conditions=EXCLUDED.conditions,lead_days=EXCLUDED.lead_days,updated_at=now()`;
     return next;
+  }
+
+  // 원클릭 수신거부: 이메일에 담긴 서명 토큰으로 로그인 없이 이메일 알림을 끈다.
+  private unsubscribeSecret() {
+    return process.env.UNSUBSCRIBE_SECRET || process.env.JWT_SECRET || 'teojabi-unsubscribe';
+  }
+  unsubscribeToken(userId: string) {
+    return createHmac('sha256', this.unsubscribeSecret()).update(String(userId)).digest('hex').slice(0, 32);
+  }
+  unsubscribeUrl(userId: string) {
+    const base = process.env.PUBLIC_API_BASE || 'https://api.teojabi.com';
+    return `${base}/api/v1/notifications/unsubscribe?u=${encodeURIComponent(userId)}&t=${this.unsubscribeToken(userId)}`;
+  }
+  async unsubscribe(userId: string, token: string) {
+    if (!userId || !token || token !== this.unsubscribeToken(userId)) return { ok: false };
+    await this.prisma.$executeRaw`
+      INSERT INTO public.notification_preference(user_id,email,updated_at) VALUES (${userId},false,now())
+      ON CONFLICT (user_id) DO UPDATE SET email=false, updated_at=now()`;
+    return { ok: true };
   }
 
   // --- 알림함(개별 항목) -----------------------------------------------------
@@ -490,7 +510,7 @@ export class NotificationsService {
         await this.mail.send({
           to: user.email,
           title: `[터잡이] 조건에 맞는 새 매물 ${unread.length}건`,
-          body: buildDigestBody(this.toDigestConditions(unread, summaries), { inquiryEmail: 'teojabi@gmail.com' }),
+          body: buildDigestBody(this.toDigestConditions(unread, summaries), { inquiryEmail: 'teojabi@gmail.com', unsubscribeUrl: this.unsubscribeUrl(user.userId) }),
         });
         await this.markRead(user.userId);
         sent += 1;
