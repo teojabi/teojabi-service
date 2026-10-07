@@ -582,6 +582,7 @@ body.map-results-open{height:100dvh;min-height:0;overflow:hidden;display:flex;fl
 @media(max-width:700px){
   .assistant-form input,.assistant-opts input[type=number],input[type=text],input[type=number],input[type=search],select,textarea{font-size:16px}
   .save-dialog input,.member-dialog input,.assistant-panel input{font-size:16px}
+.save-dialog input[type=email]{display:block;border:1px solid var(--line);border-radius:9px;padding:13px;width:100%;margin:8px 0 16px}
 }
 
 @media(max-width:700px){.site-map-wrap,.site-map,.site-map *{touch-action:pan-y!important}}
