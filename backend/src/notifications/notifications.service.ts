@@ -73,6 +73,12 @@ export class NotificationsService {
     return this.kst(shiftDays).toISOString().slice(0, 10);
   }
 
+  // '안 본 매물'·'예외 추천'은 주 2회(월·목 KST)만 보낸다.
+  private isDiscoveryDay() {
+    const dow = this.kst(0).getUTCDay(); // 0=일 … 6=토
+    return dow === 1 || dow === 4;
+  }
+
   private stamp(shiftDays = 0) {
     return this.kst(shiftDays).toISOString().slice(0, 16).replace(/[-:T]/g, '');
   }
@@ -373,8 +379,9 @@ export class NotificationsService {
     const startStamp = this.stamp(0);
     const endStamp = this.stamp(leadDays);
     const items: Alert[] = [];
-    // '안 보신 매물' 판정용(조회·찜·이전 알림) — 조건 처리 전에 한 번만 모은다.
-    const seen = includeConditions ? await this.seenListingIds(userId).catch(() => ({ naver: [] as string[], disco: [] as string[] })) : { naver: [] as string[], disco: [] as string[] };
+    // '안 본 매물'·'예외 추천'은 주 2회(월·목 KST)만. 그날만 조회 기록을 모은다.
+    const specialDay = includeConditions && this.isDiscoveryDay();
+    const seen = specialDay ? await this.seenListingIds(userId).catch(() => ({ naver: [] as string[], disco: [] as string[] })) : { naver: [] as string[], disco: [] as string[] };
 
     const favAuction = includeFavorites
       ? saved.filter((r) => r.kind === 'favorite' && r.key.startsWith('auction:')).map((r) => r.key.slice('auction:'.length))
@@ -417,10 +424,11 @@ export class NotificationsService {
       const districts = Array.isArray(payload.districts) ? payload.districts.filter((d: any) => typeof d === 'string') : [];
       // 새로 올라온 매물(네이버·디스코) 매칭 — 최대 3건.
       try { items.push(...(await this.listingAlerts(payload, conditionName, cursor))); } catch { /* 매물 매칭 실패는 무시 */ }
-      // 매일 1건: 조건에 맞는 '아직 안 보신 매물'(평당가 낮은 순 고정).
-      try { const d = await this.discoveryAlert(payload, conditionName, seen); if (d) items.push(d); } catch { /* 발견 매칭 실패는 무시 */ }
-      // 매일 1건: 예산만 살짝 넘지만 평당가가 낮은 '예외 추천'.
-      try { const e = await this.exceptionAlert(payload, conditionName, seen); if (e) items.push(e); } catch { /* 예외 매칭 실패는 무시 */ }
+      // 주 2회(월·목): 조건에 맞는 '아직 안 보신 매물' + '예외 추천'(각 1건).
+      if (specialDay) {
+        try { const d = await this.discoveryAlert(payload, conditionName, seen); if (d) items.push(d); } catch { /* 발견 매칭 실패는 무시 */ }
+        try { const e = await this.exceptionAlert(payload, conditionName, seen); if (e) items.push(e); } catch { /* 예외 매칭 실패는 무시 */ }
+      }
 
       const auction = payload.auction;
       if (!auction?.enabled) continue;
