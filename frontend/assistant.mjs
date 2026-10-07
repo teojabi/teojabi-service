@@ -408,13 +408,7 @@ let conversation = [];
   const welcome = () => {
     if (!signedIn()) { renderLocked(); return; }
     const condition = savedCondition();
-    addBot(`안녕하세요, AI 부동산 비서예요. 원하는 조건을 편하게 말해주세요. 터잡이 이용 방법도 물어볼 수 있어요.<br><small>예: "종로구 상업지역 100억 이하 50평 이상 도로 6m", "홍대입구역 도보 3분", "강남구 골목상권 월매출 5억 이상"</small>
-      <div class="assistant-chiprow">
-        <button type="button" class="assistant-chip" data-send="강남구 골목상권 월매출 5억 이상">🏪 골목상권 매출 5억 이상</button>
-        <button type="button" class="assistant-chip" data-send="유동인구 30만 이상 발달상권">🏪 유동인구 많은 발달상권</button>
-        <button type="button" class="assistant-chip" data-send="화랑대역 7번 상권">🏪 상권 이름으로 찾기</button>
-      </div>
-      <small>매물 카드에서 "이 매물 물어보기"를 누른 뒤 "이 주위 상권 알려줘"처럼 편하게 물어봐도 돼요.</small>`);
+    addBot(`안녕하세요, AI 부동산 비서예요. 원하는 조건을 편하게 말해주세요. 터잡이 이용 방법도 물어볼 수 있어요.<br><small>예: "종로구 상업지역 100억 이하 50평 이상 도로 6m", "홍대입구역 도보 3분", "강남구 골목상권 월매출 5억 이상"</small>`);
     if (condition && hasUsableFilters(condition)) addBot(`<p>저장하신 조건이 있어요.</p><p class="assistant-saved-condition">${esc(conditionLabel(condition))}</p><small>말씀하신 조건이 있으면 그 조건으로 먼저 찾아드려요.</small><div class="assistant-chiprow"><button type="button" class="assistant-chip" data-condition="1">이 조건으로 찾기</button></div>`);
   };
 
