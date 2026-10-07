@@ -327,6 +327,12 @@ def build_where(filters, station, commercial=None):
         if max_distance:
             where.append('ST_Distance(ST_SetSRID(ST_MakePoint(n.lng,n.lat),4326)::geography, ST_SetSRID(ST_MakePoint(%s,%s),4326)::geography) <= %s')
             params += [station['lng'], station['lat'], max_distance]
+    else:
+        # 역 이름 없이 거리만 준 경우(가까운 역 기준): 가장 가까운 역까지 거리로 거른다.
+        max_distance = number(filters.get('maxDistanceM'))
+        if max_distance:
+            where.append('(SELECT ST_Distance(ST_SetSRID(ST_MakePoint(n.lng,n.lat),4326)::geography, ST_SetSRID(ST_MakePoint(s.lng,s.lat),4326)::geography) FROM public.seoul_subway_stations s WHERE s.lat IS NOT NULL ORDER BY ST_SetSRID(ST_MakePoint(s.lng,s.lat),4326)::geography <-> ST_SetSRID(ST_MakePoint(n.lng,n.lat),4326)::geography LIMIT 1) <= %s')
+            params.append(max_distance)
     # 상권 조건(특정 상권/유형/매출/유동인구)은 반경 내 상권 EXISTS로 판정한다.
     commercial_sql = commercial_clause(filters, params, target_code=(commercial or {}).get('상권코드'))
     if commercial_sql:
