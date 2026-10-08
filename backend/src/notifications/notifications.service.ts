@@ -306,22 +306,24 @@ export class NotificationsService {
     return this.listInbox(userId);
   }
 
-  // 이메일·알림함에 넣을 항목을 조건별로 추린다(조건당 최대 3건, 특례 우선).
+  // 이메일·알림함에 넣을 항목을 조건별로 추린다. 일반 매물은 조건당 최대 3건, 특례(안 본 매물·예외 추천)는 항상 포함.
   private selectDigest(candidates: Alert[]): Alert[] {
     const order: string[] = [];
     const groups = new Map<string, Alert[]>();
-    const totals = new Map<string, number>();
+    const regulars = new Map<string, number>();
     const ordered = [...candidates].sort((a, b) => Number(Boolean(b?.meta?.special)) - Number(Boolean(a?.meta?.special)));
     for (const item of ordered) {
       const name = item.type === 'notice' ? '공지' : item.conditionName || (item.origin === 'favorite' ? '찜한 물건' : '맞춤 매물');
       if (!groups.has(name)) {
         groups.set(name, []);
         order.push(name);
-        totals.set(name, 0);
+        regulars.set(name, 0);
       }
-      const used = totals.get(name)!;
-      if (used >= 3) continue;
-      totals.set(name, used + 1);
+      if (!item.meta?.special) {
+        const used = regulars.get(name)!;
+        if (used >= 3) continue;
+        regulars.set(name, used + 1);
+      }
       groups.get(name)!.push(item);
     }
     return order.flatMap((name) => groups.get(name)!);
@@ -416,8 +418,8 @@ export class NotificationsService {
     const startStamp = this.stamp(0);
     const endStamp = this.stamp(leadDays);
     const items: Alert[] = [];
-    // '안 본 매물'·'예외 추천'은 주 2회(월·목 KST)만. 그날만 조회 기록을 모은다.
-    const specialDay = includeConditions && !options.skipSpecials && this.isDiscoveryDay();
+    // '안 본 매물'·'예외 추천'은 매일 보낸다. 그날만 조회 기록을 모은다.
+    const specialDay = includeConditions && !options.skipSpecials;
     const seen = specialDay ? await this.seenListingIds(userId).catch(() => ({ naver: [] as string[], disco: [] as string[] })) : { naver: [] as string[], disco: [] as string[] };
 
     const favAuction = includeFavorites
@@ -461,9 +463,9 @@ export class NotificationsService {
       const districts = Array.isArray(payload.districts) ? payload.districts.filter((d: any) => typeof d === 'string') : [];
       // 새로 올라온 매물(네이버·디스코) 매칭 — 최대 3건.
       try { items.push(...(await this.listingAlerts(payload, conditionName, cursor))); } catch { /* 매물 매칭 실패는 무시 */ }
-      // 주 2회(월·목): 조건에 맞는 '아직 안 보신 매물' + '예외 추천'(각 1건).
+      // 조건에 맞는 '아직 안 보신 매물'(최대 2건) + '예외 추천'(1건).
       if (specialDay) {
-        try { const d = await this.discoveryAlert(payload, conditionName, seen); if (d) items.push(d); } catch { /* 발견 매칭 실패는 무시 */ }
+        try { items.push(...(await this.discoveryAlert(payload, conditionName, seen))); } catch { /* 발견 매칭 실패는 무시 */ }
         try { const e = await this.exceptionAlert(payload, conditionName, seen); if (e) items.push(e); } catch { /* 예외 매칭 실패는 무시 */ }
       }
 
@@ -954,8 +956,8 @@ export class NotificationsService {
     return { naver: [...naver], disco: [...disco] };
   }
 
-  // 조건에 맞는 '아직 안 보신 매물' 1건. 정렬은 평당가 낮은 순 고정.
-  private async discoveryAlert(payload: any, conditionName: string, seen: { naver: string[]; disco: string[] }): Promise<Alert | null> {
+  // 조건에 맞는 '아직 안 보신 매물' 최대 2건. 정렬은 평당가 낮은 순 고정.
+  private async discoveryAlert(payload: any, conditionName: string, seen: { naver: string[]; disco: string[] }, want = 2): Promise<Alert[]> {
     const districts = Array.isArray(payload?.districts) ? payload.districts.filter((d: any) => typeof d === 'string') : [];
     const zones = Array.isArray(payload?.zones) ? payload.zones.filter((z: any) => typeof z === 'string') : [];
     const budgetWon = Number(payload?.budgetWon) || 0;
@@ -963,6 +965,7 @@ export class NotificationsService {
     const maxArea = Number(payload?.maxAreaM2) || 0;
     const minRoad = Number(payload?.minRoadWidthM) || 0;
     const kind = payload?.kind;
+    const out: Alert[] = [];
 
     const naverCond: Prisma.Sql[] = [Prisma.sql`n."상태" IN ('신규','유지')`, Prisma.sql`n."대지면적" > 0`, Prisma.sql`n."거래가격" > 0`, Prisma.sql`coalesce(n."매물특징",'') !~ '숙박|호텔|객실|레지던스|오피스텔|호실|모텔'`];
     if (districts.length) naverCond.push(Prisma.sql`n."구" IN (${Prisma.join(districts)})`);
@@ -978,22 +981,24 @@ export class NotificationsService {
       SELECT n."매물번호" AS id, n."거래가격" AS price, n."대지면적" AS land, n."대지위치" AS address,
              n."구" AS district, n."동" AS dong, n."주용도코드명" AS use, n."용도지역" AS zone, n."도로폭_m" AS road, n.pnu AS pnu
       FROM public.naver n WHERE ${Prisma.join(naverCond, ' AND ')}
-      ORDER BY (n."거래가격" / NULLIF(n."대지면적", 0)) ASC NULLS LAST LIMIT 1`);
-    if (rows.length) return this.listingAlert(rows[0], 'naver', conditionName, '아직 안 보신 매물', '', 'discovery');
+      ORDER BY (n."거래가격" / NULLIF(n."대지면적", 0)) ASC NULLS LAST LIMIT ${want}`);
+    for (const r of rows) out.push(this.listingAlert(r, 'naver', conditionName, '아직 안 보신 매물', '', 'discovery'));
 
-    const discoCond: Prisma.Sql[] = [Prisma.sql`d.active IS TRUE`, Prisma.sql`d.land_area_m2 > 0`, Prisma.sql`d.price_manwon > 0`];
-    if (districts.length) discoCond.push(Prisma.sql`d.gu IN (${Prisma.join(districts)})`);
-    if (budgetWon) discoCond.push(Prisma.sql`d.price_manwon <= ${budgetWon / 1e4}`);
-    if (minArea) discoCond.push(Prisma.sql`d.land_area_m2 >= ${minArea}`);
-    if (maxArea) discoCond.push(Prisma.sql`d.land_area_m2 <= ${maxArea}`);
-    if (seen.disco.length) discoCond.push(Prisma.sql`d.did NOT IN (${Prisma.join(seen.disco)})`);
-    const drows = await this.prisma.$queryRaw<any[]>(Prisma.sql`
-      SELECT d.did AS id, d.price_manwon AS price_manwon, d.land_area_m2 AS land, d.address AS address,
-             d.gu AS district, d.dong AS dong, d.main_use AS use, d.use_zone AS zone, d.pnu AS pnu
-      FROM public.disco_listing d WHERE ${Prisma.join(discoCond, ' AND ')}
-      ORDER BY (d.price_manwon / NULLIF(d.land_area_m2, 0)) ASC NULLS LAST LIMIT 1`);
-    if (drows.length) return this.listingAlert(drows[0], 'disco', conditionName, '아직 안 보신 매물', '', 'discovery');
-    return null;
+    if (out.length < want) {
+      const discoCond: Prisma.Sql[] = [Prisma.sql`d.active IS TRUE`, Prisma.sql`d.land_area_m2 > 0`, Prisma.sql`d.price_manwon > 0`, Prisma.sql`coalesce(d.main_use,'') !~ '숙박|호텔|레지던스|오피스텔|모텔|생활형'`];
+      if (districts.length) discoCond.push(Prisma.sql`d.gu IN (${Prisma.join(districts)})`);
+      if (budgetWon) discoCond.push(Prisma.sql`d.price_manwon <= ${budgetWon / 1e4}`);
+      if (minArea) discoCond.push(Prisma.sql`d.land_area_m2 >= ${minArea}`);
+      if (maxArea) discoCond.push(Prisma.sql`d.land_area_m2 <= ${maxArea}`);
+      if (seen.disco.length) discoCond.push(Prisma.sql`d.did NOT IN (${Prisma.join(seen.disco)})`);
+      const drows = await this.prisma.$queryRaw<any[]>(Prisma.sql`
+        SELECT d.did AS id, d.price_manwon AS price_manwon, d.land_area_m2 AS land, d.address AS address,
+               d.gu AS district, d.dong AS dong, d.main_use AS use, d.use_zone AS zone, d.pnu AS pnu
+        FROM public.disco_listing d WHERE ${Prisma.join(discoCond, ' AND ')}
+        ORDER BY (d.price_manwon / NULLIF(d.land_area_m2, 0)) ASC NULLS LAST LIMIT ${want - out.length}`);
+      for (const r of drows) out.push(this.listingAlert(r, 'disco', conditionName, '아직 안 보신 매물', '', 'discovery'));
+    }
+    return out;
   }
 
   // '예외 추천': 예산·면적·지역 중 하나만 살짝 벗어나지만 평당가가 가장 낮은 1건(매일 무작위).
