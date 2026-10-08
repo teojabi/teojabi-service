@@ -743,7 +743,18 @@ export class NotificationsService {
     return `https://teojabi.com/#listing=${encodeURIComponent(key)}`;
   }
 
+  private specialLabel(item: any): string | null {
+    const flag = item?.meta?.special;
+    if (flag === 'discovery') return '아직 안 보신 매물';
+    if (flag === 'exception') return '예외 추천';
+    const detail = String(item?.detail || '');
+    if (detail.includes('조건 지역은 아니지만') || detail.includes('조건 예산') || detail.includes('조건 면적')) return '예외 추천';
+    return null;
+  }
+
   private digestLabel(item: any): string {
+    const special = this.specialLabel(item);
+    if (special) return special;
     if (item.type === 'auction') return '경매';
     if (item.type === 'onbid') return '공매';
     if (item.type === 'notice') return '공지';
@@ -753,19 +764,28 @@ export class NotificationsService {
     return '매물';
   }
 
-  // 알림함 항목을 조건별로 묶어 이메일 모델로 만든다. 특례(안 본 매물·예외 추천)도 그대로 포함한다.
+  // 알림함 항목을 조건별로 묶어 이메일 모델로 만든다. 출처(네이버/디스코/경매/공매)별로 최대 3건.
+  // 특례(안 본 매물·예외 추천)는 먼저 배치해 잘리지 않게 한다.
   private toDigestConditions(unread: any[], summaries: Map<string, string>): DigestCondition[] {
     const groups = new Map<string, DigestItem[]>();
     const order: string[] = [];
-    for (const item of unread) {
+    const counts = new Map<string, Map<string, number>>();
+    const ordered = [...unread].sort((a, b) => Number(Boolean(b?.meta?.special)) - Number(Boolean(a?.meta?.special)));
+    for (const item of ordered) {
       const name = item.type === 'notice' ? '공지' : item.conditionName || (item.origin === 'favorite' ? '찜한 물건' : '맞춤 매물');
       if (!groups.has(name)) {
         groups.set(name, []);
         order.push(name);
+        counts.set(name, new Map());
       }
+      const label = this.digestLabel(item);
+      const bySource = counts.get(name)!;
+      const used = bySource.get(label) || 0;
+      if (used >= 3) continue;
+      bySource.set(label, used + 1);
       groups.get(name)!.push({
         type: item.type,
-        label: this.digestLabel(item),
+        label,
         title: item.title || '',
         detail: item.detail || '',
         score: item.score ?? null,
@@ -928,7 +948,7 @@ export class NotificationsService {
              n."구" AS district, n."동" AS dong, n."주용도코드명" AS use, n."용도지역" AS zone, n."도로폭_m" AS road, n.pnu AS pnu
       FROM public.naver n WHERE ${Prisma.join(naverCond, ' AND ')}
       ORDER BY (n."거래가격" / NULLIF(n."대지면적", 0)) ASC NULLS LAST LIMIT 1`);
-    if (rows.length) return this.listingAlert(rows[0], 'naver', conditionName, '아직 안 보신 매물');
+    if (rows.length) return this.listingAlert(rows[0], 'naver', conditionName, '아직 안 보신 매물', '', 'discovery');
 
     const discoCond: Prisma.Sql[] = [Prisma.sql`d.active IS TRUE`, Prisma.sql`d.land_area_m2 > 0`, Prisma.sql`d.price_manwon > 0`];
     if (districts.length) discoCond.push(Prisma.sql`d.gu IN (${Prisma.join(districts)})`);
@@ -941,7 +961,7 @@ export class NotificationsService {
              d.gu AS district, d.dong AS dong, d.main_use AS use, d.use_zone AS zone, d.pnu AS pnu
       FROM public.disco_listing d WHERE ${Prisma.join(discoCond, ' AND ')}
       ORDER BY (d.price_manwon / NULLIF(d.land_area_m2, 0)) ASC NULLS LAST LIMIT 1`);
-    if (drows.length) return this.listingAlert(drows[0], 'disco', conditionName, '아직 안 보신 매물');
+    if (drows.length) return this.listingAlert(drows[0], 'disco', conditionName, '아직 안 보신 매물', '', 'discovery');
     return null;
   }
 
@@ -997,11 +1017,11 @@ export class NotificationsService {
              n."구" AS district, n."동" AS dong, n."주용도코드명" AS use, n."용도지역" AS zone, n."도로폭_m" AS road, n.pnu AS pnu
       FROM public.naver n WHERE ${Prisma.join(cond, ' AND ')}
       ORDER BY (n."거래가격" / NULLIF(n."대지면적", 0)) ASC NULLS LAST LIMIT 1`);
-    if (rows.length) return this.listingAlert(rows[0], 'naver', conditionName, '예외 추천', note);
+    if (rows.length) return this.listingAlert(rows[0], 'naver', conditionName, '예외 추천', note, 'exception');
     return null;
   }
 
-  private listingAlert(r: any, source: 'naver' | 'disco', conditionName: string, kindLabel = '맞춤 매물', note = ''): Alert {
+  private listingAlert(r: any, source: 'naver' | 'disco', conditionName: string, kindLabel = '맞춤 매물', note = '', special: 'discovery' | 'exception' | null = null): Alert {
     const priceWon = source === 'naver' ? (Number(r.price) || 0) * 1e8 : (Number(r.price_manwon) || 0) * 1e4;
     const detail = [
       String(r.use || '').trim() || '용도 미기재',
@@ -1021,6 +1041,7 @@ export class NotificationsService {
       title: String(r.address || ''),
       detail,
       meta: {
+        ...(special ? { special } : {}),
         features: {
           district: String(r.district || ''),
           zone: String(r.zone || ''),

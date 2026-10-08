@@ -48,7 +48,15 @@ function sourceLabel(a) {
   if (key.startsWith('disco:')) return '디스코';
   return '매물';
 }
-const labelOf = a => (a.origin === 'condition' ? sourceLabel(a) : (a.kindLabel || ''));
+function specialLabel(a) {
+  const flag = a.meta?.special;
+  if (flag === 'discovery') return '아직 안 보신 매물';
+  if (flag === 'exception') return '예외 추천';
+  const d = String(a.detail || '');
+  if (d.includes('조건 지역은 아니지만') || d.includes('조건 예산') || d.includes('조건 면적')) return '예외 추천';
+  return null;
+}
+const labelOf = a => specialLabel(a) || (a.origin === 'condition' ? sourceLabel(a) : (a.kindLabel || ''));
 
 // 알림 항목을 조건·날짜별로 묶어 한 개의 알림으로 보여준다(이메일과 같은 묶음, 출처별 최대 3건).
 function groupLabel(group) {
