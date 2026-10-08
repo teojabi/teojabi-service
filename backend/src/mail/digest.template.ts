@@ -55,17 +55,18 @@ function conditionSection(condition: DigestCondition): string {
   return `<section style="border:1px solid #e5e7eb;border-radius:12px;padding:16px;margin:0 0 16px;">${head}${summary}${countLine}${condition.items.map(itemRow).join('')}</section>`;
 }
 
-export function buildDigestBody(conditions: DigestCondition[], opts: { inquiryEmail?: string; unsubscribeUrl?: string; note?: string } = {}): string {
+export function buildDigestBody(conditions: DigestCondition[], opts: { inquiryEmail?: string; unsubscribeUrl?: string; note?: string; heading?: string } = {}): string {
   const inquiry = opts.inquiryEmail || 'teojabi@gmail.com';
   const total = conditions.reduce((sum, c) => sum + c.items.length, 0);
+  const heading = opts.heading || '조건에 맞는 새 매물';
   const note = opts.note
     ? `<div style="border:1px solid #fca5a5;background:#fef2f2;border-radius:10px;padding:12px 14px;margin:0 0 16px;"><p style="margin:0;font-size:13px;color:#b91c1c;line-height:1.7;">${escape(opts.note)}</p></div>`
     : '';
   return `
 <div style="font-family:'Malgun Gothic','Apple SD Gothic Neo',Arial,sans-serif;max-width:600px;margin:0 auto;color:#111827;line-height:1.6;">
-  <h2 style="margin:0 0 6px;font-size:20px;">[터잡이] 조건에 맞는 새 매물 ${total}건</h2>
+  <h2 style="margin:0 0 6px;font-size:20px;">[터잡이] ${escape(heading)} ${total}건</h2>
   ${note}
-  <p style="margin:0 0 18px;font-size:13px;color:#6b7280;">저장하신 조건에 <b>새로 올라온</b> 매물이에요. 항목을 누르면 상세페이지로 이동해요.</p>
+  <p style="margin:0 0 18px;font-size:13px;color:#6b7280;">저장하신 조건을 기준으로 알려드리는 알림이에요. 항목을 누르면 상세페이지로 이동해요.</p>
   ${conditions.map(conditionSection).join('')}
   <p style="margin:18px 0 6px;font-size:13px;">문의: <a href="mailto:${escape(inquiry)}" style="color:#2563eb;">${escape(inquiry)}</a></p>
   <p style="margin:0 0 18px;"><a href="${SITE_URL}" style="display:inline-block;padding:12px 20px;background:#2563eb;color:#fff;text-decoration:none;border-radius:8px;font-weight:700;">터잡이에서 확인하기</a></p>
