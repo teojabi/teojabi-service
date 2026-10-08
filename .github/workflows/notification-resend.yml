@@ -30,7 +30,4 @@ jobs:
           command_timeout: 10m
           script: |
             cd ~/teojabi-service/backend
-            set -a
-            . ./.env
-            set +a
             node dist/src/scripts/resend-digest.js --userIds="013b1634-88d1-4638-96ed-da2d947c92a8,1bda055d-b958-46b0-94ce-e695900358b1,23c17efe-8c07-4ac2-9fa2-5c057759c9bc,30eae37b-af84-44e0-9112-0d6d6314f6a9,4bccd275-f49b-4103-bb1a-7e11623ba7f9,5cb3e37f-09c1-4d2d-bf34-7f68c015992f,5de2321b-6b4a-4b14-993d-71ad375e12eb,6face2f1-1526-40ed-bea3-d96dac803171,8341ecc8-d509-4abb-80e4-3711b7532421,d147532f-48eb-4b07-a3c0-9cd81259ffb4,d3fd48a3-5256-49eb-9e4b-591d36f3e274" --dryRun="true"
