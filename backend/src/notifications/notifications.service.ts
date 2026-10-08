@@ -180,7 +180,7 @@ export class NotificationsService {
 
   // --- 알림함(개별 항목) -----------------------------------------------------
 
-  // 웹 알림함은 하루 한 번(11:00) 이메일과 같은 내용으로 채워진다.
+  // 웹 알림함은 하루 한 번(09:00) 이메일과 같은 내용으로 채워진다.
   // 조회할 때는 매칭을 다시 만들지 않고 저장된 알림만 돌려준다.
   async getInboxForUser(userId: string) {
     return this.listInbox(userId);
@@ -541,7 +541,7 @@ export class NotificationsService {
     return [...dedup.values()];
   }
 
-  @Cron('0 0 11 * * *', { timeZone: 'Asia/Seoul' })
+  @Cron('0 0 9 * * *', { timeZone: 'Asia/Seoul' })
   async dispatchDailyEmail() {
     const mailReady = this.mail.isConfigured();
     if (!mailReady) this.logger.warn('Email digest: mail not configured; syncing inboxes only.');

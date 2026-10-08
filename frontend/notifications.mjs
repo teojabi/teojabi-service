@@ -1,4 +1,4 @@
-// 개인 알림함(알림 종). 로그인 회원의 알림을 보여준다. 목록은 하루 한 번(11:00) 이메일과 같은 내용으로 채워진다.
+// 개인 알림함(알림 종). 로그인 회원의 알림을 보여준다. 목록은 하루 한 번(09:00) 이메일과 같은 내용으로 채워진다.
 import { member, openLogin } from './member.mjs';
 import { esc, listHtml, notifyNotificationsChanged } from './inbox-view.mjs';
 
@@ -34,7 +34,7 @@ async function renderInbox() {
     const items = Array.isArray(data?.items) ? data.items : [];
     body.innerHTML = items.length
       ? listHtml(items)
-      : '<div class="empty"><h3>새 알림이 없어요.</h3><p>저장 조건에 맞는 새 매물과 임박한 경매·공매를 하루 한 번(오전 11시) 알려드려요.</p></div>';
+      : '<div class="empty"><h3>새 알림이 없어요.</h3><p>저장 조건에 맞는 새 매물과 임박한 경매·공매를 하루 한 번(오전 9시) 알려드려요.</p></div>';
   } catch (error) {
     body.innerHTML = `<p class="case-note">${error?.status === 401 ? '로그인 후 알림을 볼 수 있어요.' : '알림을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.'}</p>`;
   }
@@ -81,7 +81,7 @@ export function openNotifications() {
   dialog = document.createElement('dialog');
   dialog.className = 'notif-dialog';
   dialog.setAttribute('aria-labelledby', 'notif-title');
-  dialog.innerHTML = `<div class="notif-head"><div><span class="eyebrow">MY TEOJABI</span><h2 id="notif-title">알림</h2></div><div class="notif-head-actions"><button class="outline" data-notif="read-all">모두 읽음</button><button class="outline" data-notif="delete-all">모두 삭제</button><button class="outline" data-notif="close" aria-label="알림 닫기">×</button></div></div><p class="case-note">저장한 조건에 맞는 새 매물과 임박한 경매·공매를 <b>하루 한 번(오전 11시)</b> 알려드려요. 사실 안내이며, 입찰 전 원문을 확인하세요.</p><div class="notif-body" aria-live="polite"><p class="case-note">알림을 불러오고 있어요.</p></div>`;
+  dialog.innerHTML = `<div class="notif-head"><div><span class="eyebrow">MY TEOJABI</span><h2 id="notif-title">알림</h2></div><div class="notif-head-actions"><button class="outline" data-notif="read-all">모두 읽음</button><button class="outline" data-notif="delete-all">모두 삭제</button><button class="outline" data-notif="close" aria-label="알림 닫기">×</button></div></div><p class="case-note">저장한 조건에 맞는 새 매물과 임박한 경매·공매를 <b>하루 한 번(오전 9시)</b> 알려드려요. 사실 안내이며, 입찰 전 원문을 확인하세요.</p><div class="notif-body" aria-live="polite"><p class="case-note">알림을 불러오고 있어요.</p></div>`;
   dialog.addEventListener('click', async event => {
     const head = event.target.closest('[data-notif]');
     if (head && !head.disabled) {
