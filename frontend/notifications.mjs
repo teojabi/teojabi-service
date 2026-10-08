@@ -70,17 +70,6 @@ function groupItems(items) {
     if (!group) { group = { key, origin: a.origin, conditionName: a.conditionName, date: a.date, items: [] }; byKey.set(key, group); groups.push(group); }
     group.items.push(a);
   }
-  // 이메일과 동일하게 출처별 최대 3건만 보여준다.
-  for (const group of groups) {
-    const counts = new Map();
-    group.items = group.items.filter(a => {
-      const label = labelOf(a);
-      const used = counts.get(label) || 0;
-      if (used >= 3) return false;
-      counts.set(label, used + 1);
-      return true;
-    });
-  }
   return groups;
 }
 

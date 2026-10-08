@@ -753,26 +753,19 @@ export class NotificationsService {
     return '매물';
   }
 
-  // 알림함 항목을 조건별로 묶어 이메일 모델로 만든다. 출처(네이버/디스코/경매/공매)별로 최대 3건.
+  // 알림함 항목을 조건별로 묶어 이메일 모델로 만든다. 특례(안 본 매물·예외 추천)도 그대로 포함한다.
   private toDigestConditions(unread: any[], summaries: Map<string, string>): DigestCondition[] {
     const groups = new Map<string, DigestItem[]>();
     const order: string[] = [];
-    const counts = new Map<string, Map<string, number>>();
     for (const item of unread) {
       const name = item.type === 'notice' ? '공지' : item.conditionName || (item.origin === 'favorite' ? '찜한 물건' : '맞춤 매물');
       if (!groups.has(name)) {
         groups.set(name, []);
         order.push(name);
-        counts.set(name, new Map());
       }
-      const label = this.digestLabel(item);
-      const bySource = counts.get(name)!;
-      const used = bySource.get(label) || 0;
-      if (used >= 3) continue;
-      bySource.set(label, used + 1);
       groups.get(name)!.push({
         type: item.type,
-        label,
+        label: this.digestLabel(item),
         title: item.title || '',
         detail: item.detail || '',
         score: item.score ?? null,
