@@ -10,9 +10,16 @@ on:
         description: 'true = preview only, false = actually send'
         required: false
         default: 'true'
+  push:
+    branches: [main]
+    paths: ['.github/workflows/notification-resend.yml']
 
 permissions:
   contents: read
+
+env:
+  RESEND_USER_IDS: '013b1634-88d1-4638-96ed-da2d947c92a8,1bda055d-b958-46b0-94ce-e695900358b1,23c17efe-8c07-4ac2-9fa2-5c057759c9bc,30eae37b-af84-44e0-9112-0d6d6314f6a9,4bccd275-f49b-4103-bb1a-7e11623ba7f9,5cb3e37f-09c1-4d2d-bf34-7f68c015992f,5de2321b-6b4a-4b14-993d-71ad375e12eb,6face2f1-1526-40ed-bea3-d96dac803171,8341ecc8-d509-4abb-80e4-3711b7532421,d147532f-48eb-4b07-a3c0-9cd81259ffb4,d3fd48a3-5256-49eb-9e4b-591d36f3e274'
+  RESEND_DRY_RUN: 'true'
 
 jobs:
   resend:
@@ -21,8 +28,8 @@ jobs:
       - name: Resend digest on NCP
         uses: appleboy/ssh-action@v1.1.0
         env:
-          RESEND_USER_IDS: ${{ inputs.userIds }}
-          RESEND_DRY_RUN: ${{ inputs.dryRun }}
+          RESEND_USER_IDS: ${{ github.event.inputs.userIds || env.RESEND_USER_IDS }}
+          RESEND_DRY_RUN: ${{ github.event.inputs.dryRun || env.RESEND_DRY_RUN }}
         with:
           host: ${{ secrets.NCP_SSH_HOST }}
           username: ${{ secrets.NCP_SSH_USER }}
