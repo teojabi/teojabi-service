@@ -18,6 +18,11 @@ export class NotificationsController {
     return this.notifications.markRead(req.user.id);
   }
 
+  @Delete()
+  removeAll(@Request() req: any) {
+    return this.notifications.clearAll(req.user.id);
+  }
+
   @Delete(':key')
   remove(@Request() req: any, @Param('key') key: string) {
     return this.notifications.deleteItem(req.user.id, key);
