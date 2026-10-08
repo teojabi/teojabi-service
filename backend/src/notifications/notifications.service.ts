@@ -192,6 +192,12 @@ export class NotificationsService {
     return { status: 'ok' };
   }
 
+  async deleteItem(userId: string, key: string) {
+    await this.prisma.$executeRaw`
+      DELETE FROM public.notification_item WHERE user_id=${userId} AND item_key=${key}`;
+    return { status: 'ok' };
+  }
+
   // 이메일로 보낸 항목만 '보냄' 표시(앱에서 읽음 처리와 분리). 못 보낸 나머지는 다음에 다시 시도한다.
   private async markEmailed(userId: string, keys: string[]) {
     if (!keys.length) return;
@@ -677,23 +683,36 @@ export class NotificationsService {
     return `https://teojabi.com/#listing=${encodeURIComponent(key)}`;
   }
 
-  private itemLabel(type: string): string {
-    return type === 'auction' ? '경매' : type === 'onbid' ? '공매' : type === 'notice' ? '공지' : '맞춤';
+  private digestLabel(item: any): string {
+    if (item.type === 'auction') return '경매';
+    if (item.type === 'onbid') return '공매';
+    if (item.type === 'notice') return '공지';
+    const key = String(item.key || '');
+    if (key.startsWith('naver:')) return '네이버';
+    if (key.startsWith('disco:')) return '디스코';
+    return '매물';
   }
 
-  // 알림함 항목을 조건별로 묶어 이메일 모델로 만든다.
+  // 알림함 항목을 조건별로 묶어 이메일 모델로 만든다. 출처(네이버/디스코/경매/공매)별로 최대 3건.
   private toDigestConditions(unread: any[], summaries: Map<string, string>): DigestCondition[] {
     const groups = new Map<string, DigestItem[]>();
     const order: string[] = [];
+    const counts = new Map<string, Map<string, number>>();
     for (const item of unread) {
       const name = item.type === 'notice' ? '공지' : item.conditionName || (item.origin === 'favorite' ? '찜한 물건' : '맞춤 매물');
       if (!groups.has(name)) {
         groups.set(name, []);
         order.push(name);
+        counts.set(name, new Map());
       }
+      const label = this.digestLabel(item);
+      const bySource = counts.get(name)!;
+      const used = bySource.get(label) || 0;
+      if (used >= 3) continue;
+      bySource.set(label, used + 1);
       groups.get(name)!.push({
         type: item.type,
-        label: this.itemLabel(item.type),
+        label,
         title: item.title || '',
         detail: item.detail || '',
         score: item.score ?? null,
@@ -765,33 +784,31 @@ export class NotificationsService {
              n."구" AS district, n."동" AS dong, n."주용도코드명" AS use, n."용도지역" AS zone, n."도로폭_m" AS road, n.pnu AS pnu
       FROM public.naver n WHERE ${Prisma.join(naverCond, ' AND ')}
       ORDER BY ${naverOrder} LIMIT 30`);
-    for (const r of await this.freshAddressRows(naverRows, 'naver', cursor)) candidates.push({ source: 'naver', row: r, key: keyOf(r) });
+    for (const r of (await this.freshAddressRows(naverRows, 'naver', cursor)).slice(0, 3)) candidates.push({ source: 'naver', row: r, key: keyOf(r) });
 
-    if (candidates.length < 3) {
-      const discoCond: Prisma.Sql[] = [Prisma.sql`d.first_seen_at > ${cursor}`, Prisma.sql`d.active IS TRUE`];
-      if (districts.length) discoCond.push(Prisma.sql`d.gu IN (${Prisma.join(districts)})`);
-      if (budgetWon) discoCond.push(Prisma.sql`d.price_manwon <= ${budgetWon / 1e4}`);
-      if (minArea) discoCond.push(Prisma.sql`d.land_area_m2 >= ${minArea}`);
-      if (maxArea) discoCond.push(Prisma.sql`d.land_area_m2 <= ${maxArea}`);
-      if (station && maxDistance) discoCond.push(Prisma.sql`ST_Distance(ST_SetSRID(ST_MakePoint(d.lng,d.lat),4326)::geography, ST_SetSRID(ST_MakePoint(${station.lng},${station.lat}),4326)::geography) <= ${maxDistance}`);
-      const discoOrder = sort === 'ppp' ? Prisma.sql`(d.price_manwon / NULLIF(d.land_area_m2, 0)) ASC NULLS LAST`
-        : sort === 'area' ? Prisma.sql`d.land_area_m2 DESC NULLS LAST`
-        : sort === 'price-desc' ? Prisma.sql`d.price_manwon DESC NULLS LAST`
-        : sort === 'price' ? Prisma.sql`d.price_manwon ASC NULLS LAST`
-        : Prisma.sql`d.first_seen_at DESC`;
-      const discoRows = await this.prisma.$queryRaw<any[]>(Prisma.sql`
-        SELECT d.did AS id, d.price_manwon AS price_manwon, d.land_area_m2 AS land, d.address AS address,
-               d.gu AS district, d.dong AS dong, d.main_use AS use, d.use_zone AS zone, d.pnu AS pnu
-        FROM public.disco_listing d WHERE ${Prisma.join(discoCond, ' AND ')}
-        ORDER BY ${discoOrder} LIMIT 30`);
-      for (const r of await this.freshAddressRows(discoRows, 'disco', cursor)) candidates.push({ source: 'disco', row: r, key: keyOf(r) });
-    }
+    const discoCond: Prisma.Sql[] = [Prisma.sql`d.first_seen_at > ${cursor}`, Prisma.sql`d.active IS TRUE`];
+    if (districts.length) discoCond.push(Prisma.sql`d.gu IN (${Prisma.join(districts)})`);
+    if (budgetWon) discoCond.push(Prisma.sql`d.price_manwon <= ${budgetWon / 1e4}`);
+    if (minArea) discoCond.push(Prisma.sql`d.land_area_m2 >= ${minArea}`);
+    if (maxArea) discoCond.push(Prisma.sql`d.land_area_m2 <= ${maxArea}`);
+    if (station && maxDistance) discoCond.push(Prisma.sql`ST_Distance(ST_SetSRID(ST_MakePoint(d.lng,d.lat),4326)::geography, ST_SetSRID(ST_MakePoint(${station.lng},${station.lat}),4326)::geography) <= ${maxDistance}`);
+    const discoOrder = sort === 'ppp' ? Prisma.sql`(d.price_manwon / NULLIF(d.land_area_m2, 0)) ASC NULLS LAST`
+      : sort === 'area' ? Prisma.sql`d.land_area_m2 DESC NULLS LAST`
+      : sort === 'price-desc' ? Prisma.sql`d.price_manwon DESC NULLS LAST`
+      : sort === 'price' ? Prisma.sql`d.price_manwon ASC NULLS LAST`
+      : Prisma.sql`d.first_seen_at DESC`;
+    const discoRows = await this.prisma.$queryRaw<any[]>(Prisma.sql`
+      SELECT d.did AS id, d.price_manwon AS price_manwon, d.land_area_m2 AS land, d.address AS address,
+             d.gu AS district, d.dong AS dong, d.main_use AS use, d.use_zone AS zone, d.pnu AS pnu
+      FROM public.disco_listing d WHERE ${Prisma.join(discoCond, ' AND ')}
+      ORDER BY ${discoOrder} LIMIT 30`);
+    for (const r of (await this.freshAddressRows(discoRows, 'disco', cursor)).slice(0, 3)) candidates.push({ source: 'disco', row: r, key: keyOf(r) });
+
     const seen = new Set<string>();
     for (const c of candidates) {
       if (seen.has(c.key)) continue;
       seen.add(c.key);
       out.push(this.listingAlert(c.row, c.source, conditionName));
-      if (out.length >= 3) break;
     }
     return out;
   }

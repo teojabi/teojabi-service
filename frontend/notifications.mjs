@@ -47,7 +47,7 @@ async function renderInbox() {
     if (!items.length) {
       body.innerHTML = '<div class="empty"><h3>새 알림이 없어요.</h3><p>찜한 물건이나 저장 조건에 맞는 경매·공매가 임박하면 여기에서 알려드려요.</p></div>';
     } else {
-      body.innerHTML = items.map(a => `<article class="member-alert"><div><p class="member-alert-kind">${esc(a.kindLabel || '')}${a.conditionName ? ` · ${esc(a.conditionName)}` : ''}</p><h4>${esc(a.title || '')}</h4><p>${esc(a.detail || '')}</p>${a.meta?.development ? `<p class="case-note">${esc(devLine(a.meta.development))}</p>` : ''}</div><div>${a.key ? `<button class="outline" data-notif="open" data-key="${esc(a.key)}">다시 보기</button>` : ''}</div></article>`).join('');
+      body.innerHTML = items.map(a => `<article class="member-alert"><div><p class="member-alert-kind">${esc(a.kindLabel || '')}${a.conditionName ? ` · ${esc(a.conditionName)}` : ''}</p><h4>${esc(a.title || '')}</h4><p>${esc(a.detail || '')}</p>${a.meta?.development ? `<p class="case-note">${esc(devLine(a.meta.development))}</p>` : ''}</div><div class="member-alert-actions">${a.key ? `<button class="outline" data-notif="open" data-key="${esc(a.key)}">다시 보기</button><button class="outline" data-notif="delete" data-key="${esc(a.key)}">삭제</button>` : ''}</div></article>`).join('');
     }
   } catch (error) {
     body.innerHTML = `<p class="case-note">${error?.status === 401 ? '로그인 후 알림을 볼 수 있어요.' : '알림을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.'}</p>`;
@@ -62,11 +62,23 @@ export function openNotifications() {
   dialog = document.createElement('dialog');
   dialog.className = 'notif-dialog';
   dialog.setAttribute('aria-labelledby', 'notif-title');
-  dialog.innerHTML = `<div class="notif-head"><div><span class="eyebrow">MY TEOJABI</span><h2 id="notif-title">알림</h2></div><button class="outline" data-notif="close" aria-label="알림 닫기">×</button></div><p class="case-note">찜·저장 조건을 기준으로 새로 올라온 맞춤 매물과 매각기일·입찰마감이 임박한 경매·공매를 알려드려요. 사실 안내이며, 입찰 전 원문을 확인하세요.</p><div class="notif-body" aria-live="polite"><p class="case-note">알림을 불러오고 있어요.</p></div>`;
+  dialog.innerHTML = `<div class="notif-head"><div><span class="eyebrow">MY TEOJABI</span><h2 id="notif-title">알림</h2></div><div class="notif-head-actions"><button class="outline" data-notif="read-all">모두 읽음</button><button class="outline" data-notif="close" aria-label="알림 닫기">×</button></div></div><p class="case-note">찜·저장 조건을 기준으로 새로 올라온 맞춤 매물과 매각기일·입찰마감이 임박한 경매·공매를 알려드려요. 사실 안내이며, 입찰 전 원문을 확인하세요.</p><div class="notif-body" aria-live="polite"><p class="case-note">알림을 불러오고 있어요.</p></div>`;
   dialog.addEventListener('click', event => {
     const button = event.target.closest('[data-notif]');
     if (!button || button.disabled) return;
     if (button.dataset.notif === 'close') { dialog.close(); return; }
+    if (button.dataset.notif === 'read-all') {
+      button.disabled = true;
+      member.request('/notifications/read', { method: 'POST' }).then(() => { renderInbox(); }).catch(() => { button.disabled = false; });
+      return;
+    }
+    if (button.dataset.notif === 'delete') {
+      const key = button.dataset.key;
+      if (!key) return;
+      button.disabled = true;
+      member.request(`/notifications/${encodeURIComponent(key)}`, { method: 'DELETE' }).then(() => { renderInbox(); }).catch(() => { button.disabled = false; });
+      return;
+    }
     if (button.dataset.notif === 'open') {
       const key = button.dataset.key;
       dialog.close();
@@ -77,6 +89,4 @@ export function openNotifications() {
   document.body.append(dialog);
   dialog.showModal();
   renderInbox();
-  // 알림함을 열면 새 알림을 읽음 처리하고 배지를 지운다.
-  member.request('/notifications/read', { method: 'POST' }).then(() => refreshNotificationBadge()).catch(() => {});
 }
