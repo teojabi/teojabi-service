@@ -249,20 +249,21 @@ const filterAuctionsByArea=(groups,minArea,maxArea)=>{
 // 비교 선택은 화면이 다시 그려져도(예: 찜에서 다시 보기 후 뒤로가기) 유지되도록 모듈 수준에 둔다.
 const compared=new Map();
 
-export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnalyze,initialId,initialSource,initialHeading,assistant,picksOnly,initialParcel,onParcelChange,initialPane}={}) {
+export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnalyze,initialId,initialSource,initialHeading,assistant,picksOnly,initialParcel,onParcelChange,initialPane,initialIds}={}) {
   document.body.classList.add('map-results-open');
   const picksOnlyMode=Boolean(picksOnly);
   const abort=new AbortController();let disposed=false,version=0,detailVersion=0,closeStreet,closeStreetPreview,closeContext,closeRecords,closeLand,closeCommercial,closeSurrounding;
   let result=null,selected=null,detail=null,parcel=null,limit=5,bounds=conditions?.bounds||null,query='',sort=['price','price-desc','area','ppp'].includes(conditions?.sort)?conditions.sort:'price',mapView=null;
   let assistantResult=assistant&&Array.isArray(assistant.groups)?assistant:null;
-  let source=assistantResult?'assistant':initialSource==='favorites'?'favorites':(initialSource==='auction'||initialSource==='onbid')?'auction':'conditions';
+  let alertIds=Array.isArray(initialIds)?initialIds.filter(Boolean):[];
+  let source=assistantResult?'assistant':initialSource==='favorites'?'favorites':(initialSource==='auction'||initialSource==='onbid')?'auction':(alertIds.length?'alert':'conditions');
   const conditionAuction=conditions?.auction||null;
   let auctionFilters={listingSource:'court',query:'',gu:[...(conditions?.districts||[])],usage:(conditionAuction?.usages||[])[0]||'',dealType:'',saleKind:conditionAuction?.saleKind||'',risk:[],kind:'',sort:'sale',maxPrice:conditionAuction?.maxPriceWon?String(conditionAuction.maxPriceWon/1e8):'',maxBidRate:conditionAuction?.maxBidRate!=null?String(conditionAuction.maxBidRate):'',failMax:''};
   if(source==='auction')limit=100;
   if(initialSource==='onbid')auctionFilters.listingSource='onbid';
   let auctionPage=1,auctionLoaded=0;
   let criteria={purpose:conditions?.purpose||null,minArea:conditions?.minArea||'',maxArea:conditions?.maxArea||'',areaUnit:conditions?.areaUnit||'pyeong',zones:conditions?.zones||[],minAreaM2:conditions?.minAreaM2??null,maxAreaM2:conditions?.maxAreaM2??null,stationName:conditions?.stationName||'',maxDistanceM:conditions?.maxDistanceM??null,auction:conditions?.auction||null,...BUILD_DEFAULTS,...(validateBuildCriteria(conditions||{}).value||{})};
-  const defaultTitle=()=>source==='assistant'?'AI 비서 결과':source==='favorites'?'찜한 매물':source==='auction'?(auctionFilters.listingSource==='onbid'?'공매 물건':auctionFilters.listingSource==='both'?'경매·공매 물건':'경매 물건'):picksOnlyMode?'터잡이 선별 매물':conditions?'내 조건으로 살펴보기':'지도에서 매물 살펴보기';
+  const defaultTitle=()=>source==='assistant'?'AI 비서 결과':source==='favorites'?'찜한 매물':source==='alert'?'알림 매물':source==='auction'?(auctionFilters.listingSource==='onbid'?'공매 물건':auctionFilters.listingSource==='both'?'경매·공매 물건':'경매 물건'):picksOnlyMode?'터잡이 선별 매물':conditions?'내 조건으로 살펴보기':'지도에서 매물 살펴보기';
   const title=initialHeading||defaultTitle();
   let pageHeading=initialHeading||null;
   root.innerHTML=`<section class="explore-page"><div class="result-head"><div><span class="eyebrow">EXPLORE TEOJABI</span><h1>${title}</h1></div><button class="outline" data-explore="back-conditions" hidden>내 조건으로 보기</button><button class="outline" data-explore="edit">검색 조건 바꾸기</button></div>
@@ -403,7 +404,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
   member.addEventListener('change',()=>{const el=$('#guest-alert-prompt');if(el&&member.status==='ready')el.remove();},{signal:abort.signal});
   function drawCompare(){const n=compared.size,b=$('[data-explore=compare-open]');b.disabled=n<2;b.textContent=n?`선택 ${n}개 비교하기`:'비교할 매물을 골라주세요 (최대 3개)';$('[data-explore=compare-clear]').hidden=!n;}
   function applySourceUi(){
-    const simpleMode=source==='favorites'||source==='assistant';
+    const simpleMode=source==='favorites'||source==='assistant'||source==='alert';
     const auctionMode=source==='auction';
     page.classList.toggle('favorites-mode',simpleMode);
     page.classList.toggle('assistant-mode',source==='assistant');
@@ -687,6 +688,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     clearTimeout(loadTimer);
     if(source==='assistant')return loadAssistant();
     if(source==='favorites')return loadFavorites({fit});
+    if(source==='alert')return loadByIds(alertIds,{fit});
     if(source==='auction')return loadAuctions({fit});
     quickFilters.setRemembered(onConditionsChange?.(currentConditions())!==false);
     const current=++version;const params=new URLSearchParams({limit,sort});if(picksOnlyMode)params.set('cohort','existing');
@@ -727,15 +729,19 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     if(initialId){const id=initialId;initialId=null;openDetail(id);}
   }
   async function loadFavorites({fit=true}={}) {
+    return loadByIds(favoriteItems().map(item=>item.key),{fit});
+  }
+
+  // 특정 매물 id들만 목록·지도에 보여준다(찜한 매물, 알림에 담긴 매물 공통).
+  async function loadByIds(ids,{fit=true}={}) {
     const current=++version;
-    const ids=favoriteItems().map(item=>item.key);
     $('.explore-list').setAttribute('aria-busy','true');
     $('.search-suggestions').replaceChildren();
     if(!ids.length){
       result={status:'ready',groups:[],totalParcels:0,totalListings:0,hasMore:false,observedAt:null,missingFavorites:[]};
       $('.explore-list').removeAttribute('aria-busy');drawCards();map.setGroups([],null,false);return;
     }
-    $('#result-count').textContent='찜한 매물을 불러오고 있어요.';
+    $('#result-count').textContent=source==='alert'?'알림에 담긴 매물을 불러오고 있어요.':'찜한 매물을 불러오고 있어요.';
     try {
       const specialIds=ids.filter(id=>id.startsWith('auction:')||id.startsWith('onbid:'));
       const catalogIds=ids.filter(id=>!(id.startsWith('auction:')||id.startsWith('onbid:')));
@@ -765,8 +771,8 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     } catch {
       if(disposed||current!==version)return;
       result=null;map.setGroups([],null,false);
-      $('#result-count').textContent='찜한 매물을 확인하지 못했어요.';
-      $('#listing-list').innerHTML='<div class="empty"><h2>찜한 매물을 불러오지 못했어요.</h2><p>연결 상태를 확인하고 다시 시도해 주세요.</p><button class="outline" data-explore="retry">다시 불러오기</button></div>';
+      $('#result-count').textContent=source==='alert'?'알림 매물을 확인하지 못했어요.':'찜한 매물을 확인하지 못했어요.';
+      $('#listing-list').innerHTML=`<div class="empty"><h2>${source==='alert'?'알림에 담긴 매물을 불러오지 못했어요.':'찜한 매물을 불러오지 못했어요.'}</h2><p>연결 상태를 확인하고 다시 시도해 주세요.</p><button class="outline" data-explore="retry">다시 불러오기</button></div>`;
     }
   }
   // 조건에 포함된 경매를 건물찾기 목록·지도에 넣기 위해 같은 모양의 그룹으로 만든다.

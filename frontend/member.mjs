@@ -257,6 +257,7 @@ export function openMember(mode='member'){
     if(inboxEl&&!inboxEl.disabled){
       const action=inboxEl.dataset.inbox;
       if(action==='open'){dialog.close();window.dispatchEvent(new CustomEvent('teojabi-open-saved',{detail:{kind:'favorite',key:inboxEl.dataset.key,payload:{id:inboxEl.dataset.key}}}));return;}
+      if(action==='map'||action==='list'){const ids=String(inboxEl.dataset.keys||'').split(',').filter(Boolean);dialog.close();window.dispatchEvent(new CustomEvent('teojabi-open-results',{detail:{pane:'map',ids}}));return;}
       if(action==='delete'){inboxEl.disabled=true;member.request(`/notifications/${encodeURIComponent(inboxEl.dataset.key)}`,{method:'DELETE'}).then(()=>notifyNotificationsChanged()).catch(()=>{inboxEl.disabled=false;});return;}
       if(action==='delete-group'){const keys=String(inboxEl.dataset.keys||'').split(',').filter(Boolean);inboxEl.disabled=true;Promise.all(keys.map(k=>member.request(`/notifications/${encodeURIComponent(k)}`,{method:'DELETE'}).catch(()=>null))).then(()=>notifyNotificationsChanged()).catch(()=>{inboxEl.disabled=false;});return;}
     }
