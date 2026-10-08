@@ -836,7 +836,7 @@ export class NotificationsService {
     const candidates: Array<{ source: 'naver' | 'disco'; row: any; key: string }> = [];
 
     // '새 매물'은 매물번호가 아니라 대지위치 기준이다. 재등록(같은 주소) 제외는 아래에서 한 번에 처리한다.
-    const naverCond: Prisma.Sql[] = [Prisma.sql`n.first_seen_at > ${cursor}`];
+    const naverCond: Prisma.Sql[] = [Prisma.sql`n.first_seen_at > ${cursor}`, Prisma.sql`coalesce(n."매물특징",'') !~ '숙박|호텔|객실|레지던스|오피스텔|호실|모텔'`];
     if (districts.length) naverCond.push(Prisma.sql`n."구" IN (${Prisma.join(districts)})`);
     if (budgetWon) naverCond.push(Prisma.sql`n."거래가격" <= ${budgetWon / 1e8}`);
     if (minArea) naverCond.push(Prisma.sql`n."대지면적" >= ${minArea}`);
@@ -934,7 +934,7 @@ export class NotificationsService {
     const minRoad = Number(payload?.minRoadWidthM) || 0;
     const kind = payload?.kind;
 
-    const naverCond: Prisma.Sql[] = [Prisma.sql`n."상태" IN ('신규','유지')`, Prisma.sql`n."대지면적" > 0`, Prisma.sql`n."거래가격" > 0`];
+    const naverCond: Prisma.Sql[] = [Prisma.sql`n."상태" IN ('신규','유지')`, Prisma.sql`n."대지면적" > 0`, Prisma.sql`n."거래가격" > 0`, Prisma.sql`coalesce(n."매물특징",'') !~ '숙박|호텔|객실|레지던스|오피스텔|호실|모텔'`];
     if (districts.length) naverCond.push(Prisma.sql`n."구" IN (${Prisma.join(districts)})`);
     if (budgetWon) naverCond.push(Prisma.sql`n."거래가격" <= ${budgetWon / 1e8}`);
     if (minArea) naverCond.push(Prisma.sql`n."대지면적" >= ${minArea}`);
@@ -984,7 +984,7 @@ export class NotificationsService {
     const type = options[Math.floor(Math.random() * options.length)];
 
     // 공통 필터: 용도지역·도로폭·용도·이미 본 것 제외.
-    const cond: Prisma.Sql[] = [Prisma.sql`n."상태" IN ('신규','유지')`, Prisma.sql`n."대지면적" > 0`];
+    const cond: Prisma.Sql[] = [Prisma.sql`n."상태" IN ('신규','유지')`, Prisma.sql`n."대지면적" > 0`, Prisma.sql`coalesce(n."매물특징",'') !~ '숙박|호텔|객실|레지던스|오피스텔|호실|모텔'`];
     if (zones.length) cond.push(Prisma.sql`(${Prisma.join(zones.map((z: string) => Prisma.sql`n."용도지역" ILIKE ${'%' + z.replace('지역', '') + '%'}`), ' OR ')})`);
     if (minRoad) cond.push(Prisma.sql`n."도로폭_m" >= ${minRoad}`);
     if (kind === 'land') cond.push(Prisma.sql`n."주용도코드명" = '토지'`);
