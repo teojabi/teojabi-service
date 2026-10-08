@@ -78,16 +78,10 @@ function groupItems(items) {
     if (!group) { group = { key, origin: a.origin, conditionName: a.conditionName, date: a.date, items: [] }; byKey.set(key, group); groups.push(group); }
     group.items.push(a);
   }
-  // 이메일과 동일하게 출처(네이버/디스코/경매/공매)별 최대 3건.
+  // 이메일과 동일하게 묶음(조건)당 최대 3건. 특례를 먼저 배치한다.
   for (const group of groups) {
-    const counts = new Map();
-    group.items = group.items.filter(a => {
-      const capLabel = sourceLabel(a);
-      const used = counts.get(capLabel) || 0;
-      if (used >= 3) return false;
-      counts.set(capLabel, used + 1);
-      return true;
-    });
+    group.items.sort((a, b) => Number(Boolean(specialLabel(b))) - Number(Boolean(specialLabel(a))));
+    group.items = group.items.slice(0, 3);
   }
   return groups;
 }
