@@ -1,6 +1,7 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from '../app.module';
 import { NotificationsService } from '../notifications/notifications.service';
+import { PrismaService } from '../prisma/prisma.service';
 
 // 오류 정정 재발송 CLI. 서버에서 실행한다(백엔드 .env 를 사용).
 //   node dist/src/scripts/resend-digest.js --userIds=id1,id2 --dryRun=true
@@ -29,6 +30,13 @@ async function main() {
     const result = await service.resendDigestForUsers(userIds, note, dryRun);
     console.log('[resend-digest] result');
     console.log(JSON.stringify(result, null, 2));
+    // 로그 접근 없이 결과를 확인할 수 있도록 DB에도 남긴다.
+    try {
+      const prisma = app.get(PrismaService);
+      await prisma.$executeRaw`INSERT INTO public.ops_resend_log(payload) VALUES (${JSON.stringify(result)}::jsonb)`;
+    } catch (logError) {
+      console.error('[resend-digest] 로그 기록 실패:', String((logError as Error)?.message ?? logError));
+    }
   } finally {
     await app.close();
   }
