@@ -50,9 +50,10 @@ export async function handleInboxAction(el) {
     window.dispatchEvent(new CustomEvent('teojabi-open-saved', { detail: { kind: 'favorite', key, payload: { id: key } } }));
     return true;
   }
-  if (action === 'list' || action === 'map') {
+  if (action === 'map' || action === 'list') {
+    const ids = String(el.dataset.keys || '').split(',').filter(Boolean);
     if (dialog?.open) dialog.close();
-    window.dispatchEvent(new CustomEvent('teojabi-open-results', { detail: { pane: action } }));
+    window.dispatchEvent(new CustomEvent('teojabi-open-results', { detail: { pane: 'map', ids } }));
     return true;
   }
   if (action === 'delete') {

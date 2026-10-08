@@ -15,7 +15,7 @@ import {logEvent} from './events.mjs';
 const app = document.querySelector('#app');
 const emptyAuction=()=>({enabled:false,source:'both',dealType:'',saleKind:'',failMax:'',usages:[],maxPriceEok:'',maxBidRate:''});
 const emptyDraft=()=>({budgetEok:'',districts:[],neighborhoods:[],purpose:null,minArea:'',maxArea:'',areaUnit:'pyeong',zones:[],auction:emptyAuction(),...BUILD_DEFAULTS});
-const state = { screen: 'home', siteDraft:null, parcelSearch:null, draft: emptyDraft(), applied: null, editing: false, conditionKey:'primary', pane: 'list', activity:null, activityError:false, search:null, neighborhoodsOpen:false };
+const state = { screen: 'home', siteDraft:null, parcelSearch:null, draft: emptyDraft(), applied: null, editing: false, conditionKey:'primary', pane: 'list', alertIds:null, activity:null, activityError:false, search:null, neighborhoodsOpen:false };
 let pendingInitialSource=null;
 // '내 조건'은 단일 저장소(condition-store)가 원본이다. state.applied는 그 저장소를 읽고 쓴다.
 Object.defineProperty(state,'applied',{get:getCondition,set:setCondition,enumerable:true,configurable:true});
@@ -130,8 +130,9 @@ window.addEventListener('teojabi-open-favorites',()=>{
 });
 // 알림에서 '목록으로 보기/지도에서 보기/내 조건으로 보기' 로 결과 화면을 연다.
 window.addEventListener('teojabi-open-results',event=>{
-  const pane=event.detail&&event.detail.pane==='map'?'map':'list';
-  state.pane=pane;
+  const detail=event.detail||{};
+  state.pane=detail.pane==='map'?'map':'list';
+  state.alertIds=Array.isArray(detail.ids)&&detail.ids.length?detail.ids:null;
   state.screen='results';
   history.replaceState(null,'',location.pathname+'#search');
   render();
@@ -263,8 +264,8 @@ function render(focus = true) {
     app.innerHTML='<section class="screen-loading" aria-live="polite"><span></span><p>매물과 지도를 불러오고 있어요.</p></section>';
     loadExplorer().then(({mountExplorer})=>{
       if(version!==renderVersion||state.screen!=='results')return;
-      const assistant=assistantPayload,openId=assistantOpenId;assistantPayload=null;assistantOpenId=null;const picksOnly=Boolean(state.picksOnly);state.picksOnly=false;const initialSource=location.hash==='#favorites'?'favorites':location.hash==='#auction'?'auction':(pendingInitialSource||undefined);pendingInitialSource=null;const initialHeading=(()=>{const k=pathKey();return k==='search'?'서울 상업용 건물·토지 매물을 찾아보세요':k==='auction'?'신축을 검토할 만한 서울 경매 물건을 찾아보세요':k==='onbid'?'신축 가능성까지 검토한 서울 공매 물건을 찾아보세요':undefined;})();
-      disposeExplorer=mountExplorer(app,{conditions:state.applied,picksOnly,initialPane:state.pane,assistant:assistant||undefined,initialSource,initialHeading,initialId:openId||new URLSearchParams(location.hash.slice(1)).get('listing'),initialParcel:state.parcelSearch,onParcelChange:p=>{state.parcelSearch=p;},onAnalyze:listing=>{if(state.siteDraft?.listingId!==listing.id)state.siteDraft=createSiteDraft(listing);state.screen='analyze';history.pushState({screen:'analyze'},'','#analyze');render();},onConditionsChange:next=>{state.applied=next;if(!new URLSearchParams(location.hash.slice(1)).has('listing'))history.replaceState(null,'',location.pathname+'#search');return rememberSearch(next);},onEdit:()=>{
+      const assistant=assistantPayload,openId=assistantOpenId;assistantPayload=null;assistantOpenId=null;const picksOnly=Boolean(state.picksOnly);state.picksOnly=false;const initialIds=Array.isArray(state.alertIds)?state.alertIds:null;state.alertIds=null;const initialSource=location.hash==='#favorites'?'favorites':location.hash==='#auction'?'auction':(pendingInitialSource||undefined);pendingInitialSource=null;const initialHeading=(()=>{const k=pathKey();return k==='search'?'서울 상업용 건물·토지 매물을 찾아보세요':k==='auction'?'신축을 검토할 만한 서울 경매 물건을 찾아보세요':k==='onbid'?'신축 가능성까지 검토한 서울 공매 물건을 찾아보세요':undefined;})();
+      disposeExplorer=mountExplorer(app,{conditions:state.applied,picksOnly,initialPane:state.pane,initialIds,assistant:assistant||undefined,initialSource,initialHeading,initialId:openId||new URLSearchParams(location.hash.slice(1)).get('listing'),initialParcel:state.parcelSearch,onParcelChange:p=>{state.parcelSearch=p;},onAnalyze:listing=>{if(state.siteDraft?.listingId!==listing.id)state.siteDraft=createSiteDraft(listing);state.screen='analyze';history.pushState({screen:'analyze'},'','#analyze');render();},onConditionsChange:next=>{state.applied=next;if(!new URLSearchParams(location.hash.slice(1)).has('listing'))history.replaceState(null,'',location.pathname+'#search');return rememberSearch(next);},onEdit:()=>{
         state.draft=appliedDraft();
         state.editing=Boolean(state.applied);state.screen='purpose';render();
       }});
