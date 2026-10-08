@@ -249,7 +249,7 @@ const filterAuctionsByArea=(groups,minArea,maxArea)=>{
 // 비교 선택은 화면이 다시 그려져도(예: 찜에서 다시 보기 후 뒤로가기) 유지되도록 모듈 수준에 둔다.
 const compared=new Map();
 
-export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnalyze,initialId,initialSource,initialHeading,assistant,picksOnly,initialParcel,onParcelChange}={}) {
+export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnalyze,initialId,initialSource,initialHeading,assistant,picksOnly,initialParcel,onParcelChange,initialPane}={}) {
   document.body.classList.add('map-results-open');
   const picksOnlyMode=Boolean(picksOnly);
   const abort=new AbortController();let disposed=false,version=0,detailVersion=0,closeStreet,closeStreetPreview,closeContext,closeRecords,closeLand,closeCommercial,closeSurrounding;
@@ -274,6 +274,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
       <div class="map-frame"><div id="map-host" role="region" aria-label="매물 위치 지도"></div><div id="commercial-popup" class="commercial-popup" hidden></div><div class="map-controls"><button class="outline" data-explore="favorites" aria-pressed="false">♥ 찜한 매물</button><button class="outline" data-explore="all-picks" aria-pressed="false">★ 터잡이 추천</button><button class="outline" data-explore="auction" aria-pressed="false">경매</button><button class="outline" data-explore="reset-map" aria-label="현재 매물 전체 위치 보기">전체 위치</button></div><div class="map-controls-right"><button class="outline" data-explore="transactions" aria-pressed="true" hidden>실거래</button><button class="outline" data-explore="satellite" aria-pressed="false">위성</button><button class="outline" data-explore="cadastral" aria-pressed="false">지적도</button><button class="outline" data-explore="commercial" aria-pressed="false">상권</button><button class="outline" data-explore="measure" aria-pressed="false">줄자</button></div><form class="map-parcel-search" id="map-parcel-search" role="search"><input type="search" name="query" placeholder="주소로 이 땅 신축검토 (예: 성산동 123-4)" maxlength="120" autocomplete="off" aria-label="주소로 필지 찾기"><button type="submit" class="primary">찾기</button></form><div class="map-parcel-result" id="map-parcel-result" role="status" hidden></div><div id="map-status" class="map-status" role="status">네이버 지도를 불러오고 있어요.</div><div id="measure-readout" class="measure-readout" role="status" hidden></div><p class="map-disclaimer">*지도서비스에 정보는 법적 효력이 없으며 참고 자료로만 활용이 가능합니다.</p></div>
       <aside id="listing-detail" class="detail-panel" aria-label="매물 상세" hidden></aside></div><p class="explore-foot" id="explore-foot"></p></section>`;
   const $=selector=>root.querySelector(selector);
+  if(initialPane==='map'){const board=$('.explore-board');if(board){board.dataset.pane='map';root.querySelectorAll('[data-explore="pane"]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.value==='map')));}}
   let analysisLightbox=null;
   const closeAnalysisImage=()=>{if(analysisLightbox)analysisLightbox.classList.remove('open');};
   const showAnalysisImage=(src,label)=>{

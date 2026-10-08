@@ -71,8 +71,9 @@ export function groupHtml(group) {
     return `<article class="member-alert"><div><p class="member-alert-kind">${esc(labelOf(a))}${a.conditionName ? ` · ${esc(a.conditionName)}` : ''}</p><h4>${esc(a.title || '')}</h4><p>${esc(a.detail || '')}</p>${a.meta?.development ? `<p class="case-note">${esc(devLine(a.meta.development))}</p>` : ''}</div><div class="member-alert-actions">${a.key ? `<button class="outline" data-inbox="open" data-key="${esc(a.key)}">다시 보기</button><button class="outline" data-inbox="delete" data-key="${esc(a.key)}">삭제</button>` : ''}</div></article>`;
   }
   const keys = group.items.map(i => i.key).filter(Boolean);
+  const keysAttr = esc(keys.join(','));
   const rows = group.items.map(a => `<li class="notif-group-row"><span class="notif-src">${esc(labelOf(a))}</span>${a.key ? `<button type="button" class="notif-item-link" data-inbox="open" data-key="${esc(a.key)}">${esc(a.title || '')}</button>` : `<b>${esc(a.title || '')}</b>`}<span class="notif-item-detail">${esc(a.detail || '')}</span>${a.key ? `<button type="button" class="outline notif-item-del" data-inbox="delete" data-key="${esc(a.key)}" aria-label="삭제">×</button>` : ''}</li>`).join('');
-  return `<article class="member-alert notif-group"><div><p class="member-alert-kind">${esc(groupLabel(group))} <small>${group.items.length}건</small></p><ul class="notif-group-list">${rows}</ul></div><div class="member-alert-actions">${keys.length ? `<button class="outline" data-inbox="delete-group" data-keys="${esc(keys.join(','))}">묶음 삭제</button>` : ''}</div></article>`;
+  return `<article class="member-alert notif-group"><div><p class="member-alert-kind">${esc(groupLabel(group))} <small>${group.items.length}건</small></p><ul class="notif-group-list">${rows}</ul></div><div class="member-alert-actions">${keys.length ? `<button class="outline" data-inbox="list" data-keys="${keysAttr}">목록으로 보기</button><button class="outline" data-inbox="map" data-keys="${keysAttr}">지도에서 보기</button><button class="outline" data-inbox="delete-group" data-keys="${keysAttr}">삭제</button>` : ''}</div></article>`;
 }
 
 export function listHtml(items) {

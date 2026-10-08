@@ -50,6 +50,11 @@ export async function handleInboxAction(el) {
     window.dispatchEvent(new CustomEvent('teojabi-open-saved', { detail: { kind: 'favorite', key, payload: { id: key } } }));
     return true;
   }
+  if (action === 'list' || action === 'map') {
+    if (dialog?.open) dialog.close();
+    window.dispatchEvent(new CustomEvent('teojabi-open-results', { detail: { pane: action } }));
+    return true;
+  }
   if (action === 'delete') {
     const key = el.dataset.key;
     if (!key) return false;
@@ -81,11 +86,12 @@ export function openNotifications() {
   dialog = document.createElement('dialog');
   dialog.className = 'notif-dialog';
   dialog.setAttribute('aria-labelledby', 'notif-title');
-  dialog.innerHTML = `<div class="notif-head"><div><span class="eyebrow">MY TEOJABI</span><h2 id="notif-title">알림</h2></div><div class="notif-head-actions"><button class="outline" data-notif="read-all">모두 읽음</button><button class="outline" data-notif="delete-all">모두 삭제</button><button class="outline" data-notif="close" aria-label="알림 닫기">×</button></div></div><p class="case-note">저장한 조건에 맞는 새 매물과 임박한 경매·공매를 <b>하루 한 번(오전 9시)</b> 알려드려요. 사실 안내이며, 입찰 전 원문을 확인하세요.</p><div class="notif-body" aria-live="polite"><p class="case-note">알림을 불러오고 있어요.</p></div>`;
+  dialog.innerHTML = `<div class="notif-head"><div><span class="eyebrow">MY TEOJABI</span><h2 id="notif-title">알림</h2></div><div class="notif-head-actions"><button class="outline" data-notif="read-all">모두 읽음</button><button class="outline" data-notif="delete-all">모두 삭제</button><button class="outline" data-notif="close" aria-label="알림 닫기">×</button></div></div><p class="case-note">저장한 조건에 맞는 새 매물과 임박한 경매·공매를 <b>하루 한 번(오전 9시)</b> 알려드려요. 사실 안내이며, 입찰 전 원문을 확인하세요.</p><div class="notif-actions"><button class="outline" data-notif="back-condition">내 조건으로 보기</button></div><div class="notif-body" aria-live="polite"><p class="case-note">알림을 불러오고 있어요.</p></div>`;
   dialog.addEventListener('click', async event => {
     const head = event.target.closest('[data-notif]');
     if (head && !head.disabled) {
       if (head.dataset.notif === 'close') { dialog.close(); return; }
+      if (head.dataset.notif === 'back-condition') { dialog.close(); window.dispatchEvent(new CustomEvent('teojabi-open-results', { detail: { pane: 'list' } })); return; }
       if (head.dataset.notif === 'read-all') {
         head.disabled = true;
         member.request('/notifications/read', { method: 'POST' }).then(() => notifyNotificationsChanged()).catch(() => { head.disabled = false; });
