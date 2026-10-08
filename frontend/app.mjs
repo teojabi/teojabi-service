@@ -170,7 +170,10 @@ member.addEventListener('change',()=>{
   // 비회원 때 만든 조건이 있고 계정에 저장된 조건이 없으면 계정으로 옮긴다(알림 대상 포함).
   if(state.applied&&!member.items.some(i=>i.kind==='condition')){rememberSearch(state.applied);return;}
   const saved=readMemberSearch(member.user,member.items);
-  if(!saved||state.screen!=='home'||location.hash)return;
+  if(!saved)return;
+  // 세션 저장소가 비어 있으면(새 탭 등) 저장된 조건을 작업 조건으로 복원한다(어느 화면이든).
+  if(!state.applied)state.applied=saved;
+  if(state.screen!=='home'||location.hash)return;
   state.applied=saved;state.screen='results';
   history.replaceState(null,'',location.pathname+'#search');render(false);
 });
