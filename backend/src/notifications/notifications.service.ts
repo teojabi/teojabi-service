@@ -511,7 +511,7 @@ export class NotificationsService {
     return [...dedup.values()];
   }
 
-  @Cron('0 30 8 * * *', { timeZone: 'Asia/Seoul' })
+  @Cron('0 0 11 * * *', { timeZone: 'Asia/Seoul' })
   async dispatchDailyEmail() {
     const mailReady = this.mail.isConfigured();
     if (!mailReady) this.logger.warn('Email digest: mail not configured; syncing inboxes only.');
@@ -544,10 +544,15 @@ export class NotificationsService {
           ON CONFLICT (dedupe_key) DO NOTHING`;
         if (inserted === 0) continue;
         const summaries = await this.conditionSummaryMap(user.userId);
+        const listingCount = unread.filter((item: any) => item.type === 'listing').length;
+        const auctionCount = unread.filter((item: any) => item.type === 'auction' || item.type === 'onbid').length;
+        const heading = listingCount && auctionCount ? '새로운 매물·경매 임박 알림'
+          : auctionCount ? '경매 임박 알림'
+          : '새로운 매물 알림';
         await this.mail.send({
           to: user.email,
-          title: `[터잡이] 조건에 맞는 새 매물 ${unread.length}건`,
-          body: buildDigestBody(this.toDigestConditions(unread, summaries), { inquiryEmail: 'teojabi@gmail.com', unsubscribeUrl: this.unsubscribeUrl(user.userId) }),
+          title: `[터잡이] ${heading}`,
+          body: buildDigestBody(this.toDigestConditions(unread, summaries), { inquiryEmail: 'teojabi@gmail.com', unsubscribeUrl: this.unsubscribeUrl(user.userId), heading }),
         });
         await this.markEmailed(user.userId, unread.map((item: any) => item.key).filter(Boolean));
         sent += 1;

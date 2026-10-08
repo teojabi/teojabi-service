@@ -38,6 +38,62 @@ function devLine(d) {
   return parts.join(' · ');
 }
 
+// 이메일과 같은 출처 표기(네이버/디스코/경매/공매).
+function sourceLabel(a) {
+  if (a.type === 'auction') return '경매';
+  if (a.type === 'onbid') return '공매';
+  if (a.type === 'notice') return '공지';
+  const key = String(a.key || '');
+  if (key.startsWith('naver:')) return '네이버';
+  if (key.startsWith('disco:')) return '디스코';
+  return '매물';
+}
+const labelOf = a => (a.origin === 'condition' ? sourceLabel(a) : (a.kindLabel || ''));
+
+// 알림 항목을 조건·날짜별로 묶어 한 개의 알림으로 보여준다(이메일과 같은 묶음, 출처별 최대 3건).
+function groupLabel(group) {
+  const hasListing = group.items.some(i => i.type === 'listing');
+  const hasAuction = group.items.some(i => i.type === 'auction' || i.type === 'onbid');
+  const kind = group.origin === 'favorite' ? '찜한 물건'
+    : hasListing && hasAuction ? '새로운 매물·경매 임박 알림'
+    : hasAuction ? '경매 임박 알림'
+    : '새로운 매물 알림';
+  return group.conditionName ? `${kind} · ${group.conditionName}` : kind;
+}
+
+function groupItems(items) {
+  const groups = [];
+  const byKey = new Map();
+  for (const a of items) {
+    const key = a.origin === 'condition' ? `cond:${a.conditionName || ''}:${a.date || ''}` : `item:${a.key}`;
+    let group = byKey.get(key);
+    if (!group) { group = { key, origin: a.origin, conditionName: a.conditionName, date: a.date, items: [] }; byKey.set(key, group); groups.push(group); }
+    group.items.push(a);
+  }
+  // 이메일과 동일하게 출처별 최대 3건만 보여준다.
+  for (const group of groups) {
+    const counts = new Map();
+    group.items = group.items.filter(a => {
+      const label = labelOf(a);
+      const used = counts.get(label) || 0;
+      if (used >= 3) return false;
+      counts.set(label, used + 1);
+      return true;
+    });
+  }
+  return groups;
+}
+
+function groupHtml(group) {
+  if (group.items.length === 1) {
+    const a = group.items[0];
+    return `<article class="member-alert"><div><p class="member-alert-kind">${esc(labelOf(a))}${a.conditionName ? ` · ${esc(a.conditionName)}` : ''}</p><h4>${esc(a.title || '')}</h4><p>${esc(a.detail || '')}</p>${a.meta?.development ? `<p class="case-note">${esc(devLine(a.meta.development))}</p>` : ''}</div><div class="member-alert-actions">${a.key ? `<button class="outline" data-notif="open" data-key="${esc(a.key)}">다시 보기</button><button class="outline" data-notif="delete" data-key="${esc(a.key)}">삭제</button>` : ''}</div></article>`;
+  }
+  const keys = group.items.map(i => i.key).filter(Boolean);
+  const rows = group.items.map(a => `<li class="notif-group-row"><span class="notif-src">${esc(labelOf(a))}</span><button type="button" class="notif-item-link" data-notif="open" data-key="${esc(a.key)}">${esc(a.title || '')}</button><span class="notif-item-detail">${esc(a.detail || '')}</span>${a.key ? `<button type="button" class="outline notif-item-del" data-notif="delete" data-key="${esc(a.key)}" aria-label="삭제">×</button>` : ''}</li>`).join('');
+  return `<article class="member-alert notif-group"><div><p class="member-alert-kind">${esc(groupLabel(group))} <small>${group.items.length}건</small></p><ul class="notif-group-list">${rows}</ul></div><div class="member-alert-actions"><button class="outline" data-notif="delete-group" data-keys="${esc(keys.join(','))}">묶음 삭제</button></div></article>`;
+}
+
 async function renderInbox() {
   if (!dialog || !dialog.open) return;
   const body = dialog.querySelector('.notif-body');
@@ -47,7 +103,7 @@ async function renderInbox() {
     if (!items.length) {
       body.innerHTML = '<div class="empty"><h3>새 알림이 없어요.</h3><p>찜한 물건이나 저장 조건에 맞는 경매·공매가 임박하면 여기에서 알려드려요.</p></div>';
     } else {
-      body.innerHTML = items.map(a => `<article class="member-alert"><div><p class="member-alert-kind">${esc(a.kindLabel || '')}${a.conditionName ? ` · ${esc(a.conditionName)}` : ''}</p><h4>${esc(a.title || '')}</h4><p>${esc(a.detail || '')}</p>${a.meta?.development ? `<p class="case-note">${esc(devLine(a.meta.development))}</p>` : ''}</div><div class="member-alert-actions">${a.key ? `<button class="outline" data-notif="open" data-key="${esc(a.key)}">다시 보기</button><button class="outline" data-notif="delete" data-key="${esc(a.key)}">삭제</button>` : ''}</div></article>`).join('');
+      body.innerHTML = groupItems(items).map(groupHtml).join('');
     }
   } catch (error) {
     body.innerHTML = `<p class="case-note">${error?.status === 401 ? '로그인 후 알림을 볼 수 있어요.' : '알림을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.'}</p>`;
@@ -77,6 +133,13 @@ export function openNotifications() {
       if (!key) return;
       button.disabled = true;
       member.request(`/notifications/${encodeURIComponent(key)}`, { method: 'DELETE' }).then(() => { renderInbox(); }).catch(() => { button.disabled = false; });
+      return;
+    }
+    if (button.dataset.notif === 'delete-group') {
+      const keys = String(button.dataset.keys || '').split(',').filter(Boolean);
+      if (!keys.length) return;
+      button.disabled = true;
+      Promise.all(keys.map(key => member.request(`/notifications/${encodeURIComponent(key)}`, { method: 'DELETE' }).catch(() => null))).then(() => { renderInbox(); }).catch(() => { button.disabled = false; });
       return;
     }
     if (button.dataset.notif === 'open') {
