@@ -37,9 +37,18 @@ jobs:
           command_timeout: 10m
           envs: RESEND_USER_IDS,RESEND_DRY_RUN
           script: |
-            set -e
             cd ~/teojabi-service/backend
             set -a
             . ./.env
             set +a
-            node dist/src/scripts/resend-digest.js --userIds="$RESEND_USER_IDS" --dryRun="$RESEND_DRY_RUN"
+            OUT=/tmp/resend-run.log
+            {
+              echo '--- whoami/pwd ---'; whoami; pwd
+              echo '--- ls dist/src/scripts ---'; ls -la dist/src/scripts 2>&1
+              echo '--- ls dist/scripts ---'; ls -la dist/scripts 2>&1
+              echo '--- node ---'; node --version 2>&1
+              echo '--- run ---'
+              node dist/src/scripts/resend-digest.js --userIds="$RESEND_USER_IDS" --dryRun="$RESEND_DRY_RUN" 2>&1
+              echo "exit=$?"
+            } > "$OUT" 2>&1 || true
+            node -e "const{PrismaClient}=require('@prisma/client');const fs=require('fs');const p=new PrismaClient();let txt='';try{txt=fs.readFileSync('/tmp/resend-run.log','utf8').slice(0,9000);}catch(e){txt='no-log '+String(e);}p.\$executeRawUnsafe('INSERT INTO public.ops_resend_log(payload) VALUES (\$1::jsonb)',JSON.stringify({run:txt})).then(()=>p.\$disconnect()).then(()=>process.exit(0)).catch(e=>{console.error(String(e));process.exit(0);});"
