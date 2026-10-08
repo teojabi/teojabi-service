@@ -180,10 +180,10 @@ export class NotificationsService {
 
   // --- 알림함(개별 항목) -----------------------------------------------------
 
-  async getInboxForUser(userId: string, leadDays?: number) {
-    const preferences = await this.getPreferences(userId);
-    const days = clampLead(leadDays ?? preferences.leadDays);
-    return this.getInbox(userId, days, { favorites: preferences.favorites, conditions: preferences.conditions });
+  // 웹 알림함은 하루 한 번(11:00) 이메일과 같은 내용으로 채워진다.
+  // 조회할 때는 매칭을 다시 만들지 않고 저장된 알림만 돌려준다.
+  async getInboxForUser(userId: string) {
+    return this.listInbox(userId);
   }
 
   async markRead(userId: string) {
@@ -192,15 +192,16 @@ export class NotificationsService {
     return { status: 'ok' };
   }
 
+  // 하드 삭제하면 다음 조회 때 매칭이 다시 생성되므로 '지움' 표시만 한다.
   async deleteItem(userId: string, key: string) {
     await this.prisma.$executeRaw`
-      DELETE FROM public.notification_item WHERE user_id=${userId} AND item_key=${key}`;
+      UPDATE public.notification_item SET cleared_at=now() WHERE user_id=${userId} AND item_key=${key} AND cleared_at IS NULL`;
     return { status: 'ok' };
   }
 
   async clearAll(userId: string) {
     await this.prisma.$executeRaw`
-      DELETE FROM public.notification_item WHERE user_id=${userId}`;
+      UPDATE public.notification_item SET cleared_at=now() WHERE user_id=${userId} AND cleared_at IS NULL`;
     return { status: 'ok' };
   }
 
@@ -217,7 +218,7 @@ export class NotificationsService {
       SELECT item_key AS "key", kind, origin, condition_name AS "conditionName",
              to_char(event_date,'YYYY-MM-DD') AS "date", title, detail, meta, score, read_at AS "readAt", emailed_at AS "emailedAt"
       FROM public.notification_item
-      WHERE user_id=${userId}
+      WHERE user_id=${userId} AND cleared_at IS NULL
       ORDER BY (read_at IS NULL) DESC, score DESC NULLS LAST, event_date ASC NULLS LAST, created_at DESC
       LIMIT 60`;
     const items = rows.map((row) => ({
@@ -239,7 +240,7 @@ export class NotificationsService {
     const stats = await this.prisma.$queryRaw<Array<{ name: string | null; count: bigint }>>`
       SELECT condition_name AS name, count(*) AS count
       FROM public.notification_item
-      WHERE user_id=${userId} AND origin='condition' AND created_at >= now() - interval '30 days'
+      WHERE user_id=${userId} AND origin='condition' AND cleared_at IS NULL AND created_at >= now() - interval '30 days'
       GROUP BY condition_name`;
     const conditionAlertCounts: Record<string, number> = {};
     for (const row of stats) if (row.name) conditionAlertCounts[row.name] = Number(row.count);

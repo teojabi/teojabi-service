@@ -8,9 +8,8 @@ export class NotificationsController {
   constructor(private readonly notifications: NotificationsService) {}
 
   @Get()
-  inbox(@Request() req: any, @Query('leadDays') leadDays?: string) {
-    const parsed = parseInt(leadDays ?? '', 10);
-    return this.notifications.getInboxForUser(req.user.id, Number.isFinite(parsed) ? parsed : undefined);
+  inbox(@Request() req: any) {
+    return this.notifications.getInboxForUser(req.user.id);
   }
 
   @Post('read')
