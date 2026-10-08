@@ -1,8 +1,30 @@
 import { NestFactory } from '@nestjs/core';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '@prisma/client';
+import { readFileSync } from 'fs';
+import { resolve } from 'path';
 import { AppModule } from '../app.module';
 import { NotificationsService } from '../notifications/notifications.service';
+
+// 셸 소싱에 의존하지 않도록 .env 를 직접 읽어 process.env 를 채운다(없는 값만).
+function loadEnvFile() {
+  try {
+    const text = readFileSync(resolve(process.cwd(), '.env'), 'utf8');
+    for (const line of text.split(/\r?\n/)) {
+      const match = line.match(/^\s*([A-Za-z0-9_]+)\s*=\s*(.*?)\s*$/);
+      if (!match) continue;
+      let value = match[2];
+      if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+        value = value.slice(1, -1);
+      }
+      if (!(match[1] in process.env)) process.env[match[1]] = value;
+    }
+  } catch {
+    /* .env 없으면 환경변수만 사용 */
+  }
+}
+loadEnvFile();
+
 
 // 오류 정정 재발송 CLI. 서버에서 실행한다(백엔드 .env 를 사용).
 //   node dist/src/scripts/resend-digest.js --userIds=id1,id2 --dryRun=true
