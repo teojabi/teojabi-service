@@ -8,5 +8,6 @@ import { NotificationsService } from './notifications.service';
   imports: [PrismaModule, MailModule],
   controllers: [NotificationsController, NotificationsUnsubscribeController],
   providers: [NotificationsService],
+  exports: [NotificationsService],
 })
 export class NotificationsModule {}

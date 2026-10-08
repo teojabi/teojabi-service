@@ -372,7 +372,7 @@ export class NotificationsService {
   private async collectAlerts(
     userId: string,
     leadDays: number,
-    options: { favorites?: boolean; conditions?: boolean } = {},
+    options: { favorites?: boolean; conditions?: boolean; skipSpecials?: boolean } = {},
     zoneMap: Record<string, { bcr: number; far: number }> = {},
     cursor: Date = new Date(0),
   ): Promise<Alert[]> {
@@ -387,7 +387,7 @@ export class NotificationsService {
     const endStamp = this.stamp(leadDays);
     const items: Alert[] = [];
     // '안 본 매물'·'예외 추천'은 주 2회(월·목 KST)만. 그날만 조회 기록을 모은다.
-    const specialDay = includeConditions && this.isDiscoveryDay();
+    const specialDay = includeConditions && !options.skipSpecials && this.isDiscoveryDay();
     const seen = specialDay ? await this.seenListingIds(userId).catch(() => ({ naver: [] as string[], disco: [] as string[] })) : { naver: [] as string[], disco: [] as string[] };
 
     const favAuction = includeFavorites
@@ -561,6 +561,61 @@ export class NotificationsService {
     // 하루치 매칭이 끝나면 커서를 현재로 올린다(다음 날은 이 시각 이후 신규분만 대상).
     await this.advanceCursor().catch((error) => this.logger.error('Cursor advance failed', error as Error));
     this.logger.log(`Daily notification sync: ${sent}/${users.length} emailed`);
+  }
+
+  // 오류 정정용 재발송: 조건에 맞는 항목만 추려 지정 회원에게 다시 보낸다('안 본 매물·예외 추천' 제외).
+  async resendDigestForUsers(userIds: string[], note: string, dryRun = false) {
+    const mailReady = this.mail.isConfigured();
+    const results: Array<Record<string, unknown>> = [];
+    for (const userId of userIds) {
+      try {
+        const rows = await this.prisma.$queryRaw<Array<{ email: string | null }>>`
+          SELECT email FROM public."user" WHERE id=${userId}`;
+        const email = rows[0]?.email?.trim();
+        const preferences = await this.getPreferences(userId);
+        if (!mailReady || !preferences.email || !email) {
+          results.push({ userId, skipped: 'no-email' });
+          continue;
+        }
+        const items = await this.collectAlerts(
+          userId,
+          preferences.leadDays,
+          { favorites: true, conditions: true, skipSpecials: true },
+          {},
+          new Date(0),
+        );
+        if (!items.length) {
+          results.push({ userId, email, skipped: 'no-items' });
+          continue;
+        }
+        const summaries = await this.conditionSummaryMap(userId);
+        const conditions = this.toDigestConditions(items, summaries);
+        const total = conditions.reduce((sum, c) => sum + c.items.length, 0);
+        if (dryRun) {
+          results.push({
+            userId,
+            email,
+            dryRun: true,
+            total,
+            conditions: conditions.map((c) => ({ name: c.name, items: c.items.map((i) => `${i.label} ${i.title}`) })),
+          });
+          continue;
+        }
+        await this.mail.send({
+          to: email,
+          title: `[터잡이] 조건에 맞는 새 매물 ${total}건 (정정 발송)`,
+          body: buildDigestBody(conditions, {
+            inquiryEmail: 'teojabi@gmail.com',
+            unsubscribeUrl: this.unsubscribeUrl(userId),
+            note,
+          }),
+        });
+        results.push({ userId, email, sent: true, total });
+      } catch (error) {
+        results.push({ userId, error: String((error as Error)?.message ?? error) });
+      }
+    }
+    return { dryRun, count: userIds.length, results };
   }
 
   private auctionAlert(
