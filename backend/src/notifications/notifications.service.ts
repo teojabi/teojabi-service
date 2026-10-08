@@ -752,9 +752,8 @@ export class NotificationsService {
     return null;
   }
 
-  private digestLabel(item: any): string {
-    const special = this.specialLabel(item);
-    if (special) return special;
+  // 캡(출처별 3건) 계산용 출처 라벨. 특례여도 출처는 유지한다.
+  private sourceLabel(item: any): string {
     if (item.type === 'auction') return '경매';
     if (item.type === 'onbid') return '공매';
     if (item.type === 'notice') return '공지';
@@ -762,6 +761,11 @@ export class NotificationsService {
     if (key.startsWith('naver:')) return '네이버';
     if (key.startsWith('disco:')) return '디스코';
     return '매물';
+  }
+
+  // 표시용 라벨. 특례는 특례 라벨로 보여준다.
+  private digestLabel(item: any): string {
+    return this.specialLabel(item) || this.sourceLabel(item);
   }
 
   // 알림함 항목을 조건별로 묶어 이메일 모델로 만든다. 출처(네이버/디스코/경매/공매)별로 최대 3건.
@@ -778,14 +782,14 @@ export class NotificationsService {
         order.push(name);
         counts.set(name, new Map());
       }
-      const label = this.digestLabel(item);
+      const capLabel = this.sourceLabel(item);
       const bySource = counts.get(name)!;
-      const used = bySource.get(label) || 0;
+      const used = bySource.get(capLabel) || 0;
       if (used >= 3) continue;
-      bySource.set(label, used + 1);
+      bySource.set(capLabel, used + 1);
       groups.get(name)!.push({
         type: item.type,
-        label,
+        label: this.digestLabel(item),
         title: item.title || '',
         detail: item.detail || '',
         score: item.score ?? null,
