@@ -58,30 +58,32 @@ function specialLabel(a) {
 }
 const labelOf = a => specialLabel(a) || (a.origin === 'condition' ? sourceLabel(a) : (a.kindLabel || ''));
 
-// 알림 항목을 조건·날짜별로 묶어 한 개의 알림으로 보여준다(이메일과 같은 묶음, 출처별 최대 3건).
+function fmtDay(date) {
+  const m = String(date || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return m ? `${Number(m[2])}월 ${Number(m[3])}일` : '';
+}
+
+// 알림을 날짜별로 묶어 하루 한 개의 알림으로 보여준다(이메일과 같은 하루 단위).
 function groupLabel(group) {
   const hasListing = group.items.some(i => i.type === 'listing');
   const hasAuction = group.items.some(i => i.type === 'auction' || i.type === 'onbid');
-  const kind = group.origin === 'favorite' ? '찜한 물건'
-    : hasListing && hasAuction ? '새로운 매물·경매 임박 알림'
-    : hasAuction ? '경매 임박 알림'
-    : '새로운 매물 알림';
-  return group.conditionName ? `${kind} · ${group.conditionName}` : kind;
+  const kind = hasListing && hasAuction ? '새로운 매물·경매 임박 알림' : hasAuction ? '경매 임박 알림' : '새로운 매물 알림';
+  const day = fmtDay(group.date);
+  return day ? `${day} · ${kind}` : kind;
 }
 
 function groupItems(items) {
   const groups = [];
   const byKey = new Map();
   for (const a of items) {
-    const key = a.origin === 'condition' ? `cond:${a.conditionName || ''}:${a.date || ''}` : `item:${a.key}`;
+    const key = String(a.date || '');
     let group = byKey.get(key);
-    if (!group) { group = { key, origin: a.origin, conditionName: a.conditionName, date: a.date, items: [] }; byKey.set(key, group); groups.push(group); }
+    if (!group) { group = { key, date: a.date, items: [] }; byKey.set(key, group); groups.push(group); }
     group.items.push(a);
   }
-  // 이메일과 동일하게 묶음(조건)당 최대 3건. 특례를 먼저 배치한다.
   for (const group of groups) {
     group.items.sort((a, b) => Number(Boolean(specialLabel(b))) - Number(Boolean(specialLabel(a))));
-    group.items = group.items.slice(0, 3);
+    if (group.items.length > 8) group.items = group.items.slice(0, 8);
   }
   return groups;
 }
