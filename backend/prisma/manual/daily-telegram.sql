@@ -99,3 +99,6 @@ begin
   end;
 end;
 $function$;
+
+-- 매일 10:00 KST (= 01:00 UTC) 텔레그램 일일 리포트.
+SELECT cron.schedule('daily-summary-telegram', '0 1 * * *', 'select public.send_daily_summary_telegram()');
