@@ -300,8 +300,31 @@ export class NotificationsService {
       const score = this.scoreCandidate(profile, candidate);
       if (score != null) candidate.meta = { ...(candidate.meta || {}), score };
     }
-    await this.syncInbox(userId, candidates);
+    // 알림함과 이메일이 같은 목록이 되도록, 추려낸 다이제스트 항목만 저장한다.
+    const selected = this.selectDigest(candidates);
+    await this.syncInbox(userId, selected);
     return this.listInbox(userId);
+  }
+
+  // 이메일·알림함에 넣을 항목을 조건별로 추린다(조건당 최대 3건, 특례 우선).
+  private selectDigest(candidates: Alert[]): Alert[] {
+    const order: string[] = [];
+    const groups = new Map<string, Alert[]>();
+    const totals = new Map<string, number>();
+    const ordered = [...candidates].sort((a, b) => Number(Boolean(b?.meta?.special)) - Number(Boolean(a?.meta?.special)));
+    for (const item of ordered) {
+      const name = item.type === 'notice' ? '공지' : item.conditionName || (item.origin === 'favorite' ? '찜한 물건' : '맞춤 매물');
+      if (!groups.has(name)) {
+        groups.set(name, []);
+        order.push(name);
+        totals.set(name, 0);
+      }
+      const used = totals.get(name)!;
+      if (used >= 3) continue;
+      totals.set(name, used + 1);
+      groups.get(name)!.push(item);
+    }
+    return order.flatMap((name) => groups.get(name)!);
   }
 
   private async userProfile(userId: string): Promise<any | null> {
