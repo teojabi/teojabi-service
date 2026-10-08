@@ -1,7 +1,8 @@
 import { NestFactory } from '@nestjs/core';
+import { PrismaPg } from '@prisma/adapter-pg';
+import { PrismaClient } from '@prisma/client';
 import { AppModule } from '../app.module';
 import { NotificationsService } from '../notifications/notifications.service';
-import { PrismaService } from '../prisma/prisma.service';
 
 // 오류 정정 재발송 CLI. 서버에서 실행한다(백엔드 .env 를 사용).
 //   node dist/src/scripts/resend-digest.js --userIds=id1,id2 --dryRun=true
@@ -15,14 +16,29 @@ function readCliArg(name: string): string | undefined {
   return match ? match.slice(prefix.length).trim() : undefined;
 }
 
+// 로그 접근 없이 결과를 확인할 수 있도록 DB에 남긴다. Nest 초기화 실패에도 남도록 어댑터를 직접 쓴다.
+async function logToDb(payload: Record<string, unknown>) {
+  try {
+    const connectionString = process.env.DATABASE_URL || process.env.DIRECT_URL;
+    if (!connectionString) return;
+    const client = new PrismaClient({ adapter: new PrismaPg({ connectionString }) });
+    await client.$executeRawUnsafe('INSERT INTO public.ops_resend_log(payload) VALUES ($1::jsonb)', JSON.stringify(payload));
+    await client.$disconnect();
+  } catch (error) {
+    console.error('[resend-digest] DB 로그 실패:', String((error as Error)?.message ?? error));
+  }
+}
+
 async function main() {
   const userIds = (readCliArg('userIds') || '')
     .split(',')
     .map((value) => value.trim())
     .filter(Boolean);
-  if (!userIds.length) throw new Error('userIds가 필요합니다. 예: --userIds=id1,id2');
   const note = readCliArg('note') || DEFAULT_NOTE;
   const dryRun = (readCliArg('dryRun') || 'true') !== 'false';
+
+  await logToDb({ step: 'start', dryRun, count: userIds.length });
+  if (!userIds.length) throw new Error('userIds가 필요합니다. 예: --userIds=id1,id2');
 
   const app = await NestFactory.createApplicationContext(AppModule, { logger: ['error', 'warn'] });
   try {
@@ -30,20 +46,16 @@ async function main() {
     const result = await service.resendDigestForUsers(userIds, note, dryRun);
     console.log('[resend-digest] result');
     console.log(JSON.stringify(result, null, 2));
-    // 로그 접근 없이 결과를 확인할 수 있도록 DB에도 남긴다.
-    try {
-      const prisma = app.get(PrismaService);
-      await prisma.$executeRaw`INSERT INTO public.ops_resend_log(payload) VALUES (${JSON.stringify(result)}::jsonb)`;
-    } catch (logError) {
-      console.error('[resend-digest] 로그 기록 실패:', String((logError as Error)?.message ?? logError));
-    }
+    await logToDb({ step: 'result', result });
   } finally {
     await app.close();
   }
 }
 
-main().catch((error: unknown) => {
+main().catch(async (error: unknown) => {
   const message = error instanceof Error ? error.message : String(error);
+  const stack = error instanceof Error ? String(error.stack || '').slice(0, 3000) : '';
   console.error(`[resend-digest] 실패: ${message}`);
+  await logToDb({ step: 'fatal', message, stack });
   process.exit(1);
 });
