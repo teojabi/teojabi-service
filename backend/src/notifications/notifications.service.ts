@@ -768,25 +768,22 @@ export class NotificationsService {
     return this.specialLabel(item) || this.sourceLabel(item);
   }
 
-  // 알림함 항목을 조건별로 묶어 이메일 모델로 만든다. 출처(네이버/디스코/경매/공매)별로 최대 3건.
-  // 특례(안 본 매물·예외 추천)는 먼저 배치해 잘리지 않게 한다.
+  // 알림함 항목을 조건별로 묶어 이메일 모델로 만든다. 조건당 최대 3건. 특례(안 본 매물·예외 추천)는 먼저 배치해 잘리지 않게 한다.
   private toDigestConditions(unread: any[], summaries: Map<string, string>): DigestCondition[] {
     const groups = new Map<string, DigestItem[]>();
     const order: string[] = [];
-    const counts = new Map<string, Map<string, number>>();
+    const totals = new Map<string, number>();
     const ordered = [...unread].sort((a, b) => Number(Boolean(b?.meta?.special)) - Number(Boolean(a?.meta?.special)));
     for (const item of ordered) {
       const name = item.type === 'notice' ? '공지' : item.conditionName || (item.origin === 'favorite' ? '찜한 물건' : '맞춤 매물');
       if (!groups.has(name)) {
         groups.set(name, []);
         order.push(name);
-        counts.set(name, new Map());
+        totals.set(name, 0);
       }
-      const capLabel = this.sourceLabel(item);
-      const bySource = counts.get(name)!;
-      const used = bySource.get(capLabel) || 0;
+      const used = totals.get(name)!;
       if (used >= 3) continue;
-      bySource.set(capLabel, used + 1);
+      totals.set(name, used + 1);
       groups.get(name)!.push({
         type: item.type,
         label: this.digestLabel(item),
