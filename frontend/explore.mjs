@@ -688,7 +688,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     clearTimeout(loadTimer);
     if(source==='assistant')return loadAssistant();
     if(source==='favorites')return loadFavorites({fit});
-    if(source==='alert')return loadByIds(alertIds,{fit});
+    if(source==='alert')return loadAlertItems(alertIds,{fit});
     if(source==='auction')return loadAuctions({fit});
     quickFilters.setRemembered(onConditionsChange?.(currentConditions())!==false);
     const current=++version;const params=new URLSearchParams({limit,sort});if(picksOnlyMode)params.set('cohort','existing');
@@ -773,6 +773,42 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
       result=null;map.setGroups([],null,false);
       $('#result-count').textContent=source==='alert'?'알림 매물을 확인하지 못했어요.':'찜한 매물을 확인하지 못했어요.';
       $('#listing-list').innerHTML=`<div class="empty"><h2>${source==='alert'?'알림에 담긴 매물을 불러오지 못했어요.':'찜한 매물을 불러오지 못했어요.'}</h2><p>연결 상태를 확인하고 다시 시도해 주세요.</p><button class="outline" data-explore="retry">다시 불러오기</button></div>`;
+    }
+  }
+  // 알림에 담긴 매물만 개별 상세로 불러온다(카탈로그에 없는 원자료 네이버·디스코 포함).
+  async function loadAlertItems(ids,{fit=true}={}) {
+    const current=++version;
+    $('.explore-list').setAttribute('aria-busy','true');
+    $('.search-suggestions').replaceChildren();
+    if(!ids.length){
+      result={status:'ready',groups:[],totalParcels:0,totalListings:0,hasMore:false,observedAt:null,missingFavorites:[]};
+      $('.explore-list').removeAttribute('aria-busy');drawCards();map.setGroups([],null,false);return;
+    }
+    $('#result-count').textContent='알림에 담긴 매물을 불러오고 있어요.';
+    try {
+      const groups=(await Promise.all(ids.map(async id=>{
+        try {
+          if(id.startsWith('auction:')){
+            const r=await apiFetch(`/api/auctions/${encodeURIComponent(id.slice('auction:'.length))}`,{signal:abort.signal});
+            const d=await r.json();if(d?.status!=='ready')return null;const row=auctionToListing(d.item);return {key:row.id,pnu:row.pnu,representative:row,listings:[row]};
+          }
+          if(id.startsWith('onbid:')){
+            const r=await apiFetch(`/api/onbid/${encodeURIComponent(id.slice('onbid:'.length))}`,{signal:abort.signal});
+            const d=await r.json();if(d?.status!=='ready')return null;const row=onbidToListing(d.item);return {key:row.id,pnu:row.pnu,representative:row,listings:[row]};
+          }
+          const r=await apiFetch(`/api/listings/${id}`,{signal:abort.signal});
+          const d=await r.json();const row=d?.listing;if(!row)return null;return {key:row.id||id,pnu:row.pnu,representative:row,listings:[row]};
+        } catch {return null;}
+      }))).filter(Boolean);
+      if(disposed||current!==version)return;
+      result={status:'ready',groups,totalParcels:groups.length,totalListings:groups.length,hasMore:false,observedAt:null,missingFavorites:ids.filter(id=>!groups.some(g=>(g.representative&&g.representative.id)===id||g.key===id))};
+      $('.explore-list').removeAttribute('aria-busy');drawCards();map.setGroups(result.groups,selected,fit);
+      if(initialId){const id=initialId;initialId=null;openDetail(id);}
+    } catch {
+      if(disposed||current!==version)return;
+      result=null;map.setGroups([],null,false);
+      $('#result-count').textContent='알림 매물을 확인하지 못했어요.';
+      $('#listing-list').innerHTML='<div class="empty"><h2>알림에 담긴 매물을 불러오지 못했어요.</h2><p>연결 상태를 확인하고 다시 시도해 주세요.</p><button class="outline" data-explore="retry">다시 불러오기</button></div>';
     }
   }
   // 조건에 포함된 경매를 건물찾기 목록·지도에 넣기 위해 같은 모양의 그룹으로 만든다.
