@@ -128,6 +128,14 @@ window.addEventListener('teojabi-open-favorites',()=>{
   history.replaceState(null,'',location.pathname+'#favorites');
   render();
 });
+// 알림에서 '목록으로 보기/지도에서 보기/내 조건으로 보기' 로 결과 화면을 연다.
+window.addEventListener('teojabi-open-results',event=>{
+  const pane=event.detail&&event.detail.pane==='map'?'map':'list';
+  state.pane=pane;
+  state.screen='results';
+  history.replaceState(null,'',location.pathname+'#search');
+  render();
+});
 // AI 비서에서 찾은 조건을 '내 조건'으로 저장한다(계속 찾기·알림 대상).
 window.addEventListener('teojabi-save-condition',event=>{
   const p=event.detail&&event.detail.payload;
@@ -256,7 +264,7 @@ function render(focus = true) {
     loadExplorer().then(({mountExplorer})=>{
       if(version!==renderVersion||state.screen!=='results')return;
       const assistant=assistantPayload,openId=assistantOpenId;assistantPayload=null;assistantOpenId=null;const picksOnly=Boolean(state.picksOnly);state.picksOnly=false;const initialSource=location.hash==='#favorites'?'favorites':location.hash==='#auction'?'auction':(pendingInitialSource||undefined);pendingInitialSource=null;const initialHeading=(()=>{const k=pathKey();return k==='search'?'서울 상업용 건물·토지 매물을 찾아보세요':k==='auction'?'신축을 검토할 만한 서울 경매 물건을 찾아보세요':k==='onbid'?'신축 가능성까지 검토한 서울 공매 물건을 찾아보세요':undefined;})();
-      disposeExplorer=mountExplorer(app,{conditions:state.applied,picksOnly,assistant:assistant||undefined,initialSource,initialHeading,initialId:openId||new URLSearchParams(location.hash.slice(1)).get('listing'),initialParcel:state.parcelSearch,onParcelChange:p=>{state.parcelSearch=p;},onAnalyze:listing=>{if(state.siteDraft?.listingId!==listing.id)state.siteDraft=createSiteDraft(listing);state.screen='analyze';history.pushState({screen:'analyze'},'','#analyze');render();},onConditionsChange:next=>{state.applied=next;if(!new URLSearchParams(location.hash.slice(1)).has('listing'))history.replaceState(null,'',location.pathname+'#search');return rememberSearch(next);},onEdit:()=>{
+      disposeExplorer=mountExplorer(app,{conditions:state.applied,picksOnly,initialPane:state.pane,assistant:assistant||undefined,initialSource,initialHeading,initialId:openId||new URLSearchParams(location.hash.slice(1)).get('listing'),initialParcel:state.parcelSearch,onParcelChange:p=>{state.parcelSearch=p;},onAnalyze:listing=>{if(state.siteDraft?.listingId!==listing.id)state.siteDraft=createSiteDraft(listing);state.screen='analyze';history.pushState({screen:'analyze'},'','#analyze');render();},onConditionsChange:next=>{state.applied=next;if(!new URLSearchParams(location.hash.slice(1)).has('listing'))history.replaceState(null,'',location.pathname+'#search');return rememberSearch(next);},onEdit:()=>{
         state.draft=appliedDraft();
         state.editing=Boolean(state.applied);state.screen='purpose';render();
       }});

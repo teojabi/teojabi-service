@@ -895,6 +895,8 @@ body.architect-lightbox-open{overflow:hidden}
 .notif-dialog .notif-item-detail{flex-basis:100%;font-size:12px;color:var(--muted)}
 .notif-dialog .notif-item-del{margin-left:auto}
 .notif-dialog .member-alert-kind small{font-weight:400;color:var(--muted)}
+.notif-dialog .notif-actions{display:flex;gap:8px;margin-top:12px}
+.notif-dialog .notif-actions .outline{min-height:34px;padding:6px 12px;font-size:12px}
 .pick-badge.ok-badge{color:var(--green);border-color:var(--green);background:var(--selected)}
 .map-first .auction-filter-row{flex-wrap:nowrap;overflow-x:auto;padding-bottom:4px}
 .map-first .auction-filter-row label{flex:0 0 auto}
