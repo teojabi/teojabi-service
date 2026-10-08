@@ -122,7 +122,7 @@ export function openNotifications() {
   dialog = document.createElement('dialog');
   dialog.className = 'notif-dialog';
   dialog.setAttribute('aria-labelledby', 'notif-title');
-  dialog.innerHTML = `<div class="notif-head"><div><span class="eyebrow">MY TEOJABI</span><h2 id="notif-title">알림</h2></div><div class="notif-head-actions"><button class="outline" data-notif="read-all">모두 읽음</button><button class="outline" data-notif="close" aria-label="알림 닫기">×</button></div></div><p class="case-note">찜·저장 조건을 기준으로 새로 올라온 맞춤 매물과 매각기일·입찰마감이 임박한 경매·공매를 알려드려요. 사실 안내이며, 입찰 전 원문을 확인하세요.</p><div class="notif-body" aria-live="polite"><p class="case-note">알림을 불러오고 있어요.</p></div>`;
+  dialog.innerHTML = `<div class="notif-head"><div><span class="eyebrow">MY TEOJABI</span><h2 id="notif-title">알림</h2></div><div class="notif-head-actions"><button class="outline" data-notif="read-all">모두 읽음</button><button class="outline" data-notif="delete-all">모두 삭제</button><button class="outline" data-notif="close" aria-label="알림 닫기">×</button></div></div><p class="case-note">찜·저장 조건을 기준으로 새로 올라온 맞춤 매물과 매각기일·입찰마감이 임박한 경매·공매를 알려드려요. 사실 안내이며, 입찰 전 원문을 확인하세요.</p><div class="notif-body" aria-live="polite"><p class="case-note">알림을 불러오고 있어요.</p></div>`;
   dialog.addEventListener('click', event => {
     const button = event.target.closest('[data-notif]');
     if (!button || button.disabled) return;
@@ -130,6 +130,12 @@ export function openNotifications() {
     if (button.dataset.notif === 'read-all') {
       button.disabled = true;
       member.request('/notifications/read', { method: 'POST' }).then(() => { renderInbox(); }).catch(() => { button.disabled = false; });
+      return;
+    }
+    if (button.dataset.notif === 'delete-all') {
+      if (!window.confirm('알림을 모두 삭제할까요? 되돌릴 수 없어요.')) return;
+      button.disabled = true;
+      member.request('/notifications', { method: 'DELETE' }).then(() => { renderInbox(); }).catch(() => { button.disabled = false; });
       return;
     }
     if (button.dataset.notif === 'delete') {

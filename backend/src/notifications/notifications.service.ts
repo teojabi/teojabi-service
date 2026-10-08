@@ -198,6 +198,12 @@ export class NotificationsService {
     return { status: 'ok' };
   }
 
+  async clearAll(userId: string) {
+    await this.prisma.$executeRaw`
+      DELETE FROM public.notification_item WHERE user_id=${userId}`;
+    return { status: 'ok' };
+  }
+
   // 이메일로 보낸 항목만 '보냄' 표시(앱에서 읽음 처리와 분리). 못 보낸 나머지는 다음에 다시 시도한다.
   private async markEmailed(userId: string, keys: string[]) {
     if (!keys.length) return;
