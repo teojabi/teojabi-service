@@ -38,12 +38,14 @@ export async function openStreetView(position,label) {
   dialog.innerHTML='<div class="street-head"><div><span class="eyebrow">NAVER STREET VIEW</span><h2>네이버 거리뷰</h2></div><button class="detail-close" aria-label="거리뷰 닫기">×</button></div><p class="street-location"></p><div class="street-stage"><div class="street-canvas"></div><div class="street-map-panel"><div class="street-map" role="region" aria-label="거리뷰 촬영 위치와 보는 방향 지도"></div><div class="street-map-legend"><span>● 현재 촬영 위치 · 부채꼴은 보는 방향</span><span>◆ 매물 위치</span><button type="button" class="street-recenter">현재 위치로</button></div></div></div><p class="street-state" role="status">가까운 거리뷰를 찾고 있어요.</p><p class="street-note">매물 핀 주변의 촬영 지점입니다. 해당 건물의 정면이나 현재 모습과 다를 수 있어요.</p>';
   dialog.querySelector('.street-location').textContent=label;
   document.body.append(dialog);dialog.showModal();
-  let n,pano,miniMap,cameraMarker,propertyMarker,timer,observer,closed=false;const listeners=[];
+  let n,pano,miniMap,cameraMarker,propertyMarker,timer,observer,closed=false;const listeners=[],winListeners=[],resizeTimers=[];
   const showError=message=>{if(closed)return;dialog.classList.add('unavailable');dialog.querySelector('.street-state').textContent=message;};
   const onAuthFailure=event=>showError(event.detail);
   window.addEventListener('teojabi-map-auth-error',onAuthFailure);
   const cleanup=()=>{
     if(closed)return;closed=true;clearTimeout(timer);observer?.disconnect();
+    for(const t of resizeTimers)clearTimeout(t);
+    for(const [ev,fn] of winListeners)window.removeEventListener(ev,fn);
     window.removeEventListener('teojabi-map-auth-error',onAuthFailure);
     for(const listener of listeners){try {n?.Event.removeListener(listener);} catch { /* Failed SDK authentication. */ }}
     cameraMarker?.setMap(null);propertyMarker?.setMap(null);
@@ -55,7 +57,11 @@ export async function openStreetView(position,label) {
   try {
     n=await loadNaverMaps();if(closed)return cleanup;
     if(!n.Panorama)throw new Error('거리뷰 모듈을 불러오지 못했어요. 페이지를 새로고침해 주세요.');
-    pano=new n.Panorama(dialog.querySelector('.street-canvas'),{position:new n.LatLng(position.lat,position.lng),pov:{pan:0,tilt:0,fov:100}});
+    // 폰에서 레이아웃이 잡히기 전에 파노라마를 만들면 하얗게 뜨므로, 크기가 생길 때까지 잠깐 기다린다.
+    const stage=dialog.querySelector('.street-canvas');
+    for(let i=0;i<20&&!closed&&(!stage.clientWidth||!stage.clientHeight);i++)await new Promise(r=>requestAnimationFrame(()=>setTimeout(r,16)));
+    if(closed)return cleanup;
+    pano=new n.Panorama(stage,{position:new n.LatLng(position.lat,position.lng),pov:{pan:0,tilt:0,fov:100}});
     const point=new n.LatLng(position.lat,position.lng);
     const mapHost=dialog.querySelector('.street-map');
     miniMap=new n.Map(mapHost,{center:point,zoom:18,zoomControl:true,scrollWheel:false});
@@ -85,21 +91,25 @@ export async function openStreetView(position,label) {
     dialog.querySelector('.street-recenter').addEventListener('click',()=>{if(cameraPosition)miniMap.setCenter(cameraPosition);});
     for(const event of ['init','pano_changed'])listeners.push(n.Event.addListener(pano,event,()=>{facePropertyInitially();syncCamera(true);}));
     listeners.push(n.Event.addListener(pano,'pov_changed',()=>syncCamera(false)));
-    const stage=dialog.querySelector('.street-canvas');
     let lastWidth=0,lastHeight=0;
-    observer=new ResizeObserver(()=>{
+    const resize=()=>{
+      if(closed)return;
       const width=stage.clientWidth,height=stage.clientHeight;
-      if(!closed&&width&&(width!==lastWidth||height!==lastHeight)){
-        lastWidth=width;lastHeight=height;pano.setSize(new n.Size(width,height));
-        miniMap.setSize(new n.Size(mapHost.clientWidth,mapHost.clientHeight));
-        if(cameraPosition)miniMap.setCenter(cameraPosition);
-      }
-    });
+      if(!width||!height)return;
+      if(width!==lastWidth||height!==lastHeight){lastWidth=width;lastHeight=height;pano.setSize(new n.Size(width,height));}
+      miniMap.setSize(new n.Size(mapHost.clientWidth,mapHost.clientHeight));
+      if(cameraPosition)miniMap.setCenter(cameraPosition);
+    };
+    observer=new ResizeObserver(resize);
     observer.observe(stage);
+    // 늦게 잡히는 레이아웃·회전에도 하얗게 뜨지 않게 여러 번 강제 리사이즈한다.
+    requestAnimationFrame(resize);
+    for(const delay of [150,450,900])resizeTimers.push(setTimeout(resize,delay));
+    const onWin=()=>resize();winListeners.push(['resize',onWin],['orientationchange',onWin]);window.addEventListener('resize',onWin);window.addEventListener('orientationchange',onWin);
     const status=dialog.querySelector('.street-state');
     listeners.push(n.Event.addListener(pano,'pano_status',value=>{
       clearTimeout(timer);
-      if(value==='OK'){dialog.classList.remove('unavailable');status.textContent='거리뷰를 이동하거나 돌리면 지도 위치와 보는 방향도 함께 바뀌어요.';syncCamera(true);}
+      if(value==='OK'){dialog.classList.remove('unavailable');status.textContent='거리뷰를 이동하거나 돌리면 지도 위치와 보는 방향도 함께 바뀌어요.';resize();syncCamera(true);}
       else showError('이 위치에서 제공되는 거리뷰를 찾지 못했어요.');
     }));
     timer=setTimeout(()=>{if(!closed)status.textContent='거리뷰 응답이 늦거나 제공 지점이 없습니다. 닫은 뒤 다시 시도해 주세요.';},12000);
@@ -108,7 +118,7 @@ export async function openStreetView(position,label) {
 }
 // 상세페이지에 작게 펼쳐 보여주는 인라인 네이버 거리뷰. 실패하면 is-empty 상태로 남긴다.
 export function mountStreetPreview(host, position) {
-  let closed=false,pano=null,n=null,listeners=[];
+  let closed=false,pano=null,n=null,listeners=[],fit=null;
   const empty=()=>{if(!closed)host.classList.add('is-empty');};
   if(!host||!position||position.lat==null||position.lng==null){empty();return ()=>{};}
   host.classList.remove('is-ready','is-empty');
@@ -120,12 +130,15 @@ export function mountStreetPreview(host, position) {
     try{pano=new n.Panorama(host,{position:point,pov:{pan:0,tilt:0,fov:100}});}
     catch{empty();return;}
     host.classList.add('is-ready');
+    // 폰에서 컨테이너 크기가 늦게 잡혀 하얗게 뜨는 경우를 막는다.
+    fit=()=>{if(closed||!pano)return;const w=host.clientWidth,h=host.clientHeight;if(w&&h)pano.setSize(new n.Size(w,h));};
+    requestAnimationFrame(fit);setTimeout(fit,200);setTimeout(fit,600);window.addEventListener('resize',fit);
     // 확대 뷰와 동일하게 매물(건물) 방향을 바라본다.
     const face=()=>{if(closed)return;const look=pano.getProjection()?.fromCoordToPov(point);if(Number.isFinite(look?.pan))pano.setPov({...pano.getPov(),pan:look.pan,tilt:0});};
     for(const ev of ['init','pano_changed'])listeners.push(n.Event.addListener(pano,ev,face));
     listeners.push(n.Event.addListener(pano,'pano_status',value=>{if(value!=='OK'){host.classList.remove('is-ready');host.classList.add('is-empty');}}));
   }).catch(empty);
-  return ()=>{closed=true;try{if(n&&pano)for(const l of listeners)n.Event.removeListener(l);}catch{/* partial SDK */}try{pano?.destroy?.();}catch{/* partial SDK */}};
+  return ()=>{closed=true;if(fit)window.removeEventListener('resize',fit);try{if(n&&pano)for(const l of listeners)n.Event.removeListener(l);}catch{/* partial SDK */}try{pano?.destroy?.();}catch{/* partial SDK */}};
 }
 const formatPrice=won=>won>0?`${(won/1e8).toLocaleString('ko-KR',{maximumFractionDigits:2})}억`:'가격 확인 중';
 // 경매 매각기일·공매 입찰마감을 YYYY-MM-DD로 맞춘다. (공매는 YYYYMMDDHHMI)
