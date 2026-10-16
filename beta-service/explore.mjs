@@ -218,7 +218,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
       row('시행방식',props.implementer),
       row('면적',Number.isFinite(props.areaM2)?Math.round(props.areaM2).toLocaleString('ko-KR')+'㎡':null),
     ].filter(Boolean).join('');
-    return `<div class="redevelop-detail"><span class="eyebrow">URBAN RENEWAL</span><h2>${esc(props.name||'정비구역')}</h2><a class="outline" href="https://cleanup.seoul.go.kr/cleanup/bsnssttus/lscrMainIndx.do" target="_blank" rel="noopener noreferrer">정비사업 정보몽땅에서 보기 ↗</a><dl class="redevelop-facts">${rows}</dl><p class="case-note">자료: 서울시 도시계획사업구역계(UQ181)·정비사업 정보몽땅. 세부 항목(연면적·용적률·높이·권역·담당부서 등)은 정보몽땅 사업정보에서 확인하세요.</p></div>`;
+    return `<div class="redevelop-detail"><span class="eyebrow">URBAN RENEWAL</span><h2>${esc(props.name||'정비구역')}</h2>${props.cafeId?`<a class="outline" href="https://cleanup.seoul.go.kr/cafe/mastr-cleanup-bsnsSumry/execute.do?cafeId=${encodeURIComponent(props.cafeId)}&div=sumry&stepSeCode=103" target="_blank" rel="noopener noreferrer">정비사업 정보몽땅 사업개요 보기 ↗</a>`:`<a class="outline" href="https://cleanup.seoul.go.kr/cleanup/bsnssttus/lscrMainIndx.do" target="_blank" rel="noopener noreferrer">정비사업 정보몽땅에서 보기 ↗</a>`}<dl class="redevelop-facts">${rows}</dl><p class="case-note">자료: 서울시 도시계획사업구역계(UQ181)·정비사업 정보몽땅. 세부 항목(연면적·용적률·높이·권역·담당부서 등)은 정보몽땅 사업정보에서 확인하세요.</p></div>`;
   }
   let redevelopPopupVersion=0;
   const map=new ListingMap($('#map-host'),{areaUnit:getAreaDisplayUnit(),onSelect:id=>openDetail(id),onMapClick:()=>{if(matchMedia('(max-width:700px)').matches)setSheet(false);window.dispatchEvent(new CustomEvent('teojabi-map-click'));},onTransaction:id=>{
