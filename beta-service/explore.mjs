@@ -214,10 +214,12 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     const rows=[
       row('사업구분',props.categoryGroup),
       row('세부유형',props.categoryLabel),
+      row('자치구',props.gu),
       row('추진단계',props.stage),
       row('공급세대',Number.isFinite(props.households)?props.households.toLocaleString('ko-KR')+'세대':null),
       row('시행방식',props.implementer),
       row('면적',Number.isFinite(props.areaM2)?Math.round(props.areaM2).toLocaleString('ko-KR')+'㎡':null),
+      row('지정(갱신)일',props.noticeDate),
     ].filter(Boolean).join('');
     return `<div class="redevelop-detail"><span class="eyebrow">URBAN RENEWAL</span><h2>${esc(props.name||'정비구역')}</h2><dl class="redevelop-facts">${rows}</dl><p class="case-note">자료: 서울시 도시계획사업구역계(UQ181). 세부 항목(연면적·용적률·높이 등)은 추가 수집 예정입니다.</p></div>`;
   }
