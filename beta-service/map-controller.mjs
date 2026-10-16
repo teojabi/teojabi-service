@@ -345,7 +345,13 @@ export class ListingMap {
   }
   resetView() {if(!this.fitTransactions())this.setGroups(this.groups||[],this.selected,true);}
   toggleCadastral(){if(!this.ready)return false;this.cadastralLayer??=new this.n.CadastralLayer();this.cadastralVisible=!this.cadastralVisible;this.cadastralLayer.setMap(this.cadastralVisible?this.map:null);return this.cadastralVisible;}
-  redevelopColor(group){return {'정비사업':'#dc2626','소규모정비사업':'#db2777','재정비촉진사업':'#ea580c','역세권사업':'#0891b2','국토부사업':'#2563eb','도시개발사업':'#0d9488'}[group]||'#6b7280';}
+  redevelopColor(props){
+    const label=(props&&props.categoryLabel)||'';
+    const byLabel={'신속통합기획':'#ef4444','주택재개발':'#60a5fa','도시정비형 재개발':'#e879f9','도시환경정비':'#d946ef','주택재건축':'#34d399','주거환경개선':'#fdba74','주거환경관리':'#f9a8d4','결합정비':'#9ca3af','모아타운·가로주택정비':'#db2777','자율주택정비':'#f472b6','소규모재건축':'#ec4899','소규모재개발':'#e11d48','재정비촉진지구':'#ea580c','재정비촉진구역':'#ea580c','역세권 청년주택':'#0891b2','공공주택지구':'#2563eb','택지개발지구':'#3b82f6','국민임대주택':'#1d4ed8','도시개발구역':'#0d9488'};
+    if(byLabel[label])return byLabel[label];
+    const group=(props&&props.categoryGroup)||'';
+    return {'정비사업':'#dc2626','소규모정비사업':'#db2777','재정비촉진사업':'#ea580c','역세권사업':'#0891b2','국토부사업':'#2563eb','도시개발사업':'#0d9488'}[group]||'#6b7280';
+  }
   escapeText(value){return String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));}
   geoPolygonParts(geometry){if(!geometry)return[];if(geometry.type==='Polygon')return[geometry.coordinates];if(geometry.type==='MultiPolygon')return geometry.coordinates;return[];}
   clearRedevelop(){
@@ -379,8 +385,16 @@ export class ListingMap {
       for(const feature of (data.features||[])){
         const props=feature.properties||{};
         if(this.redevelopGroups&&this.redevelopGroups.size&&!this.redevelopGroups.has(props.categoryGroup))continue;
-        const color=this.redevelopColor(props.categoryGroup);
-        for(const rings of this.geoPolygonParts(feature.geometry)){
+        const color=this.redevelopColor(props);
+        const geometry=feature.geometry;
+        if(geometry&&geometry.type==='Point'){
+          const position=new this.n.LatLng(geometry.coordinates[1],geometry.coordinates[0]);
+          const marker=new this.n.Marker({map:this.map,position,zIndex:6,icon:{content:`<span style="display:block;width:12px;height:12px;border-radius:50%;background:${color};border:2px solid #fff;box-shadow:0 0 0 1px ${color}"></span>`,anchor:new this.n.Point(7,7)}});
+          this.n.Event.addListener(marker,'click',()=>this.showRedevelopInfo(position,props));
+          this.redevelopPolygons.push(marker);
+          continue;
+        }
+        for(const rings of this.geoPolygonParts(geometry)){
           const paths=rings.map(ring=>ring.map(point=>new this.n.LatLng(point[1],point[0])));
           const polygon=new this.n.Polygon({map:this.map,paths,fillColor:color,fillOpacity:0.18,strokeColor:color,strokeWeight:2,strokeOpacity:0.85,clickable:true,zIndex:5});
           this.n.Event.addListener(polygon,'click',(event)=>this.showRedevelopInfo(event?.coord||paths[0][0],props));
