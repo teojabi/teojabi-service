@@ -29,7 +29,7 @@ def read_redevelop_map(connection, params):
         args = list(bounds)
     sql = (
         "SELECT z.id, z.zone_name AS name, z.category, z.mid_category, z.sub_category,"
-        "       z.category_group, z.category_label,"
+        "       z.category_group, z.category_label, z.saup_cafe_id,"
         "       z.stage, z.implementer, z.households, z.area_m2,"
         "       ST_AsGeoJSON(ST_SimplifyPreserveTopology(ST_Transform(ST_Multi(z.geom),4326),0.00003))::json AS geometry "
         "FROM public.redevelopment_zone z WHERE " + where +
@@ -54,6 +54,7 @@ def read_redevelop_map(connection, params):
                 'subCategory': row['sub_category'],
                 'categoryGroup': row['category_group'],
                 'categoryLabel': row['category_label'],
+                'cafeId': row['saup_cafe_id'],
                 'stage': row['stage'],
                 'implementer': row['implementer'],
                 'households': row['households'],
