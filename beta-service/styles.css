@@ -182,6 +182,19 @@ body.map-results-open{height:100dvh;min-height:0;overflow:hidden;display:flex;fl
   grid-template-columns:minmax(0,1.42fr) minmax(340px,.92fr);
   gap:18px;
 }
+.site-col{
+  display:flex;
+  flex-direction:column;
+  gap:18px;
+  min-width:0;
+}
+.site-context-parcel>.context-facts+.context-facts{margin-top:10px}
+.context-projects p{margin:0}
+.context-projects small{display:block;margin-top:3px}
+.site-inline-toggle{margin-top:12px}
+.site-inline-toggle>button{width:100%;justify-content:center;min-height:38px;font-size:13px;gap:6px}
+.site-inline-toggle>button small{color:var(--muted);font-weight:600}
+.site-inline-panel{margin-top:10px;padding:14px;border:1px solid var(--line);border-radius:12px;background:var(--card)}
 .site-picker,.site-input-card,.site-context-card,.site-documents-card{
   border-radius:18px;
   box-shadow:0 14px 38px rgba(11,23,54,.06);
@@ -432,8 +445,12 @@ body.map-results-open{height:100dvh;min-height:0;overflow:hidden;display:flex;fl
   .site-review{padding:12px 18px 44px}
   .site-heading{padding:14px 16px;border-radius:16px}
   .site-heading h1{font-size:23px}
-  .site-layout{display:block}
-  .site-picker{margin-bottom:14px}
+  .site-layout{display:flex;flex-direction:column;gap:14px}
+  .site-col{display:contents}
+  .site-layout .site-picker{order:1;margin-bottom:0}
+  .site-layout .site-input-card{order:2}
+  .site-layout .site-context-card{order:3;margin-top:0}
+  .site-layout .site-architect-card{order:4;margin-top:0}
   .site-input-card{position:static}
   .site-map{height:330px}
   .site-context-card{padding:16px}
@@ -599,11 +616,9 @@ body.map-results-open{height:100dvh;min-height:0;overflow:hidden;display:flex;fl
 .more-listings{font-size:13px}
 /* 건물·토지 검토: 데스크톱은 01 아래 03, 02 아래 입점 건축사로 2단 배치한다. */
 @media(min-width:851px){
-  .site-layout{grid-template-columns:minmax(0,1.42fr) minmax(340px,.92fr);grid-template-areas:"picker input" "context architects";align-items:start}
-  .site-layout>.site-picker{grid-area:picker;align-self:stretch}
-  .site-layout>.site-input-card{grid-area:input;position:static;align-self:stretch}
-  .site-layout>.site-context-card{grid-area:context;margin-top:0}
-  .site-layout>.site-architect-card{grid-area:architects;margin-top:0}
+  .site-layout{grid-template-columns:minmax(0,1.42fr) minmax(340px,.92fr);gap:18px;align-items:start}
+  .site-col>.site-input-card{position:static}
+  .site-col>.site-context-card,.site-col>.site-architect-card{margin-top:0}
 }
 .site-context-card.is-active{border-color:var(--primary);box-shadow:0 14px 38px rgba(37,99,235,.12)}
 .site-architect-card{border:1px solid var(--line);border-radius:18px;background:var(--card);padding:20px;box-shadow:0 14px 38px rgba(11,23,54,.06)}

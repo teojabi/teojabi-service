@@ -593,6 +593,15 @@ createServer(async (request, response) => {
     } catch {send(response,request,{status:'error',rows:[]},503);}
     return;
   }
+  if (path.startsWith('/api/redevelop-included/')) {
+    const pnu=path.slice('/api/redevelop-included/'.length);
+    if(!/^11\d{17}$/.test(pnu)){send(response,request,{status:'error',zones:[]},400);return;}
+    try {
+      const result=await localRead('redevelop-included',pnu);
+      send(response,request,result,result.status==='error'?503:200);
+    } catch {send(response,request,{status:'error',zones:[]},503);}
+    return;
+  }
   if (path.startsWith('/api/land-use/')) {
     const pnu=path.slice('/api/land-use/'.length);
     if(!/^11\d{17}$/.test(pnu)){send(response,request,{status:'error'},400);return;}
