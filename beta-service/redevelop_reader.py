@@ -31,7 +31,7 @@ def read_redevelop_map(connection, params):
         "SELECT z.id, z.zone_name AS name, z.category, z.mid_category, z.sub_category,"
         "       z.category_group, z.category_label, z.saup_cafe_id,"
         "       z.stage, z.implementer, z.households, z.area_m2,"
-        "       ST_AsGeoJSON(ST_SimplifyPreserveTopology(ST_Transform(ST_Multi(z.geom),4326),0.00003))::json AS geometry "
+        "       ST_AsGeoJSON(ST_Transform(ST_SimplifyPreserveTopology(z.geom, 1.5), 4326))::json AS geometry "
         "FROM public.redevelopment_zone z WHERE " + where +
         " ORDER BY z.area_m2 DESC NULLS LAST LIMIT 1200"
     )
