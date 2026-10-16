@@ -372,7 +372,7 @@ export class ListingMap {
       if(pan){this.map.setCenter(point);if(this.map.getZoom()<17)this.map.setZoom(17);}
     }
   }
-  parcel(geometry) {
+  parcel(geometry,{fitParcel=false}={}) {
     if(!this.map||!this.ready)return;
     this.map.data.forEach(feature=>this.map.data.removeFeature(feature));
     if(!geometry)return;
@@ -388,7 +388,7 @@ export class ListingMap {
     this.map.data.addGeoJson({type:'Feature',properties:{},geometry:shapes.length===1?features[0]:{type:'MultiPolygon',coordinates:shapes.map(s=>s.coordinates)}});
     const bounds=new this.n.LatLngBounds();
     for(const g of features){const rings=g.type==='MultiPolygon'?g.coordinates.flat():g.coordinates;for(const ring of rings)for(const point of ring)bounds.extend(new this.n.LatLng(point[1],point[0]));}
-    if(!this.fitTransactions())this.map.fitBounds(bounds,{top:110,right:90,bottom:90,left:90});
+    if(fitParcel||!this.fitTransactions())this.map.fitBounds(bounds,{top:110,right:90,bottom:90,left:90});
   }
   resetView() {if(!this.fitTransactions())this.setGroups(this.groups||[],this.selected,true);}
   // 서울 외곽을 어둡게: 큰 사각형에서 서울 경계를 구멍(hole)으로 뚫어 표시한다.
