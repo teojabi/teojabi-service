@@ -22,16 +22,20 @@ def _bounds(params):
 
 def read_redevelop_map(connection, params):
     bounds = _bounds(params)
-    where = "z.geom IS NOT NULL AND z.geom IS NOT NULL AND NOT ST_IsEmpty(z.geom)"
+    where = "((z.geom IS NOT NULL AND NOT ST_IsEmpty(z.geom)) OR (z.lat IS NOT NULL AND z.lng IS NOT NULL))"
     args = []
     if bounds:
-        where += " AND ST_Intersects(z.geom, ST_Transform(ST_MakeEnvelope(%s,%s,%s,%s,4326),5174))"
-        args = list(bounds)
+        west, south, east, north = bounds
+        where += (" AND ( (z.geom IS NOT NULL AND ST_Intersects(z.geom, ST_Transform(ST_MakeEnvelope(%s,%s,%s,%s,4326),5174)))"
+                  " OR (z.geom IS NULL AND z.lat BETWEEN %s AND %s AND z.lng BETWEEN %s AND %s) )")
+        args = [west, south, east, north, south, north, west, east]
     sql = (
         "SELECT z.id, z.zone_name AS name, z.category, z.mid_category, z.sub_category,"
         "       z.category_group, z.category_label, z.saup_cafe_id,"
         "       z.stage, z.implementer, z.households, z.area_m2,"
-        "       ST_AsGeoJSON(ST_Transform(ST_SimplifyPreserveTopology(z.geom, 1.5), 4326))::json AS geometry "
+        "       CASE WHEN z.geom IS NOT NULL"
+        "            THEN ST_AsGeoJSON(ST_Transform(ST_SimplifyPreserveTopology(z.geom, 1.5), 4326))::json"
+        "            ELSE ST_AsGeoJSON(ST_SetSRID(ST_MakePoint(z.lng, z.lat), 4326))::json END AS geometry "
         "FROM public.redevelopment_zone z WHERE " + where +
         " ORDER BY z.area_m2 DESC NULLS LAST LIMIT 1200"
     )
