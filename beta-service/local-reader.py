@@ -57,7 +57,7 @@ def connect():
 
 
 def read(operation, value=None):
-    if operation not in ('catalog', 'parcel', 'risk', 'context', 'registers', 'site-parcels', 'parcel-context', 'parcel-documents', 'land-record', 'nearby-transactions', 'selected-risk', 'selected-context', 'selected-registers', 'selected-land-record', 'naver-listing', 'disco-listing', 'commercial', 'commercial-areas', 'surrounding', 'redevelop-map', 'redevelop-nearby', 'land-use', 'nearest-parcel', 'neighborhoods', 'station'):
+    if operation not in ('catalog', 'parcel', 'risk', 'context', 'registers', 'site-parcels', 'parcel-context', 'parcel-documents', 'land-record', 'nearby-transactions', 'selected-risk', 'selected-context', 'selected-registers', 'selected-land-record', 'naver-listing', 'disco-listing', 'commercial', 'commercial-areas', 'surrounding', 'redevelop-map', 'redevelop-nearby', 'redevelop-included', 'land-use', 'nearest-parcel', 'neighborhoods', 'station'):
         raise ValueError('Unsupported operation')
     if operation == 'parcel' and not re.fullmatch(r'\d{19}', value or ''):
         raise ValueError('Invalid parcel')
@@ -210,6 +210,11 @@ def read(operation, value=None):
                             (json.dumps({'lat': lat, 'lng': lng, 'radius': radius}),))
                 payload = cur.fetchone()[0]
             return payload or {'status': 'ready', 'rows': []}
+        if operation == 'redevelop-included':
+            if not re.fullmatch(r'11\d{17}', value or ''):
+                raise ValueError('Invalid parcel')
+            from redevelop_reader import read_redevelop_included
+            return read_redevelop_included(connection, value)
         if operation == 'land-use':
             if not re.fullmatch(r'\d{19}', value or ''):
                 raise ValueError('Invalid parcel')

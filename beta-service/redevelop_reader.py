@@ -69,3 +69,41 @@ def read_redevelop_map(connection, params):
             'geometry': geometry,
         })
     return {'status': 'ready', 'type': 'FeatureCollection', 'features': features}
+
+
+def read_redevelop_included(connection, pnu):
+    """선택한 필지가 포함(또는 일부 걸침)된 도시계획사업을 돌려준다. 읽기 전용."""
+    from psycopg2.extras import RealDictCursor
+    sql = (
+        "WITH parcel AS (SELECT geom FROM public.master_land WHERE pnu = %s AND geom IS NOT NULL LIMIT 1)"
+        " SELECT z.id, z.zone_name AS name, z.category, z.mid_category, z.sub_category,"
+        "        z.category_group, z.category_label, z.stage, z.implementer, z.households,"
+        "        z.area_m2, z.gu, z.notice_date, z.saup_cafe_id,"
+        "        ST_Contains(ST_Transform(z.geom, 5174), p.geom) AS contained,"
+        "        ST_Intersects(ST_Transform(z.geom, 5174), p.geom) AS part"
+        " FROM public.redevelopment_zone z CROSS JOIN parcel p"
+        " WHERE z.geom IS NOT NULL AND NOT ST_IsEmpty(z.geom)"
+        "   AND ST_Intersects(ST_Transform(z.geom, 5174), p.geom)"
+    )
+    with connection.cursor(cursor_factory=RealDictCursor) as cursor:
+        cursor.execute(sql, (pnu,))
+        rows = cursor.fetchall()
+    zones = []
+    for row in rows:
+        zones.append({
+            'id': row['id'],
+            'name': row['name'],
+            'categoryLabel': row['category_label'],
+            'categoryGroup': row['category_group'],
+            'stage': row['stage'],
+            'implementer': row['implementer'],
+            'households': row['households'],
+            'gu': row['gu'],
+            'noticeDate': row['notice_date'].isoformat() if row['notice_date'] else None,
+            'cafeId': row['saup_cafe_id'],
+            'areaM2': float(row['area_m2']) if row['area_m2'] is not None else None,
+            'contained': bool(row['contained']),
+            'part': bool(row['part']),
+        })
+    zones.sort(key=lambda z: (not z['contained'], z['areaM2'] if z['areaM2'] is not None else 1e18))
+    return {'status': 'ready', 'pnu': pnu, 'zones': zones}
