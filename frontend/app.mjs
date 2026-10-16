@@ -15,7 +15,7 @@ import {logEvent} from './events.mjs';
 const app = document.querySelector('#app');
 const emptyAuction=()=>({enabled:false,source:'both',dealType:'',saleKind:'',failMax:'',usages:[],maxPriceEok:'',maxBidRate:''});
 const emptyDraft=()=>({budgetEok:'',districts:[],neighborhoods:[],purpose:null,minArea:'',maxArea:'',areaUnit:'pyeong',zones:[],auction:emptyAuction(),...BUILD_DEFAULTS});
-const state = { screen: 'home', siteDraft:null, parcelSearch:null, draft: emptyDraft(), applied: null, editing: false, conditionKey:'primary', pane: 'list', alertIds:null, activity:null, activityError:false, search:null, neighborhoodsOpen:false };
+const state = { screen: 'home', siteDraft:null, parcelSearch:null, restoreParcel:false, draft: emptyDraft(), applied: null, editing: false, conditionKey:'primary', pane: 'list', alertIds:null, activity:null, activityError:false, search:null, neighborhoodsOpen:false };
 let pendingInitialSource=null;
 // '내 조건'은 단일 저장소(condition-store)가 원본이다. state.applied는 그 저장소를 읽고 쓴다.
 Object.defineProperty(state,'applied',{get:getCondition,set:setCondition,enumerable:true,configurable:true});
@@ -264,8 +264,8 @@ function render(focus = true) {
     app.innerHTML='<section class="screen-loading" aria-live="polite"><span></span><p>매물과 지도를 불러오고 있어요.</p></section>';
     loadExplorer().then(({mountExplorer})=>{
       if(version!==renderVersion||state.screen!=='results')return;
-      const assistant=assistantPayload,openId=assistantOpenId;assistantPayload=null;assistantOpenId=null;const picksOnly=Boolean(state.picksOnly);state.picksOnly=false;const initialIds=Array.isArray(state.alertIds)?state.alertIds:null;state.alertIds=null;const initialSource=location.hash==='#favorites'?'favorites':location.hash==='#auction'?'auction':(pendingInitialSource||undefined);pendingInitialSource=null;const initialHeading=(()=>{const k=pathKey();return k==='search'?'서울 상업용 건물·토지 매물을 찾아보세요':k==='auction'?'신축을 검토할 만한 서울 경매 물건을 찾아보세요':k==='onbid'?'신축 가능성까지 검토한 서울 공매 물건을 찾아보세요':undefined;})();
-      disposeExplorer=mountExplorer(app,{conditions:state.applied,picksOnly,initialPane:state.pane,initialIds,assistant:assistant||undefined,initialSource,initialHeading,initialId:openId||new URLSearchParams(location.hash.slice(1)).get('listing'),initialParcel:state.parcelSearch,onParcelChange:p=>{state.parcelSearch=p;},onAnalyze:listing=>{if(state.siteDraft?.listingId!==listing.id)state.siteDraft=createSiteDraft(listing);state.screen='analyze';history.pushState({screen:'analyze'},'','#analyze');render();},onConditionsChange:next=>{state.applied=next;if(!new URLSearchParams(location.hash.slice(1)).has('listing'))history.replaceState(null,'',location.pathname+'#search');return rememberSearch(next);},onEdit:()=>{
+      const assistant=assistantPayload,openId=assistantOpenId;assistantPayload=null;assistantOpenId=null;const picksOnly=Boolean(state.picksOnly);state.picksOnly=false;const restoreParcel=state.restoreParcel;state.restoreParcel=false;const initialIds=Array.isArray(state.alertIds)?state.alertIds:null;state.alertIds=null;const initialSource=location.hash==='#favorites'?'favorites':location.hash==='#auction'?'auction':(pendingInitialSource||undefined);pendingInitialSource=null;const initialHeading=(()=>{const k=pathKey();return k==='search'?'서울 상업용 건물·토지 매물을 찾아보세요':k==='auction'?'신축을 검토할 만한 서울 경매 물건을 찾아보세요':k==='onbid'?'신축 가능성까지 검토한 서울 공매 물건을 찾아보세요':undefined;})();
+      disposeExplorer=mountExplorer(app,{conditions:state.applied,picksOnly,initialPane:state.pane,initialIds,assistant:assistant||undefined,initialSource,initialHeading,initialId:openId||new URLSearchParams(location.hash.slice(1)).get('listing'),initialParcel:restoreParcel?state.parcelSearch:null,onParcelChange:p=>{state.parcelSearch=p;},onAnalyze:listing=>{if(state.siteDraft?.listingId!==listing.id)state.siteDraft=createSiteDraft(listing);state.screen='analyze';history.pushState({screen:'analyze'},'','#analyze');render();},onConditionsChange:next=>{state.applied=next;if(!new URLSearchParams(location.hash.slice(1)).has('listing'))history.replaceState(null,'',location.pathname+'#search');return rememberSearch(next);},onEdit:()=>{
         state.draft=appliedDraft();
         state.editing=Boolean(state.applied);state.screen='purpose';render();
       }});
@@ -275,7 +275,7 @@ function render(focus = true) {
     app.innerHTML='<section class="screen-loading" aria-live="polite"><span></span><p>필지 검토 화면을 준비하고 있어요.</p></section>';
     loadSiteReview().then(({mountSiteReview})=>{
       if(version!==renderVersion||state.screen!=='analyze')return;
-      disposeExplorer=mountSiteReview(app,{draft:state.siteDraft,onBack:()=>{const id=state.siteDraft.listingId,isListing=id&&!String(id).startsWith('parcel:');state.screen=id?'results':'home';history.replaceState(null,'',location.pathname+(isListing?'#listing='+encodeURIComponent(id):''));render();}});
+      disposeExplorer=mountSiteReview(app,{draft:state.siteDraft,onBack:()=>{const id=state.siteDraft.listingId,isListing=id&&!String(id).startsWith('parcel:');state.screen=id?'results':'home';if(id)state.restoreParcel=true;history.replaceState(null,'',location.pathname+(isListing?'#listing='+encodeURIComponent(id):''));render();}});
     }).catch(()=>{if(version===renderVersion)app.innerHTML='<section class="screen-loading"><p>검토 화면을 불러오지 못했습니다.</p></section>';});
   } else {
   app.innerHTML = ({ home, purpose, 'build-use':buildUse, budget, region })[state.screen]();
@@ -422,7 +422,7 @@ function routeFromPath(){
 }
 function routeFromHash(){
   const h=location.hash;
-  if(new URLSearchParams(h.slice(1)).has('listing')||h==='#search'||h==='#favorites'||h==='#assistant'||h==='#auction'){state.screen='results';render(false);return true;}
+  if(new URLSearchParams(h.slice(1)).has('listing')||h==='#search'||h==='#favorites'||h==='#assistant'||h==='#auction'){if(state.screen==='analyze')state.restoreParcel=true;state.screen='results';render(false);return true;}
   if(h==='#analyze'){state.siteDraft??=createSiteDraft();state.screen='analyze';render(false);return true;}
   return false;
 }

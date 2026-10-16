@@ -302,11 +302,11 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     if(searchedParcel){result.hidden=false;result.innerHTML=`<span>${esc(searchedParcel.address||'선택한 필지')}</span><button type="button" class="primary" data-explore="analyze-parcel">이 땅 신축검토</button>`;}
     else result.hidden=true;
   }
-  function setSearchedParcel(p){
+  function setSearchedParcel(p,{fitParcel=false}={}){
     searchedParcel=p||null;
     try{onParcelChange?.(searchedParcel);}catch{}
     renderParcelResult();
-    if(searchedParcel&&searchedParcel.geometry&&map)map.parcel(searchedParcel.geometry);
+    if(searchedParcel&&searchedParcel.geometry&&map)map.parcel(searchedParcel.geometry,{fitParcel});
   }
   // 매물을 선택하면 하단 검색창에 주소를 채우고, '이 땅 신축검토' 버튼이 뜨게 한다.
   const fillParcelSearch=address=>{const qi=$('#map-parcel-search input[name=query]');if(qi&&address)qi.value=address;};
@@ -314,10 +314,10 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     const result=$('#map-parcel-result');if(!result||!features.length)return;
     const f=features[0];
     if(features.length===1){
-      setSearchedParcel({pnu:f.id,address:(f.properties&&f.properties.address)||q,areaM2:(f.properties&&f.properties.officialAreaM2)||null,geometry:f.geometry});
+      setSearchedParcel({pnu:f.id,address:(f.properties&&f.properties.address)||q,areaM2:(f.properties&&f.properties.officialAreaM2)||null,geometry:f.geometry},{fitParcel:true});
     }else{
       setSearchedParcel(null);
-      map.parcel(f.geometry);
+      map.parcel(f.geometry,{fitParcel:true});
       result.hidden=false;result.innerHTML=`<span>${features.length}개 필지를 찾았어요. 지도를 눌러 원하는 필지를 선택하세요.</span>`;
     }
   }
@@ -343,7 +343,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
       const data=await response.json();
       if(!response.ok||data.status!=='ready'||!Array.isArray(data.features)||!data.features.length)throw new Error('not-found');
       const f=data.features[0];
-      setSearchedParcel({pnu:f.id,address:(f.properties&&f.properties.address)||'',areaM2:(f.properties&&f.properties.officialAreaM2)||null,geometry:f.geometry});
+      setSearchedParcel({pnu:f.id,address:(f.properties&&f.properties.address)||'',areaM2:(f.properties&&f.properties.officialAreaM2)||null,geometry:f.geometry},{fitParcel:true});
     }catch{if(disposed)return;setSearchedParcel(null);result.textContent='이 위치의 필지를 찾지 못했어요. 필지 경계를 눌러 주세요.';}
   }
   // 매물 상세를 열 때 필지 경계를 지도에 표시한다. 위치(pnu)를 알고 있으면 핀을 눌러도 같은 결과가 되도록.
@@ -521,7 +521,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     if(status==='ready' && result)map.setGroups(showAllPicks?(pickGroups||[]):mapGroups(),selected,true);
     if(status==='ready' && detail)map.select(detail.listing);
     if(status==='ready' && parcel?.status==='ready')map.parcel(parcel.geometry);
-    if(status==='ready' && searchedParcel?.geometry)map.parcel(searchedParcel.geometry);
+    if(status==='ready' && searchedParcel?.geometry)map.parcel(searchedParcel.geometry,{fitParcel:true});
     if(status==='ready' && nearby?.status==='ready'){map.setTransactions(nearby.cases);map.setTransactionsVisible(showTransactions);}
     if($('#parcel-status') && parcel?.status==='ready')$('#parcel-status').textContent=parcelMessage();
     if(status==='error'){const searchMap=$('[data-explore="search-map"]');if(searchMap)searchMap.disabled=true;}
