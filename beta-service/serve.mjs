@@ -56,6 +56,7 @@ const files = new Map([
   ['/inline-context.mjs',['inline-context.mjs','text/javascript']],
   ['/commercial-context.mjs',['commercial-context.mjs','text/javascript']],
   ['/surrounding-context.mjs',['surrounding-context.mjs','text/javascript']],
+  ['/landuse-context.mjs',['landuse-context.mjs','text/javascript']],
   ['/building-records.mjs',['building-records.mjs','text/javascript']],
   ['/land-records.mjs',['land-records.mjs','text/javascript']],
   ['/land-policy.mjs',['land-policy.mjs','text/javascript']],
@@ -580,6 +581,25 @@ createServer(async (request, response) => {
       const result=await localRead('redevelop-map',JSON.stringify(payload));
       send(response,request,result,result.status==='error'?503:200);
     } catch {send(response,request,{status:'error',features:[]},503);}
+    return;
+  }
+  if (path==='/api/redevelop-nearby') {
+    const params=new URL(request.url,'http://localhost').searchParams;
+    const lat=Number(params.get('lat')),lng=Number(params.get('lng')),radius=Number(params.get('radius'))||500;
+    if(!Number.isFinite(lat)||!Number.isFinite(lng)){send(response,request,{status:'missing',rows:[]},400);return;}
+    try {
+      const result=await localRead('redevelop-nearby',JSON.stringify({lat,lng,radius}));
+      send(response,request,result,result.status==='error'?503:200);
+    } catch {send(response,request,{status:'error',rows:[]},503);}
+    return;
+  }
+  if (path.startsWith('/api/land-use/')) {
+    const pnu=path.slice('/api/land-use/'.length);
+    if(!/^11\d{17}$/.test(pnu)){send(response,request,{status:'error'},400);return;}
+    try {
+      const result=await localRead('land-use',pnu);
+      send(response,request,result,result.status==='error'?503:200);
+    } catch {send(response,request,{status:'error',items:[]},503);}
     return;
   }
   if (path.startsWith('/api/risk/') || path.startsWith('/api/site-context/') || path.startsWith('/api/building-records/') || path.startsWith('/api/land-record/')) {
