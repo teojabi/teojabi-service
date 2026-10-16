@@ -353,26 +353,28 @@ export class ListingMap {
     this.redevelopPolygons=[];
     if(this.redevelopInfo){try{this.redevelopInfo.close();}catch{/* partial SDK */}}
   }
-  setRedevelopGroups(groups){this.redevelopGroups=groups&&groups.length?new Set(groups):null;this.redevelopKey='';if(this.redevelopVisible)this.renderRedevelop();}
+  setRedevelopGroups(groups){this.redevelopGroups=groups&&groups.length?new Set(groups):null;this.redevelopBounds=null;if(this.redevelopVisible)this.renderRedevelop();}
   async toggleRedevelop(){
     if(!this.ready)return false;
     this.redevelopVisible=!this.redevelopVisible;
-    if(!this.redevelopVisible){this.redevelopKey='';this.clearRedevelop();return false;}
+    if(!this.redevelopVisible){this.redevelopBounds=null;this.clearRedevelop();return false;}
     await this.renderRedevelop();
     return this.redevelopVisible;
   }
   async renderRedevelop(){
     if(!this.ready||!this.redevelopVisible||!this.map||this.redevelopBusy)return;
     const view=this.view();if(!view)return;
-    const key=view.bounds.map(value=>Number(value).toFixed(4)).join(',');
-    if(key===this.redevelopKey&&this.redevelopPolygons.length)return;
+    const b=view.bounds;
+    if(this.redevelopBounds){const [w,s,e,n]=this.redevelopBounds;if(b[0]>=w&&b[1]>=s&&b[2]<=e&&b[3]<=n&&this.redevelopPolygons.length)return;}
+    const padW=(b[2]-b[0])*0.5,padH=(b[3]-b[1])*0.5;
+    const query=[b[0]-padW,b[1]-padH,b[2]+padW,b[3]+padH];
     this.redevelopBusy=true;
     try {
       let data=null;
-      try{const response=await apiFetch(`/api/redevelop-map?bounds=${encodeURIComponent(view.bounds.join(','))}`);data=await response.json();}
+      try{const response=await apiFetch(`/api/redevelop-map?bounds=${encodeURIComponent(query.join(','))}`);data=await response.json();}
       catch{return;}
       if(!this.ready||!this.redevelopVisible)return;
-      this.redevelopKey=key;
+      this.redevelopBounds=query;
       this.clearRedevelop();
       for(const feature of (data.features||[])){
         const props=feature.properties||{};
