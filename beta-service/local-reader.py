@@ -57,7 +57,7 @@ def connect():
 
 
 def read(operation, value=None):
-    if operation not in ('catalog', 'parcel', 'risk', 'context', 'registers', 'site-parcels', 'parcel-context', 'parcel-documents', 'land-record', 'nearby-transactions', 'selected-risk', 'selected-context', 'selected-registers', 'selected-land-record', 'naver-listing', 'disco-listing', 'commercial', 'commercial-areas', 'surrounding', 'nearest-parcel', 'neighborhoods', 'station'):
+    if operation not in ('catalog', 'parcel', 'risk', 'context', 'registers', 'site-parcels', 'parcel-context', 'parcel-documents', 'land-record', 'nearby-transactions', 'selected-risk', 'selected-context', 'selected-registers', 'selected-land-record', 'naver-listing', 'disco-listing', 'commercial', 'commercial-areas', 'surrounding', 'redevelop-map', 'nearest-parcel', 'neighborhoods', 'station'):
         raise ValueError('Unsupported operation')
     if operation == 'parcel' and not re.fullmatch(r'\d{19}', value or ''):
         raise ValueError('Invalid parcel')
@@ -196,6 +196,9 @@ def read(operation, value=None):
         if operation == 'surrounding':
             from surrounding_reader import read_surrounding
             return read_surrounding(connection, value or '{}')
+        if operation == 'redevelop-map':
+            from redevelop_reader import read_redevelop_map
+            return read_redevelop_map(connection, json.loads(value or '{}'))
         if operation == 'nearest-parcel':
             query = json.loads(value or '{}')
             lat, lng = query.get('lat'), query.get('lng')

@@ -787,6 +787,15 @@ body.architect-lightbox-open{overflow:hidden}
 .commercial-popup-inner{position:relative;padding:12px}
 .commercial-popup-close{position:absolute;top:6px;right:6px;border:0;background:transparent;font-size:18px;line-height:1;cursor:pointer;color:var(--muted);z-index:1}
 .commercial-popup .commercial-card{border:0;padding:0;background:transparent}
+.redevelop-legend{position:absolute;top:12px;right:12px;z-index:190;width:min(72vw,236px);max-height:min(60vh,420px);overflow:auto;background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:0 8px 24px #0003;padding:12px;display:flex;flex-direction:column;gap:6px;font-size:13px}
+.redevelop-legend b{font-size:13px;margin-bottom:2px}
+.redevelop-legend label{display:flex;align-items:center;gap:6px;cursor:pointer}
+.redevelop-detail{padding:2px}
+.redevelop-detail h2{margin:4px 0 8px;font-size:16px}
+.redevelop-facts{display:grid;grid-template-columns:auto 1fr;gap:4px 10px;margin:8px 0;font-size:13px}
+.redevelop-fact{display:contents}
+.redevelop-fact dt{color:var(--muted);white-space:nowrap}
+.redevelop-fact dd{margin:0}
 .commercial-columns{display:flex;align-items:flex-end;gap:4px;margin:6px 0 0}
 .commercial-col{flex:1 1 0;min-width:0;display:flex;flex-direction:column;align-items:center;gap:2px}
 .commercial-col b{font-size:9px;color:var(--muted);white-space:nowrap}
