@@ -32,7 +32,7 @@ def read_redevelop_map(connection, params):
     sql = (
         "SELECT z.id, z.zone_name AS name, z.category, z.mid_category, z.sub_category,"
         "       z.category_group, z.category_label, z.saup_cafe_id,"
-        "       z.stage, z.implementer, z.households, z.area_m2,"
+        "       z.stage, z.implementer, z.households, z.area_m2, z.gu, z.notice_date,"
         "       CASE WHEN z.geom IS NOT NULL"
         "            THEN ST_AsGeoJSON(ST_Transform(ST_SimplifyPreserveTopology(z.geom, 1.5), 4326))::json"
         "            ELSE ST_AsGeoJSON(ST_SetSRID(ST_MakePoint(z.lng, z.lat), 4326))::json END AS geometry "
@@ -59,6 +59,8 @@ def read_redevelop_map(connection, params):
                 'categoryGroup': row['category_group'],
                 'categoryLabel': row['category_label'],
                 'cafeId': row['saup_cafe_id'],
+                'gu': row['gu'],
+                'noticeDate': row['notice_date'].isoformat() if row['notice_date'] else None,
                 'stage': row['stage'],
                 'implementer': row['implementer'],
                 'households': row['households'],
