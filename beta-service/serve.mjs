@@ -571,6 +571,17 @@ createServer(async (request, response) => {
     } catch {send(response,request,{status:'error'},503);}
     return;
   }
+  if (path==='/api/redevelop-map') {
+    const params=new URL(request.url,'http://localhost').searchParams;
+    const boundsText=params.get('bounds');
+    const payload={};
+    if(boundsText){const nums=boundsText.split(',').map(Number);if(nums.length===4&&nums.every(Number.isFinite))payload.bounds=nums;}
+    try {
+      const result=await localRead('redevelop-map',JSON.stringify(payload));
+      send(response,request,result,result.status==='error'?503:200);
+    } catch {send(response,request,{status:'error',features:[]},503);}
+    return;
+  }
   if (path.startsWith('/api/risk/') || path.startsWith('/api/site-context/') || path.startsWith('/api/building-records/') || path.startsWith('/api/land-record/')) {
     const compact=path.startsWith('/api/site-context/');
     const registers=path.startsWith('/api/building-records/');

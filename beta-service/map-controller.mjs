@@ -1,4 +1,4 @@
-﻿import { getRuntime } from './api-client.mjs';
+﻿import { getRuntime, apiFetch } from './api-client.mjs';
 import { formatArea } from './area-display.mjs';
 let sdkPromise,authError;
 export function loadNaverMaps() {
@@ -143,11 +143,12 @@ export function transactionLabelOffsets(points,occupied,width,height) {
   });
 }
 export class ListingMap {
-  constructor(container,{onSelect,onTransaction,onCommercial,onMapClick,onMove,onStatus,center,zoom,areaUnit='m2'}={}) {
+  constructor(container,{onSelect,onTransaction,onCommercial,onRedevelop,onMapClick,onMove,onStatus,center,zoom,areaUnit='m2'}={}) {
     this.areaUnit=areaUnit==='pyeong'?'pyeong':'m2';
     this.container=container;this.onSelect=onSelect;this.onMove=onMove;this.onStatus=onStatus;this.onMapClick=onMapClick;
-    this.onTransaction=onTransaction;this.onCommercial=onCommercial;this.transactionMarkers=[];this.transactions=[];this.transactionsVisible=true;
+    this.onTransaction=onTransaction;this.onCommercial=onCommercial;this.onRedevelop=onRedevelop;this.transactionMarkers=[];this.transactions=[];this.transactionsVisible=true;
     this.commercialMarkers=[];this.commercialAreas=[];this.commercialVisible=false;
+    this.redevelopVisible=false;this.redevelopPolygons=[];this.redevelopInfo=null;this.redevelopGroups=null;
     this.center=center;this.zoom=zoom;this.markers=[];this.listeners=[];this.dead=false;this.selected=null;
     this.onAuthFailure=event=>{this.ready=false;this.onStatus?.('error',event.detail);};
     window.addEventListener('teojabi-map-auth-error',this.onAuthFailure);
@@ -161,7 +162,7 @@ export class ListingMap {
         minZoom:9,maxZoom:20,zoomControl:false,mapDataControl:false,scaleControl:true});
       if(authError)throw new Error(authError);
       this.ready=true;
-      this.listeners.push(n.Event.addListener(this.map,'idle',()=>{this.layoutTransactions();if(this.commercialVisible)this.renderCommercialMarkers();this.onMove?.(this.view());}));
+      this.listeners.push(n.Event.addListener(this.map,'idle',()=>{this.layoutTransactions();if(this.commercialVisible)this.renderCommercialMarkers();if(this.redevelopVisible)this.renderRedevelop();this.onMove?.(this.view());}));
       this.listeners.push(n.Event.addListener(this.map,'click',()=>this.onMapClick?.()));
       this.map.data.setStyle({fillColor:'#93c5fd',fillOpacity:.35,strokeColor:'#2563eb',strokeWeight:3});
       this.resizeObserver=new ResizeObserver(()=>{if(this.ready && !this.dead && this.container.clientWidth)n.Event.trigger(this.map,'resize');});
@@ -344,6 +345,61 @@ export class ListingMap {
   }
   resetView() {if(!this.fitTransactions())this.setGroups(this.groups||[],this.selected,true);}
   toggleCadastral(){if(!this.ready)return false;this.cadastralLayer??=new this.n.CadastralLayer();this.cadastralVisible=!this.cadastralVisible;this.cadastralLayer.setMap(this.cadastralVisible?this.map:null);return this.cadastralVisible;}
+  redevelopColor(group){return {'정비사업':'#dc2626','소규모정비사업':'#db2777','재정비촉진사업':'#ea580c','역세권사업':'#0891b2','국토부사업':'#2563eb','도시개발사업':'#0d9488'}[group]||'#6b7280';}
+  escapeText(value){return String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));}
+  geoPolygonParts(geometry){if(!geometry)return[];if(geometry.type==='Polygon')return[geometry.coordinates];if(geometry.type==='MultiPolygon')return geometry.coordinates;return[];}
+  clearRedevelop(){
+    for(const polygon of this.redevelopPolygons){try{this.n.Event.clearInstanceListeners(polygon);polygon.setMap(null);}catch{/* partial SDK */}}
+    this.redevelopPolygons=[];
+    if(this.redevelopInfo){try{this.redevelopInfo.close();}catch{/* partial SDK */}}
+  }
+  setRedevelopGroups(groups){this.redevelopGroups=groups&&groups.length?new Set(groups):null;this.redevelopKey='';if(this.redevelopVisible)this.renderRedevelop();}
+  async toggleRedevelop(){
+    if(!this.ready)return false;
+    this.redevelopVisible=!this.redevelopVisible;
+    if(!this.redevelopVisible){this.redevelopKey='';this.clearRedevelop();return false;}
+    await this.renderRedevelop();
+    return this.redevelopVisible;
+  }
+  async renderRedevelop(){
+    if(!this.ready||!this.redevelopVisible||!this.map||this.redevelopBusy)return;
+    const view=this.view();if(!view)return;
+    const key=view.bounds.map(value=>Number(value).toFixed(4)).join(',');
+    if(key===this.redevelopKey&&this.redevelopPolygons.length)return;
+    this.redevelopBusy=true;
+    try {
+      let data=null;
+      try{const response=await apiFetch(`/api/redevelop-map?bounds=${encodeURIComponent(view.bounds.join(','))}`);data=await response.json();}
+      catch{return;}
+      if(!this.ready||!this.redevelopVisible)return;
+      this.redevelopKey=key;
+      this.clearRedevelop();
+      for(const feature of (data.features||[])){
+        const props=feature.properties||{};
+        if(this.redevelopGroups&&this.redevelopGroups.size&&!this.redevelopGroups.has(props.categoryGroup))continue;
+        const color=this.redevelopColor(props.categoryGroup);
+        for(const rings of this.geoPolygonParts(feature.geometry)){
+          const paths=rings.map(ring=>ring.map(point=>new this.n.LatLng(point[1],point[0])));
+          const polygon=new this.n.Polygon({map:this.map,paths,fillColor:color,fillOpacity:0.18,strokeColor:color,strokeWeight:2,strokeOpacity:0.85,clickable:true,zIndex:5});
+          this.n.Event.addListener(polygon,'click',(event)=>this.showRedevelopInfo(event?.coord||paths[0][0],props));
+          this.redevelopPolygons.push(polygon);
+        }
+      }
+    } finally { this.redevelopBusy=false; }
+  }
+  showRedevelopInfo(position,props){
+    if(this.onRedevelop){this.onRedevelop(props);return;}
+    if(!this.n?.InfoWindow||!position)return;
+    this.redevelopInfo??=new this.n.InfoWindow({content:'',borderWidth:0,backgroundColor:'#fff',pixelOffset:new this.n.Point(0,-8),disableAnchor:false});
+    const e=this.escapeText,rows=['<b style="font-size:14px">'+e(props.name||'정비구역')+'</b>',
+      props.categoryLabel?'<span style="color:#6b7280">'+e(props.categoryLabel)+(props.categoryGroup?' · '+e(props.categoryGroup):'')+'</span>':'',
+      props.stage?'단계: '+e(props.stage):'',
+      Number.isFinite(props.households)?'공급: '+Number(props.households).toLocaleString('ko-KR')+'세대':'',
+      props.implementer?'시행: '+e(props.implementer):'',
+      Number.isFinite(props.areaM2)?'면적: '+Math.round(props.areaM2).toLocaleString('ko-KR')+'㎡':''].filter(Boolean);
+    this.redevelopInfo.setContent('<div style="padding:10px 12px;line-height:1.5;font-size:12px;max-width:240px">'+rows.join('<br>')+'</div>');
+    this.redevelopInfo.open(this.map,position);
+  }
   setVisible(value){this.visible=Boolean(value);if(!this.ready)return;for(const {marker} of this.markers)marker.setMap(this.visible?this.map:null);this.extraMarker?.setMap(this.visible?this.map:null);this.layoutTransactions();}
   view() {
     if(!this.map||!this.ready)return null;

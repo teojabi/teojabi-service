@@ -122,7 +122,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     <div class="auction-filters" id="auction-filters" hidden></div>
     <div class="explore-toolbar"><div class="quick-filters"></div><span id="bounds-chip"></span><div class="explore-toggle" role="group" aria-label="결과 보기 방식"><button data-explore="pane" data-value="list" aria-pressed="true">리스트</button><button data-explore="pane" data-value="map" aria-pressed="false">지도</button></div></div>
     <div class="explore-board" data-pane="list"><div class="explore-list"><p id="result-count" aria-live="polite">저장된 매물을 불러오고 있어요.</p><div id="listing-list"></div><button class="outline more-listings" data-explore="more" hidden>매물 더 보기</button></div>
-      <div class="map-frame"><div id="map-host" role="region" aria-label="매물 위치 지도"></div><div class="map-controls"><button class="outline" data-explore="favorites" aria-pressed="false">♥ 찜한 매물</button><button class="outline" data-explore="auction" aria-pressed="false">경매 물건</button><button class="outline" data-explore="all-picks" aria-pressed="false">★ 터잡이 추천</button><button class="outline" data-explore="cadastral" aria-pressed="false">지적도</button><button class="outline" data-explore="reset-map" aria-label="현재 매물 전체 위치 보기">전체 위치</button></div><div id="map-status" class="map-status" role="status">네이버 지도를 불러오고 있어요.</div><div id="commercial-popup" class="commercial-popup" hidden></div><p class="map-disclaimer">*지도서비스에 정보는 법적 효력이 없으며 참고 자료로만 활용이 가능합니다.</p></div>
+      <div class="map-frame"><div id="map-host" role="region" aria-label="매물 위치 지도"></div><div class="map-controls"><button class="outline" data-explore="favorites" aria-pressed="false">♥ 찜한 매물</button><button class="outline" data-explore="auction" aria-pressed="false">경매 물건</button><button class="outline" data-explore="all-picks" aria-pressed="false">★ 터잡이 추천</button><button class="outline" data-explore="cadastral" aria-pressed="false">지적도</button><button class="outline" data-explore="redevelop" aria-pressed="false">정비사업</button><button class="outline" data-explore="reset-map" aria-label="현재 매물 전체 위치 보기">전체 위치</button></div><div id="map-status" class="map-status" role="status">네이버 지도를 불러오고 있어요.</div><div id="commercial-popup" class="commercial-popup" hidden></div><div id="redevelop-popup" class="commercial-popup" hidden></div><div id="redevelop-legend" class="redevelop-legend" hidden><button type="button" class="commercial-popup-close" data-redevelop-close aria-label="닫기">×</button><b>정비사업 표시</b><label><input type="checkbox" data-redevelop-group="정비사업" checked> 정비사업</label><label><input type="checkbox" data-redevelop-group="소규모정비사업" checked> 소규모정비사업</label><label><input type="checkbox" data-redevelop-group="재정비촉진사업" checked> 재정비촉진사업</label><label><input type="checkbox" data-redevelop-group="역세권사업" checked> 역세권사업</label><label><input type="checkbox" data-redevelop-group="국토부사업" checked> 국토부사업</label><label><input type="checkbox" data-redevelop-group="도시개발사업" checked> 도시개발사업</label><label><input type="checkbox" data-redevelop-group="기타사업" checked> 기타사업</label></div><p class="map-disclaimer">*지도서비스에 정보는 법적 효력이 없으며 참고 자료로만 활용이 가능합니다.</p></div>
       <aside id="listing-detail" class="detail-panel" aria-label="매물 상세" hidden></aside></div><p class="explore-foot" id="explore-foot"></p></section>`;
   const $=selector=>root.querySelector(selector);
   const favoriteItems=()=>member.items.filter(item=>item.kind==='favorite');
@@ -168,6 +168,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
   page.append(sheet);page.classList.add('map-first');
   function setSheet(open){const mobile=matchMedia('(max-width:700px)').matches;sheet.classList.toggle('collapsed',!open);body.hidden=false;sheet.querySelector('.sheet-handle').setAttribute('aria-expanded',String(open));sheet.querySelector('.sheet-label').textContent=open?'조건·매물 접기':`조건·매물 보기${result?' · '+result.totalParcels+'개':''}`;sheet.querySelector('.sheet-arrow').textContent=mobile?(open?'◁':'▷'):(open?'⌄':'⌃');}
   root.addEventListener('change',event=>{if(event.target.matches('[name=sort]')){sort=event.target.value;limit=5;closeDetail();load();}},{signal:abort.signal});
+  root.addEventListener('change',event=>{if(event.target.matches('[data-redevelop-group]')){const groups=[...root.querySelectorAll('[data-redevelop-group]')].filter(box=>box.checked).map(box=>box.dataset.redevelopGroup);map.setRedevelopGroups(groups);}},{signal:abort.signal});
   const updateCriteria=()=>{
     quickFilters?.update();
     const purpose=PURPOSES.find(p=>p.id===criteria.purpose);$('#purpose-guide').hidden=!purpose;$('#purpose-guide').textContent=purpose?`${purpose.label} · ${purpose.guide}`:'';
@@ -207,6 +208,19 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     loadTimer=setTimeout(()=>load(),300);
   }});updateCriteria();
   syncAuctionFiltersFromCondition();mountAuctionUi();
+  function renderRedevelop(props){
+    const row=(label,value)=>value?`<div class="redevelop-fact"><dt>${esc(label)}</dt><dd>${esc(value)}</dd></div>`:'';
+    const rows=[
+      row('사업구분',props.categoryGroup),
+      row('세부유형',props.categoryLabel),
+      row('추진단계',props.stage),
+      row('공급세대',Number.isFinite(props.households)?props.households.toLocaleString('ko-KR')+'세대':null),
+      row('시행방식',props.implementer),
+      row('면적',Number.isFinite(props.areaM2)?Math.round(props.areaM2).toLocaleString('ko-KR')+'㎡':null),
+    ].filter(Boolean).join('');
+    return `<div class="redevelop-detail"><span class="eyebrow">URBAN RENEWAL</span><h2>${esc(props.name||'정비구역')}</h2><a class="outline" href="https://cleanup.seoul.go.kr/cleanup/bsnssttus/lscrMainIndx.do" target="_blank" rel="noopener noreferrer">정비사업 정보몽땅에서 보기 ↗</a><dl class="redevelop-facts">${rows}</dl><p class="case-note">자료: 서울시 도시계획사업구역계(UQ181)·정비사업 정보몽땅. 세부 항목(연면적·용적률·높이·권역·담당부서 등)은 정보몽땅 사업정보에서 확인하세요.</p></div>`;
+  }
+  let redevelopPopupVersion=0;
   const map=new ListingMap($('#map-host'),{areaUnit:getAreaDisplayUnit(),onSelect:id=>openDetail(id),onMapClick:()=>{if(matchMedia('(max-width:700px)').matches)setSheet(false);window.dispatchEvent(new CustomEvent('teojabi-map-click'));},onTransaction:id=>{
     setSheet(true);
     $('.explore-board').classList.remove('transaction-map-open');
@@ -221,6 +235,11 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
       if(disposed||version!==commercialPopupVersion)return;
       popup.innerHTML=`<div class="commercial-popup-inner"><button type="button" class="commercial-popup-close" data-commercial-close aria-label="닫기">×</button>${renderCommercial(data,{trend:'quarter'})}</div>`;
     }).catch(()=>{if(!disposed&&version===commercialPopupVersion)popup.innerHTML='<div class="commercial-popup-inner"><button type="button" class="commercial-popup-close" data-commercial-close aria-label="닫기">×</button><p class="case-note">상권 정보를 불러오지 못했어요.</p></div>';});
+  },onRedevelop:props=>{
+    const popup=$('#redevelop-popup');
+    redevelopPopupVersion+=1;
+    popup.hidden=false;
+    popup.innerHTML=`<div class="commercial-popup-inner"><button type="button" class="commercial-popup-close" data-redevelop-close aria-label="닫기">×</button>${renderRedevelop(props)}</div>`;
   },onMove:view=>{
     mapView=view;const button=$('[data-explore="search-map"]');if(button)button.disabled=false;
   },onStatus:(status,message)=>{
@@ -733,6 +752,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     const unitButton=event.target.closest('[data-area-unit]');
     if(unitButton){setAreaDisplayUnit(unitButton.dataset.areaUnit);return;}
     if(event.target.closest('[data-commercial-close]')){$('#commercial-popup').hidden=true;return;}
+    if(event.target.closest('[data-redevelop-close]')){$('#redevelop-popup').hidden=true;return;}
     const commercialAskButton=event.target.closest('[data-commercial-ask]');
     if(commercialAskButton){commercialAsk(commercialAskButton.dataset.commercialAsk);return;}
     const button=event.target.closest('[data-explore]');if(!button||button.disabled)return;
@@ -755,6 +775,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
       case 'compare-clear':compared.clear();if(result)drawCards();break;
       case 'pins':showPins=!showPins;button.setAttribute('aria-pressed',String(showPins));map.setVisible(showPins);break;
       case 'cadastral':button.setAttribute('aria-pressed',String(map.toggleCadastral()));break;
+      case 'redevelop':{const on=await map.toggleRedevelop();button.setAttribute('aria-pressed',String(on));const legend=$('#redevelop-legend');if(legend)legend.hidden=!on;if(!on)$('#redevelop-popup').hidden=true;break;}
       case 'all-picks':{
         showAllPicks=!showAllPicks;button.disabled=true;
         try{if(showAllPicks&&!pickGroups){const response=await apiFetch('/api/catalog?limit=500&cohort=existing',{signal:abort.signal}),data=await response.json();if(!response.ok||data.status!=='ready')throw new Error();pickGroups=data.groups;}
