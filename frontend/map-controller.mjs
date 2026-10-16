@@ -401,7 +401,7 @@ export class ListingMap {
   toggleCadastral(){if(!this.ready)return false;this.cadastralLayer??=new this.n.CadastralLayer();this.cadastralVisible=!this.cadastralVisible;this.cadastralLayer.setMap(this.cadastralVisible?this.map:null);return this.cadastralVisible;}
   redevelopColor(props){
     const label=(props&&props.categoryLabel)||'';
-    const byLabel={'신속통합기획':'#ef4444','주택재개발':'#60a5fa','도시정비형 재개발':'#e879f9','도시환경정비':'#d946ef','주택재건축':'#34d399','주거환경개선':'#fdba74','주거환경관리':'#f9a8d4','결합정비':'#9ca3af','모아타운·가로주택정비':'#db2777','자율주택정비':'#f472b6','소규모재건축':'#ec4899','소규모재개발':'#e11d48','재정비촉진지구':'#ea580c','재정비촉진구역':'#ea580c','역세권 청년주택':'#0891b2','공공주택지구':'#2563eb','택지개발지구':'#3b82f6','국민임대주택':'#1d4ed8','도시개발구역':'#0d9488'};
+    const byLabel={'신속통합기획':'#ef4444','재개발(도시정비형)':'#e879f9','재개발(주택정비형)':'#60a5fa','재건축(단독)':'#fb923c','재건축(공동)':'#34d399','주거환경개선(관리형)':'#f472b6','주거환경개선(정비형)':'#fdba74','모아타운':'#db2777','가로주택정비사업':'#ec4899','자율주택정비사업':'#f9a8d4','소규모재건축사업':'#c026d3','소규모재개발사업':'#a21caf','장기전세주택':'#0891b2','청년안심주택':'#06b6d4','도심공공주택':'#22d3ee','미리내집':'#67e8f9','재정비촉진지구':'#ea580c','재정비촉진구역':'#f97316','존치정비구역':'#fb923c','존치관리구역':'#fcd34d','공공주택지구조성사업':'#2563eb','도심공공주택복합사업':'#1d4ed8','도시개발사업':'#0d9488','리모델링':'#14b8a6','시장정비사업':'#0f766e','도시재생활성화구역':'#115e59'};
     if(byLabel[label])return byLabel[label];
     const group=(props&&props.categoryGroup)||'';
     return {'정비사업':'#dc2626','소규모정비사업':'#db2777','재정비촉진사업':'#ea580c','역세권사업':'#0891b2','국토부사업':'#2563eb','도시개발사업':'#0d9488'}[group]||'#6b7280';
