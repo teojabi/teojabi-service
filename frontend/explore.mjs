@@ -5,6 +5,7 @@ import { mountBuildingRecords } from './building-records.mjs';
 import { mountLandRecords } from './land-records.mjs';
 import { mountCommercial, renderCommercial, commercialAsk } from './commercial-context.mjs';
 import { mountSurrounding } from './surrounding-context.mjs';
+import { mountLandUse } from './landuse-context.mjs';
 import { PURPOSES } from './search-options.mjs';
 import { openComparison } from './compare.mjs';
 import { member,openFeedback,openLogin } from './member.mjs';
@@ -973,6 +974,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
       ${pickAnalysisSection}
       <section class="detail-section" id="property-parcel"><h3>필지 위치</h3><p>${esc(row.address||`${rowTitle(row)} · 상세 주소 미확인`)}</p></section>
       <section class="detail-section"><h3>용도지역</h3>${row.zoning?.status==='matched'&&Array.isArray(row.zoning.entries)?`<p>${row.zoning.entries.map(e=>esc(e.name)).join('<br>')}</p><p class="case-note">공공데이터 기준</p>`:'<p class="case-note">용도지역을 확인하지 못했습니다.</p>'}</section>
+      <section class="detail-section" id="property-landuse"><h3>토지이용계획</h3><div id="landuse-facts" aria-live="polite"></div></section>
       <section class="detail-section nearby-section" id="property-transactions"><details id="nearby-details" class="nearby-details"><summary class="nearby-summary"><span class="nearby-summary-title">주변 실거래</span><span class="nearby-summary-count" id="nearby-count"></span></summary><div class="nearby-body"><div class="nearby-heading"><button class="outline" data-explore="transactions" aria-pressed="true" disabled>지도 표시</button></div>${areaUnitControls()}<div id="nearby-cases" aria-live="polite"><p class="case-note">가까운 토지·건물 거래를 찾고 있어요.</p></div></div></details></section>
       <section class="detail-section commercial-section" id="property-commercial"><h3>상권</h3><div id="commercial-facts" aria-live="polite"></div></section>
       <section class="detail-section" id="property-surrounding"><h3>주변 사업</h3><div id="surrounding-facts" aria-live="polite"></div></section>
@@ -1065,6 +1067,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
       ${verifySection}${onbidDetailSection}
       <section class="detail-section" id="property-parcel"><h3>필지 위치</h3><p><span class="parcel-label">대지위치</span> ${esc(row.address||rowTitle(row))}</p>${row.detailAddress?`<p><span class="parcel-label">상세주소</span> ${esc(row.detailAddress)}</p>`:''}</section>
       <section class="detail-section" id="property-holdings"><h3>보유 공공자료 <small>터잡이 DB · 법원 공시와 다름</small></h3><p class="case-note">법원 공시가 아니라 터잡이가 보유한 공공데이터예요. 기준일이 달라 경매 공시와 다를 수 있어요.</p><dl class="auction-facts"><dt>용도지역</dt><dd>${row.zoning?.status==='matched'&&Array.isArray(row.zoning.entries)&&row.zoning.entries.length?row.zoning.entries.map(e=>esc(e.name)).join('<br>'):'확인 필요'}</dd><dt>도로폭</dt><dd>${a.roadWidthM!=null?esc(a.roadWidthM)+'m':'확인 필요'}</dd><dt>허용 용적률</dt><dd>${row.farLimit!=null?esc(row.farLimit)+'%':'확인 필요'}</dd><dt>허용 건폐율</dt><dd>${row.bcrLimit!=null?esc(row.bcrLimit)+'%':'확인 필요'}</dd><dt>현재 용적률</dt><dd>${row.currentFar!=null?esc(row.currentFar)+'%'+(row.farFromRegister?' <small style="opacity:.6">건축물대장</small>':''):'확인 필요'}</dd>${row.remainingFar!=null?`<dt>여유 용적률</dt><dd>${esc(row.remainingFar)}%</dd>`:''}${row.districtPlan?`<dt>지구단위계획</dt><dd>${esc(row.districtPlan)}</dd>`:''}${row.heightLimit!=null?`<dt>제한높이</dt><dd>${esc(row.heightLimit)}m</dd>`:''}${row.heightDistrict?`<dt>고도지구</dt><dd>${esc(row.heightDistrict)}</dd>`:''}${row.landscapeDistrict?`<dt>경관지구</dt><dd>${esc(row.landscapeDistrict)}</dd>`:''}${row.specialZone?`<dt>특구</dt><dd>${esc(row.specialZone)}</dd>`:''}${row.otherZone?`<dt>기타구역</dt><dd>${esc(row.otherZone)}</dd>`:''}</dl>${row.areaSuspect?'<p class="case-note chk">대지면적 대비 건축 연면적이 커요(건물이 여러 필지에 걸쳤을 수 있어요). 대지면적·현재 용적률은 원문에서 확인이 필요해요.</p>':''}</section>
+      <section class="detail-section" id="property-landuse"><h3>토지이용계획</h3><div id="landuse-facts" aria-live="polite"></div></section>
       <section class="detail-section nearby-section" id="property-transactions"><details id="nearby-details" class="nearby-details"><summary class="nearby-summary"><span class="nearby-summary-title">주변 실거래</span><span class="nearby-summary-count" id="nearby-count"></span></summary><div class="nearby-body"><div class="nearby-heading"><button class="outline" data-explore="transactions" aria-pressed="true" disabled>지도 표시</button></div>${areaUnitControls()}<div id="nearby-cases" aria-live="polite"><p class="case-note">가까운 토지·건물 거래를 찾고 있어요.</p></div></div></details></section>
       <section class="detail-section commercial-section" id="property-commercial"><h3>상권</h3><div id="commercial-facts" aria-live="polite"></div></section>
       <section class="detail-section" id="property-surrounding"><h3>주변 사업</h3><div id="surrounding-facts" aria-live="polite"></div></section>
@@ -1100,6 +1103,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
       closeLand=mountLandRecords($('#land-area-comparison'),$('#land-records'),$('#land-records-toggle'),detail.listing);
       closeCommercial=mountCommercial($('#commercial-facts'),detail.listing,d=>scoreCard?.setCommercial(d));
       closeSurrounding=mountSurrounding($('#surrounding-facts'),detail.listing,d=>scoreCard?.setSurrounding(d));
+      mountLandUse($('#landuse-facts'),detail.listing.pnu);
       closeStreetPreview=mountStreetPreview($('#street-inline'),detail.listing.position);
       map.select(detail.listing);
       $('#detail-title')?.focus({preventScroll:true});
@@ -1135,6 +1139,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
       closeLand=mountLandRecords($('#land-area-comparison'),$('#land-records'),$('#land-records-toggle'),detail.listing);
       closeCommercial=mountCommercial($('#commercial-facts'),detail.listing,d=>scoreCard?.setCommercial(d));
       closeSurrounding=mountSurrounding($('#surrounding-facts'),detail.listing,d=>scoreCard?.setSurrounding(d));
+      mountLandUse($('#landuse-facts'),detail.listing.pnu);
       closeStreetPreview=mountStreetPreview($('#street-inline'),detail.listing.position);
       map.select(detail.listing);
       loadNearby(id,current);

@@ -57,7 +57,7 @@ def connect():
 
 
 def read(operation, value=None):
-    if operation not in ('catalog', 'parcel', 'risk', 'context', 'registers', 'site-parcels', 'parcel-context', 'parcel-documents', 'land-record', 'nearby-transactions', 'selected-risk', 'selected-context', 'selected-registers', 'selected-land-record', 'naver-listing', 'disco-listing', 'commercial', 'commercial-areas', 'surrounding', 'redevelop-map', 'nearest-parcel', 'neighborhoods', 'station'):
+    if operation not in ('catalog', 'parcel', 'risk', 'context', 'registers', 'site-parcels', 'parcel-context', 'parcel-documents', 'land-record', 'nearby-transactions', 'selected-risk', 'selected-context', 'selected-registers', 'selected-land-record', 'naver-listing', 'disco-listing', 'commercial', 'commercial-areas', 'surrounding', 'redevelop-map', 'redevelop-nearby', 'land-use', 'nearest-parcel', 'neighborhoods', 'station'):
         raise ValueError('Unsupported operation')
     if operation == 'parcel' and not re.fullmatch(r'\d{19}', value or ''):
         raise ValueError('Invalid parcel')
@@ -199,6 +199,26 @@ def read(operation, value=None):
         if operation == 'redevelop-map':
             from redevelop_reader import read_redevelop_map
             return read_redevelop_map(connection, json.loads(value or '{}'))
+        if operation == 'redevelop-nearby':
+            params = json.loads(value or '{}')
+            lat, lng = params.get('lat'), params.get('lng')
+            radius = params.get('radius') or 500
+            if lat is None or lng is None:
+                return {'status': 'missing', 'rows': []}
+            with connection.cursor() as cur:
+                cur.execute('SELECT public.teojabi_redevelop_nearby(%s::jsonb) AS r',
+                            (json.dumps({'lat': lat, 'lng': lng, 'radius': radius}),))
+                payload = cur.fetchone()[0]
+            return payload or {'status': 'ready', 'rows': []}
+        if operation == 'land-use':
+            if not re.fullmatch(r'\d{19}', value or ''):
+                raise ValueError('Invalid parcel')
+            with connection.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute('''SELECT zone_cls_cd, zone_cls_nm, note FROM public.land_use_info
+                               WHERE pnu=%s ORDER BY zone_cls_nm''', (value,))
+                rows = cur.fetchall()
+            return {'status': 'ready', 'pnu': value,
+                    'items': [{'code': r['zone_cls_cd'], 'name': r['zone_cls_nm'], 'note': r['note']} for r in rows]}
         if operation == 'nearest-parcel':
             query = json.loads(value or '{}')
             lat, lng = query.get('lat'), query.get('lng')
