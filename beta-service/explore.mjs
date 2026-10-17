@@ -271,14 +271,15 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     const verifyBadge=row.verifyStatus==='matched'?'<em class="pick-badge ok-badge">대장 일치</em>':row.verifyStatus==='mismatch'?'<em class="pick-badge warn-badge">대장 차이</em>':'';
     const priceLabel=isOnbid?'최저입찰가':'최저매각가';
     const dateNote=isOnbid?`입찰마감 ${esc(a.saleDate||'')} ${dday(a.saleDate)}`:`매각기일 ${esc(a.saleDate||'')} ${dday(a.saleDate)} · 유찰 ${a.failCount??0}회`;
-    const flags=[isOnbid?'공매':'경매'];
+    const flags=[];
     if(row.bundle||row.saleKind==='bundle')flags.push('일괄');
     if(AUCTION_DEAL_LABEL[row.dealType])flags.push(AUCTION_DEAL_LABEL[row.dealType]);
     if(row.saleKind==='share')flags.push('지분');
     if(row.verifyStatus==='matched')flags.push('대장 일치');else if(row.verifyStatus==='mismatch')flags.push('대장 차이');
     if(row.acquiredRights)flags.push('말소기준권리');
     const flagsText=flags.map(esc).join(', ');
-    return `<article class="property-card auction-card${selected===row.id?' selected':''}" data-card-id="${esc(row.id)}"><button class="property-select" data-explore="detail" data-id="${esc(row.id)}" aria-label="${esc(rowTitle(row))} ${money(row.priceWon)} 상세 보기"><div class="property-location"><span>${esc(rowTitle(row))}</span>${member.get('favorite',row.id)?'<em class="pick-badge favorite-badge">♥ 찜한 물건</em>':''}</div><p class="property-flags">${flagsText}</p><h2>${money(row.priceWon)}</h2><div class="area-pair"><span>감정가 <b>${money(a.appraisedWon)}</b></span><span>${priceLabel} <b>${money(a.minPrice)}</b></span></div><p class="property-zoning">${esc(a.usageName||'용도 미기재')} · ${esc(row.district||'')} ${esc(row.neighborhood||'')}</p><p class="property-description">${esc(a.caseNo||'')} · ${dateNote}</p><span class="property-link">상세 보기 <span aria-hidden="true">↗</span></span></button></article>`;
+    const flagsHtml=flagsText?`<p class="property-flags">${flagsText}</p>`:'';
+    return `<article class="property-card auction-card${selected===row.id?' selected':''}" data-card-id="${esc(row.id)}"><button class="property-select" data-explore="detail" data-id="${esc(row.id)}" aria-label="${esc(rowTitle(row))} ${money(row.priceWon)} 상세 보기"><div class="property-location"><span>${esc(rowTitle(row))}</span><em class="pick-badge auction-badge">${isOnbid?'공매':'경매'}</em>${member.get('favorite',row.id)?'<em class="pick-badge favorite-badge">♥ 찜한 물건</em>':''}</div>${flagsHtml}<h2>${money(row.priceWon)}</h2><div class="area-pair"><span>감정가 <b>${money(a.appraisedWon)}</b></span><span>${priceLabel} <b>${money(a.minPrice)}</b></span></div><p class="property-zoning">${esc(a.usageName||'용도 미기재')} · ${esc(row.district||'')} ${esc(row.neighborhood||'')}</p><p class="property-description">${esc(a.caseNo||'')} · ${dateNote}</p><span class="property-link">상세 보기 <span aria-hidden="true">↗</span></span></button></article>`;
   }
   // AI 결과는 화면에 보이는 만큼(5개 → 더보기)만 지도에도 표시한다.
   const mapGroups=()=>source==='assistant'&&result?result.groups.slice(0,assistantShown):(result?.groups||[]);

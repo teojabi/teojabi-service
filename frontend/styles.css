@@ -123,7 +123,7 @@ body.map-results-open{height:100dvh;min-height:0;overflow:hidden;display:flex;fl
 .nearby-summary::after{content:'⌄';color:var(--muted);transition:transform .2s}
 .nearby-details[open] .nearby-summary::after{transform:rotate(180deg)}
 .nearby-body{padding-top:8px}
-.pick-badge.disco-badge{color:#0e7490;border-color:#0e7490}
+.pick-badge.disco-badge{color:var(--primary);border-color:var(--line)}
 .site-unit-controls{display:flex;gap:6px;margin-bottom:15px}.site-unit-controls button{padding:6px 16px}.site-unit-controls [aria-pressed=true]{background:var(--primary);color:white}.site-cost{margin:20px 0;padding:15px;border:1px solid var(--line);border-radius:10px}.site-cost label{display:block;font-size:14px}.site-cost input{width:100%;min-width:0;margin:8px 0;padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--text)}.site-cost-result{font-size:14px;line-height:1.9}.site-cost small{display:block;margin-top:8px;color:var(--muted);font-size:11px}
 /* Compact the My Building & Land introduction. */
 .site-review{padding-top:14px}.site-review>.back{margin:0;padding:3px 0;min-height:28px;font-size:12px}.site-heading{margin:8px 0 14px}.site-heading .eyebrow{font-size:10px;letter-spacing:.08em}.site-heading h1{font-size:25px;margin:3px 0 4px}.site-heading p{font-size:13px;line-height:1.5}
@@ -540,7 +540,7 @@ body.map-results-open{height:100dvh;min-height:0;overflow:hidden;display:flex;fl
 }
 .detail-links{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}
 .detail-links .outline{padding:9px 12px;font-size:13px;text-decoration:none}
-.pick-badge.origin-naver{color:var(--muted);border-color:var(--line)}
+.pick-badge.origin-naver{color:var(--primary);border-color:var(--line)}
 .assistant-origin{font-size:11px;font-weight:800;padding:3px 7px;border-radius:999px;border:1px solid var(--line)}
 .assistant-origin.origin-premium{color:var(--primary);border-color:var(--primary)}
 .assistant-origin.origin-registered{color:var(--ink)}
@@ -906,7 +906,7 @@ body.architect-lightbox-open{overflow:hidden}
 .auction-filter-row input{width:112px}
 .auction-filter-reset{min-height:40px;align-self:flex-end}
 .auction-filter-note{font-size:11px;color:var(--muted);margin:8px 0 0;line-height:1.5}
-.auction-badge{color:#b45309;border-color:#f59e0b;background:#fffbeb}
+.auction-badge{color:var(--primary);border-color:var(--line);background:var(--selected)}
 .pick-badge.warn-badge{color:#b45309;border-color:#f59e0b;background:#fffbeb}
 .pick-badge.risk-badge{color:#b91c1c;border-color:#ef4444;background:#fef2f2}
 .auction-photos{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:8px 0}
@@ -1063,6 +1063,6 @@ body.architect-lightbox-open{overflow:hidden}
 /* 목록 카드 수치(대지·연면적 / 감정가·최저매각가)를 2px 크게 */
 .area-pair b{font-size:15px}
 #listing-list .area-pair b{font-size:16px}
-/* 경매 카드: 구·동을 크게, 배지는 작은 콤마 목록으로 */
-.auction-card .property-location>span:first-child{font-size:15px;font-weight:700;color:var(--text)}
+/* 카드 구·동 제목을 크게, 경매 배지는 작은 콤마 목록으로 */
+.property-location>span:first-child{font-size:15px;font-weight:700;color:var(--text)}
 .property-flags{margin:4px 0 0;font-size:11.5px;color:var(--muted);line-height:1.5}

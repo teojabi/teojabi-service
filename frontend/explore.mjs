@@ -557,7 +557,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     const areaLabel=bundleTotal!=null?'일괄 토지 합계':(row.dealType==='unit'?'전유':(row.kind==='land'?'대지':'목적물'));
     const areaExtra=(bundleTotal==null&&row.dealType==='whole'&&row.buildingAreaM2!=null&&areaValue!=null&&Math.round(Number(row.buildingAreaM2))!==Math.round(areaValue))?`<span>연면적 <b>${area(row.buildingAreaM2)}</b></span>`:'';
     const totals=isBundle&&bundleN>1?bundlePriceTotals(group):{appraised:Number(a.appraisedWon)||0,min:Number(a.minPrice)||0};
-    const flags=[isOnbid?'공매':'경매'];
+    const flags=[];
     if(row.bundle||row.saleKind==='bundle')flags.push('일괄');
     if(AUCTION_DEAL_LABEL[row.dealType])flags.push(AUCTION_DEAL_LABEL[row.dealType]);
     if(row.saleKind==='share')flags.push('지분');
@@ -566,7 +566,8 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     flags.push(...auctionFlagLabels(row));
     if(row.acquiredRights)flags.push('말소기준권리');
     const flagsText=flags.map(esc).join(', ');
-    return `<article class="property-card auction-card${selected===row.id?' selected':''}" data-card-id="${esc(row.id)}"><button class="property-select" data-explore="detail" data-id="${esc(row.id)}" aria-label="${esc(rowTitle(row))} ${money(row.priceWon)} 상세 보기"><div class="property-location"><span>${esc(rowTitle(row))}</span>${member.get('favorite',row.id)?'<em class="pick-badge favorite-badge">♥ 찜한 물건</em>':''}</div><p class="property-flags">${flagsText}</p><h2>${money(totals.min)}${pricePerAreaMarkup(totals.min,pppArea)}</h2><div class="area-pair"><span>감정가 <b>${money(totals.appraised)}</b></span><span>${priceLabel} <b>${money(totals.min)}</b></span>${areaValue!=null?`<span>${areaLabel} <b>${area(areaValue)}</b></span>`:''}${areaExtra}</div><p class="property-zoning">${esc(a.usageName||'용도 미기재')} · ${esc(row.district||'')} ${esc(row.neighborhood||'')}</p><p class="property-description">${esc(a.caseNo||'')} · ${dateNote}</p><span class="property-link">상세 보기 <span aria-hidden="true">↗</span></span></button></article>`;
+    const flagsHtml=flagsText?`<p class="property-flags">${flagsText}</p>`:'';
+    return `<article class="property-card auction-card${selected===row.id?' selected':''}" data-card-id="${esc(row.id)}"><button class="property-select" data-explore="detail" data-id="${esc(row.id)}" aria-label="${esc(rowTitle(row))} ${money(row.priceWon)} 상세 보기"><div class="property-location"><span>${esc(rowTitle(row))}</span><em class="pick-badge auction-badge">${isOnbid?'공매':'경매'}</em>${member.get('favorite',row.id)?'<em class="pick-badge favorite-badge">♥ 찜한 물건</em>':''}</div>${flagsHtml}<h2>${money(totals.min)}${pricePerAreaMarkup(totals.min,pppArea)}</h2><div class="area-pair"><span>감정가 <b>${money(totals.appraised)}</b></span><span>${priceLabel} <b>${money(totals.min)}</b></span>${areaValue!=null?`<span>${areaLabel} <b>${area(areaValue)}</b></span>`:''}${areaExtra}</div><p class="property-zoning">${esc(a.usageName||'용도 미기재')} · ${esc(row.district||'')} ${esc(row.neighborhood||'')}</p><p class="property-description">${esc(a.caseNo||'')} · ${dateNote}</p><span class="property-link">상세 보기 <span aria-hidden="true">↗</span></span></button></article>`;
   }
   // AI 결과는 화면에 보이는 만큼(5개 → 더보기)만 지도에도 표시한다.
   // 같은 위치(필지 또는 좌표)에 여러 매물이 있으면 한 개만 남긴다: 터잡이 추천 우선, 없으면 최저가.
