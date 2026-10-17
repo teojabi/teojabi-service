@@ -599,7 +599,7 @@ export async function parseAssistant(message, condition, geminiKey, editedFilter
     if (!hasStrong && !hasHistory) {
       // 인사·감사는 검색 없이 바로 답한다.
       if (conversational && bare) {
-        return { filters: {}, unsupported: null, source: 'chat', conflicts: [], reply: '안녕하세요! 터잡이 AI 부동산 비서예요. 터잡이 이용 방법이 궁금하면 물어봐 주세요. 원하시는 지역·예산·면적·용도지역을 알려주시면 매물을 찾아드릴게요.' };
+        return { filters: {}, unsupported: null, source: 'chat', conflicts: [], reply: '안녕하세요! 터잡이 AI 터잡이 비서예요. 터잡이 이용 방법이 궁금하면 물어봐 주세요. 원하시는 지역·예산·면적·용도지역을 알려주시면 매물을 찾아드릴게요.' };
       }
       // 매물 맥락 없이 "이 주위 상권"을 물으면 검색하지 않고 어느 매물 기준인지 안내한다.
       if (bare && isRelativeQuestion(message)) {
