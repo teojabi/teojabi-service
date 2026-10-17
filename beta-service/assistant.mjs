@@ -208,12 +208,12 @@ export function mountAssistant({ onResults, onAnalyze } = {}) {
   if (document.querySelector('#assistant-fab')) return () => {};
   const fab = document.createElement('button');
   fab.id = 'assistant-fab'; fab.className = 'assistant-fab'; fab.type = 'button';
-  fab.setAttribute('aria-label', 'AI 부동산 비서 열기');
-  fab.innerHTML = `<span class="assistant-fab-icon">${ROBOT}</span><span class="assistant-fab-label">AI 부동산 비서</span>`;
+  fab.setAttribute('aria-label', 'AI 터잡이 비서 열기');
+  fab.innerHTML = `<span class="assistant-fab-icon">${ROBOT}</span><span class="assistant-fab-label">AI 터잡이 비서</span>`;
   const panel = document.createElement('section');
   panel.id = 'assistant-panel'; panel.className = 'assistant-panel is-closed';
-  panel.setAttribute('aria-label', 'AI 부동산 비서');
-  panel.innerHTML = `<header class="assistant-head"><span class="assistant-avatar">${ROBOT}</span><div><b>AI 부동산 비서</b><small>매물 검색과 이용 안내를 도와드려요</small></div><button type="button" class="assistant-close" aria-label="비서 닫기">×</button></header>
+  panel.setAttribute('aria-label', 'AI 터잡이 비서');
+  panel.innerHTML = `<header class="assistant-head"><span class="assistant-avatar">${ROBOT}</span><div><b>AI 터잡이 비서</b><small>매물 검색과 이용 안내를 도와드려요</small></div><button type="button" class="assistant-close" aria-label="비서 닫기">×</button></header>
     <div class="assistant-log" aria-live="polite"></div>
     <form class="assistant-form"><input name="message" type="text" autocomplete="off" maxlength="200" placeholder="예: 종로구 상업지역 100억 이하 도로 6m" aria-label="조건 입력"><button type="submit">전송</button></form>`;
   document.body.append(fab, panel);
@@ -242,7 +242,7 @@ export function mountAssistant({ onResults, onAnalyze } = {}) {
 
   // AI 비서는 회원(간편가입 포함) 전용이다. 비회원에게는 가입 안내만 보여준다.
   function lockedMarkup() {
-    return `<div class="assistant-locked"><b>AI 부동산 비서는 회원 전용이에요</b>
+    return `<div class="assistant-locked"><b>AI 터잡이 비서는 회원 전용이에요</b>
       <p>로그인하거나 간편가입하면 자연어로 매물을 찾고, 찜한 매물과 저장 조건을 이어서 볼 수 있어요.</p>
       <button type="button" class="primary" data-assistant-login>3초 만에 시작하기</button></div>`;
   }
@@ -376,7 +376,7 @@ export function mountAssistant({ onResults, onAnalyze } = {}) {
   const welcome = () => {
     if (!signedIn()) { renderLocked(); return; }
     const condition = savedCondition();
-    addBot(`안녕하세요, AI 부동산 비서예요. 원하는 조건을 편하게 말해주세요. 터잡이 이용 방법도 물어볼 수 있어요.<br><small>예: "종로구 상업지역 100억 이하 50평 이상 도로 6m", "홍대입구역 도보 3분", "강남구 골목상권 월매출 5억 이상"</small>
+    addBot(`안녕하세요, AI 터잡이 비서예요. 원하는 조건을 편하게 말해주세요. 터잡이 이용 방법도 물어볼 수 있어요.<br><small>예: "종로구 상업지역 100억 이하 50평 이상 도로 6m", "홍대입구역 도보 3분", "강남구 골목상권 월매출 5억 이상"</small>
       <div class="assistant-chiprow">
         <button type="button" class="assistant-chip" data-send="강남구 골목상권 월매출 5억 이상">🏪 골목상권 매출 5억 이상</button>
         <button type="button" class="assistant-chip" data-send="유동인구 30만 이상 발달상권">🏪 유동인구 많은 발달상권</button>
