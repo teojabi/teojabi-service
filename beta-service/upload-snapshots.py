@@ -19,8 +19,8 @@ FILES = {
     'selected-development': '.local/supabase/selected-development.json',
     'curation-hidden': '.local/supabase/curation-hidden.json',
     'neighborhoods': 'neighborhoods.json',
-    'inventory-summary': '.local/inventory-summary.json',
-    'disco-activity': '.local/disco-daily/activity.json',
+    # inventory-summary / disco-activity 는 일일 작업(로컬)이 Supabase로 직접 업로드한다.
+    # (서버 .local 은 오래된 사본이라 여기서 올리면 값을 되돌려버린다.)
 }
 
 
