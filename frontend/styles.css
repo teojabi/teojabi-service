@@ -1063,3 +1063,6 @@ body.architect-lightbox-open{overflow:hidden}
 /* 목록 카드 수치(대지·연면적 / 감정가·최저매각가)를 2px 크게 */
 .area-pair b{font-size:15px}
 #listing-list .area-pair b{font-size:16px}
+/* 경매 카드: 구·동을 크게, 배지는 작은 콤마 목록으로 */
+.auction-card .property-location>span:first-child{font-size:15px;font-weight:700;color:var(--text)}
+.property-flags{margin:4px 0 0;font-size:11.5px;color:var(--muted);line-height:1.5}
