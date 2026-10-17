@@ -1058,3 +1058,8 @@ body.architect-lightbox-open{overflow:hidden}
 @media(max-width:700px){.map-controls-right{top:10px;right:9px}.map-controls-right .outline{padding:8px;font-size:11px}}
 .map-first .map-controls-right{top:12px;right:12px}
 .map-first .map-controls-right .outline{font-size:11px;padding:8px}
+.detail-section>.landuse-toggle{margin-top:4px}
+.detail-section>#landuse-facts{margin-top:14px}
+/* 상세 상단 섹션 탭: 오른쪽 여백을 절반으로 줄여 조금 더 넓게 쓴다. */
+@media(max-width:1150px){.detail-shortcuts{margin-right:calc(-17px / 2)}}
+@media(max-width:700px){.detail-shortcuts{margin-right:calc(-21px / 2)}}
