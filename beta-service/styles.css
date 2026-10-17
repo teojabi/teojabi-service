@@ -804,9 +804,12 @@ body.architect-lightbox-open{overflow:hidden}
 .commercial-popup .commercial-card{border:0;padding:0;background:transparent}
 .redevelop-legend{position:absolute;top:12px;right:12px;z-index:190;width:min(72vw,236px);max-height:min(60vh,420px);overflow:auto;background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:0 8px 24px #0003;padding:12px;display:flex;flex-direction:column;gap:6px;font-size:13px}
 .redevelop-legend[hidden]{display:none}
-.surrounding-item.is-included{border-color:#7c3aed;background:#f5f3ff}
-.surrounding-badge{display:inline-block;margin-left:6px;padding:1px 6px;border-radius:999px;background:#7c3aed;color:#fff;font-size:11px;font-style:normal;vertical-align:middle}
-.surrounding-included{margin:0 0 8px;padding:8px 10px;border:1px solid #c4b5fd;background:#f5f3ff;border-radius:8px;font-size:13px;color:#4c1d95}
+.surrounding-item.is-included{border:1px solid #2563eb;background:#2563eb;border-radius:8px;padding:8px 10px;color:#fff}
+.surrounding-item.is-included .surrounding-body b{color:#fff}
+.surrounding-item.is-included .surrounding-body small{color:#dbeafe}
+.surrounding-badge{display:inline-block;margin-left:6px;padding:1px 6px;border-radius:999px;background:#fff;color:#2563eb;font-size:11px;font-style:normal;font-weight:600;vertical-align:middle}
+.surrounding-included{margin:0 0 8px;padding:8px 10px;border:1px solid #2563eb;background:#2563eb;border-radius:8px;font-size:13px;color:#fff}
+.surrounding-included b{color:#fff}
 .landuse-group{margin:0 0 10px}
 .landuse-group h4{margin:0 0 4px;font-size:13px;color:var(--muted)}
 .landuse-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px}
