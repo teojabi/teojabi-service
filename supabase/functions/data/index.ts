@@ -246,7 +246,7 @@ Deno.serve(async (request: Request) => {
       const total = browseCatalog(data, new URLSearchParams()).totalParcels;
       const inventory = snaps["inventory-summary"];
       const discoActivity = snaps["disco-activity"];
-      const tradeUpdatedAt = discoActivity?.runs?.[0]?.completedAt || inventory?.transactionsUpdatedAt || null;
+      const tradeUpdatedAt = discoActivity?.changedAt || inventory?.transactionsUpdatedAt || null;
       // 건축물대장 표시 대신 경매·공매 보유 물건 수와 최근 수집일을 집계한다.
       const [auctionRes, onbidRes] = await Promise.all([
         db.from("auction_item").select("crawled_at", { count: "exact" })
