@@ -252,6 +252,7 @@ const compared=new Map();
 
 export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnalyze,initialId,initialSource,initialHeading,assistant,picksOnly,initialParcel,onParcelChange,initialPane,initialIds}={}) {
   document.body.classList.add('map-results-open');
+  const wantRedevelop=location.hash==='#redevelop'||new URLSearchParams(location.hash.slice(1)).has('redevelop');
   const picksOnlyMode=Boolean(picksOnly);
   const abort=new AbortController();let disposed=false,version=0,detailVersion=0,closeStreet,closeStreetPreview,closeContext,closeRecords,closeLand,closeCommercial,closeSurrounding;
   let result=null,selected=null,detail=null,parcel=null,limit=5,bounds=conditions?.bounds||null,query='',sort=['price','price-desc','area','ppp'].includes(conditions?.sort)?conditions.sort:'price',mapView=null;
@@ -523,7 +524,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     if(status==='ready' && parcel?.status==='ready')map.parcel(parcel.geometry);
     if(status==='ready' && searchedParcel?.geometry)map.parcel(searchedParcel.geometry,{fitParcel:true});
     if(status==='ready' && nearby?.status==='ready'){map.setTransactions(nearby.cases);map.setTransactionsVisible(showTransactions);}
-    if(status==='ready' && !redevelopAutoTried && (location.hash==='#redevelop'||new URLSearchParams(location.hash.slice(1)).has('redevelop'))){redevelopAutoTried=true;const b=root.querySelector('[data-explore="redevelop"]');if(b&&b.getAttribute('aria-pressed')!=='true')b.click();}
+    if(status==='ready' && !redevelopAutoTried && wantRedevelop){redevelopAutoTried=true;const b=root.querySelector('[data-explore="redevelop"]');if(b&&b.getAttribute('aria-pressed')!=='true')b.click();}
     if($('#parcel-status') && parcel?.status==='ready')$('#parcel-status').textContent=parcelMessage();
     if(status==='error'){const searchMap=$('[data-explore="search-map"]');if(searchMap)searchMap.disabled=true;}
   }});
