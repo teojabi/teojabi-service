@@ -576,11 +576,18 @@ export class NotificationsService {
           ON CONFLICT (dedupe_key) DO NOTHING`;
         if (inserted === 0) continue;
         const summaries = await this.conditionSummaryMap(user.userId);
-        const listingCount = unread.filter((item: any) => item.type === 'listing').length;
+        // 신규 매물과 '아직 안 보신 매물(discovery)·예외 추천(exception)'을 구분해,
+        // 제목만 봐도 새 매물이 있었는지 알 수 있게 한다.
+        const newListingCount = unread.filter((item: any) => item.type === 'listing' && !item.meta?.special).length;
         const auctionCount = unread.filter((item: any) => item.type === 'auction' || item.type === 'onbid').length;
-        const heading = listingCount && auctionCount ? '새로운 매물·경매 임박 알림'
+        const discoveryCount = unread.filter((item: any) => item.type === 'listing' && item.meta?.special).length;
+        const noticeCount = unread.filter((item: any) => item.type === 'notice').length;
+        const heading = newListingCount && auctionCount ? '새로운 매물·경매 임박 알림'
+          : newListingCount ? '새로운 매물 알림'
           : auctionCount ? '경매 임박 알림'
-          : '새로운 매물 알림';
+          : discoveryCount ? '새 매물 없음 · 확인할 매물 안내'
+          : noticeCount ? '공지 알림'
+          : '조건 알림';
         await this.mail.send({
           to: user.email,
           title: `[터잡이] ${heading}`,
