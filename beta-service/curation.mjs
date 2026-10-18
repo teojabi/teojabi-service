@@ -330,8 +330,9 @@ removedPanel.addEventListener('click',async event=>{
       const response=await apiFetch('/api/curation',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'audit_removed'})});
       const data=await response.json();if(!response.ok)throw new Error('삭제 후보를 확인하지 못했습니다.');
       removedRows=data.rows||[];
-      status.textContent=data.status==='checked'?`동기화 기준: ${date(data.completedAt)} · 삭제 후보 ${removedRows.length}개`:data.message||'전체 동기화 검증이 필요합니다.';
-      removedPanel.querySelector('[data-removed-list]').innerHTML=removedRows.map((row,index)=>`<article class="review-section"><b>${esc(row.address)}</b><p>${row.pick?'★ 터잡이픽':'등록 매물'}${row.teojabiNo?' · 매물번호 '+esc(row.teojabiNo):''}</p>${naverArticleUrl(row)?`<a href="${esc(naverArticleUrl(row))}" target="_blank" rel="noopener noreferrer">네이버 매물 보기 ↗</a>`:'<small>네이버 매물번호 미연결</small>'} <button type="button" data-removed-delete="${index}">삭제하시겠습니까?</button></article>`).join('');
+      const removalAllowed=data.deletionAllowed!==false;
+      status.textContent=data.status==='checked'?`동기화 기준: ${date(data.completedAt)} · 삭제 후보 ${removedRows.length}개${removalAllowed?'':' · 전체 동기화 검증 완료 후 삭제할 수 있어요'}`:data.message||'전체 동기화 검증이 필요합니다.';
+      removedPanel.querySelector('[data-removed-list]').innerHTML=removedRows.map((row,index)=>`<article class="review-section"><b>${esc(row.address)}</b><p>${row.pick?'★ 터잡이픽':'등록 매물'}${row.teojabiNo?' · 매물번호 '+esc(row.teojabiNo):''}</p>${naverArticleUrl(row)?`<a href="${esc(naverArticleUrl(row))}" target="_blank" rel="noopener noreferrer">네이버 매물 보기 ↗</a>`:'<small>네이버 매물번호 미연결</small>'} ${removalAllowed?`<button type="button" data-removed-delete="${index}">삭제하시겠습니까?</button>`:'<small>전체 동기화 검증 완료 후 삭제할 수 있습니다.</small>'}</article>`).join('');
     }else{
       const row=removedRows[Number(remove.dataset.removedDelete)];if(!row)return;
       if(!window.confirm(`${row.address}\n홈페이지 등록 목록에서 삭제하시겠습니까?`))return;
