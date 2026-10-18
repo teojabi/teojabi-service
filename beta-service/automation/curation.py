@@ -208,22 +208,28 @@ def select_candidates(rows, types=None, budgets=None):
         unique.append(row)
     peers=defaultdict(list)
     for r in unique: peers[r['category'],r['district']].append(r['price']/r['areaM2'])
-    cells=defaultdict(list);outliers=0
+    cells=defaultdict(list);outliers=0;eligible=[]
     for r in unique:
         values=peers[r['category'],r['district']]
         # A conservative unit/error check, not a claim about fair market value.
         if len(values)>=10 and r['price']/r['areaM2']>8*median(values):outliers+=1;continue
-        cells[r['category'],r['budget']].append(r)
-    allocation=allocate(cells, types, budgets); selected=[]; district=Counter(); brokers=Counter()
+        cells[r['category'],r['budget']].append(r);eligible.append(r)
+    allocation=allocate(cells, types, budgets); selected=[]; chosen=set(); district=Counter(); brokers=Counter()
     for (cat,b),count in allocation.items():
         pool=list(cells[cat,b])
         for _ in range(count):
             if not pool: break
             row=min(pool,key=lambda r:(district[r['district']],brokers[r['broker']],-r['priority'],r['price'],r['source_id']))
-            pool.remove(row); selected.append(row); district[row['district']]+=1; brokers[row['broker']]+=1
-    # Keep shortfall visible rather than silently relaxing agreed quotas.
+            pool.remove(row); selected.append(row); chosen.add(row['group_key']); district[row['district']]+=1; brokers[row['broker']]+=1
+    # 배정이 재고 부족으로 목표 인원을 못 채우면 남은 우수 후보로 부족분을 보충한다.
+    target=sum(types.values()); to_fill=target-len(selected); topped_up=0
+    pool=[r for r in eligible if r['group_key'] not in chosen]
+    while topped_up<to_fill and pool:
+        row=min(pool,key=lambda r:(district[r['district']],brokers[r['broker']],-r['priority'],r['price'],r['source_id']))
+        pool.remove(row); selected.append(row); chosen.add(row['group_key']); district[row['district']]+=1; brokers[row['broker']]+=1; topped_up+=1
     selected.sort(key=lambda r:(r['budget'],list(types).index(r['category']),r['district'],r['price'],r['source_id']))
     return selected,dict(eligible=len(rows),unique=len(unique),priceOutliersDeferred=outliers,selected=len(selected),
+        quotaTopUp={'requested':max(0,to_fill),'filled':topped_up},quotaShortfall=max(0,target-len(selected)),
         categoryTargets=types,priceTargets=budgets,
         categoryActual=dict(Counter(r['category'] for r in selected)),
         priceActual=dict(Counter(str(r['budget']) for r in selected)),
