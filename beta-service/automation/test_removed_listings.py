@@ -32,11 +32,12 @@ class FakeCursor:
         elif 'completed_at' in s and 'deletion_allowed' in s:
             self._one={'completed_at':'2026-09-16','deletion_allowed':self.verified}
         elif 'FROM public.naver_land' in s:
-            self._rows=[{'address':a} for a in self.naver_land]
+            self._rows=[{'pnu':None,'address':a} for a in self.naver_land]
         elif 'FROM public.naver' in s:
-            self._rows=[{'address':a} for a in self.naver]
+            self._rows=[{'pnu':(r.get('pnu') if isinstance(r,dict) else None),
+                         'address':(r.get('address') if isinstance(r,dict) else r)} for r in self.naver]
         elif 'FROM public.property' in s:
-            self._rows=self.premium
+            self._rows=[{'source_id':r['source_id'],'address':r['address'],'pnu':r.get('pnu'),'title':r.get('title')} for r in self.premium]
         elif 'teojabi_curation_candidates' in s:
             self._rows=self.candidates
         else:
@@ -66,26 +67,28 @@ class RemovedListingsTest(unittest.TestCase):
         self.assertTrue(result['deletionAllowed'])
 
     @patch('curation.read_hidden_ids',return_value=set())
-    def test_land_listing_alive_only_in_naver_land(self,_):
+    def test_pnu_keeps_format_mismatch_alive(self,_):
+        # 주소 표기에서 구(區)가 빠져도 같은 필지(pnu)면 살아있는 것으로 본다.
         conn=connection(
-            naver=['서울특별시 강서구 화곡동 1075-42'],
-            naver_land=['서울특별시 강남구 자곡동 2-13'],
-            candidates=[{'source_table':'naver_land','source_id':'9','snapshot':{'address':'서울특별시 강남구 자곡동 2-13'}}])
+            naver=[{'address':'서울특별시 중구 을지로5가 123','pnu':'1114015100101230000'}],
+            premium=[{'source_id':'e','address':'을지로5가 123','pnu':'1114015100101230000','title':'픽'}])
         self.assertEqual(audit_removed(conn)['rows'],[])
 
     @patch('curation.read_hidden_ids',return_value=set())
-    def test_land_listing_gone_from_naver_land(self,_):
+    def test_land_listing_gone_but_left_in_naver_land_is_flagged(self,_):
+        # 옛 naver_land에만 남아 있고 현재 원자료 public.naver에는 없으면 삭제 후보로 잡는다.
         conn=connection(
-            naver_land=['서울특별시 강남구 자곡동 2-13'],
+            naver=['서울특별시 강서구 화곡동 1075-42'],
+            naver_land=['서울특별시 서초구 염곡동 97-16'],
             candidates=[{'source_table':'naver_land','source_id':'9','snapshot':{'address':'서울특별시 서초구 염곡동 97-16'}}])
         self.assertEqual([r['source_id'] for r in audit_removed(conn)['rows']],['9'])
 
     @patch('curation.read_hidden_ids',return_value=set())
-    def test_missing_naver_land_table_is_skipped(self,_):
+    def test_missing_property_table_is_skipped(self,_):
         conn=connection(
-            naver_land=['서울특별시 강남구 자곡동 2-13'], naver_land_exists=False,
-            candidates=[{'source_table':'naver_land','source_id':'9','snapshot':{'address':'서울특별시 서초구 염곡동 97-16'}}])
-        self.assertEqual(audit_removed(conn)['rows'],[])
+            naver=['서울특별시 강서구 화곡동 1075-42'], property_exists=False,
+            candidates=[{'source_table':'naver','source_id':'9','snapshot':{'address':'서울특별시 서초구 염곡동 97-16'}}])
+        self.assertEqual([r['source_id'] for r in audit_removed(conn)['rows']],['9'])
 
     def test_missing_success_marker(self):
         self.assertEqual(audit_removed(connection(sync=False))['status'],'unavailable')

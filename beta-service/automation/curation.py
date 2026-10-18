@@ -607,32 +607,36 @@ def audit_removed(conn):
         # 후보 조회는 마지막으로 완료된 동기화 기록이 있으면 항상 허용한다. 삭제 허용 여부는
         # deletionAllowed로 따로 내려보내고, 실제 삭제(delete_removed)는 검증 완료 전에는 막는다.
         deletion_allowed=bool(sync['deletion_allowed'])
-        # 등록 매물은 자신이 나온 원자료 테이블과 대조한다. 건물 매물은 public.naver에, 토지
-        # 매물은 public.naver_land에 남아 있어야 한다. 모든 후보를 public.naver하고만 비교하면
-        # naver에 실리지 않는 토지 매물이 항상 '사라진 매물'로 잘못 잡힌다.
-        active={}
-        for table in ('naver','naver_land'):
-            cur.execute('SELECT to_regclass(%s) AS relation',('public.'+table,))
-            if not cur.fetchone()['relation']: active[table]=None; continue
-            cur.execute(f'SELECT "대지위치" AS address FROM public.{table} WHERE "상태" IS DISTINCT FROM %s',('삭제',))
-            active[table]={address_key(r['address']) for r in cur.fetchall() if r['address']}
-        if not any(active.values()):
+        # public.naver는 건물과 토지를 함께 담는 현재 원자료다(토지는 "주용도코드명"='토지').
+        # 옛 standalone naver_land 테이블은 전체 동기화에서 삭제·갱신되지 않는 잔여 자료라,
+        # 거기에만 남아 있는 매물을 '살아있음'으로 보면 실제 종료된 매물을 놓치게 된다.
+        cur.execute('SELECT to_regclass(%s) AS relation',('public.naver',))
+        if not cur.fetchone()['relation']:
+            return {'status':'unavailable','rows':[], 'message':'원자료가 없어 삭제 후보를 판정하지 않습니다.'}
+        # 필지고유번호(pnu)가 있으면 같은 필지의 광고 유무로, 없으면 주소 문자열로 대조한다.
+        # 주소 표기가 제각각(예: 구 누락)이어도 같은 필지면 살아있는 것으로 본다.
+        cur.execute('SELECT btrim(pnu) AS pnu,"대지위치" AS address FROM public.naver WHERE "상태" IS DISTINCT FROM %s',('삭제',))
+        naver_rows=cur.fetchall()
+        active_pnu={r['pnu'] for r in naver_rows if r['pnu']}
+        active_addr={address_key(r['address']) for r in naver_rows if r['address']}
+        if not active_pnu and not active_addr:
             return {'status':'unavailable','rows':[], 'message':'원자료가 비어 있어 삭제 후보를 판정하지 않습니다.'}
+        def still_listed(address,pnu):
+            if pnu and re.fullmatch(r'11\d{17}',pnu) and pnu in active_pnu: return True
+            return bool(address) and address_key(address) in active_addr
         cur.execute(f'SELECT source_table,source_id,snapshot FROM {TABLE}')
         candidates=cur.fetchall()
         cur.execute("SELECT to_regclass('public.property') AS relation")
         if cur.fetchone()['relation']:
-            cur.execute('SELECT id::text AS source_id,address,title FROM public.property')
-            candidates += [{'source_table':'premium','source_id':r['source_id'],'snapshot':{'address':r['address'],'description':r['title']}} for r in cur.fetchall()]
+            cur.execute('SELECT id::text AS source_id,btrim(address) AS address,btrim(pnu) AS pnu,title FROM public.property')
+            candidates += [{'source_table':'premium','source_id':r['source_id'],'snapshot':{'address':r['address'],'pnu':r['pnu'],'description':r['title']}} for r in cur.fetchall()]
         hidden=read_hidden_ids(); rows=[]
         for row in candidates:
-            s=row['snapshot']; address=s.get('address'); key=address_key(address)
+            s=row['snapshot']; address=s.get('address'); pnu=str(s.get('pnu') or '').strip()
             # A dong and lot number are required; vague/partial addresses are never deletion candidates.
             if not address or not re.search(r'(?:동|가|리)\s+산?\s*\d+(?:-\d+)?(?:번지)?$',address): continue
             if catalog_id(row['source_table'],row['source_id']) in hidden: continue
-            source_active=active.get('naver_land' if row['source_table']=='naver_land' else 'naver')
-            if source_active is None: continue
-            if key not in source_active:
+            if not still_listed(address,pnu):
                 rows.append({'source_table':row['source_table'],'source_id':row['source_id'],
                              'address':address,'teojabiNo':s.get('teojabiPick',{}).get('pickNo',''),
                              'pick':row['source_table']=='premium' or s.get('teojabiPick',{}).get('status')=='published'})
