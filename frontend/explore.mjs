@@ -492,7 +492,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     ].filter(Boolean).join('');
     return `<div class="redevelop-detail"><span class="eyebrow">URBAN RENEWAL</span><h2>${esc(props.name||'정비구역')}</h2><dl class="redevelop-facts">${rows}</dl><p class="case-note">자료: 서울시 도시계획사업구역계(UQ181). 세부 항목(연면적·용적률·높이 등)은 추가 수집 예정입니다.</p></div>`;
   }
-  let redevelopPopupVersion=0;
+  let redevelopPopupVersion=0,redevelopAutoTried=false;
   const map=new ListingMap($('#map-host'),{areaUnit:getAreaDisplayUnit(),onSelect:id=>openDetail(id),onMapClick:coord=>{if(matchMedia('(max-width:700px)').matches){setSheet(false);const popup=$('#commercial-popup');if(popup&&!popup.hidden)popup.hidden=true;}window.dispatchEvent(new CustomEvent('teojabi-map-click'));if(coord&&matchMedia('(min-width:701px)').matches)selectParcelAt(coord.lat,coord.lng);},onMeasure:meters=>{const r=$('#measure-readout');if(!r)return;if(meters>0){r.hidden=false;r.innerHTML=`줄자 ${meters>=1000?(meters/1000).toFixed(2)+'km':Math.round(meters)+'m'} <button type="button" class="outline" data-explore="measure-clear">지우기</button>`;}else{r.hidden=true;r.innerHTML='';}},onTransaction:id=>{
     setSheet(true);
     $('.explore-board').classList.remove('transaction-map-open');
@@ -523,6 +523,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     if(status==='ready' && parcel?.status==='ready')map.parcel(parcel.geometry);
     if(status==='ready' && searchedParcel?.geometry)map.parcel(searchedParcel.geometry,{fitParcel:true});
     if(status==='ready' && nearby?.status==='ready'){map.setTransactions(nearby.cases);map.setTransactionsVisible(showTransactions);}
+    if(status==='ready' && !redevelopAutoTried && (location.hash==='#redevelop'||new URLSearchParams(location.hash.slice(1)).has('redevelop'))){redevelopAutoTried=true;const b=root.querySelector('[data-explore="redevelop"]');if(b&&b.getAttribute('aria-pressed')!=='true')b.click();}
     if($('#parcel-status') && parcel?.status==='ready')$('#parcel-status').textContent=parcelMessage();
     if(status==='error'){const searchMap=$('[data-explore="search-map"]');if(searchMap)searchMap.disabled=true;}
   }});

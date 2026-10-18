@@ -422,7 +422,7 @@ function routeFromPath(){
 }
 function routeFromHash(){
   const h=location.hash;
-  if(new URLSearchParams(h.slice(1)).has('listing')||h==='#search'||h==='#favorites'||h==='#assistant'||h==='#auction'){if(state.screen==='analyze')state.restoreParcel=true;state.screen='results';render(false);return true;}
+  if(new URLSearchParams(h.slice(1)).has('listing')||h==='#search'||h==='#favorites'||h==='#assistant'||h==='#auction'||h==='#redevelop'){if(state.screen==='analyze')state.restoreParcel=true;state.screen='results';render(false);return true;}
   if(h==='#analyze'){state.siteDraft??=createSiteDraft();state.screen='analyze';render(false);return true;}
   return false;
 }
