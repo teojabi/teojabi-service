@@ -24,7 +24,24 @@ declare
   v_issues      int := 0;
   v_status      text;
   v_text        text;
+  v_token       text;
+  v_chat        text;
 begin
+  -- 봇 토큰/채팅 ID는 저장소에 두지 않는다. Supabase Vault에서 읽는다.
+  --   select vault.create_secret('<BOT_TOKEN>', 'telegram_bot_token', 'teojabi daily summary bot');
+  --   select vault.create_secret('<CHAT_ID>',   'telegram_chat_id',   'teojabi telegram chat');
+  select decrypted_secret into v_token from vault.decrypted_secrets where name = 'telegram_bot_token' limit 1;
+  select decrypted_secret into v_chat  from vault.decrypted_secrets where name = 'telegram_chat_id' limit 1;
+  if coalesce(v_token, '') = '' then
+    v_token := current_setting('app.telegram_bot_token', true);
+  end if;
+  if coalesce(v_chat, '') = '' then
+    v_chat := current_setting('app.telegram_chat_id', true);
+  end if;
+  if coalesce(v_token, '') = '' or coalesce(v_chat, '') = '' then
+    raise notice 'telegram bot token/chat id not configured; skipping daily summary';
+    return;
+  end if;
   v_today := (now() at time zone 'Asia/Seoul')::date;
   v_yesterday := v_today - 1;
 
@@ -90,8 +107,8 @@ begin
 
   begin
     perform net.http_post(
-      url     := 'https://api.telegram.org/bot***REMOVED***/sendMessage',
-      body    := jsonb_build_object('chat_id', '6607405625', 'text', v_text),
+      url     := 'https://api.telegram.org/bot' || v_token || '/sendMessage',
+      body    := jsonb_build_object('chat_id', v_chat, 'text', v_text),
       headers := jsonb_build_object('Content-Type', 'application/json')
     );
   exception when others then
