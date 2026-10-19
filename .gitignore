@@ -8,6 +8,15 @@ node_modules/
 .env
 .env.local
 .env.*.local
+.env.*
+!.env.example
+
+# Secrets / credentials (never commit)
+*.pem
+*.key
+*.dpapi
+secrets/
+*service-account*.json
 
 # Build outputs
 dist/

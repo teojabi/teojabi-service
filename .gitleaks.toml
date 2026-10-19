@@ -1,0 +1,19 @@
+# gitleaks 설정 — 알려진 예시/개발용 값은 오탐으로 제외한다.
+title = "teojabi"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "문서 예시와 개발용 기본값"
+paths = [
+  '''docs/''',
+  '''\.env\.example$''',
+  '''README\.md$''',
+]
+regexes = [
+  '''YOUR_[A-Z_]+''',
+  '''dev-secret-key-1234!''',
+  '''ncp-secret-key''',
+  '''test:test@127\.0\.0\.1''',
+]

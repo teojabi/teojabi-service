@@ -1,0 +1,42 @@
+# 보안 정책 (Security Policy)
+
+## 비밀값 취급 원칙
+
+- 비밀값(토큰·API 키·DB 비밀번호·OAuth 시크릿)은 **저장소에 커밋하지 않는다.**
+- 저장 위치는 다음만 사용한다.
+  - 백엔드/서비스 런타임: GitHub Actions Secrets → 배포 시 서버 환경변수
+  - 데이터베이스 내부 함수/잡: **Supabase Vault** (`vault.create_secret` / `vault.decrypted_secrets`)
+  - 로컬 개발: `.env` (gitignore 대상)
+- 예시 값은 `YOUR_...` 형태의 자리표시자만 사용한다.
+
+## 노출 사고 대응 (회전 우선)
+
+비밀값이 노출된 것을 인지하면 **정리보다 회전이 먼저**다.
+
+1. **즉시 회전(revoke)** — 해당 토큰/키를 발급처에서 무효화하고 새 값을 발급한다.
+   - Telegram 봇: @BotFather → `/mybots` → API Token → Revoke
+   - Supabase/서비스 키: 대시보드에서 재발급
+   - GitHub PAT: Settings → Developer settings → revoke
+2. 새 값을 **Vault / Actions Secrets**에 저장한다.
+3. 코드에서 하드코딩을 제거하고 저장소에서 읽도록 수정한다.
+4. 필요 시 저장소 히스토리에서 문자열을 제거한다(`git filter-repo --replace-text`) 후 force-push.
+   - GitHub는 재작성 전 커밋을 SHA로 한동안 제공할 수 있다. 회전했다면 실질 위험은 없다.
+5. 남은 노출(포크·캐시·Actions 로그)을 점검한다.
+
+## 정기 점검
+
+- Secret Scan 워크플로(`.github/workflows/secret-scan.yml`, gitleaks)가 push/PR마다 검사한다.
+- Dependabot(`.github/dependabot.yml`)가 의존성 취약점 업데이트 PR을 만든다.
+- 로컬에서 커밋 전 확인: `gitleaks detect --no-banner` 또는 `git diff --cached | gitleaks detect --no-git -v`
+
+## 저장소 설정 권장
+
+- Code security: **Secret scanning** + **Push protection** 활성화
+- Dependabot alerts / security updates 활성화
+- `main` 브랜치 보호: Require PR, force push 금지, status check 필수
+- Actions: Default permissions → **Read-only**, 허용 Actions 제한
+- 계정 2FA, PAT는 fine-grained·최소권한·만료 설정
+
+## 신고
+
+보안 문제는 저장소 이슈가 아니라 운영자에게 비공개로 알린다.
