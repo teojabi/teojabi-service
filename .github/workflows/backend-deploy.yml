@@ -132,7 +132,7 @@ jobs:
             ${{ secrets.NCP_SSH_USER }}@${{ secrets.NCP_SSH_HOST }} echo ssh-ready
 
       - name: Activate backend on NCP
-        uses: appleboy/ssh-action@v1.1.0
+        uses: appleboy/ssh-action@v1.2.5
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           DIRECT_URL: ${{ secrets.DIRECT_URL }}
@@ -437,7 +437,7 @@ jobs:
       # Cloudflare가 러너를 막아도 실제 서비스 상태를 확인하도록, 서버에서 nginx(127.0.0.1)를
       # 경유해 공개와 동일한 경로를 검증한다. (Cloudflare를 우회한 origin 응답)
       - name: Verify public API via server nginx
-        uses: appleboy/ssh-action@v1.1.0
+        uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.NCP_SSH_HOST }}
           username: ${{ secrets.NCP_SSH_USER }}
@@ -462,7 +462,7 @@ jobs:
 
       - name: Show deploy diagnostics
         if: failure()
-        uses: appleboy/ssh-action@v1.1.0
+        uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.NCP_SSH_HOST }}
           username: ${{ secrets.NCP_SSH_USER }}
