@@ -7,7 +7,7 @@ const nonNegativeInt=(name,fallback)=>{const value=Number.parseInt(process.env[n
 const HOUR_MS=60*60*1000;
 const MINUTE_MS=60*1000;
 const KST_OFFSET_MS=9*60*60*1000;
-const HOURLY_QUOTA=positiveInt('TEOJABI_PREMIUM_HOURLY_QUOTA',900);
+const HOURLY_QUOTA=positiveInt('TEOJABI_PREMIUM_HOURLY_QUOTA',450);
 const ASSISTANT_WEIGHT=positiveInt('TEOJABI_ASSISTANT_WEIGHT',20);
 const NIGHT_START_HOUR=Math.min(23,nonNegativeInt('TEOJABI_NIGHT_START_HOUR',0));
 const NIGHT_END_HOUR=Math.min(24,nonNegativeInt('TEOJABI_NIGHT_END_HOUR',7));
