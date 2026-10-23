@@ -44,12 +44,12 @@
 
 1. **Security → Bots**: `Block AI bots`(또는 Bot Fight Mode) 활성화
 2. **Security → WAF → Rate limiting rules**에 아래 규칙을 추가한다.
-   - `api-rate-limit`: `http.host eq "api.teojabi.com" and starts_with(http.request.uri.path, "/api/")`
-     → IP당 **30 requests / 1 minute**, 초과 시 **Block 10분**
-   - `beta-rate-limit`: `http.host eq "api.teojabi.com" and starts_with(http.request.uri.path, "/beta/api/")`
-     → IP당 **60 requests / 1 minute**, 초과 시 **Block 10분**
-   - `site-rate-limit`: `(http.host eq "teojabi.com" or http.host eq "www.teojabi.com") and not starts_with(http.request.uri.path, "/assets/")`
+   - `api-rate-limit`: `http.host eq "api.teojabi.com" and (starts_with(http.request.uri.path, "/api/") or starts_with(http.request.uri.path, "/beta/api/"))`
+     → IP당 **20 requests / 10 seconds**, 초과 시 **Block 10초**
+   - `site-rate-limit` (유료 플랜): `(http.host eq "teojabi.com" or http.host eq "www.teojabi.com") and not starts_with(http.request.uri.path, "/assets/")`
      → IP당 **120 requests / 1 minute** (정적 HTML 대량 수집 완화)
+   - **무료 플랜 제한**: rate limiting 규칙 1개, `period`는 10초, `mitigation_timeout`은 10초만 허용된다.
+     그래서 무료 플랜에서는 API·베타 API를 하나의 규칙(20회/10초)으로 묶어 적용했다.
 3. **Supabase Edge Function**은 `*.supabase.co`로 직접 노출되어 Cloudflare를 우회한다.
    가능하면 `data.teojabi.com` 같은 **Cloudflare 프록시 커스텀 도메인**을 붙이고 위 rate limit을 적용한다.
 4. 코드 레벨 기본값은 아래 환경변수로 조정한다.
