@@ -7,7 +7,9 @@ const nonNegativeInt=(name,fallback)=>{const value=Number.parseInt(process.env[n
 const HOUR_MS=60*60*1000;
 const MINUTE_MS=60*1000;
 const KST_OFFSET_MS=9*60*60*1000;
-const HOURLY_QUOTA=positiveInt('TEOJABI_PREMIUM_HOURLY_QUOTA',450);
+const HOURLY_QUOTA=positiveInt('TEOJABI_PREMIUM_HOURLY_QUOTA',600);
+const CONSECUTIVE_THRESHOLD=positiveInt('TEOJABI_CONSECUTIVE_THRESHOLD',HOURLY_QUOTA);
+const CONSECUTIVE_BLOCK_MS=positiveInt('TEOJABI_CONSECUTIVE_BLOCK_MS',6*60*60*1000);
 const ASSISTANT_WEIGHT=positiveInt('TEOJABI_ASSISTANT_WEIGHT',20);
 const NIGHT_START_HOUR=Math.min(23,nonNegativeInt('TEOJABI_NIGHT_START_HOUR',0));
 const NIGHT_END_HOUR=Math.min(24,nonNegativeInt('TEOJABI_NIGHT_END_HOUR',7));
@@ -50,15 +52,38 @@ function timeWeight(now){
   return isNightKst(now)?NIGHT_WEIGHT:1;
 }
 
+function consecutiveBlock(userId,state,now){
+  const retryAfter=Math.ceil(CONSECUTIVE_BLOCK_MS/1000);
+  state.blockedUntil=now+CONSECUTIVE_BLOCK_MS;
+  state.count=0;
+  state.prevCount=0;
+  state.highStreak=0;
+  state.hourStart=now;
+  console.warn(`[premium-guard] consecutive quota abuse blocked userId=${userId} retryAfter=${retryAfter}`);
+  return {code:'consecutive-quota-abuse',retryAfter};
+}
+
 function checkHourlyQuota(userId,now,weight){
   let state=quotaState.get(userId);
-  if(!state||now-state.hourStart>=HOUR_MS){
+  if(!state){
     pruneOldest(quotaState);
-    state={hourStart:now,count:0};
+    state={hourStart:now,count:0,prevCount:0,highStreak:0,blockedUntil:0};
     quotaState.set(userId,state);
   }
+  if(state.blockedUntil>now){
+    return {code:'consecutive-quota-abuse',retryAfter:Math.max(1,Math.ceil((state.blockedUntil-now)/1000))};
+  }
+  if(now-state.hourStart>=HOUR_MS){
+    state.prevCount=state.count;
+    state.hourStart=now;
+    state.count=0;
+    state.highStreak=state.prevCount>=CONSECUTIVE_THRESHOLD?state.highStreak+1:0;
+    if(state.highStreak>=2)return consecutiveBlock(userId,state,now);
+  }
+  // 첫 시간에 이어 두 번째 시간도 임계치를 모두 소진하면 즉시 차단한다.
+  if(state.prevCount>=CONSECUTIVE_THRESHOLD&&state.count>=CONSECUTIVE_THRESHOLD)return consecutiveBlock(userId,state,now);
   if(state.count>=HOURLY_QUOTA){
-    return {retryAfter:Math.max(1,Math.ceil((state.hourStart+HOUR_MS-now)/1000))};
+    return {code:'premium-quota-exceeded',retryAfter:Math.max(1,Math.ceil((state.hourStart+HOUR_MS-now)/1000))};
   }
   state.count+=weight;
   return null;
@@ -117,7 +142,10 @@ export function checkPremiumAccess({userId,path,url,now=Date.now()}){
   try{parsed=new URL(String(url||'/'),'http://localhost');}catch{parsed=new URL('http://localhost/');}
   const quota=checkHourlyQuota(userId,now,requestWeight(path,parsed)*timeWeight(now));
   if(quota){
-    return {ok:false,status:429,code:'premium-quota-exceeded',message:'시간당 조회 한도를 초과했습니다. 잠시 후 다시 시도해 주세요.',retryAfter:quota.retryAfter};
+    if(quota.code==='consecutive-quota-abuse'){
+      return {ok:false,status:429,code:quota.code,message:'2시간 연속 조회 한도를 모두 소진해 일시 차단되었습니다.',retryAfter:quota.retryAfter};
+    }
+    return {ok:false,status:429,code:quota.code,message:'시간당 조회 한도를 초과했습니다. 잠시 후 다시 시도해 주세요.',retryAfter:quota.retryAfter};
   }
   const enumeration=checkEnumeration(userId,enumerationKey(path,parsed),now);
   if(enumeration){

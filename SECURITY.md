@@ -69,10 +69,11 @@
 - Supabase Edge Function(`data`)은 위 프리미엄 경로를 **403 `AUTH_REQUIRED`**로 차단한다. 공개 경로는 `runtime`, `health`, `neighborhoods`, `activity`, `parcels`(필지 경계)만 허용한다.
 - 비로그인 상태에서 프리미엄 API가 401을 반환하면 프론트엔드가 로그인 창을 띄운다.
 - 로그인 사용자에게도 **시간당 프리미엄 조회 쿼터**를 적용한다. (`beta-service/premium-guard.mjs`)
-  - 기본 `TEOJABI_PREMIUM_HOURLY_QUOTA=450`회/시간 (야간에는 2배 가중치)
+  - 기본 `TEOJABI_PREMIUM_HOURLY_QUOTA=600`회/시간 (야간에는 2배 가중치)
+  - **2시간 연속** `TEOJABI_CONSECUTIVE_THRESHOLD=600` units를 모두 소진하면 `TEOJABI_CONSECUTIVE_BLOCK_MS=21600000`(6시간) 동안 차단한다.
+  - 어시스턴트 요청은 `TEOJABI_ASSISTANT_WEIGHT=20`으로 계산한다. (시간당 30회, 야간 15회)
   - 카탈로그 요청은 `limit/5` 가중치(최대 100)를 적용해 `limit=500` 대량 덤프를 강하게 제한한다.
   - 카탈로그 상한은 일반 사용자 **100**, ADMIN **500**이다. ADMIN은 큐레이션을 위해 쿼터·열거 차단에서 제외한다.
-  - 어시스턴트 요청은 `TEOJABI_ASSISTANT_WEIGHT=20`으로 계산한다. (시간당 22회, 야간 11회)
   - 야간(기본 KST 00:00~06:59)에는 `TEOJABI_NIGHT_WEIGHT=2`를 적용해 쿼터를 2배로 계산한다.
 - **PNU/매물 열거 탐지**: 같은 사용자가 10분 안에 서로 다른 필지·매물을 비정상적으로 많이 조회하면 30분 차단한다.
   - 기본 `TEOJABI_PNU_ENUM_MAX=200` (10분), `TEOJABI_PNU_ENUM_PER_MINUTE=90` (1분), `TEOJABI_PNU_ENUM_BLOCK_MS=1800000`
