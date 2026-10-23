@@ -726,10 +726,11 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     if(map?.setGroups)map.setGroups([],null,false);
     const list=$('.explore-list');if(list)list.removeAttribute('aria-busy');
   }
-  function renderRateLimited(){
+  function renderRateLimited(message){
     result=null;
+    const text=message||'요청이 일시 제한되었습니다. 잠시 후 다시 시도해 주세요.';
     const host=$('#listing-list');
-    if(host)host.innerHTML='<div class="empty"><h2>요청이 잠시 제한되었어요</h2><p>조회 한도를 초과했습니다. 잠시 후 다시 시도해 주세요.</p><button class="outline" data-explore="retry">다시 시도</button></div>';
+    if(host)host.innerHTML=`<div class="empty"><h2>이용이 잠시 제한되었어요</h2><p>${esc(text)}</p><button class="outline" data-explore="retry">다시 시도</button></div>`;
     const count=$('#result-count');if(count)count.textContent='요청이 일시 제한되었습니다.';
     if(map?.setGroups)map.setGroups([],null,false);
     const list=$('.explore-list');if(list)list.removeAttribute('aria-busy');
@@ -757,7 +758,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     try {
       const response=await apiFetch(`/api/catalog?${params}`,{signal:abort.signal});
       if(response.status===401){if(!disposed&&current===version)renderLoginRequired();return;}
-      if(response.status===429){if(!disposed&&current===version)renderRateLimited();return;}
+      if(response.status===429){const d=await response.json().catch(()=>null);if(!disposed&&current===version)renderRateLimited(d?.message);return;}
       const data=await response.json();if(!response.ok || data.status!=='ready')throw new Error(data.reason||'unavailable');
       const merged=await fetchConditionAuctions();
       if(disposed||current!==version)return;
@@ -800,7 +801,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
       const catalogIds=ids.filter(id=>!(id.startsWith('auction:')||id.startsWith('onbid:')));
       const params=new URLSearchParams({ids:catalogIds.join(','),sort,limit:100});
       const catalogPromise=catalogIds.length
-        ? apiFetch(`/api/catalog?${params}`,{signal:abort.signal}).then(async response=>{if(response.status===401)throw new Error('AUTH_REQUIRED');if(response.status===429)throw new Error('RATE_LIMITED');const data=await response.json();if(!response.ok||data.status!=='ready')throw new Error(data.reason||'unavailable');return data;})
+        ? apiFetch(`/api/catalog?${params}`,{signal:abort.signal}).then(async response=>{if(response.status===401)throw new Error('AUTH_REQUIRED');if(response.status===429){const d=await response.json().catch(()=>null);const err=new Error('RATE_LIMITED');err.userMessage=d?.message;throw err;}const data=await response.json();if(!response.ok||data.status!=='ready')throw new Error(data.reason||'unavailable');return data;})
         : Promise.resolve({groups:[]});
       const specialPromise=Promise.all(specialIds.map(async id=>{
         try {
@@ -824,7 +825,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     } catch (error) {
       if(disposed||current!==version)return;
       if(error?.message==='AUTH_REQUIRED'){renderLoginRequired();return;}
-      if(error?.message==='RATE_LIMITED'){renderRateLimited();return;}
+      if(error?.message==='RATE_LIMITED'){renderRateLimited(error?.userMessage);return;}
       result=null;map.setGroups([],null,false);
       $('#result-count').textContent=source==='alert'?'?�림 매물???�인?��? 못했?�요.':'찜한 매물???�인?��? 못했?�요.';
       $('#listing-list').innerHTML=`<div class="empty"><h2>${source==='alert'?'?�림???�긴 매물??불러?��? 못했?�요.':'찜한 매물??불러?��? 못했?�요.'}</h2><p>?�결 ?�태�??�인?�고 ?�시 ?�도??주세??</p><button class="outline" data-explore="retry">?�시 불러?�기</button></div>`;
@@ -1313,7 +1314,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     case 'measure-clear':map.clearMeasure();break;
       case 'all-picks':{
         showAllPicks=!showAllPicks;button.disabled=true;
-          try{if(showAllPicks&&!pickGroups){const response=await apiFetch('/api/catalog?limit=500&cohort=existing',{signal:abort.signal});if(response.status===401){renderLoginRequired();return;}if(response.status===429){renderRateLimited();return;}const data=await response.json();if(!response.ok||data.status!=='ready')throw new Error();pickGroups=data.groups;}
+          try{if(showAllPicks&&!pickGroups){const response=await apiFetch('/api/catalog?limit=500&cohort=existing',{signal:abort.signal});if(response.status===401){renderLoginRequired();return;}if(response.status===429){const d=await response.json().catch(()=>null);renderRateLimited(d?.message);return;}const data=await response.json();if(!response.ok||data.status!=='ready')throw new Error();pickGroups=data.groups;}
           button.setAttribute('aria-pressed',String(showAllPicks));
           if(selected)closeDetail(false,false);else selected=null;
           map.setGroups(showAllPicks?(pickGroups||[]):(result?.groups||[]),null,true);

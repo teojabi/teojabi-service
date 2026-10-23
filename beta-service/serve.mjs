@@ -110,8 +110,8 @@ async function ensurePremiumAccess(request,response,path){
     const guard=checkPremiumAccess({userId:access.userId,path,url:request.url});
     if(!guard.ok){
       // 제한 종류(시간당/연속/일일/열거)는 서버 로그에만 남기고 클라이언트에는 공통 응답만 준다.
-      response.setHeader('Retry-After',String(guard.retryAfter));
-      send(response,request,{status:'rate-limited',message:'요청이 일시 제한되었습니다. 잠시 후 다시 시도해 주세요.'},guard.status);
+      response.setHeader('Retry-After',String(approximateRetrySeconds(guard.retryAfter)));
+      send(response,request,{status:'rate-limited',message:retryMessage(guard.retryAfter)},guard.status);
       return false;
     }
   }
@@ -121,6 +121,17 @@ function clampCatalogLimit(query,request){
   const max=!service.production||request.teojabiUser?.role==='ADMIN'?500:100;
   const requested=Number(query.get('limit'));
   if(Number.isFinite(requested)&&requested>max)query.set('limit',String(max));
+}
+// 제한 해제까지 남은 시간을 대략 1시간 단위로 올림해서 안내한다.
+function approximateRetrySeconds(seconds){
+  const safe=Number.isFinite(seconds)&&seconds>0?seconds:1;
+  return Math.max(1,Math.ceil(safe/3600))*3600;
+}
+function retryMessage(seconds){
+  const safe=Number.isFinite(seconds)&&seconds>0?seconds:1;
+  if(safe<3600)return '요청이 일시 제한되었습니다. 1시간 이내에 다시 시도해 주세요.';
+  const hours=Math.max(1,Math.ceil(safe/3600));
+  return `요청이 일시 제한되었습니다. 약 ${hours}시간 후 다시 시도해 주세요.`;
 }
 
 const root = fileURLToPath(new URL('.', import.meta.url));
