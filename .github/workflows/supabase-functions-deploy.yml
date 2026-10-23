@@ -29,7 +29,7 @@ jobs:
       PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF || 'tvrfrgozfoiucoeojrta' }}
     steps:
       - name: Checkout source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Check access token
         id: token
