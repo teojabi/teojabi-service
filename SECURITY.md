@@ -70,6 +70,7 @@
 - 비로그인 상태에서 프리미엄 API가 401을 반환하면 프론트엔드가 로그인 창을 띄운다.
 - 로그인 사용자에게도 **시간당 프리미엄 조회 쿼터**를 적용한다. (`beta-service/premium-guard.mjs`)
   - 기본 `TEOJABI_PREMIUM_HOURLY_QUOTA=600`회/시간
+  - **일일 쿼터** `TEOJABI_PREMIUM_DAILY_QUOTA=3000` units/24시간 (첫 요청 기준 rolling 24시간)
   - **2시간 연속 누적** `TEOJABI_TWO_HOUR_SUM_THRESHOLD=1000` units 이상이면 차단한다. (예: 500 + 500)
   - **3시간 연속 누적** `TEOJABI_THREE_HOUR_SUM_THRESHOLD=1000` units 이상이면 차단한다. (예: 400 + 400 + 200)
   - 차단 시간은 `TEOJABI_CONSECUTIVE_BLOCK_MS=18000000`(5시간)이다.

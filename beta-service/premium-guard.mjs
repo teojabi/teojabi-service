@@ -5,7 +5,9 @@ const positiveInt=(name,fallback)=>{const value=Number.parseInt(process.env[name
 
 const HOUR_MS=60*60*1000;
 const MINUTE_MS=60*1000;
+const DAY_MS=24*60*60*1000;
 const HOURLY_QUOTA=positiveInt('TEOJABI_PREMIUM_HOURLY_QUOTA',600);
+const DAILY_QUOTA=positiveInt('TEOJABI_PREMIUM_DAILY_QUOTA',3000);
 const TWO_HOUR_SUM_THRESHOLD=positiveInt('TEOJABI_TWO_HOUR_SUM_THRESHOLD',1000);
 const THREE_HOUR_SUM_THRESHOLD=positiveInt('TEOJABI_THREE_HOUR_SUM_THRESHOLD',1000);
 const CONSECUTIVE_BLOCK_MS=positiveInt('TEOJABI_CONSECUTIVE_BLOCK_MS',5*60*60*1000);
@@ -50,11 +52,28 @@ function tailSum(history,count){
   return total;
 }
 
+function checkDailyQuota(userId,state,now,weight){
+  if(now-state.dayStart>=DAY_MS){
+    state.dayStart=now;
+    state.dayCount=0;
+    state.dailyWarned=false;
+  }
+  if(state.dayCount+weight>DAILY_QUOTA){
+    if(!state.dailyWarned){
+      console.warn(`[premium-guard] daily quota blocked userId=${userId} used=${state.dayCount} limit=${DAILY_QUOTA}`);
+      state.dailyWarned=true;
+    }
+    return {code:'daily-quota-exceeded',retryAfter:Math.max(1,Math.ceil((state.dayStart+DAY_MS-now)/1000))};
+  }
+  state.dayCount+=weight;
+  return null;
+}
+
 function checkHourlyQuota(userId,now,weight){
   let state=quotaState.get(userId);
   if(!state){
     pruneOldest(quotaState);
-    state={hourStart:now,count:0,history:[],blockedUntil:0};
+    state={hourStart:now,count:0,history:[],blockedUntil:0,dayStart:now,dayCount:0,dailyWarned:false};
     quotaState.set(userId,state);
   }
   if(state.blockedUntil>now){
@@ -81,6 +100,8 @@ function checkHourlyQuota(userId,now,weight){
   if(state.history.length>=1&&state.history[state.history.length-1]+nextCount>=TWO_HOUR_SUM_THRESHOLD)return consecutiveBlock(userId,state,now);
   // 최근 2개 완료 시간 + 현재 시간 합계가 1,000 이상이면 차단 (예: 400 + 400 + 200)
   if(state.history.length>=2&&tailSum(state.history,2)+nextCount>=THREE_HOUR_SUM_THRESHOLD)return consecutiveBlock(userId,state,now);
+  const daily=checkDailyQuota(userId,state,now,weight);
+  if(daily)return daily;
   state.count=nextCount;
   return null;
 }
@@ -140,6 +161,9 @@ export function checkPremiumAccess({userId,path,url,now=Date.now()}){
   if(quota){
     if(quota.code==='consecutive-quota-abuse'){
       return {ok:false,status:429,code:quota.code,message:'2~3시간 연속 누적 한도를 초과해 일시 차단되었습니다.',retryAfter:quota.retryAfter};
+    }
+    if(quota.code==='daily-quota-exceeded'){
+      return {ok:false,status:429,code:quota.code,message:'일일 조회 한도를 초과했습니다. 잠시 후 다시 시도해 주세요.',retryAfter:quota.retryAfter};
     }
     return {ok:false,status:429,code:quota.code,message:'시간당 조회 한도를 초과했습니다. 잠시 후 다시 시도해 주세요.',retryAfter:quota.retryAfter};
   }
