@@ -21,7 +21,15 @@ function pruneOldest(map){
   if(oldest)map.delete(oldest);
 }
 
-function checkHourlyQuota(userId,now){
+function requestWeight(path,url){
+  if(path==='/api/catalog'||path==='/api/recommendations'){
+    const requested=Number(url.searchParams.get('limit')||5);
+    if(Number.isFinite(requested)&&requested>0)return Math.max(1,Math.min(100,Math.ceil(requested/5)));
+  }
+  return 1;
+}
+
+function checkHourlyQuota(userId,now,weight){
   let state=quotaState.get(userId);
   if(!state||now-state.hourStart>=HOUR_MS){
     pruneOldest(quotaState);
@@ -31,7 +39,7 @@ function checkHourlyQuota(userId,now){
   if(state.count>=HOURLY_QUOTA){
     return {retryAfter:Math.max(1,Math.ceil((state.hourStart+HOUR_MS-now)/1000))};
   }
-  state.count+=1;
+  state.count+=weight;
   return null;
 }
 
@@ -84,12 +92,12 @@ function checkEnumeration(userId,key,now){
 
 export function checkPremiumAccess({userId,path,url,now=Date.now()}){
   if(!userId)return {ok:false,status:401,code:'auth-required',message:'로그인이 필요합니다.',retryAfter:1};
-  const quota=checkHourlyQuota(userId,now);
+  let parsed;
+  try{parsed=new URL(String(url||'/'),'http://localhost');}catch{parsed=new URL('http://localhost/');}
+  const quota=checkHourlyQuota(userId,now,requestWeight(path,parsed));
   if(quota){
     return {ok:false,status:429,code:'premium-quota-exceeded',message:'시간당 조회 한도를 초과했습니다. 잠시 후 다시 시도해 주세요.',retryAfter:quota.retryAfter};
   }
-  let parsed;
-  try{parsed=new URL(String(url||'/'),'http://localhost');}catch{parsed=new URL('http://localhost/');}
   const enumeration=checkEnumeration(userId,enumerationKey(path,parsed),now);
   if(enumeration){
     return {ok:false,status:429,code:'enumeration-blocked',message:'비정상적으로 많은 필지를 조회했습니다. 잠시 후 다시 시도해 주세요.',retryAfter:enumeration.retryAfter};
