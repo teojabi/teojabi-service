@@ -27,7 +27,7 @@ jobs:
         run: echo "mode=$(tr -d '[:space:]' < .github/curation-cleanup-mode.txt)" >> "$GITHUB_OUTPUT"
 
       - name: Clean up curation candidates on NCP
-        uses: appleboy/ssh-action@v1.1.0
+        uses: appleboy/ssh-action@v1.2.5
         env:
           MODE: ${{ steps.mode.outputs.mode }}
         with:

@@ -51,7 +51,7 @@ jobs:
             ${{ secrets.NCP_SSH_USER }}@${{ secrets.NCP_SSH_HOST }} echo ssh-ready
 
       - name: Activate beta data service
-        uses: appleboy/ssh-action@v1.1.0
+        uses: appleboy/ssh-action@v1.2.5
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
