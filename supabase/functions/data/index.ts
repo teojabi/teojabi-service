@@ -24,6 +24,24 @@ const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SE
 
 const ALLOWED_ORIGINS = ["https://teojabi.com", "https://www.teojabi.com"];
 const ALLOWED_REFERER_HOSTS = ["teojabi.com", "www.teojabi.com", "127.0.0.1", "localhost"];
+// Premium inventory/plan/analysis data is served by the authenticated beta-service.
+// Deny these routes here so the no-verify-jwt Edge Function can no longer be used to scrape them.
+const PREMIUM_PREFIXES = [
+  "/api/catalog",
+  "/api/recommendations",
+  "/api/site-parcels",
+  "/api/parcel-context/",
+  "/api/parcel-documents/",
+  "/api/commercial",
+  "/api/surrounding",
+  "/api/risk/",
+  "/api/site-context/",
+  "/api/building-records/",
+  "/api/land-record/",
+  "/api/nearby-transactions/",
+];
+const isPremiumPath = (path: string) =>
+  PREMIUM_PREFIXES.some((prefix) => path === prefix || path.startsWith(prefix));
 const GUARD_ON = Deno.env.get("DATA_GUARD") !== "off";
 const NAVER_MAP_CLIENT_ID = Deno.env.get("NAVER_MAP_CLIENT_ID") || "f8td9fq8kq";
 const ACCOUNT_API_BASE = Deno.env.get("ACCOUNT_API_BASE") || "https://api.teojabi.com";
@@ -236,6 +254,10 @@ Deno.serve(async (request: Request) => {
   const url = new URL(request.url);
   const path = url.pathname.replace(/^.*\/data(?=\/|$)/, "");
   const params = url.searchParams;
+
+  if (isPremiumPath(path)) {
+    return json({ status: "forbidden", reason: "AUTH_REQUIRED" }, 403, origin);
+  }
 
   try {
     if (path === "/api/health") return json({ status: "ready", at: new Date().toISOString() }, 200, origin);

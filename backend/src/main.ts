@@ -70,6 +70,12 @@ function rateLimitPolicy(path: string): RateLimitPolicy {
 }
 
 function rateLimit(req: Request, res: Response, next: NextFunction) {
+  // beta-service가 루프백으로 세션을 확인하는 내부 호출은 사용자 요청 제한과 분리한다.
+  // nginx를 거친 외부 요청은 루프백이어도 X-Forwarded-For가 있으므로 제한 대상이다.
+  const forwardedFor = req.headers['x-forwarded-for'];
+  const forwardedValue = (Array.isArray(forwardedFor) ? forwardedFor.join(',') : forwardedFor ?? '').trim();
+  if (isLoopback(req.socket?.remoteAddress) && !forwardedValue) return next();
+
   const now = Date.now();
   const policy = rateLimitPolicy(req.path);
   const key = `${clientIp(req)}:${policy.key}`;

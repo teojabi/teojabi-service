@@ -12,6 +12,13 @@ import {getCondition,setCondition} from './condition-store.mjs';
 import {BUILD_DEFAULTS,buildCriteriaFields,buildConditionLabels,validateBuildCriteria} from './build-criteria.mjs';
 import {openNotifications,scheduleNotificationBadge,refreshNotificationBadge} from './notifications.mjs';
 import {logEvent} from './events.mjs';
+// 회원 전용 API가 401을 돌려주면 한 번만 로그인 창을 띄운다.
+let authPromptTimer = 0;
+window.addEventListener('teojabi-auth-required', () => {
+  if (member.status === 'ready') return;
+  clearTimeout(authPromptTimer);
+  authPromptTimer = setTimeout(() => openLogin(), 120);
+});
 const app = document.querySelector('#app');
 const emptyAuction=()=>({enabled:false,source:'both',dealType:'',saleKind:'',failMax:'',usages:[],maxPriceEok:'',maxBidRate:''});
 const emptyDraft=()=>({budgetEok:'',districts:[],neighborhoods:[],purpose:null,minArea:'',maxArea:'',areaUnit:'pyeong',zones:[],auction:emptyAuction(),...BUILD_DEFAULTS});

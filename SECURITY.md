@@ -57,6 +57,18 @@
    - beta-service: `TEOJABI_API_RATE_LIMIT`, `TEOJABI_HEAVY_RATE_LIMIT`, `TEOJABI_STATIC_RATE_LIMIT`, `TEOJABI_BLOCK_AI_CRAWLERS`
 5. `frontend/robots.txt`는 AI 학습 크롤러 전체를 차단한다. 단, robots.txt는 비강제이므로 Cloudflare 규칙과 함께 사용해야 한다.
 
+## 프리미엄 데이터 접근 통제
+
+- 아래 경로는 **로그인 필수**다. (`beta-service/server-access.mjs`의 `authorizeUser`)
+  - `/api/catalog`, `/api/recommendations`, `/api/assistant`, `/api/listings/*`
+  - `/api/site-parcels`, `/api/parcel-context/*`, `/api/parcel-documents/*`
+  - `/api/risk/*`, `/api/site-context/*`, `/api/building-records/*`, `/api/land-record/*`
+  - `/api/nearby-transactions/*`, `/api/commercial*`, `/api/surrounding`, `/api/redevelop-*`, `/api/land-use/*`
+- 웹은 회원 전용 요청을 `api.teojabi.com/beta`로 보내 HttpOnly 쿠키로 인증한다.
+- 앱은 `Authorization: Bearer` 토큰으로 같은 beta-service를 인증한다.
+- Supabase Edge Function(`data`)은 위 프리미엄 경로를 **403 `AUTH_REQUIRED`**로 차단한다. 공개 경로는 `runtime`, `health`, `neighborhoods`, `activity`, `parcels`(필지 경계)만 허용한다.
+- 비로그인 상태에서 프리미엄 API가 401을 반환하면 프론트엔드가 로그인 창을 띄운다.
+
 ## 신고
 
 보안 문제는 저장소 이슈가 아니라 운영자에게 비공개로 알린다.

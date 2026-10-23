@@ -717,6 +717,14 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     const filtered=filterAuctionsByArea(groups,criteria.minAreaM2,criteria.maxAreaM2);
     return filtered.length?{groups:filtered,total:filtered.length}:null;
   }
+  function renderLoginRequired(){
+    result=null;
+    const host=$('#listing-list');
+    if(host)host.innerHTML='<div class="empty"><h2>회원 전용 정보예요</h2><p>매물·지구단위계획·건축 분석은 로그인 후 확인할 수 있어요.</p><button class="primary" data-explore="guest-signup">로그인·회원가입</button></div>';
+    const count=$('#result-count');if(count)count.textContent='로그인이 필요합니다.';
+    if(map?.setGroups)map.setGroups([],null,false);
+    const list=$('.explore-list');if(list)list.removeAttribute('aria-busy');
+  }
   async function load({fit=true}={}) {
     clearTimeout(loadTimer);
     if(source==='assistant')return loadAssistant();
@@ -739,6 +747,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     $('.search-suggestions').replaceChildren();
     try {
       const response=await apiFetch(`/api/catalog?${params}`,{signal:abort.signal});
+      if(response.status===401){if(!disposed&&current===version)renderLoginRequired();return;}
       const data=await response.json();if(!response.ok || data.status!=='ready')throw new Error(data.reason||'unavailable');
       const merged=await fetchConditionAuctions();
       if(disposed||current!==version)return;
@@ -780,7 +789,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
       const catalogIds=ids.filter(id=>!(id.startsWith('auction:')||id.startsWith('onbid:')));
       const params=new URLSearchParams({ids:catalogIds.join(','),sort,limit:100});
       const catalogPromise=catalogIds.length
-        ? apiFetch(`/api/catalog?${params}`,{signal:abort.signal}).then(async response=>{const data=await response.json();if(!response.ok||data.status!=='ready')throw new Error(data.reason||'unavailable');return data;})
+        ? apiFetch(`/api/catalog?${params}`,{signal:abort.signal}).then(async response=>{if(response.status===401)throw new Error('AUTH_REQUIRED');const data=await response.json();if(!response.ok||data.status!=='ready')throw new Error(data.reason||'unavailable');return data;})
         : Promise.resolve({groups:[]});
       const specialPromise=Promise.all(specialIds.map(async id=>{
         try {
@@ -801,11 +810,12 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
       result={status:'ready',groups,totalParcels:groups.length,totalListings:groups.length,hasMore:false,observedAt:data.observedAt||null,missingFavorites:ids.filter(id=>!found.has(id))};
       $('.explore-list').removeAttribute('aria-busy');drawCards();map.setGroups(result.groups,selected,fit);
       if(initialId){const id=initialId;initialId=null;openDetail(id);}
-    } catch {
+    } catch (error) {
       if(disposed||current!==version)return;
+      if(error?.message==='AUTH_REQUIRED'){renderLoginRequired();return;}
       result=null;map.setGroups([],null,false);
-      $('#result-count').textContent=source==='alert'?'알림 매물을 확인하지 못했어요.':'찜한 매물을 확인하지 못했어요.';
-      $('#listing-list').innerHTML=`<div class="empty"><h2>${source==='alert'?'알림에 담긴 매물을 불러오지 못했어요.':'찜한 매물을 불러오지 못했어요.'}</h2><p>연결 상태를 확인하고 다시 시도해 주세요.</p><button class="outline" data-explore="retry">다시 불러오기</button></div>`;
+      $('#result-count').textContent=source==='alert'?'?�림 매물???�인?��? 못했?�요.':'찜한 매물???�인?��? 못했?�요.';
+      $('#listing-list').innerHTML=`<div class="empty"><h2>${source==='alert'?'?�림???�긴 매물??불러?��? 못했?�요.':'찜한 매물??불러?��? 못했?�요.'}</h2><p>?�결 ?�태�??�인?�고 ?�시 ?�도??주세??</p><button class="outline" data-explore="retry">?�시 불러?�기</button></div>`;
     }
   }
   // 알림에 담긴 매물만 개별 상세로 불러온다(카탈로그에 없는 원자료 네이버·디스코 포함).
@@ -1291,7 +1301,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     case 'measure-clear':map.clearMeasure();break;
       case 'all-picks':{
         showAllPicks=!showAllPicks;button.disabled=true;
-        try{if(showAllPicks&&!pickGroups){const response=await apiFetch('/api/catalog?limit=500&cohort=existing',{signal:abort.signal}),data=await response.json();if(!response.ok||data.status!=='ready')throw new Error();pickGroups=data.groups;}
+          try{if(showAllPicks&&!pickGroups){const response=await apiFetch('/api/catalog?limit=500&cohort=existing',{signal:abort.signal});if(response.status===401){renderLoginRequired();return;}const data=await response.json();if(!response.ok||data.status!=='ready')throw new Error();pickGroups=data.groups;}
           button.setAttribute('aria-pressed',String(showAllPicks));
           if(selected)closeDetail(false,false);else selected=null;
           map.setGroups(showAllPicks?(pickGroups||[]):(result?.groups||[]),null,true);

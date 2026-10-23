@@ -17,7 +17,7 @@ import { parseAssistant, buildResult, buildAuctionResult, buildCombinedResult, h
 import { runAssistant } from './assistant-api.mjs';
 import { selectedCatalog, validListingId } from './selected-catalog.mjs';
 import { DISTRICTS } from './policy.mjs';
-import { serviceConfig, allowedOrigin, allowedReferer, authorizeCuration } from './server-access.mjs';
+import { serviceConfig, allowedOrigin, allowedReferer, authorizeCuration, authorizeUser } from './server-access.mjs';
 const service=serviceConfig();
 // Origin·Referer 없는 비브라우저 요청 차단. 긴급 시 TEOJABI_API_GUARD=off 로 해제한다.
 const apiGuardOn=process.env.TEOJABI_API_GUARD!=='off';
@@ -90,6 +90,13 @@ setInterval(()=>{
   const now=Date.now();
   for(const [key,bucket] of rateBuckets)if(bucket.resetAt<=now)rateBuckets.delete(key);
 },RATE_WINDOW_MS).unref();
+
+// 회원 전용 데이터 경로. 큐레이션/매물/지구단위계획/건축분석/상권·주변정보가 포함된다.
+const PREMIUM_PREFIXES=['/api/catalog','/api/recommendations','/api/listings/','/api/site-parcels',
+  '/api/parcel-context/','/api/parcel-documents/','/api/commercial','/api/surrounding',
+  '/api/redevelop-','/api/land-use/','/api/risk/','/api/site-context/','/api/building-records/',
+  '/api/land-record/','/api/nearby-transactions/','/api/assistant'];
+const isPremiumPath=path=>PREMIUM_PREFIXES.some(prefix=>path===prefix||path.startsWith(prefix));
 
 const root = fileURLToPath(new URL('.', import.meta.url));
 const cachePath=name=>process.env.TEOJABI_DATA_SOURCE==='supabase'&&/^\.local\/(selected-|curation-)/.test(name)?name.replace('.local/','.local/supabase/'):name;
@@ -486,6 +493,8 @@ createServer(async (request, response) => {
     return;
   }
   if (request.url?.split('?')[0]==='/api/assistant') {
+    const access=await authorizeUser(request,service);
+    if(access!==200){send(response,request,{status:access===401?'auth-required':'error',message:access===401?'로그인이 필요합니다.':'로그인 상태를 확인할 수 없습니다.'},access===401?401:503);return;}
     if(request.method!=='POST'){send(response,request,{status:'invalid'},405);return;}
     let body;
     try{body=await readReviewBody(request);}catch{send(response,request,{status:'invalid'},400);return;}
@@ -560,6 +569,10 @@ createServer(async (request, response) => {
   let path;
   try { path = decodeURIComponent(new URL(request.url, 'http://localhost').pathname); }
   catch { response.writeHead(400).end(); return; }
+  if (isPremiumPath(path)) {
+    const access=await authorizeUser(request,service);
+    if(access!==200){send(response,request,{status:access===401?'auth-required':'error',message:access===401?'로그인이 필요합니다.':'로그인 상태를 확인할 수 없습니다.'},access===401?401:503);return;}
+  }
   if (path==='/api/health') { send(response,request,{status:'ready',at:new Date().toISOString()}); return; }
   if (path==='/api/runtime') {
     try {
