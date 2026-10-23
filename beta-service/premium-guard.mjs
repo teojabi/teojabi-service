@@ -55,10 +55,12 @@ function checkHourlyQuota(userId,now,weight){
     return {code:'consecutive-quota-abuse',retryAfter:Math.max(1,Math.ceil((state.blockedUntil-now)/1000))};
   }
   if(now-state.hourStart>=HOUR_MS){
-    state.prevCount=state.count;
+    // 한 시간 넘게 완전히 쉬었다면 연속 사용으로 보지 않는다.
+    const idleFullWindow=now-state.hourStart>=2*HOUR_MS;
+    state.prevCount=idleFullWindow?0:state.count;
     state.hourStart=now;
     state.count=0;
-    state.highStreak=state.prevCount>=CONSECUTIVE_THRESHOLD?state.highStreak+1:0;
+    state.highStreak=idleFullWindow?0:(state.prevCount>=CONSECUTIVE_THRESHOLD?state.highStreak+1:0);
     if(state.highStreak>=2)return consecutiveBlock(userId,state,now);
   }
   // 첫 시간에 이어 두 번째 시간도 임계치를 모두 소진하면 즉시 차단한다.
