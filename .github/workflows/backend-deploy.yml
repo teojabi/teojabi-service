@@ -110,7 +110,7 @@ jobs:
 
       # SSH 핸드셰이크가 간헐적으로 끊기는 문제(ssh: handshake failed: EOF)를 흡수하도록 업로드를 재시도한다.
       - name: Upload runtime files to NCP
-        uses: nick-fields/retry@v3
+        uses: nick-fields/retry@v4
         env:
           SSHPASS: ${{ secrets.NCP_SSH_PASSWORD }}
         with:
@@ -123,7 +123,7 @@ jobs:
 
       # 활성화 스크립트는 재실행에 안전하지 않으므로, 먼저 SSH 접속이 될 때까지 재시도해 연결 실패를 흡수한다.
       - name: Wait for SSH before activating backend
-        uses: nick-fields/retry@v3
+        uses: nick-fields/retry@v4
         env:
           SSHPASS: ${{ secrets.NCP_SSH_PASSWORD }}
         with:
