@@ -109,8 +109,9 @@ async function ensurePremiumAccess(request,response,path){
   if(service.production&&access.role!=='ADMIN'){
     const guard=checkPremiumAccess({userId:access.userId,path,url:request.url});
     if(!guard.ok){
+      // 제한 종류(시간당/연속/일일/열거)는 서버 로그에만 남기고 클라이언트에는 공통 응답만 준다.
       response.setHeader('Retry-After',String(guard.retryAfter));
-      send(response,request,{status:guard.code,message:guard.message,retryAfter:guard.retryAfter},guard.status);
+      send(response,request,{status:'rate-limited',message:'요청이 일시 제한되었습니다. 잠시 후 다시 시도해 주세요.'},guard.status);
       return false;
     }
   }

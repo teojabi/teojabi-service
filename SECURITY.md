@@ -80,7 +80,8 @@
 - **PNU/매물 열거 탐지**: 같은 사용자가 10분 안에 서로 다른 필지·매물을 비정상적으로 많이 조회하면 30분 차단한다.
   - 기본 `TEOJABI_PNU_ENUM_MAX=200` (10분), `TEOJABI_PNU_ENUM_PER_MINUTE=90` (1분), `TEOJABI_PNU_ENUM_BLOCK_MS=1800000`
   - 동일 매물의 상세 API 여러 개는 하나로 계산한다.
-  - 차단 시 `429` + `Retry-After`와 `enumeration-blocked` 코드를 반환하고 서버 로그에 남긴다.
+  - 차단 시 `429` + `Retry-After`를 반환하고, 상세 사유(시간당/연속/일일/열거)는 서버 로그에만 남긴다.
+  - 클라이언트 응답은 `{ "status": "rate-limited" }` 공통 형식으로 통일해 제한 종류를 노출하지 않는다.
 
 ## 신고
 

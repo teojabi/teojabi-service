@@ -42,6 +42,7 @@ function consecutiveBlock(userId,state,now){
   state.count=0;
   state.history=[];
   state.hourStart=now;
+  state.quotaWarned=false;
   console.warn(`[premium-guard] cumulative quota abuse blocked userId=${userId} retryAfter=${retryAfter}`);
   return {code:'consecutive-quota-abuse',retryAfter};
 }
@@ -73,7 +74,7 @@ function checkHourlyQuota(userId,now,weight){
   let state=quotaState.get(userId);
   if(!state){
     pruneOldest(quotaState);
-    state={hourStart:now,count:0,history:[],blockedUntil:0,dayStart:now,dayCount:0,dailyWarned:false};
+    state={hourStart:now,count:0,history:[],blockedUntil:0,dayStart:now,dayCount:0,dailyWarned:false,quotaWarned:false};
     quotaState.set(userId,state);
   }
   if(state.blockedUntil>now){
@@ -89,10 +90,15 @@ function checkHourlyQuota(userId,now,weight){
     }
     state.hourStart=now;
     state.count=0;
+    state.quotaWarned=false;
     if(state.history.length>=2&&tailSum(state.history,2)>=TWO_HOUR_SUM_THRESHOLD)return consecutiveBlock(userId,state,now);
     if(state.history.length>=3&&tailSum(state.history,3)>=THREE_HOUR_SUM_THRESHOLD)return consecutiveBlock(userId,state,now);
   }
   if(state.count>=HOURLY_QUOTA){
+    if(!state.quotaWarned){
+      console.warn(`[premium-guard] hourly quota blocked userId=${userId} used=${state.count} limit=${HOURLY_QUOTA}`);
+      state.quotaWarned=true;
+    }
     return {code:'premium-quota-exceeded',retryAfter:Math.max(1,Math.ceil((state.hourStart+HOUR_MS-now)/1000))};
   }
   const nextCount=state.count+weight;
