@@ -104,7 +104,9 @@ async function ensurePremiumAccess(request,response,path){
     send(response,request,{status:access.status===401?'auth-required':'error',message:access.status===401?'로그인이 필요합니다.':'로그인 상태를 확인할 수 없습니다.'},access.status===401?401:503);
     return false;
   }
-  if(service.production){
+  request.teojabiUser=access;
+  // ADMIN은 큐레이션/검수 때문에 대량 조회가 필요하므로 쿼터·열거 차단에서 제외한다.
+  if(service.production&&access.role!=='ADMIN'){
     const guard=checkPremiumAccess({userId:access.userId,path,url:request.url});
     if(!guard.ok){
       response.setHeader('Retry-After',String(guard.retryAfter));
@@ -113,6 +115,11 @@ async function ensurePremiumAccess(request,response,path){
     }
   }
   return true;
+}
+function clampCatalogLimit(query,request){
+  const max=!service.production||request.teojabiUser?.role==='ADMIN'?500:100;
+  const requested=Number(query.get('limit'));
+  if(Number.isFinite(requested)&&requested>max)query.set('limit',String(max));
 }
 
 const root = fileURLToPath(new URL('.', import.meta.url));
@@ -778,6 +785,7 @@ createServer(async (request, response) => {
       const data=await catalog();
       if (path==='/api/catalog') {
         const query=new URL(request.url,'http://localhost').searchParams;
+        clampCatalogLimit(query,request);
         // 역에서 거리 조건: 역 좌표를 확인해 카탈로그 필터에 넘긴다.
         const stationName=(query.get('stationName')||'').trim();
         let station=null;
@@ -875,6 +883,7 @@ createServer(async (request, response) => {
         ]};
       } else {
         const query = new URL(request.url, 'http://localhost').searchParams;
+        clampCatalogLimit(query,request);
         const data=await catalog(),current=browseCatalog(data,query);
         result={...current,suggestions:suggestCatalogChanges(data,query,current)};
       }

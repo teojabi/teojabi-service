@@ -41,17 +41,17 @@ const userAuthCache=new Map();
 const MAX_USER_AUTH_CACHE=5_000;
 const USER_AUTH_TTL_MS=30_000;
 export async function authorizeUser(request,config,fetcher=fetch) {
-  if(!config.production)return {status:200,userId:'local-dev'};
-  if(request.headers.origin&&!allowedOrigin(request.headers.origin,config))return {status:403,userId:null};
-  if(request.method==='POST'&&!request.headers.origin)return {status:403,userId:null};
+  if(!config.production)return {status:200,userId:'local-dev',role:null};
+  if(request.headers.origin&&!allowedOrigin(request.headers.origin,config))return {status:403,userId:null,role:null};
+  if(request.method==='POST'&&!request.headers.origin)return {status:403,userId:null,role:null};
   const cookie=String(request.headers.cookie||'');
   const authorization=String(request.headers.authorization||'');
-  if(!cookie&&!authorization)return {status:401,userId:null};
+  if(!cookie&&!authorization)return {status:401,userId:null,role:null};
   const key=(authorization?`a:${authorization}`:`c:${cookie}`).slice(0,4096);
   const now=Date.now();
   const cached=userAuthCache.get(key);
-  if(cached&&cached.expiresAt>now)return {status:cached.status,userId:cached.userId};
-  let status=503,userId=null;
+  if(cached&&cached.expiresAt>now)return {status:cached.status,userId:cached.userId,role:cached.role};
+  let status=503,userId=null,role=null;
   try {
     const headers={};
     if(cookie)headers.cookie=cookie;
@@ -60,12 +60,13 @@ export async function authorizeUser(request,config,fetcher=fetch) {
     if(response.ok){
       const user=await response.json().catch(()=>null);
       userId=user&&typeof user.id==='string'?user.id:null;
+      role=user&&typeof user.role==='string'?user.role:null;
       status=userId?200:401;
     }else{
       status=response.status===401||response.status===403?401:503;
     }
-  } catch {status=503;userId=null;}
+  } catch {status=503;userId=null;role=null;}
   if(userAuthCache.size>=MAX_USER_AUTH_CACHE)userAuthCache.delete(userAuthCache.keys().next().value);
-  userAuthCache.set(key,{status,userId,expiresAt:now+(status===200?USER_AUTH_TTL_MS:5_000)});
-  return {status,userId};
+  userAuthCache.set(key,{status,userId,role,expiresAt:now+(status===200?USER_AUTH_TTL_MS:5_000)});
+  return {status,userId,role};
 }

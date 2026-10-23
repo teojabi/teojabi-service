@@ -2,10 +2,16 @@
 // State is per beta-service process (PM2 single instance); restart clears it.
 
 const positiveInt=(name,fallback)=>{const value=Number.parseInt(process.env[name]??'',10);return Number.isFinite(value)&&value>0?value:fallback;};
+const nonNegativeInt=(name,fallback)=>{const value=Number.parseInt(process.env[name]??'',10);return Number.isInteger(value)&&value>=0?value:fallback;};
 
 const HOUR_MS=60*60*1000;
 const MINUTE_MS=60*1000;
+const KST_OFFSET_MS=9*60*60*1000;
 const HOURLY_QUOTA=positiveInt('TEOJABI_PREMIUM_HOURLY_QUOTA',900);
+const ASSISTANT_WEIGHT=positiveInt('TEOJABI_ASSISTANT_WEIGHT',20);
+const NIGHT_START_HOUR=Math.min(23,nonNegativeInt('TEOJABI_NIGHT_START_HOUR',0));
+const NIGHT_END_HOUR=Math.min(24,nonNegativeInt('TEOJABI_NIGHT_END_HOUR',7));
+const NIGHT_WEIGHT=positiveInt('TEOJABI_NIGHT_WEIGHT',2);
 const ENUM_WINDOW_MS=positiveInt('TEOJABI_PNU_ENUM_WINDOW_MS',10*60*1000);
 const ENUM_MAX=positiveInt('TEOJABI_PNU_ENUM_MAX',200);
 const ENUM_PER_MINUTE=positiveInt('TEOJABI_PNU_ENUM_PER_MINUTE',90);
@@ -22,11 +28,26 @@ function pruneOldest(map){
 }
 
 function requestWeight(path,url){
+  if(path==='/api/assistant')return ASSISTANT_WEIGHT;
   if(path==='/api/catalog'||path==='/api/recommendations'){
     const requested=Number(url.searchParams.get('limit')||5);
     if(Number.isFinite(requested)&&requested>0)return Math.max(1,Math.min(100,Math.ceil(requested/5)));
   }
   return 1;
+}
+
+// 대한민국 시간대의 야간(기본 00:00~06:59)에는 쿼터를 더 무겁게 계산한다.
+// 정상 사용자는 야간에도 소량만 쓰지만, 자동 수집은 야간에 몰리는 경우가 많다.
+function isNightKst(now){
+  const hour=new Date(now+KST_OFFSET_MS).getUTCHours();
+  if(NIGHT_START_HOUR===NIGHT_END_HOUR)return false;
+  return NIGHT_START_HOUR<NIGHT_END_HOUR
+    ? hour>=NIGHT_START_HOUR&&hour<NIGHT_END_HOUR
+    : hour>=NIGHT_START_HOUR||hour<NIGHT_END_HOUR;
+}
+
+function timeWeight(now){
+  return isNightKst(now)?NIGHT_WEIGHT:1;
 }
 
 function checkHourlyQuota(userId,now,weight){
@@ -94,7 +115,7 @@ export function checkPremiumAccess({userId,path,url,now=Date.now()}){
   if(!userId)return {ok:false,status:401,code:'auth-required',message:'로그인이 필요합니다.',retryAfter:1};
   let parsed;
   try{parsed=new URL(String(url||'/'),'http://localhost');}catch{parsed=new URL('http://localhost/');}
-  const quota=checkHourlyQuota(userId,now,requestWeight(path,parsed));
+  const quota=checkHourlyQuota(userId,now,requestWeight(path,parsed)*timeWeight(now));
   if(quota){
     return {ok:false,status:429,code:'premium-quota-exceeded',message:'시간당 조회 한도를 초과했습니다. 잠시 후 다시 시도해 주세요.',retryAfter:quota.retryAfter};
   }

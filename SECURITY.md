@@ -71,6 +71,9 @@
 - 로그인 사용자에게도 **시간당 프리미엄 조회 쿼터**를 적용한다. (`beta-service/premium-guard.mjs`)
   - 기본 `TEOJABI_PREMIUM_HOURLY_QUOTA=900`회/시간
   - 카탈로그 요청은 `limit/5` 가중치(최대 100)를 적용해 `limit=500` 대량 덤프를 강하게 제한한다.
+  - 카탈로그 상한은 일반 사용자 **100**, ADMIN **500**이다. ADMIN은 큐레이션을 위해 쿼터·열거 차단에서 제외한다.
+  - 어시스턴트 요청은 `TEOJABI_ASSISTANT_WEIGHT=20`으로 계산한다. (시간당 45회)
+  - 야간(기본 KST 00:00~06:59)에는 `TEOJABI_NIGHT_WEIGHT=2`를 적용해 쿼터를 2배로 계산한다.
 - **PNU/매물 열거 탐지**: 같은 사용자가 10분 안에 서로 다른 필지·매물을 비정상적으로 많이 조회하면 30분 차단한다.
   - 기본 `TEOJABI_PNU_ENUM_MAX=200` (10분), `TEOJABI_PNU_ENUM_PER_MINUTE=90` (1분), `TEOJABI_PNU_ENUM_BLOCK_MS=1800000`
   - 동일 매물의 상세 API 여러 개는 하나로 계산한다.

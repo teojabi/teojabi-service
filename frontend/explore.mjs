@@ -256,6 +256,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
   const picksOnlyMode=Boolean(picksOnly);
   const abort=new AbortController();let disposed=false,version=0,detailVersion=0,closeStreet,closeStreetPreview,closeContext,closeRecords,closeLand,closeCommercial,closeSurrounding;
   let result=null,selected=null,detail=null,parcel=null,limit=5,bounds=conditions?.bounds||null,query='',sort=['price','price-desc','area','ppp'].includes(conditions?.sort)?conditions.sort:'price',mapView=null;
+  const catalogLimitCap=()=>member.user?.role==='ADMIN'?500:100;
   let assistantResult=assistant&&Array.isArray(assistant.groups)?assistant:null;
   let alertIds=Array.isArray(initialIds)?initialIds.filter(Boolean):[];
   let source=assistantResult?'assistant':initialSource==='favorites'?'favorites':(initialSource==='auction'||initialSource==='onbid')?'auction':(alertIds.length?'alert':'conditions');
@@ -752,6 +753,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
       const merged=await fetchConditionAuctions();
       if(disposed||current!==version)return;
       if(merged){data.groups=mixAssistantGroups([...(data.groups||[]),...merged.groups]);data.auctionTotal=merged.total;}
+      if(limit>=catalogLimitCap())data.hasMore=false;
       result=data;
       $('.explore-list').removeAttribute('aria-busy');drawCards();map.setGroups(showAllPicks?(pickGroups||[]):mapGroups(),selected,fit);
       if(initialId){const id=initialId;initialId=null;openDetail(id);}
@@ -1361,7 +1363,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
       case 'retry-detail':openDetail(selected);break;
       case 'back-list':setSheet(true);closeDetail();break;
       case 'close':closeDetail();break;
-      case 'more':if(source==='assistant'){assistantShown+=5;drawCards();map.setGroups(showAllPicks?(pickGroups||[]):mapGroups(),selected,true);}else if(source==='auction'){loadAuctions({fit:false,append:true});}else{limit=Math.min(500,limit+20);load({fit:false});}break;
+        case 'more':if(source==='assistant'){assistantShown+=5;drawCards();map.setGroups(showAllPicks?(pickGroups||[]):mapGroups(),selected,true);}else if(source==='auction'){loadAuctions({fit:false,append:true});}else{limit=Math.min(catalogLimitCap(),limit+20);load({fit:false});}break;
       case 'retry':load();break;
       case 'pane':$('.explore-board').dataset.pane=button.dataset.value;root.querySelectorAll('[data-explore="pane"]').forEach(b=>b.setAttribute('aria-pressed',String(b===button)));break;
       case 'search-map':if(mapView){bounds=mapView.bounds;limit=5;closeDetail();load({fit:false});}break;
