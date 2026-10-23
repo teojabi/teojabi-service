@@ -8,6 +8,7 @@
 //   GET .../data/api/recommendations?<browse query>
 // 스냅샷은 Supabase `public.snapshots` 테이블에서 읽는다. (서버가 큐레이션 후 업로드)
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { isBlockedBot, rateLimitHeaders, takeRateLimit } from "../_shared/rate-limit.ts";
 import { selectedCatalog } from "./lib/selected-catalog.mjs";
 import { browseCatalog, suggestCatalogChanges, DOCUMENT_LINKS } from "./lib/catalog.mjs";
 import { buildParcelContext, buildBuildingRecords, buildRiskReview } from "./lib/risk-policy.mjs";
@@ -37,6 +38,7 @@ function corsHeaders(origin: string | null): Record<string, string> {
     "Content-Type": "application/json; charset=utf-8",
     "Cache-Control": "no-store",
     "X-Content-Type-Options": "nosniff",
+    "X-Robots-Tag": "noindex, nofollow, noarchive",
   };
 }
 function json(body: unknown, status: number, origin: string | null): Response {
@@ -219,6 +221,16 @@ Deno.serve(async (request: Request) => {
   if (origin && !ALLOWED_ORIGINS.includes(origin)) return json({ status: "forbidden" }, 403, origin);
   if (GUARD_ON && !origin && !allowedReferer(request.headers.get("referer"))) {
     return json({ status: "forbidden" }, 403, origin);
+  }
+
+  if (isBlockedBot(request)) return json({ status: "forbidden" }, 403, origin);
+
+  const limit = takeRateLimit(request, "data");
+  if (!limit.ok) {
+    return new Response(JSON.stringify({ status: "error", message: "Too many requests" }), {
+      status: 429,
+      headers: { ...corsHeaders(origin), ...rateLimitHeaders(limit) },
+    });
   }
 
   const url = new URL(request.url);

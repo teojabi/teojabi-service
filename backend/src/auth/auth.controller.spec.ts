@@ -11,6 +11,9 @@ describe('AuthController', () => {
     generatePendingSocialSignupToken: jest.Mock;
     verifyPendingSocialSignupToken: jest.Mock;
     completeSocialSignup: jest.Mock;
+    createAppAuthCode: jest.Mock;
+    createAppSignupCode: jest.Mock;
+    exchangeAppCode: jest.Mock;
   };
 
   const createResponse = () => {
@@ -30,6 +33,9 @@ describe('AuthController', () => {
       generatePendingSocialSignupToken: jest.fn(),
       verifyPendingSocialSignupToken: jest.fn(),
       completeSocialSignup: jest.fn(),
+      createAppAuthCode: jest.fn(),
+      createAppSignupCode: jest.fn(),
+      exchangeAppCode: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -58,7 +64,7 @@ describe('AuthController', () => {
       for (const name of ['access_token', 'pending_signup_token', 'pending_signup_provider']) {
         expect(res.clearCookie).toHaveBeenCalledWith(
           name,
-          expect.objectContaining({ httpOnly: true, secure: true, sameSite: 'none', domain: '.teojabi.com' }),
+          expect.objectContaining({ httpOnly: true, secure: true, sameSite: 'lax', domain: '.teojabi.com' }),
         );
       }
       expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ success: true }));
@@ -246,5 +252,57 @@ describe('AuthController', () => {
     expect(res.json).toHaveBeenCalledWith(
       expect.objectContaining({ success: true, redirectUrl: '/mypage.html?is_new=true' }),
     );
+  });
+
+  it('앱 로그인은 URL에 JWT 대신 1회용 코드를 전달한다', async () => {
+    const previous = process.env.APP_AUTH_REDIRECT_URL;
+    process.env.APP_AUTH_REDIRECT_URL = 'teojabi://auth';
+    const req = {
+      user: { provider: 'kakao', providerId: 'kakao-1', email: 'a@test.com', name: 'A' },
+      query: { client: 'app' },
+    } as any;
+    const res = createResponse();
+    authService.findExistingSocialUser.mockResolvedValue({ id: 'user-1', role: 'USER' });
+    authService.createAppAuthCode.mockReturnValue('one-time-code');
+    try {
+      await controller.kakaoAuthCallback(req, res);
+      const redirectUrl = res.redirect.mock.calls[0][0] as string;
+      expect(redirectUrl).toContain('code=one-time-code');
+      expect(redirectUrl).not.toContain('token=');
+      expect(authService.generateJwtCookiePayload).not.toHaveBeenCalled();
+    } finally {
+      if (previous === undefined) delete process.env.APP_AUTH_REDIRECT_URL;
+      else process.env.APP_AUTH_REDIRECT_URL = previous;
+    }
+  });
+
+  it('앱 신규 가입은 URL에 signupToken 대신 1회용 코드를 전달한다', async () => {
+    const previous = process.env.APP_AUTH_REDIRECT_URL;
+    process.env.APP_AUTH_REDIRECT_URL = 'teojabi://auth';
+    const req = {
+      user: { provider: 'kakao', providerId: 'kakao-2', email: 'b@test.com', name: 'B' },
+      query: { client: 'app' },
+    } as any;
+    const res = createResponse();
+    authService.findExistingSocialUser.mockResolvedValue(null);
+    authService.createAppSignupCode.mockReturnValue('signup-code');
+    try {
+      await controller.kakaoAuthCallback(req, res);
+      const redirectUrl = res.redirect.mock.calls[0][0] as string;
+      expect(redirectUrl).toContain('code=signup-code');
+      expect(redirectUrl).toContain('provider=kakao');
+      expect(redirectUrl).not.toContain('signupToken=');
+    } finally {
+      if (previous === undefined) delete process.env.APP_AUTH_REDIRECT_URL;
+      else process.env.APP_AUTH_REDIRECT_URL = previous;
+    }
+  });
+
+  it('앱 코드 교환은 코드를 1회용으로 서비스에 위임한다', async () => {
+    authService.exchangeAppCode.mockResolvedValue({ token: 'jwt-token' });
+    const res = createResponse();
+    await controller.appExchange({ code: 'one-time-code' }, res);
+    expect(authService.exchangeAppCode).toHaveBeenCalledWith('one-time-code');
+    expect(res.json).toHaveBeenCalledWith({ success: true, token: 'jwt-token' });
   });
 });

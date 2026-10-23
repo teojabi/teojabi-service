@@ -3,16 +3,34 @@ import { Request } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PublicDataService } from './public-data.service';
 
+const MAX_BBOX_SPAN_DEGREES = 2;
+
 @Controller('api/v1/public-data')
 export class PublicDataController {
   constructor(private readonly publicDataService: PublicDataService) {}
 
+  private parseBoundingBox(
+    minLat: string,
+    minLng: string,
+    maxLat: string,
+    maxLng: string,
+  ): [number, number, number, number] | null {
+    const values = [minLat, minLng, maxLat, maxLng].map(Number);
+    if (!values.every(Number.isFinite)) return null;
+    const [south, west, north, east] = values;
+    if (south < -90 || north > 90 || west < -180 || east > 180) return null;
+    if (south >= north || west >= east) return null;
+    if (north - south > MAX_BBOX_SPAN_DEGREES || east - west > MAX_BBOX_SPAN_DEGREES) return null;
+    return [south, west, north, east];
+  }
+
   @Get()
   async getPublicData(@Query('address') address: string) {
-    if (!address) {
+    const normalized = String(address ?? '').trim().slice(0, 200);
+    if (!normalized) {
       return { success: false, message: 'Address is required' };
     }
-    const data = await this.publicDataService.getPublicData(address);
+    const data = await this.publicDataService.getPublicData(normalized);
     return { success: true, data };
   }
 
@@ -20,10 +38,11 @@ export class PublicDataController {
   // GET /api/v1/public-data/search?query=서당초등학교
   @Get('search')
   async searchByKeyword(@Query('query') query: string) {
-    if (!query) {
+    const normalized = String(query ?? '').trim().slice(0, 80);
+    if (!normalized) {
       return { success: false, message: 'query is required' };
     }
-    const result = await this.publicDataService.searchByKeyword(query);
+    const result = await this.publicDataService.searchByKeyword(normalized);
     return { success: true, data: result };
   }
 
@@ -31,10 +50,11 @@ export class PublicDataController {
   // GET /api/v1/public-data/location-info?pnu=1168010100106180000
   @Get('location-info')
   async getLocationInfo(@Query('pnu') pnu: string) {
-    if (!pnu) {
-      return { success: false, message: 'pnu is required' };
+    const normalized = String(pnu ?? '').trim();
+    if (!/^\d{19}$/.test(normalized)) {
+      return { success: false, message: 'pnu is invalid' };
     }
-    const result = await this.publicDataService.getLocationInfo(pnu);
+    const result = await this.publicDataService.getLocationInfo(normalized);
     return { success: true, data: result };
   }
 
@@ -68,15 +88,12 @@ export class PublicDataController {
     @Query('maxLat') maxLat: string,
     @Query('maxLng') maxLng: string,
   ) {
-    if (!minLat || !minLng || !maxLat || !maxLng) {
-      return { success: false, message: 'Bounding box coordinates are required' };
+    const bbox = this.parseBoundingBox(minLat, minLng, maxLat, maxLng);
+    if (!bbox) {
+      return { success: false, message: 'Bounding box coordinates are invalid' };
     }
-    const result = await this.publicDataService.getScoreLayer(
-      parseFloat(minLat),
-      parseFloat(minLng),
-      parseFloat(maxLat),
-      parseFloat(maxLng),
-    );
+    const [south, west, north, east] = bbox;
+    const result = await this.publicDataService.getScoreLayer(south, west, north, east);
     return { success: true, data: result };
   }
 
@@ -89,15 +106,12 @@ export class PublicDataController {
     @Query('maxLat') maxLat: string,
     @Query('maxLng') maxLng: string,
   ) {
-    if (!minLat || !minLng || !maxLat || !maxLng) {
-      return { success: false, message: 'Bounding box coordinates are required' };
+    const bbox = this.parseBoundingBox(minLat, minLng, maxLat, maxLng);
+    if (!bbox) {
+      return { success: false, message: 'Bounding box coordinates are invalid' };
     }
-    const result = await this.publicDataService.getEducationSafezonesLayer(
-      parseFloat(minLat),
-      parseFloat(minLng),
-      parseFloat(maxLat),
-      parseFloat(maxLng),
-    );
+    const [south, west, north, east] = bbox;
+    const result = await this.publicDataService.getEducationSafezonesLayer(south, west, north, east);
     return { success: true, data: result };
   }
 
@@ -110,15 +124,12 @@ export class PublicDataController {
     @Query('maxLat') maxLat: string,
     @Query('maxLng') maxLng: string,
   ) {
-    if (!minLat || !minLng || !maxLat || !maxLng) {
-      return { success: false, message: 'Bounding box coordinates are required' };
+    const bbox = this.parseBoundingBox(minLat, minLng, maxLat, maxLng);
+    if (!bbox) {
+      return { success: false, message: 'Bounding box coordinates are invalid' };
     }
-    const result = await this.publicDataService.getTourZonesLayer(
-      parseFloat(minLat),
-      parseFloat(minLng),
-      parseFloat(maxLat),
-      parseFloat(maxLng),
-    );
+    const [south, west, north, east] = bbox;
+    const result = await this.publicDataService.getTourZonesLayer(south, west, north, east);
     return { success: true, data: result };
   }
 }

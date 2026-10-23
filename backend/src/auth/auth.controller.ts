@@ -14,6 +14,7 @@ import {
   Post,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
+import { IsString, MaxLength } from 'class-validator';
 import { Request, Response } from 'express';
 import { AuthService, SocialAuthPayload } from './auth.service';
 
@@ -48,6 +49,12 @@ interface CompleteSocialSignupDto {
   agreeCollect: boolean;
 }
 
+class AppExchangeDto {
+  @IsString()
+  @MaxLength(200)
+  code!: string;
+}
+
 @Controller('api/v1/auth')
 export class AuthController {
   private readonly logger = new Logger(AuthController.name);
@@ -56,11 +63,12 @@ export class AuthController {
 
   private getAuthCookieOptions() {
     const isProd = process.env.NODE_ENV === 'production';
-    const sameSite: 'none' | 'lax' = isProd ? 'none' : 'lax';
+    // 프론트엔드(teojabi.com)와 API(api.teojabi.com)는 같은 사이트이므로 Lax로 충분하다.
+    // SameSite=None은 교차 사이트 요청에 쿠키가 실려 CSRF 표면을 넓힌다.
     return {
       httpOnly: true,
       secure: isProd,
-      sameSite,
+      sameSite: 'lax' as const,
       ...(isProd ? { domain: '.teojabi.com' } : {}),
       maxAge: 1000 * 60 * 60 * 24,
     };
@@ -277,6 +285,15 @@ export class AuthController {
     });
   }
 
+  @Post('app-exchange')
+  async appExchange(@Body() body: AppExchangeDto, @Res() res: Response) {
+    if (!body?.code) {
+      throw new BadRequestException('code가 필요합니다.');
+    }
+    const result = await this.authService.exchangeAppCode(body.code);
+    return res.json({ success: true, ...result });
+  }
+
   @Post('logout')
   async logout(@Res() res: Response) {
     const cookieOptions = this.getAuthCookieOptions();
@@ -316,11 +333,20 @@ export class AuthController {
       this.logger.log(
         `[social-signup] 기존 사용자 로그인 처리 userId=${existingUser.id}, provider=${socialPayload.provider}, providerId=${socialPayload.providerId}`,
       );
-      const token = await this.authService.generateJwtCookiePayload(existingUser);
       if (isApp) {
-        this.logger.log(`[social-signup] 앱 로그인 완료 userId=${existingUser.id} (토큰 전달)`);
-        return res.redirect(this.getAppRedirectUrl({ token }));
+        // JWT를 URL에 싣지 않고, 60초·1회용 코드만 전달한다. 앱이 HTTPS 본문으로 교환한다.
+        const code = this.authService.createAppAuthCode(existingUser.id);
+        this.logger.log(
+          `[social-signup] 앱 로그인 코드 발급 완료 userId=${existingUser.id}`,
+        );
+        const params: Record<string, string> = { code };
+        // 구버전 앱 배포 기간에만 임시로 켠다. 기본값은 꺼짐(보안).
+        if (process.env.APP_AUTH_LEGACY_URL_TOKEN === 'on') {
+          params.token = await this.authService.generateJwtCookiePayload(existingUser);
+        }
+        return res.redirect(this.getAppRedirectUrl(params));
       }
+      const token = await this.authService.generateJwtCookiePayload(existingUser);
       res.cookie('access_token', token, this.getAuthCookieOptions());
       const redirectUrl = this.buildRedirectUrl(existingUser, frontendUrl);
       this.logger.log(
@@ -329,11 +355,18 @@ export class AuthController {
       return res.redirect(redirectUrl);
     }
 
-    const signupToken = this.authService.generatePendingSocialSignupToken(socialPayload);
     if (isApp) {
-      this.logger.log(`[social-signup] 앱 신규 사용자 약관동의 이동 provider=${provider}`);
-      return res.redirect(this.getAppRedirectUrl({ signupToken, provider }));
+      // 가입용 signupToken도 URL 대신 5분·1회용 코드로 전달한다.
+      const code = this.authService.createAppSignupCode(socialPayload);
+      this.logger.log(`[social-signup] 앱 신규 사용자 가입 코드 발급 provider=${provider}`);
+      const params: Record<string, string> = { code, provider };
+      if (process.env.APP_AUTH_LEGACY_URL_TOKEN === 'on') {
+        params.signupToken = this.authService.generatePendingSocialSignupToken(socialPayload);
+      }
+      return res.redirect(this.getAppRedirectUrl(params));
     }
+
+    const signupToken = this.authService.generatePendingSocialSignupToken(socialPayload);
     res.cookie('pending_signup_token', signupToken, this.getAuthCookieOptions());
     res.cookie('pending_signup_provider', provider, this.getAuthCookieOptions());
     this.logger.log(

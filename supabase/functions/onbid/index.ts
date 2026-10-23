@@ -7,6 +7,7 @@
 //
 // 보안: beta-service와 동일하게 Origin/Referer 가드. (긴급 시 ONBID_GUARD=off)
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { isBlockedBot, rateLimitHeaders, takeRateLimit } from "../_shared/rate-limit.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -34,6 +35,7 @@ function corsHeaders(origin: string | null): Record<string, string> {
     "Content-Type": "application/json; charset=utf-8",
     "Cache-Control": "no-store",
     "X-Content-Type-Options": "nosniff",
+    "X-Robots-Tag": "noindex, nofollow, noarchive",
   };
 }
 
@@ -175,6 +177,16 @@ Deno.serve(async (request: Request) => {
   if (request.method !== "GET" && request.method !== "HEAD") return json({ status: "invalid" }, 405, origin);
   if (!ALLOWED_ORIGINS.includes(origin ?? "")) return json({ status: "forbidden" }, 403, origin);
   if (GUARD_ON && !referer && !ALLOWED_ORIGINS.includes(origin ?? "")) return json({ status: "forbidden" }, 403, origin);
+
+  if (isBlockedBot(request)) return json({ status: "forbidden" }, 403, origin);
+
+  const limit = takeRateLimit(request, "onbid");
+  if (!limit.ok) {
+    return new Response(JSON.stringify({ status: "error", message: "Too many requests" }), {
+      status: 429,
+      headers: { ...corsHeaders(origin), ...rateLimitHeaders(limit) },
+    });
+  }
 
   const url = new URL(request.url);
   // 함수명(onbid) 뒤 경로만 취한다. 라우트(/api/onbid)가 onbid로 끝나므로 non-greedy.

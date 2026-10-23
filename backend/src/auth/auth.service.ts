@@ -1,6 +1,7 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { Prisma } from '@prisma/client';
+import { randomBytes } from 'crypto';
 import { UsersService } from '../users/users.service';
 
 export interface SocialAuthPayload {
@@ -10,9 +11,23 @@ export interface SocialAuthPayload {
   name: string;
 }
 
+export interface AppAuthExchangeResult {
+  token?: string;
+  signupToken?: string;
+  provider?: string;
+}
+
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
+  private readonly appAuthCodes = new Map<string, { userId: string; expiresAt: number }>();
+  private readonly appSignupCodes = new Map<
+    string,
+    { payload: SocialAuthPayload; expiresAt: number }
+  >();
+  private static readonly APP_AUTH_CODE_TTL_MS = 60_000;
+  private static readonly APP_SIGNUP_CODE_TTL_MS = 5 * 60_000;
+  private static readonly MAX_APP_CODES = 10_000;
 
   private isInvalidSocialIdentifier(value?: string | null): boolean {
     if (!value) {
@@ -175,6 +190,74 @@ export class AuthService {
       email: decoded.email,
       name: decoded.name,
     };
+  }
+
+  private cleanupAppCodes() {
+    const now = Date.now();
+    for (const [code, entry] of this.appAuthCodes) {
+      if (entry.expiresAt <= now) this.appAuthCodes.delete(code);
+    }
+    for (const [code, entry] of this.appSignupCodes) {
+      if (entry.expiresAt <= now) this.appSignupCodes.delete(code);
+    }
+    while (this.appAuthCodes.size + this.appSignupCodes.size >= AuthService.MAX_APP_CODES) {
+      const oldest = this.appAuthCodes.keys().next().value;
+      if (oldest) {
+        this.appAuthCodes.delete(oldest);
+        continue;
+      }
+      const oldestSignup = this.appSignupCodes.keys().next().value;
+      if (oldestSignup) this.appSignupCodes.delete(oldestSignup);
+      else break;
+    }
+  }
+
+  createAppAuthCode(userId: string): string {
+    this.cleanupAppCodes();
+    const code = randomBytes(32).toString('base64url');
+    this.appAuthCodes.set(code, {
+      userId,
+      expiresAt: Date.now() + AuthService.APP_AUTH_CODE_TTL_MS,
+    });
+    return code;
+  }
+
+  createAppSignupCode(payload: SocialAuthPayload): string {
+    this.cleanupAppCodes();
+    const code = randomBytes(32).toString('base64url');
+    this.appSignupCodes.set(code, {
+      payload,
+      expiresAt: Date.now() + AuthService.APP_SIGNUP_CODE_TTL_MS,
+    });
+    return code;
+  }
+
+  async exchangeAppCode(code: string): Promise<AppAuthExchangeResult> {
+    const authCode = this.appAuthCodes.get(code);
+    if (authCode) {
+      this.appAuthCodes.delete(code);
+      if (authCode.expiresAt <= Date.now()) {
+        throw new UnauthorizedException('만료된 로그인 코드입니다.');
+      }
+      const user = await this.usersService.findById(authCode.userId);
+      if (!user) throw new UnauthorizedException('사용자를 찾을 수 없습니다.');
+      await this.usersService.ensureDefaultCreditWallet(user.id);
+      return { token: await this.generateJwtCookiePayload(user) };
+    }
+
+    const signupCode = this.appSignupCodes.get(code);
+    if (signupCode) {
+      this.appSignupCodes.delete(code);
+      if (signupCode.expiresAt <= Date.now()) {
+        throw new UnauthorizedException('만료된 가입 코드입니다.');
+      }
+      return {
+        signupToken: this.generatePendingSocialSignupToken(signupCode.payload),
+        provider: signupCode.payload.provider,
+      };
+    }
+
+    throw new UnauthorizedException('유효하지 않은 코드입니다.');
   }
 
   async generateJwtCookiePayload(user: any) {

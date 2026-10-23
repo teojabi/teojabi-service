@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Controller,
   Get,
   Post,
@@ -43,11 +44,21 @@ export class PropertiesController {
     @Query('lng') lng: number,
     @Query('radius') radius: number = 5000,
   ) {
-    return this.propertiesService.findNearby(
-      Number(lat),
-      Number(lng),
-      Number(radius),
-    );
+    const latNumber = Number(lat);
+    const lngNumber = Number(lng);
+    const radiusNumber = Number(radius);
+    if (
+      !Number.isFinite(latNumber) ||
+      !Number.isFinite(lngNumber) ||
+      !Number.isFinite(radiusNumber) ||
+      Math.abs(latNumber) > 90 ||
+      Math.abs(lngNumber) > 180 ||
+      radiusNumber <= 0 ||
+      radiusNumber > 20000
+    ) {
+      throw new BadRequestException('잘못된 좌표 또는 반경입니다.');
+    }
+    return this.propertiesService.findNearby(latNumber, lngNumber, radiusNumber);
   }
 
   @Get('map')
@@ -55,8 +66,21 @@ export class PropertiesController {
     @Query('ne') ne: string,
     @Query('sw') sw: string,
   ) {
-    const [neLat, neLng] = ne.split(',').map(Number);
-    const [swLat, swLng] = sw.split(',').map(Number);
+    const neParts = String(ne ?? '').split(',').map(Number);
+    const swParts = String(sw ?? '').split(',').map(Number);
+    if (
+      neParts.length !== 2 ||
+      swParts.length !== 2 ||
+      ![...neParts, ...swParts].every(Number.isFinite) ||
+      Math.abs(neParts[0]) > 90 ||
+      Math.abs(swParts[0]) > 90 ||
+      Math.abs(neParts[1]) > 180 ||
+      Math.abs(swParts[1]) > 180
+    ) {
+      throw new BadRequestException('잘못된 지도 범위입니다.');
+    }
+    const [neLat, neLng] = neParts;
+    const [swLat, swLng] = swParts;
     return this.propertiesService.findInBounds(neLat, neLng, swLat, swLng);
   }
 
@@ -70,10 +94,22 @@ export class PropertiesController {
   @Roles('ADMIN')
   @Post()
   @UseInterceptors(
-    FileFieldsInterceptor([
-      { name: 'beforeImage', maxCount: 1 },
-      { name: 'afterImage', maxCount: 1 },
-    ]),
+    FileFieldsInterceptor(
+      [
+        { name: 'beforeImage', maxCount: 1 },
+        { name: 'afterImage', maxCount: 1 },
+      ],
+      {
+        limits: { fileSize: 8 * 1024 * 1024, files: 2 },
+        fileFilter: (_req, file, callback) => {
+          const allowed = /^image\/(?:png|jpe?g|webp)$/i.test(file.mimetype);
+          callback(
+            allowed ? null : new BadRequestException('이미지 파일만 업로드할 수 있습니다.'),
+            allowed,
+          );
+        },
+      },
+    ),
   )
   async createProperty(
     @UploadedFiles()
@@ -96,10 +132,22 @@ export class PropertiesController {
   @Roles('ADMIN')
   @Patch(':id')
   @UseInterceptors(
-    FileFieldsInterceptor([
-      { name: 'beforeImage', maxCount: 1 },
-      { name: 'afterImage', maxCount: 1 },
-    ]),
+    FileFieldsInterceptor(
+      [
+        { name: 'beforeImage', maxCount: 1 },
+        { name: 'afterImage', maxCount: 1 },
+      ],
+      {
+        limits: { fileSize: 8 * 1024 * 1024, files: 2 },
+        fileFilter: (_req, file, callback) => {
+          const allowed = /^image\/(?:png|jpe?g|webp)$/i.test(file.mimetype);
+          callback(
+            allowed ? null : new BadRequestException('이미지 파일만 업로드할 수 있습니다.'),
+            allowed,
+          );
+        },
+      },
+    ),
   )
   async updateProperty(
     @Param('id') id: string,

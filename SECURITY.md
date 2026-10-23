@@ -37,6 +37,26 @@
 - Actions: Default permissions → **Read-only**, 허용 Actions 제한
 - 계정 2FA, PAT는 fine-grained·최소권한·만료 설정
 
+## 대량 크롤링 / 봇 방어
+
+애플리케이션 레벨 제한(백엔드·beta-service·Edge Function)은 IP를 바꾸는 크롤러를 완전히 막지 못한다.
+최종 방어선은 Cloudflare에서 설정한다.
+
+1. **Security → Bots**: `Block AI bots`(또는 Bot Fight Mode) 활성화
+2. **Security → WAF → Rate limiting rules**에 아래 규칙을 추가한다.
+   - `api-rate-limit`: `http.host eq "api.teojabi.com" and starts_with(http.request.uri.path, "/api/")`
+     → IP당 **30 requests / 1 minute**, 초과 시 **Block 10분**
+   - `beta-rate-limit`: `http.host eq "api.teojabi.com" and starts_with(http.request.uri.path, "/beta/api/")`
+     → IP당 **60 requests / 1 minute**, 초과 시 **Block 10분**
+   - `site-rate-limit`: `(http.host eq "teojabi.com" or http.host eq "www.teojabi.com") and not starts_with(http.request.uri.path, "/assets/")`
+     → IP당 **120 requests / 1 minute** (정적 HTML 대량 수집 완화)
+3. **Supabase Edge Function**은 `*.supabase.co`로 직접 노출되어 Cloudflare를 우회한다.
+   가능하면 `data.teojabi.com` 같은 **Cloudflare 프록시 커스텀 도메인**을 붙이고 위 rate limit을 적용한다.
+4. 코드 레벨 기본값은 아래 환경변수로 조정한다.
+   - 백엔드: `RATE_LIMIT_MAX_REQUESTS`, `AUTH_RATE_LIMIT_MAX_REQUESTS`, `DATA_RATE_LIMIT_MAX_REQUESTS`, `BLOCK_AI_CRAWLERS`
+   - beta-service: `TEOJABI_API_RATE_LIMIT`, `TEOJABI_HEAVY_RATE_LIMIT`, `TEOJABI_STATIC_RATE_LIMIT`, `TEOJABI_BLOCK_AI_CRAWLERS`
+5. `frontend/robots.txt`는 AI 학습 크롤러 전체를 차단한다. 단, robots.txt는 비강제이므로 Cloudflare 규칙과 함께 사용해야 한다.
+
 ## 신고
 
 보안 문제는 저장소 이슈가 아니라 운영자에게 비공개로 알린다.

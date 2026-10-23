@@ -22,6 +22,75 @@ const service=serviceConfig();
 // Origin·Referer 없는 비브라우저 요청 차단. 긴급 시 TEOJABI_API_GUARD=off 로 해제한다.
 const apiGuardOn=process.env.TEOJABI_API_GUARD!=='off';
 
+const positiveInt=(name,fallback)=>{const value=Number.parseInt(process.env[name]??'',10);return Number.isFinite(value)&&value>0?value:fallback;};
+const RATE_WINDOW_MS=positiveInt('TEOJABI_RATE_LIMIT_WINDOW_MS',60_000);
+const STATIC_RATE_LIMIT=positiveInt('TEOJABI_STATIC_RATE_LIMIT',240);
+const API_RATE_LIMIT=positiveInt('TEOJABI_API_RATE_LIMIT',120);
+const HEAVY_RATE_LIMIT=positiveInt('TEOJABI_HEAVY_RATE_LIMIT',60);
+const MAX_RATE_BUCKETS=positiveInt('TEOJABI_RATE_LIMIT_MAX_BUCKETS',50_000);
+const blockAiCrawlers=process.env.TEOJABI_BLOCK_AI_CRAWLERS!=='off';
+const DEFAULT_BOT_PATTERN=/(?:GPTBot|ChatGPT-User|OAI-SearchBot|CCBot|ClaudeBot|Claude-Web|anthropic-ai|Google-Extended|Bytespider|PerplexityBot|Amazonbot|Applebot-Extended|meta-externalagent|FacebookBot|cohere-ai|Diffbot|Omgilibot|ImagesiftBot|FriendlyCrawler|Scrapy|AhrefsBot|SemrushBot|MJ12bot|DotBot|PetalBot|DataForSeoBot|Barkrowler)/i;
+let blockedBotPattern=DEFAULT_BOT_PATTERN;
+if(process.env.TEOJABI_BLOCKED_BOT_USER_AGENTS){
+  try{blockedBotPattern=new RegExp(process.env.TEOJABI_BLOCKED_BOT_USER_AGENTS,'i');}catch{/* 잘못된 정규식은 기본값 사용 */}
+}
+const rateBuckets=new Map();
+const isLoopback=address=>address==='127.0.0.1'||address==='::1'||address==='::ffff:127.0.0.1';
+function requestIp(request){
+  const socketIp=request.socket?.remoteAddress||'';
+  if(!isLoopback(socketIp))return socketIp||'unknown';
+  const xff=String(request.headers['x-forwarded-for']||'').split(',').map(hop=>hop.trim()).filter(Boolean);
+  return xff[xff.length-1]||String(request.headers['x-real-ip']||'').trim()||socketIp||'unknown';
+}
+function ratePolicy(path){
+  if(path==='/api/health'||path==='/api/runtime')return {key:'meta',limit:STATIC_RATE_LIMIT};
+  if(path.startsWith('/api/')){
+    if(/^\/api\/(?:site-parcels|parcel-context\/|parcel-documents\/|commercial(?:\/|$)|surrounding(?:\/|$)|redevelop-|land-use\/|risk\/|site-context\/|building-records\/|land-record\/|nearby-transactions\/)/.test(path))return {key:'heavy',limit:HEAVY_RATE_LIMIT};
+    return {key:'api',limit:API_RATE_LIMIT};
+  }
+  return {key:'static',limit:STATIC_RATE_LIMIT};
+}
+function applySecurityHeaders(request,response){
+  response.setHeader('X-Content-Type-Options','nosniff');
+  response.setHeader('X-Frame-Options','DENY');
+  response.setHeader('Referrer-Policy','strict-origin-when-cross-origin');
+  response.setHeader('Permissions-Policy','camera=(), microphone=(), geolocation=()');
+  response.setHeader('Cross-Origin-Resource-Policy','same-site');
+  // API/베타 서비스는 검색엔진 색인 대상이 아니다.
+  response.setHeader('X-Robots-Tag','noindex, nofollow, noarchive');
+  if(String(request.url||'').startsWith('/api/'))response.setHeader('Cache-Control','no-store');
+  if(service.production)response.setHeader('Strict-Transport-Security','max-age=31536000; includeSubDomains');
+}
+function applyRateLimit(request,response){
+  const path=String(request.url||'').split('?')[0]||'/';
+  const policy=ratePolicy(path);
+  const now=Date.now();
+  const key=`${requestIp(request)}:${policy.key}`;
+  let bucket=rateBuckets.get(key);
+  if(!bucket||bucket.resetAt<=now){
+    if(rateBuckets.size>=MAX_RATE_BUCKETS){const oldest=rateBuckets.keys().next().value;if(oldest)rateBuckets.delete(oldest);}
+    bucket={count:0,resetAt:now+RATE_WINDOW_MS};
+  }
+  bucket.count+=1;
+  rateBuckets.set(key,bucket);
+  const remaining=Math.max(0,policy.limit-bucket.count);
+  response.setHeader('RateLimit-Limit',String(policy.limit));
+  response.setHeader('RateLimit-Remaining',String(remaining));
+  response.setHeader('RateLimit-Reset',String(Math.ceil((bucket.resetAt-now)/1000)));
+  if(bucket.count>policy.limit){
+    response.setHeader('Retry-After',String(Math.ceil((bucket.resetAt-now)/1000)));
+    const api=path.startsWith('/api/');
+    response.writeHead(429,{'Content-Type':api?'application/json; charset=utf-8':'text/plain; charset=utf-8','Cache-Control':'no-store'});
+    response.end(api?JSON.stringify({status:'error',message:'Too many requests'}):'Too many requests');
+    return false;
+  }
+  return true;
+}
+setInterval(()=>{
+  const now=Date.now();
+  for(const [key,bucket] of rateBuckets)if(bucket.resetAt<=now)rateBuckets.delete(key);
+},RATE_WINDOW_MS).unref();
+
 const root = fileURLToPath(new URL('.', import.meta.url));
 const cachePath=name=>process.env.TEOJABI_DATA_SOURCE==='supabase'&&/^\.local\/(selected-|curation-)/.test(name)?name.replace('.local/','.local/supabase/'):name;
 const files = new Map([
@@ -305,7 +374,10 @@ function staticHeaders(type,stats) {
   };
 }
 createServer(async (request, response) => {
+  applySecurityHeaders(request,response);
   if (!service.hosts.includes(request.headers.host||'')) {response.writeHead(403).end();return;}
+  if (blockAiCrawlers && blockedBotPattern.test(String(request.headers['user-agent']||''))) {response.writeHead(403,{'Content-Type':'text/plain; charset=utf-8'}).end('Forbidden');return;}
+  if (!applyRateLimit(request,response)) return;
   if(service.production&&request.url?.startsWith('/api/')) {
     const origin=request.headers.origin;
     if(!allowedOrigin(origin,service)){response.writeHead(403).end();return;}

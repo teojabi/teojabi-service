@@ -1,7 +1,14 @@
-import { ForbiddenException, Injectable, Logger } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
 const REPORT_PAYMENT_AMOUNT = 400000;
+const RESERVATION_STATUSES = ['PENDING', 'CONFIRMED', 'CANCELLED', 'COMPLETED'] as const;
 
 const SUBSCRIPTION_STATUS = {
   ACTIVE: 'ACTIVE',
@@ -219,10 +226,29 @@ export class ReservationsService {
     };
   }
 
-  async updateStatus(id: string, status: any) {
+  async updateStatus(
+    id: string,
+    status: string,
+    requester: { id: string; role?: string },
+  ) {
+    if (!RESERVATION_STATUSES.includes(status as (typeof RESERVATION_STATUSES)[number])) {
+      throw new BadRequestException('Invalid reservation status');
+    }
+
+    const reservation = await this.prisma.reservation.findUnique({
+      where: { id },
+      select: { userId: true },
+    });
+    if (!reservation) {
+      throw new NotFoundException('Reservation not found');
+    }
+    if (reservation.userId !== requester.id && requester.role !== 'ADMIN') {
+      throw new ForbiddenException('본인의 예약만 변경할 수 있습니다.');
+    }
+
     return this.prisma.reservation.update({
       where: { id },
-      data: { status },
+      data: { status: status as (typeof RESERVATION_STATUSES)[number] },
     });
   }
 

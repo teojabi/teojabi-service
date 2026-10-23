@@ -8,9 +8,11 @@ describe('AuthService', () => {
   let service: AuthService;
   let usersService: {
     findByProvider: jest.Mock;
+    findById: jest.Mock;
     ensureDefaultCreditWallet: jest.Mock;
     createSocialUser: jest.Mock;
   };
+  let jwtService: { sign: jest.Mock; verify: jest.Mock };
 
   const makeP2002Error = (): Prisma.PrismaClientKnownRequestError => {
     const error = new Error('P2002') as Prisma.PrismaClientKnownRequestError;
@@ -22,9 +24,11 @@ describe('AuthService', () => {
   beforeEach(async () => {
     usersService = {
       findByProvider: jest.fn(),
+      findById: jest.fn(),
       ensureDefaultCreditWallet: jest.fn(),
       createSocialUser: jest.fn(),
     };
+    jwtService = { sign: jest.fn(), verify: jest.fn() };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -35,10 +39,7 @@ describe('AuthService', () => {
         },
         {
           provide: JwtService,
-          useValue: {
-            sign: jest.fn(),
-            verify: jest.fn(),
-          },
+          useValue: jwtService,
         },
       ],
     }).compile();
@@ -133,5 +134,34 @@ describe('AuthService', () => {
     expect(usersService.findByProvider).toHaveBeenCalledTimes(2);
     expect(result.id).toBe('user-3');
     expect(result.isNewUser).toBe(false);
+  });
+
+  it('앱 로그인 코드는 1회만 교환할 수 있다', async () => {
+    usersService.findById.mockResolvedValue({
+      id: 'user-1',
+      email: 'a@test.com',
+      role: 'USER',
+    });
+    usersService.ensureDefaultCreditWallet.mockResolvedValue(undefined);
+    jwtService.sign.mockResolvedValue('jwt-token');
+
+    const code = service.createAppAuthCode('user-1');
+    await expect(service.exchangeAppCode(code)).resolves.toEqual({ token: 'jwt-token' });
+    await expect(service.exchangeAppCode(code)).rejects.toThrow('유효하지 않은 코드입니다.');
+  });
+
+  it('앱 가입 코드는 signupToken과 provider를 반환한다', async () => {
+    jwtService.sign.mockReturnValue('signup-token');
+
+    const code = service.createAppSignupCode({
+      provider: 'kakao',
+      providerId: 'kakao-9',
+      email: 'd@test.com',
+      name: '가입코드',
+    });
+    await expect(service.exchangeAppCode(code)).resolves.toEqual({
+      signupToken: 'signup-token',
+      provider: 'kakao',
+    });
   });
 });

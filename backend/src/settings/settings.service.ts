@@ -1,6 +1,10 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
+// 인증 없이 공개해도 되는 설정 키만 노출한다. (내부 키·비밀값 유출 방지)
+const PUBLIC_SETTING_KEYS = ['sample_report_url'];
+const PUBLIC_SETTING_PREFIX = 'public_';
+
 @Injectable()
 export class SettingsService implements OnModuleInit {
   constructor(private prisma: PrismaService) {}
@@ -19,7 +23,12 @@ export class SettingsService implements OnModuleInit {
     }
   }
 
+  private isPublicSetting(key: string) {
+    return PUBLIC_SETTING_KEYS.includes(key) || key.startsWith(PUBLIC_SETTING_PREFIX);
+  }
+
   async getSetting(key: string) {
+    if (!this.isPublicSetting(key)) return null;
     return this.prisma.setting.findUnique({
       where: { key },
     });
@@ -34,6 +43,13 @@ export class SettingsService implements OnModuleInit {
   }
 
   async getAllSettings() {
-    return this.prisma.setting.findMany();
+    return this.prisma.setting.findMany({
+      where: {
+        OR: [
+          { key: { in: PUBLIC_SETTING_KEYS } },
+          { key: { startsWith: PUBLIC_SETTING_PREFIX } },
+        ],
+      },
+    });
   }
 }

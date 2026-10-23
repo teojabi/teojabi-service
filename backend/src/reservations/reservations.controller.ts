@@ -52,8 +52,12 @@ export class ReservationsController {
 
   @UseGuards(JwtAuthGuard)
   @Patch(':id/status')
-  async updateStatus(@Param('id') id: string, @Body('status') status: any) {
-    return this.reservationsService.updateStatus(id, status);
+  async updateStatus(
+    @Request() req: any,
+    @Param('id') id: string,
+    @Body('status') status: any,
+  ) {
+    return this.reservationsService.updateStatus(id, status, req.user);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
