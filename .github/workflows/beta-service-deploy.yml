@@ -141,6 +141,10 @@ jobs:
             TEOJABI_HEAVY_RATE_LIMIT=60
             TEOJABI_STATIC_RATE_LIMIT=240
             TEOJABI_BLOCK_AI_CRAWLERS=on
+            TEOJABI_PREMIUM_HOURLY_QUOTA=900
+            TEOJABI_PNU_ENUM_MAX=200
+            TEOJABI_PNU_ENUM_PER_MINUTE=90
+            TEOJABI_PNU_ENUM_BLOCK_MS=1800000
             PORT=4173
             ENVEOF
             chmod 600 .env

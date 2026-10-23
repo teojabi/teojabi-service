@@ -68,6 +68,12 @@
 - 앱은 `Authorization: Bearer` 토큰으로 같은 beta-service를 인증한다.
 - Supabase Edge Function(`data`)은 위 프리미엄 경로를 **403 `AUTH_REQUIRED`**로 차단한다. 공개 경로는 `runtime`, `health`, `neighborhoods`, `activity`, `parcels`(필지 경계)만 허용한다.
 - 비로그인 상태에서 프리미엄 API가 401을 반환하면 프론트엔드가 로그인 창을 띄운다.
+- 로그인 사용자에게도 **시간당 프리미엄 조회 쿼터**를 적용한다. (`beta-service/premium-guard.mjs`)
+  - 기본 `TEOJABI_PREMIUM_HOURLY_QUOTA=900`회/시간
+- **PNU/매물 열거 탐지**: 같은 사용자가 10분 안에 서로 다른 필지·매물을 비정상적으로 많이 조회하면 30분 차단한다.
+  - 기본 `TEOJABI_PNU_ENUM_MAX=200` (10분), `TEOJABI_PNU_ENUM_PER_MINUTE=90` (1분), `TEOJABI_PNU_ENUM_BLOCK_MS=1800000`
+  - 동일 매물의 상세 API 여러 개는 하나로 계산한다.
+  - 차단 시 `429` + `Retry-After`와 `enumeration-blocked` 코드를 반환하고 서버 로그에 남긴다.
 
 ## 신고
 
