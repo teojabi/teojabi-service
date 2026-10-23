@@ -241,5 +241,7 @@ jobs:
             sudo systemctl reload nginx
             sleep 3
             # 봇 가드(Origin/Referer)를 통과하도록 Origin을 붙여 로컬 헬스체크한다.
-            curl --fail --silent --show-error -H 'Host: api.teojabi.com' -H 'Origin: https://teojabi.com' 'http://127.0.0.1:4173/api/catalog?limit=1' >/dev/null
+            curl --fail --silent --show-error -H 'Host: api.teojabi.com' -H 'Origin: https://teojabi.com' 'http://127.0.0.1:4173/api/health' >/dev/null
+            premium_status=$(curl --silent --output /dev/null --write-out '%{http_code}' -H 'Host: api.teojabi.com' -H 'Origin: https://teojabi.com' 'http://127.0.0.1:4173/api/catalog?limit=1')
+            test "$premium_status" = "401"
             pm2 describe teojabi-data
