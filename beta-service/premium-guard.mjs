@@ -6,8 +6,9 @@ const positiveInt=(name,fallback)=>{const value=Number.parseInt(process.env[name
 const HOUR_MS=60*60*1000;
 const MINUTE_MS=60*1000;
 const HOURLY_QUOTA=positiveInt('TEOJABI_PREMIUM_HOURLY_QUOTA',600);
-const CONSECUTIVE_THRESHOLD=positiveInt('TEOJABI_CONSECUTIVE_THRESHOLD',HOURLY_QUOTA);
-const CONSECUTIVE_BLOCK_MS=positiveInt('TEOJABI_CONSECUTIVE_BLOCK_MS',6*60*60*1000);
+const TWO_HOUR_SUM_THRESHOLD=positiveInt('TEOJABI_TWO_HOUR_SUM_THRESHOLD',1000);
+const THREE_HOUR_SUM_THRESHOLD=positiveInt('TEOJABI_THREE_HOUR_SUM_THRESHOLD',1000);
+const CONSECUTIVE_BLOCK_MS=positiveInt('TEOJABI_CONSECUTIVE_BLOCK_MS',5*60*60*1000);
 const ASSISTANT_WEIGHT=positiveInt('TEOJABI_ASSISTANT_WEIGHT',20);
 const ENUM_WINDOW_MS=positiveInt('TEOJABI_PNU_ENUM_WINDOW_MS',10*60*1000);
 const ENUM_MAX=positiveInt('TEOJABI_PNU_ENUM_MAX',200);
@@ -37,18 +38,23 @@ function consecutiveBlock(userId,state,now){
   const retryAfter=Math.ceil(CONSECUTIVE_BLOCK_MS/1000);
   state.blockedUntil=now+CONSECUTIVE_BLOCK_MS;
   state.count=0;
-  state.prevCount=0;
-  state.highStreak=0;
+  state.history=[];
   state.hourStart=now;
-  console.warn(`[premium-guard] consecutive quota abuse blocked userId=${userId} retryAfter=${retryAfter}`);
+  console.warn(`[premium-guard] cumulative quota abuse blocked userId=${userId} retryAfter=${retryAfter}`);
   return {code:'consecutive-quota-abuse',retryAfter};
+}
+
+function tailSum(history,count){
+  let total=0;
+  for(let i=Math.max(0,history.length-count);i<history.length;i++)total+=history[i];
+  return total;
 }
 
 function checkHourlyQuota(userId,now,weight){
   let state=quotaState.get(userId);
   if(!state){
     pruneOldest(quotaState);
-    state={hourStart:now,count:0,prevCount:0,highStreak:0,blockedUntil:0};
+    state={hourStart:now,count:0,history:[],blockedUntil:0};
     quotaState.set(userId,state);
   }
   if(state.blockedUntil>now){
@@ -57,18 +63,25 @@ function checkHourlyQuota(userId,now,weight){
   if(now-state.hourStart>=HOUR_MS){
     // 한 시간 넘게 완전히 쉬었다면 연속 사용으로 보지 않는다.
     const idleFullWindow=now-state.hourStart>=2*HOUR_MS;
-    state.prevCount=idleFullWindow?0:state.count;
+    if(idleFullWindow)state.history=[];
+    else{
+      state.history.push(state.count);
+      if(state.history.length>3)state.history.shift();
+    }
     state.hourStart=now;
     state.count=0;
-    state.highStreak=idleFullWindow?0:(state.prevCount>=CONSECUTIVE_THRESHOLD?state.highStreak+1:0);
-    if(state.highStreak>=2)return consecutiveBlock(userId,state,now);
+    if(state.history.length>=2&&tailSum(state.history,2)>=TWO_HOUR_SUM_THRESHOLD)return consecutiveBlock(userId,state,now);
+    if(state.history.length>=3&&tailSum(state.history,3)>=THREE_HOUR_SUM_THRESHOLD)return consecutiveBlock(userId,state,now);
   }
-  // 첫 시간에 이어 두 번째 시간도 임계치를 모두 소진하면 즉시 차단한다.
-  if(state.prevCount>=CONSECUTIVE_THRESHOLD&&state.count>=CONSECUTIVE_THRESHOLD)return consecutiveBlock(userId,state,now);
   if(state.count>=HOURLY_QUOTA){
     return {code:'premium-quota-exceeded',retryAfter:Math.max(1,Math.ceil((state.hourStart+HOUR_MS-now)/1000))};
   }
-  state.count+=weight;
+  const nextCount=state.count+weight;
+  // 직전 완료 시간 + 현재 시간 합계가 1,000 이상이면 차단 (예: 500 + 500)
+  if(state.history.length>=1&&state.history[state.history.length-1]+nextCount>=TWO_HOUR_SUM_THRESHOLD)return consecutiveBlock(userId,state,now);
+  // 최근 2개 완료 시간 + 현재 시간 합계가 1,000 이상이면 차단 (예: 400 + 400 + 200)
+  if(state.history.length>=2&&tailSum(state.history,2)+nextCount>=THREE_HOUR_SUM_THRESHOLD)return consecutiveBlock(userId,state,now);
+  state.count=nextCount;
   return null;
 }
 
@@ -126,7 +139,7 @@ export function checkPremiumAccess({userId,path,url,now=Date.now()}){
   const quota=checkHourlyQuota(userId,now,requestWeight(path,parsed));
   if(quota){
     if(quota.code==='consecutive-quota-abuse'){
-      return {ok:false,status:429,code:quota.code,message:'2시간 연속 조회 한도를 모두 소진해 일시 차단되었습니다.',retryAfter:quota.retryAfter};
+      return {ok:false,status:429,code:quota.code,message:'2~3시간 연속 누적 한도를 초과해 일시 차단되었습니다.',retryAfter:quota.retryAfter};
     }
     return {ok:false,status:429,code:quota.code,message:'시간당 조회 한도를 초과했습니다. 잠시 후 다시 시도해 주세요.',retryAfter:quota.retryAfter};
   }
