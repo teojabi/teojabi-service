@@ -18,6 +18,9 @@ jobs:
       - name: Checkout source
         uses: actions/checkout@v4
 
+      - name: Prepare hidden snapshot
+        run: cp beta-service/.local/curation-hidden.json beta-service/.local/supabase/curation-hidden.json
+
       - name: Package beta data service
         run: tar -czf beta-service-deploy.tgz -C beta-service .
 

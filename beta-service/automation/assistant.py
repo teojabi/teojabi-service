@@ -302,7 +302,7 @@ def build_where(filters, station, commercial=None):
     if kind == 'land':
         where.append("n.\"주용도코드명\"='토지'")
     elif kind == 'building':
-        where.append("n.\"주용도코드명\"<>'토지'")
+        where.append("COALESCE(n.\"주용도코드명\",'')<>'토지'")
     keyword = clean(filters.get('q'), 40)
     if keyword:
         where.append('(n."대지위치" ILIKE %s OR n."동" ILIKE %s OR n."매물번호"=%s OR n."주용도코드명" ILIKE %s)')
