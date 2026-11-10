@@ -19,7 +19,13 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Prepare hidden snapshot
-        run: cp beta-service/.local/curation-hidden.json beta-service/.local/supabase/curation-hidden.json
+        run: |
+          mkdir -p beta-service/.local/supabase
+          if [ -f beta-service/.local/curation-hidden.json ]; then
+            cp beta-service/.local/curation-hidden.json beta-service/.local/supabase/curation-hidden.json
+          else
+            echo '{"ids":[]}' > beta-service/.local/supabase/curation-hidden.json
+          fi
 
       - name: Package beta data service
         run: tar -czf beta-service-deploy.tgz -C beta-service .
