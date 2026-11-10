@@ -106,7 +106,7 @@ export function browseCatalog(catalog, query) {
   if (budget!==null && (!Number.isSafeInteger(budget)||budget<=0) || minArea!==null && (!Number.isFinite(minArea)||minArea<=0)) return {status:'invalid'};
   if (budget!==null && !catalog.priceUnitConfirmed) return {status:'unavailable',reason:'PRICE_UNIT_UNCONFIRMED'};
   let bounds;
-  try {bounds=parseBounds(query.get('bounds'));} catch {return {status:'invalid'};}
+  try {bounds=parseBounds(query.get('bounds'));} catch {bounds=null;}
   const sort=query.get('sort')||'price';
   if (!['price','price-desc','area'].includes(sort)) return {status:'invalid'};
   const pref=parsePref(query.get('pref'));

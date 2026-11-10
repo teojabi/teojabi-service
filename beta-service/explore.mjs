@@ -400,7 +400,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     $('.search-suggestions').replaceChildren();
     try {
       const response=await apiFetch(`/api/catalog?${params}`,{signal:abort.signal});
-      const data=await response.json();if(!response.ok || data.status!=='ready')throw new Error(data.reason||'unavailable');
+      const data=await response.json();if(!response.ok || data.status!=='ready')throw new Error(data.status==='invalid'?'INVALID_CONDITION':data.reason||'unavailable');
       const merged=await fetchConditionAuctions();
       if(disposed||current!==version)return;
       if(merged){data.groups=mixAssistantGroups([...(data.groups||[]),...merged.groups]);data.auctionTotal=merged.total;}
@@ -411,7 +411,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
       if(disposed||current!==version)return;
       result=null;map.setGroups([],null,false);closeDetail(false);
       $('#result-count').textContent='매물 자료를 확인하지 못했어요.';
-      $('#listing-list').innerHTML=`<div class="empty"><h2>${error.message==='PRICE_UNIT_UNCONFIRMED'?'가격 단위를 확인하고 있어요.':error.message==='ZONING_UNAVAILABLE'?'용도지역 자료 연결을 확인해 주세요.':error.message==='DEVELOPMENT_UNAVAILABLE'?'신축 조건에 사용할 도로·구역 자료를 확인해 주세요.':'로컬 매물 연결을 확인해 주세요.'}</h2><p>연결 실패를 검색 결과 0건으로 표시하지 않습니다.</p><button class="outline" data-explore="retry">다시 불러오기</button></div>`;
+      $('#listing-list').innerHTML=`<div class="empty"><h2>${error.message==='PRICE_UNIT_UNCONFIRMED'?'가격 단위를 확인하고 있어요.':error.message==='ZONING_UNAVAILABLE'?'용도지역 자료 연결을 확인해 주세요.':error.message==='DEVELOPMENT_UNAVAILABLE'?'신축 조건에 사용할 도로·구역 자료를 확인해 주세요.':error.message==='INVALID_CONDITION'?'검색 조건을 확인해 주세요.':'로컬 매물 연결을 확인해 주세요.'}</h2><p>연결 실패를 검색 결과 0건으로 표시하지 않습니다.</p><button class="outline" data-explore="retry">다시 불러오기</button></div>`;
       $('[data-explore="more"]').hidden=true;
     } finally {if(!disposed&&current===version)$('.explore-list').removeAttribute('aria-busy');}
   }

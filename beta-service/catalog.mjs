@@ -113,7 +113,7 @@ export function browseCatalog(catalog, query) {
   if (budget!==null && (!Number.isSafeInteger(budget)||budget<=0) || minArea!==null && (!Number.isFinite(minArea)||minArea<=0)) return {status:'invalid'};
   if (budget!==null && !catalog.priceUnitConfirmed) return {status:'unavailable',reason:'PRICE_UNIT_UNCONFIRMED'};
   let bounds;
-  try {bounds=parseBounds(query.get('bounds'));} catch {return {status:'invalid'};}
+  try {bounds=parseBounds(query.get('bounds'));} catch {bounds=null;}
   const sort=query.get('sort')||'price';
   if (!['price','price-desc','area','ppp'].includes(sort)) return {status:'invalid'};
   // 역에서 거리(직선) 조건: 역 좌표는 serve에서 확인해 catalog.station에 담아 넘긴다.
