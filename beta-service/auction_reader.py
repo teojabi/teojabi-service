@@ -123,6 +123,7 @@ def _where(payload):
                   if value in ('whole', 'floor', 'unit', 'land')][:4]
     sale_kind = (payload.get('saleKind') or '').strip().lower() or None
     gus = _usage_list(payload.get('gu'))
+    dongs = _usage_list(payload.get('dong'))
     q = _text(payload.get('q'), 60)
     kind = (payload.get('kind') or '').strip().lower() or None
     usages = _usage_list(payload.get('usage'))
@@ -139,6 +140,9 @@ def _where(payload):
     if gus:
         where.append('sigu = ANY(%(gus)s)')
         params['gus'] = gus
+    if dongs:
+        where.append('dong = ANY(%(dongs)s)')
+        params['dongs'] = dongs
     if usages:
         clauses = []
         for index, token in enumerate(usages[:6]):

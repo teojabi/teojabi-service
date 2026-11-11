@@ -98,6 +98,7 @@ def _where(payload):
     where = ['cltr_mng_no IS NOT NULL']
     params = {}
     gus = _tokens(payload.get('gu'))
+    dongs = _tokens(payload.get('dong'))
     usages = _tokens(payload.get('usage'))
     zones = _tokens(payload.get('zone'))
     q = _text(payload.get('q'), 60)
@@ -119,6 +120,9 @@ def _where(payload):
     if gus:
         where.append('sigu = ANY(%(gus)s)')
         params['gus'] = gus
+    if dongs:
+        where.append('dong = ANY(%(dongs)s)')
+        params['dongs'] = dongs
     if usages:
         clauses = []
         for index, token in enumerate(usages[:6]):

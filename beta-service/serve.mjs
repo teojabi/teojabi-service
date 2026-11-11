@@ -557,15 +557,16 @@ createServer(async (request, response) => {
           const wantCourt=source==='court'||source==='both',wantOnbid=source==='onbid'||source==='both';
           const auctionOnly=/경매|공매|법원|온비드/.test(message);
           const listingFilters={...parsed.filters};delete listingFilters.auction;
+          const dongs=[...(parsed.filters.neighborhoods||[]),...(parsed.filters.neighborhood?[parsed.filters.neighborhood]:[])];
           const listingPromise=(!auctionOnly&&hasMeaningfulFilters(listingFilters))?runAssistantCached(listingFilters).catch(()=>null):Promise.resolve(null);
           const courtPromise=wantCourt
-            ?auctionRead('list',JSON.stringify({gu:parsed.filters.districts||[],kind:parsed.filters.kind||'',usage:a.usages||[],
+            ?auctionRead('list',JSON.stringify({gu:parsed.filters.districts||[],dong:dongs,kind:parsed.filters.kind||'',usage:a.usages||[],
               zone:parsed.filters.zones||[],dealTypes:'whole,land',excludeEducation:parsed.filters.excludeEducation?1:'',excludeHeritage:parsed.filters.excludeHeritage?1:'',
               minArea:parsed.filters.minAreaM2||'',maxArea:parsed.filters.maxAreaM2||'',
               q:parsed.filters.q||'',maxPrice:a.maxPriceWon||'',maxBidRate:a.maxBidRate||'',maxFail:a.failMax||'',dealType:a.dealType||'',saleKind:a.saleKind||'',sort:'sale',size:60})).catch(()=>null)
             :Promise.resolve(null);
           const onbidPromise=wantOnbid
-            ?onbidRead('list',JSON.stringify({gu:parsed.filters.districts||[],usage:a.usages||[],
+            ?onbidRead('list',JSON.stringify({gu:parsed.filters.districts||[],dong:dongs,usage:a.usages||[],
               zone:parsed.filters.zones||[],dealTypes:'whole,land',excludeEducation:parsed.filters.excludeEducation?1:'',excludeHeritage:parsed.filters.excludeHeritage?1:'',
               q:parsed.filters.q||'',maxPrice:a.maxPriceWon||'',dealType:a.dealType||'',sort:'bid',size:60,
               minArea:parsed.filters.minAreaM2||'',maxArea:parsed.filters.maxAreaM2||''})).catch(()=>null)
