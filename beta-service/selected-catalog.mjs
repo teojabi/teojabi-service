@@ -44,7 +44,7 @@ const pickAnalysis=value=>{if(!value||typeof value!=='object')return null;
   return analysis||images.length?{analysis,images}:null;};
 
 export function selectedCatalog(snapshot,zoningSnapshot,developmentSnapshot) {
-  if(snapshot?.source!=='selected-preview-v1'||!Array.isArray(snapshot.rows)||!snapshot.rows.length)throw new Error('Selected inventory unavailable');
+  if(snapshot?.source!=='selected-preview-v1'||!Array.isArray(snapshot.rows))throw new Error('Selected inventory unavailable');
   const zoning=buildZoningIndex(zoningSnapshot),development=buildDevelopmentIndex(developmentSnapshot);
   const rows=[],seen=new Set();
   for(const item of snapshot.rows) {
