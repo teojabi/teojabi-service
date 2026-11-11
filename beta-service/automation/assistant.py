@@ -324,8 +324,8 @@ def build_where(filters, station, commercial=None):
         params.append(road)
     purpose = filters.get('purpose')
     if purpose == 'new-build':
-        # 디스코·터잡이 추천 매물은 사용승인일이 없어 노후 여부를 알 수 없으므로 신축 검토에서 제외하지 않는다.
-        where.append("(n.source_kind IN ('disco','premium') OR (COALESCE(n.\"사용승인일자\",'') <> '' AND n.\"사용승인일자\" < '2000-01-01'))")
+        # 사용승인일이 없어 노후 여부를 알 수 없는 매물은 신축 검토에서 제외하지 않는다.
+        where.append("(n.source_kind IN ('disco','premium') OR COALESCE(n.\"사용승인일자\",'') = '' OR n.\"사용승인일자\" < '2000-01-01')")
     if station:
         max_distance = number(filters.get('maxDistanceM'))
         if max_distance:
