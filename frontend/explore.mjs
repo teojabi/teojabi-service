@@ -471,7 +471,9 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     }});
   };
   quickFilters=mountQuickFilters($('.quick-filters'),{getValue:currentConditions,onChange:patch=>{
-    conditions={...conditions,...patch};criteria={...criteria,...patch};updateCriteria();
+    conditions={...conditions,...patch};criteria={...criteria,...patch};
+    if('districts' in patch||'neighborhoods' in patch)bounds=null;
+    updateCriteria();
     if(source==='auction'){syncAuctionFiltersFromCondition();mountAuctionUi();}
     ++version;limit=5;closeDetail(true,false);clearTimeout(loadTimer);
     $('.search-suggestions').replaceChildren();

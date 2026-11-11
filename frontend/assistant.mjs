@@ -481,6 +481,9 @@ let lastSearchUsedSaved = false;
       const prev = getCondition() || {};
       const next = { ...prev };
       for (const key of editorKeys) { if (lastFilters && key in lastFilters) next[key] = lastFilters[key]; else delete next[key]; }
+      const before = (prev.districts || []).slice().sort().join('|');
+      const after = (next.districts || []).slice().sort().join('|');
+      if (before !== after) delete next.neighborhoods;
       setCondition(next);
       openEditorUi();
     };
