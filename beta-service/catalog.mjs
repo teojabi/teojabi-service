@@ -1,5 +1,5 @@
 import { DISTRICTS, toWon } from './policy.mjs';
-import { validateExtraCriteria } from './search-options.mjs';
+import { validateExtraCriteria, ZONING_OPTIONS } from './search-options.mjs';
 import { buildZoningIndex } from './zoning.mjs';
 import { buildCriteriaFromQuery } from './build-criteria.mjs';
 import { buildDevelopmentIndex, matchesDevelopment, tourismRank } from './development-policy.mjs';
@@ -95,36 +95,37 @@ export function browseCatalog(catalog, query) {
     requestedIds=idsParam.split(',').filter(Boolean);
     if(!requestedIds.length||requestedIds.length>100||requestedIds.some(id=>!/^(?:(?:naver|naver-land):\d{1,30}|premium:[a-f0-9-]{36})$/.test(id)))return {status:'invalid'};
   }
-  const districts=query.getAll('district');
-  if (districts.some(d=>!DISTRICTS.includes(d))) return {status:'invalid'};
-  const neighborhoods=query.getAll('neighborhood');
-  if (neighborhoods.some(n=>!n.trim()||n.length>20)) return {status:'invalid'};
-  const budget=query.has('budgetWon')?Number(query.get('budgetWon')):null;
-  const minArea=query.has('minAreaM2')?Number(query.get('minAreaM2')):null;
-  const maxArea=query.has('maxAreaM2')?Number(query.get('maxAreaM2')):null;
-  const extra=validateExtraCriteria({minAreaM2:minArea,maxAreaM2:maxArea,purpose:query.get('purpose'),zones:query.getAll('zone'),...buildCriteriaFromQuery(query)});
+  const districts=query.getAll('district').filter(d=>DISTRICTS.includes(d));
+  const neighborhoods=query.getAll('neighborhood').filter(n=>n.trim()&&n.length<=20);
+  let budget=query.has('budgetWon')?Number(query.get('budgetWon')):null;
+  if(budget!==null&&(!Number.isSafeInteger(budget)||budget<=0))budget=null;
+  let minArea=query.has('minAreaM2')?Number(query.get('minAreaM2')):null;
+  let maxArea=query.has('maxAreaM2')?Number(query.get('maxAreaM2')):null;
+  if(minArea!==null&&(!Number.isFinite(minArea)||minArea<=0))minArea=null;
+  if(maxArea!==null&&(!Number.isFinite(maxArea)||maxArea<=0))maxArea=null;
+  const zoneList=query.getAll('zone').filter(z=>ZONING_OPTIONS.includes(z));
+  const extra=validateExtraCriteria({minAreaM2:minArea,maxAreaM2:maxArea,purpose:query.get('purpose'),zones:zoneList,...buildCriteriaFromQuery(query)});
   if(!extra.ok)return {status:'invalid'};
   const {zones,purpose}=extra.value;
   const build=extra.value;
   if((build.preferTourism||build.minRoadWidthM||build.excludeEducation||build.excludeHeritage)&&!catalog.developmentAvailable)return {status:'unavailable',reason:'DEVELOPMENT_UNAVAILABLE'};
   if(zones.length&&!catalog.zoningAvailable)return {status:'unavailable',reason:'ZONING_UNAVAILABLE'};
-  if (budget!==null && (!Number.isSafeInteger(budget)||budget<=0) || minArea!==null && (!Number.isFinite(minArea)||minArea<=0)) return {status:'invalid'};
   if (budget!==null && !catalog.priceUnitConfirmed) return {status:'unavailable',reason:'PRICE_UNIT_UNCONFIRMED'};
   let bounds;
   try {bounds=parseBounds(query.get('bounds'));} catch {bounds=null;}
-  const sort=query.get('sort')||'price';
-  if (!['price','price-desc','area','ppp'].includes(sort)) return {status:'invalid'};
+  const requestedSort=query.get('sort');
+  const sort=['price','price-desc','area','ppp'].includes(requestedSort)?requestedSort:'price';
   // 역에서 거리(직선) 조건: 역 좌표는 serve에서 확인해 catalog.station에 담아 넘긴다.
   const station=catalog.station&&typeof catalog.station==='object'&&Number.isFinite(catalog.station.lat)&&Number.isFinite(catalog.station.lng)?catalog.station:null;
   let maxDistanceM=query.has('maxDistanceM')?Number(query.get('maxDistanceM')):null;
-  if(maxDistanceM!==null&&(!Number.isFinite(maxDistanceM)||maxDistanceM<=0||maxDistanceM>5000))return {status:'invalid'};
+  if(maxDistanceM!==null&&(!Number.isFinite(maxDistanceM)||maxDistanceM<=0||maxDistanceM>5000))maxDistanceM=null;
   if(station&&maxDistanceM===null)maxDistanceM=500;
   const pref=parsePref(query.get('pref'));
   const maxLimit=requestedIds?100:catalog.mode==='selected-preview'?500:20;
   const limit=requestedIds?maxLimit:Math.min(maxLimit,Math.max(5,Math.floor(Number(query.get('limit')))||5));
   const keyword=text(query.get('q'),100).toLocaleLowerCase('ko-KR');
-  const cohort=query.get('cohort');
-  if(cohort&&!['existing','curated'].includes(cohort))return {status:'invalid'};
+  const requestedCohort=query.get('cohort');
+  const cohort=['existing','curated'].includes(requestedCohort)?requestedCohort:null;
   const wanted=requestedIds?new Set(requestedIds):null;
   let rows=(wanted?catalog.rows.filter(row=>wanted.has(row.id)):catalog.rows.filter(row=>!excludedIds.has(row.id)&&(!districts.length||districts.includes(row.district)) &&
     (!neighborhoods.length||neighborhoods.includes(row.neighborhood)) &&
