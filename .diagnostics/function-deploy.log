@@ -1,0 +1,51 @@
+=== deploy auction ===
+Warning: --project-ref is deprecated and will be removed in v4. Use --remote=<ref> instead
+Target: project tvrfrgozfoiucoeojrta
+Confirmed by --yes: Deploy 1 Function on project tvrfrgozfoiucoeojrta
+Bundling Function: auction
+v1.78.1: Pulling from supabase/edge-runtime
+c7052810510b: Pulling fs layer
+f8514b363eb6: Pulling fs layer
+0abf6ab9329c: Pulling fs layer
+500adcb45032: Pulling fs layer
+8020f5d96ea2: Pulling fs layer
+dd051e1b8c92: Pulling fs layer
+44136fa355b3: Already exists
+6531567e985e: Download complete
+500adcb45032: Download complete
+f8514b363eb6: Download complete
+dd051e1b8c92: Download complete
+c7052810510b: Download complete
+0abf6ab9329c: Download complete
+8020f5d96ea2: Download complete
+dd051e1b8c92: Pull complete
+c7052810510b: Pull complete
+500adcb45032: Pull complete
+0abf6ab9329c: Pull complete
+8020f5d96ea2: Pull complete
+f8514b363eb6: Pull complete
+Digest: sha256:362e9177660ae4d3affb6978480cc6161a8ea0764f1c2c7f738348eda1c3fbf2
+Status: Downloaded newer image for public.ecr.aws/supabase/edge-runtime:v1.78.1
+public.ecr.aws/supabase/edge-runtime:v1.78.1
+No change found in Function: auction
+Deployed Functions on project tvrfrgozfoiucoeojrta: auction
+You can inspect your deployment in the Dashboard: https://supabase.com/dashboard/project/tvrfrgozfoiucoeojrta/functions
+auction_exit=0
+=== deploy onbid ===
+Warning: --project-ref is deprecated and will be removed in v4. Use --remote=<ref> instead
+Target: project Teojabi service (tvrfrgozfoiucoeojrta) · production
+Confirmed by --yes: Deploy 1 Function on project Teojabi service (tvrfrgozfoiucoeojrta) · production
+Bundling Function: onbid
+No change found in Function: onbid
+Deployed Functions on project tvrfrgozfoiucoeojrta: onbid
+You can inspect your deployment in the Dashboard: https://supabase.com/dashboard/project/tvrfrgozfoiucoeojrta/functions
+onbid_exit=0
+=== deploy data ===
+Warning: --project-ref is deprecated and will be removed in v4. Use --remote=<ref> instead
+Target: project Teojabi service (tvrfrgozfoiucoeojrta) · production
+Confirmed by --yes: Deploy 1 Function on project Teojabi service (tvrfrgozfoiucoeojrta) · production
+Bundling Function: data
+Deploying Function: data (script size: 108 kB)
+Deployed Functions on project tvrfrgozfoiucoeojrta: data
+You can inspect your deployment in the Dashboard: https://supabase.com/dashboard/project/tvrfrgozfoiucoeojrta/functions
+data_exit=0
