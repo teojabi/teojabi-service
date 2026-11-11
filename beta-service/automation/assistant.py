@@ -298,6 +298,10 @@ def build_where(filters, station, commercial=None):
     if neighborhood:
         where.append('n."동" ILIKE %s')
         params.append(neighborhood)
+    neighborhoods = [n for n in (filters.get('neighborhoods') or []) if clean(n, 20)]
+    if neighborhoods:
+        where.append('n."동" = ANY(%s)')
+        params.append(neighborhoods)
     kind = filters.get('kind')
     if kind == 'land':
         where.append("n.\"주용도코드명\"='토지'")

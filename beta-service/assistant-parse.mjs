@@ -239,6 +239,10 @@ export function sanitize(raw) {
   }
   if (typeof raw.q === 'string' && raw.q.trim()) out.q = raw.q.trim().slice(0, 40);
   if (typeof raw.neighborhood === 'string' && raw.neighborhood.trim()) out.neighborhood = raw.neighborhood.trim().slice(0, 12);
+  if (Array.isArray(raw.neighborhoods)) {
+    const list = raw.neighborhoods.filter(n => typeof n === 'string' && n.trim()).map(n => n.trim().slice(0, 20));
+    if (list.length) out.neighborhoods = [...new Set(list)].slice(0, 10);
+  }
   for (const [key, max] of [['budgetWon', 1e15], ['minAreaM2', 1e7], ['maxAreaM2', 1e7], ['maxDistanceM', 3000], ['minRoadWidthM', 100]]) {
     const value = Number(raw[key]);
     if (Number.isFinite(value) && value > 0 && value <= max) out[key] = Math.round(value * 100) / 100;
@@ -443,6 +447,7 @@ export function describe(filters) {
   if (filters.districts?.length) parts.push(filters.districts.join('·'));
   else if (filters.q) parts.push(filters.q);
   if (filters.neighborhood) parts.push(filters.neighborhood);
+  else if (filters.neighborhoods?.length) parts.push(filters.neighborhoods.join('·'));
   if (filters.stationName) parts.push(`${filters.stationName}역${filters.maxDistanceM ? ` ${filters.maxDistanceM}m 이내` : ''}`);
   if (filters.budgetWon) parts.push(`${(filters.budgetWon / 1e8).toLocaleString('ko-KR')}억 이하`);
   if (filters.kind === 'land') parts.push('토지'); else if (filters.kind === 'building') parts.push('건물');
@@ -474,6 +479,7 @@ export function chipList(filters) {
   if (filters.auction?.maxBidRate) chips.push({ key: 'auctionMaxBidRate', value: filters.auction.maxBidRate, label: `최저가율 ${filters.auction.maxBidRate}% 이하`, kind: 'value' });
   (filters.districts || []).forEach(d => chips.push({ key: 'districts', value: d, label: d, kind: 'list' }));
   if (filters.neighborhood) chips.push({ key: 'neighborhood', value: filters.neighborhood, label: filters.neighborhood, kind: 'value' });
+  (filters.neighborhoods || []).forEach(n => chips.push({ key: 'neighborhoods', value: n, label: n, kind: 'list' }));
   (filters.zones || []).forEach(z => chips.push({ key: 'zones', value: z, label: z, kind: 'list' }));
   if (filters.stationName) chips.push({ key: 'stationName', value: filters.stationName, label: `${filters.stationName}역`, kind: 'value' });
   if (filters.maxDistanceM) chips.push({ key: 'maxDistanceM', value: filters.maxDistanceM, label: `${filters.maxDistanceM}m 이내`, kind: 'value' });
@@ -625,6 +631,7 @@ export async function parseAssistant(message, condition, geminiKey, editedFilter
     }
   }
   const filters = sanitize(merged); filters.limit = 60;
+  if (filters.neighborhood) delete filters.neighborhoods;
   // 규칙이 잡은 신축 공간 조건은 Gemini 응답이 덮어써도 보존한다(공간 안내에 필요).
   for (const key of SPATIAL_KEYS) if (spoken[key]) filters[key] = true;
   return { filters, unsupported, source, conflicts: conflicts(spoken, saved), reply };
