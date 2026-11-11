@@ -87,9 +87,7 @@ export function parseBounds(value) {
   return {west,south,east,north};
 }
 export function browseCatalog(catalog, query) {
-  const excluded=query.getAll('exclude');
-  if(excluded.length>500||excluded.some(id=>!/^(?:(?:naver|naver-land):\d{1,30}|premium:[a-f0-9-]{36})$/.test(id)))return {status:'invalid'};
-  const excludedIds=new Set(excluded);
+  const excludedIds=new Set(query.getAll('exclude').filter(id=>/^(?:(?:naver|naver-land):\d{1,30}|premium:[a-f0-9-]{36})$/.test(id)).slice(0,500));
   // A favorites request asks for exact saved listing ids; other filters are ignored for it.
   const idsParam=query.get('ids');
   let requestedIds=null;
