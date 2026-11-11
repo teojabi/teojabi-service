@@ -14,9 +14,6 @@ export function sourceLabel(a) {
 export function specialLabel(a) {
   const flag = a.meta?.special;
   if (flag === 'discovery') return '아직 안 보신 매물';
-  if (flag === 'exception') return '예외 추천';
-  const d = String(a.detail || '');
-  if (d.includes('조건 지역은 아니지만') || d.includes('조건 예산') || d.includes('조건 면적')) return '예외 추천';
   return null;
 }
 export const labelOf = a => specialLabel(a) || (a.origin === 'condition' ? sourceLabel(a) : (a.kindLabel || ''));
