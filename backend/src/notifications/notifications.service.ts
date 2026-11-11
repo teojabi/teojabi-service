@@ -567,8 +567,16 @@ export class NotificationsService {
         });
         if (!mailReady || !preferences.email || !user.email) continue;
         // 아직 메일로 안 보낸 항목만 담는다(이메일 발송과 앱 읽음은 분리). 한 번에 너무 많지 않게 상한을 둔다.
-        const unread = inbox.items.filter((item) => !item.emailed).slice(0, 15);
-        if (!unread.length) continue;
+        const unreadAll = inbox.items.filter((item) => !item.emailed);
+        if (!unreadAll.length) continue;
+        const newListings = unreadAll.filter((item: any) => item.type === 'listing' && !item.meta?.special);
+        const newAuctions = unreadAll.filter((item: any) => item.type === 'auction' || item.type === 'onbid');
+        if (!newListings.length && !newAuctions.length) {
+          await this.markEmailed(user.userId, unreadAll.map((item: any) => item.key).filter(Boolean));
+          continue;
+        }
+        const unread = [...newListings, ...newAuctions, ...unreadAll.filter((item) => !newListings.includes(item) && !newAuctions.includes(item))].slice(0, 15);
+        const newListingCount = unread.filter((item: any) => item.type === 'listing' && !item.meta?.special).length;
         const dedupeKey = `email:${user.userId}:${today}`;
         const inserted = await this.prisma.$executeRaw`
           INSERT INTO public.notification_delivery(user_id,dedupe_key,channel,item_count,status)
@@ -578,7 +586,6 @@ export class NotificationsService {
         const summaries = await this.conditionSummaryMap(user.userId);
         // 신규 매물과 '아직 안 보신 매물(discovery)·예외 추천(exception)'을 구분해,
         // 제목만 봐도 새 매물이 있었는지 알 수 있게 한다.
-        const newListingCount = unread.filter((item: any) => item.type === 'listing' && !item.meta?.special).length;
         const auctionCount = unread.filter((item: any) => item.type === 'auction' || item.type === 'onbid').length;
         const discoveryCount = unread.filter((item: any) => item.type === 'listing' && item.meta?.special).length;
         const noticeCount = unread.filter((item: any) => item.type === 'notice').length;
