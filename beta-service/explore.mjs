@@ -389,7 +389,7 @@ export function mountExplorer(root,{conditions,onEdit,onConditionsChange,onAnaly
     if(source==='favorites')return loadFavorites({fit});
     if(source==='auction')return loadAuctions({fit});
     quickFilters.setRemembered(onConditionsChange?.(currentConditions())!==false);
-    const current=++version;const params=new URLSearchParams({limit,sort});if(picksOnlyMode)params.set('cohort','existing');
+    const current=++version;const params=new URLSearchParams({limit,sort});if(picksOnlyMode||source==='conditions')params.set('cohort','existing');
     if(conditions?.budgetWon)params.set('budgetWon',conditions.budgetWon);conditions?.districts?.forEach(d=>params.append('district',d));conditions?.neighborhoods?.forEach(n=>params.append('neighborhood',n));
     if(criteria.purpose)params.set('purpose',criteria.purpose);
     appendBuildQuery(params,criteria);
