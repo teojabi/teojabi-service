@@ -222,6 +222,17 @@ export class NotificationsService {
         AND coalesce(meta->>'special','') <> 'exception'
       ORDER BY (read_at IS NULL) DESC, score DESC NULLS LAST, event_date ASC NULLS LAST, created_at DESC
       LIMIT 60`;
+    const conditionRows = await this.prisma.$queryRaw<Array<{ name: string | null; zones: any }>>`
+      SELECT COALESCE(payload->>'name','저장 조건') AS name, payload->'zones' AS zones
+      FROM public.discovery_item
+      WHERE user_id=${userId} AND kind='condition' AND COALESCE(payload->>'alerts','true') <> 'false'`;
+    const conditionZones = new Map<string, string[]>();
+    for (const row of conditionRows) {
+      const zones = Array.isArray(row.zones) ? row.zones.filter((zone: any) => typeof zone === 'string') : [];
+      if (!zones.length) continue;
+      const name = String(row.name || '저장 조건');
+      conditionZones.set(name, [...new Set([...(conditionZones.get(name) || []), ...zones])]);
+    }
     const items = rows.map((row) => ({
       type: row.kind as Alert['type'],
       key: row.key,
@@ -235,7 +246,14 @@ export class NotificationsService {
       score: row.score == null ? null : Number(row.score),
       read: row.readAt != null,
       emailed: row.emailedAt != null,
-    }));
+    })).filter((item) => {
+      if (item.type !== 'listing') return true;
+      const zones = conditionZones.get(String(item.conditionName || '')) || [];
+      if (!zones.length) return true;
+      const zone = String(item.meta?.features?.zone || '');
+      if (!zone) return false;
+      return zones.some((value) => zone.includes(String(value).replace('지역', '')));
+    });
     const unreadCount = items.filter((item) => !item.read).length;
     // 조건별 최근 30일 알림 건수. 알림이 많은 조건에 조정 안내를 보여주기 위한 참고값.
     const stats = await this.prisma.$queryRaw<Array<{ name: string | null; count: bigint }>>`
@@ -548,16 +566,24 @@ export class NotificationsService {
     const mailReady = this.mail.isConfigured();
     if (!mailReady) this.logger.warn('Email digest: mail not configured; syncing inboxes only.');
     // 메일 수신 여부와 무관하게 모든 회원의 알림함을 갱신한다(인박스 최신 유지).
-    const users = await this.prisma.$queryRaw<Array<{ userId: string; email: string | null }>>`
-      SELECT id AS "userId", email FROM public."user"`;
+    const users = await this.prisma.$queryRaw<Array<{ userId: string; email: string | null; role: string | null }>>`
+      SELECT id AS "userId", email, role FROM public."user"`;
     // 저장 조건(알림 켠 것) 또는 찜이 있는 회원에게 알린다. (찜만 있어도 찜 마감 알림은 받음)
     const activeRows = await this.prisma.$queryRaw<Array<{ userId: string }>>`
       SELECT DISTINCT user_id AS "userId" FROM public.discovery_item
       WHERE (kind='condition' AND COALESCE(payload->>'alerts','true') <> 'false') OR kind='favorite'`;
     const hasAlerts = new Set(activeRows.map((r) => r.userId));
+    const roleRank: Record<string, number> = { ADMIN: 4, PREMIUM_PLUS: 3, PREMIUM_BASIC: 2, USER: 1 };
+    const byEmail = new Map<string, { userId: string; email: string | null; role: string | null }>();
+    for (const user of users) {
+      const key = String(user.email || '').trim().toLowerCase();
+      if (!key) continue;
+      const previous = byEmail.get(key);
+      if (!previous || (roleRank[user.role || ''] || 0) > (roleRank[previous.role || ''] || 0)) byEmail.set(key, user);
+    }
     const today = this.date();
     let sent = 0;
-    for (const user of users) {
+    for (const user of byEmail.values()) {
       if (!hasAlerts.has(user.userId)) continue;
       try {
         const preferences = await this.getPreferences(user.userId);
@@ -575,7 +601,7 @@ export class NotificationsService {
           await this.markEmailed(user.userId, unreadAll.map((item: any) => item.key).filter(Boolean));
           continue;
         }
-        const unread = [...newListings, ...newAuctions, ...unreadAll.filter((item) => !newListings.includes(item) && !newAuctions.includes(item))].slice(0, 15);
+        const unread = [...newListings, ...newAuctions, ...unreadAll.filter((item) => item.type === 'notice')].slice(0, 15);
         const newListingCount = unread.filter((item: any) => item.type === 'listing' && !item.meta?.special).length;
         const dedupeKey = `email:${user.userId}:${today}`;
         const inserted = await this.prisma.$executeRaw`
